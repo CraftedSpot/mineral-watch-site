@@ -288,11 +288,35 @@
         // Render operator detail in modal
         function renderOperatorDetail(data) {
             const modalBody = document.getElementById('modalBody');
-            document.getElementById('modalOperatorName').textContent = data.operator_name;
-
             const summary = data.summary;
             const contact = data.contact;
 
+            // === HEADER: Name, operator number, status, gas profile ===
+            document.getElementById('modalOperatorName').innerHTML = escapeHtml(data.operator_name);
+
+            const metaEl = document.getElementById('modalOperatorMeta');
+            if (metaEl) {
+                let metaHtml = '';
+                metaHtml += `<span style="font-size: 14px; opacity: 0.9;">#${escapeHtml(data.operator_number)}</span>`;
+
+                if (data.status === 'OPEN') {
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: rgba(16,185,129,0.25); color: #d1fae5; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Active</span>`;
+                } else if (data.status === 'CLOSED') {
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: rgba(148,163,184,0.3); color: #e2e8f0; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Inactive</span>`;
+                }
+
+                if (data.gas_profile && data.gas_profile.label) {
+                    const gpLabel = data.gas_profile.label.includes('Lean') ? 'Primarily Gas' :
+                                    data.gas_profile.label.includes('Rich') ? 'Primarily Oil' : 'Mixed Portfolio';
+                    const gpColor = data.gas_profile.label.includes('Lean') ? 'rgba(59,130,246,0.3)' :
+                                    data.gas_profile.label.includes('Rich') ? 'rgba(245,158,11,0.3)' : 'rgba(148,163,184,0.3)';
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: ${gpColor}; color: white; padding: 2px 8px; border-radius: 4px;">${escapeHtml(gpLabel)}</span>`;
+                }
+
+                metaEl.innerHTML = metaHtml;
+            }
+
+            // === BODY: Summary Stats ===
             let html = `
                 <div class="modal-summary">
                     <div class="modal-stat">
@@ -308,20 +332,14 @@
                         <div class="modal-stat-label">Deduction Ratio</div>
                     </div>
                     <div class="modal-stat">
-                        <div class="modal-stat-value">${summary.ngl_recovery_ratio != null ? summary.ngl_recovery_ratio + '%' : 'N/A'}</div>
-                        <div class="modal-stat-label">NGL Recovery</div>
+                        <div class="modal-stat-value">${summary.pcrr != null ? summary.pcrr + '%' : 'N/A'}</div>
+                        <div class="modal-stat-label">PCRR</div>
                     </div>
                 </div>
             `;
 
-            // Contact info section
+            // === Contact Information (moved up) ===
             if (contact && (contact.phone || contact.address || contact.contact_name)) {
-                const statusBadge = contact.status === 'OPEN'
-                    ? '<span class="status-badge status-open">Active</span>'
-                    : contact.status === 'CLOSED'
-                        ? '<span class="status-badge status-closed">Inactive</span>'
-                        : '';
-
                 const addressParts = [contact.address, contact.city, contact.state, contact.zip].filter(Boolean);
                 const fullAddress = addressParts.length > 0
                     ? `${contact.address || ''}<br>${contact.city || ''}, ${contact.state || ''} ${contact.zip || ''}`.trim()
@@ -329,7 +347,7 @@
 
                 html += `
                     <div class="modal-section contact-section">
-                        <h3>Contact Information ${statusBadge}</h3>
+                        <h3>Contact Information</h3>
                         <div class="contact-grid">
                             ${contact.contact_name ? `
                                 <div class="contact-item">
@@ -340,7 +358,7 @@
                             ${contact.phone ? `
                                 <div class="contact-item">
                                     <span class="contact-label">Phone</span>
-                                    <a href="tel:${escapeHtml(contact.phone)}" class="contact-value contact-link">${escapeHtml(contact.phone)}</a>
+                                    <a href="tel:${escapeHtml(contact.phone)}" class="contact-value contact-link" style="color: #7c3aed;">${escapeHtml(contact.phone)}</a>
                                 </div>
                             ` : ''}
                             ${fullAddress ? `
@@ -354,7 +372,76 @@
                 `;
             }
 
-            // Monthly trend
+            // === Operational Health ===
+            if (data.production_health) {
+                const h = data.production_health;
+                const idleColor = getIdleRateColor(h.idleRatePct);
+                const declineColor = getDeclineColor(h.avgDecline);
+                const totalIdle = h.recentlyIdle + h.extendedIdle + h.longTermIdle;
+
+                html += `
+                    <div class="modal-section">
+                        <h3>Operational Health</h3>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Active</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: #10b981;">${formatNumber(h.activePuns)}</div>
+                            </div>
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Idle</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: ${idleColor};">${formatNumber(h.idlePuns)}</div>
+                            </div>
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Idle Rate</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: ${idleColor};">${h.idleRatePct}%</div>
+                            </div>
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Avg Decline</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: ${declineColor};">${h.avgDecline != null ? h.avgDecline + '%' : 'N/A'}</div>
+                            </div>
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Declining</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: #ef4444;">${formatNumber(h.decliningWells)}</div>
+                            </div>
+                            <div style="text-align: center; padding: 0.5rem; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                <div style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; margin-bottom: 0.25rem;">Growing</div>
+                                <div style="font-size: 1.1rem; font-weight: 700; color: #10b981;">${formatNumber(h.growingWells)}</div>
+                            </div>
+                        </div>
+                `;
+
+                if (totalIdle > 0) {
+                    const recentPct = Math.round(h.recentlyIdle / totalIdle * 100);
+                    const extPct = Math.round(h.extendedIdle / totalIdle * 100);
+                    const longPct = 100 - recentPct - extPct;
+                    html += `
+                        <div>
+                            <div style="font-size: 0.65rem; color: #64748b; margin-bottom: 0.375rem; text-transform: uppercase; letter-spacing: 0.5px;">Idle Breakdown (${formatNumber(totalIdle)} wells)</div>
+                            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #e5e7eb;">
+                                ${h.recentlyIdle > 0 ? `<div style="width: ${recentPct}%; background: #f59e0b;" title="Recently idle (3-6mo): ${h.recentlyIdle}"></div>` : ''}
+                                ${h.extendedIdle > 0 ? `<div style="width: ${extPct}%; background: #f97316;" title="Extended idle (6-12mo): ${h.extendedIdle}"></div>` : ''}
+                                ${h.longTermIdle > 0 ? `<div style="width: ${longPct}%; background: #94a3b8;" title="Long-term idle (12+mo): ${h.longTermIdle}"></div>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 0.75rem; margin-top: 0.375rem; font-size: 0.65rem; color: #64748b;">
+                                ${h.recentlyIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f59e0b;margin-right:3px;"></span>3-6mo: ${h.recentlyIdle}</span>` : ''}
+                                ${h.extendedIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:3px;"></span>6-12mo: ${h.extendedIdle}</span>` : ''}
+                                ${h.longTermIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#94a3b8;margin-right:3px;"></span>12+mo: ${h.longTermIdle}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            } else if (data.production_health === null) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Operational Health</h3>
+                        <p style="color: #64748b; font-size: 0.85rem; font-style: italic;">No production unit data available for this operator.</p>
+                    </div>
+                `;
+            }
+
+            // === Monthly Trend ===
             if (data.monthly && data.monthly.length > 0) {
                 html += `
                     <div class="modal-section">
@@ -366,7 +453,7 @@
                                     <th style="text-align: right;">Gross</th>
                                     <th style="text-align: right;">Deductions</th>
                                     <th style="text-align: right;">Ded. Ratio</th>
-                                    <th style="text-align: right;">NGL Recovery</th>
+                                    <th style="text-align: right;">PCRR</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -376,7 +463,7 @@
                                         <td style="text-align: right;">${formatCurrency(m.total_gross)}</td>
                                         <td style="text-align: right;">${formatCurrency(m.residue_deductions)}</td>
                                         <td style="text-align: right;">${m.deduction_ratio}%</td>
-                                        <td style="text-align: right;">${m.ngl_recovery_ratio != null ? m.ngl_recovery_ratio + '%' : 'N/A'}</td>
+                                        <td style="text-align: right;">${m.pcrr != null ? m.pcrr + '%' : 'N/A'}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -385,7 +472,7 @@
                 `;
             }
 
-            // County breakdown
+            // === Counties ===
             if (data.counties && data.counties.length > 0) {
                 html += `
                     <div class="modal-section">
@@ -413,6 +500,21 @@
             }
 
             modalBody.innerHTML = html;
+
+            // === FOOTER ===
+            const footer = document.getElementById('operatorModalFooter');
+            if (footer) {
+                footer.style.display = '';
+                footer.querySelector('div').innerHTML = `
+                    <button onclick="printOperatorSummary('${escapeHtml(data.operator_number)}')" style="padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: #7c3aed; color: white; display: flex; align-items: center; gap: 6px; transition: background 0.15s;">
+                        Operator Summary ↗
+                    </button>
+                `;
+            }
+        }
+
+        function printOperatorSummary(operatorNumber) {
+            window.open('/print/operators/' + operatorNumber, '_blank');
         }
 
         // Close operator detail modal
@@ -450,6 +552,21 @@
             const month = parseInt(yyyymm.substring(4, 6), 10);
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             return `${months[month - 1]} ${year}`;
+        }
+
+        function getIdleRateColor(rate) {
+            if (rate < 20) return '#10b981';
+            if (rate < 50) return '#f59e0b';
+            if (rate < 75) return '#f97316';
+            return '#ef4444';
+        }
+
+        function getDeclineColor(rate) {
+            if (rate == null) return '#94a3b8';
+            if (rate > -10) return '#10b981';
+            if (rate > -35) return '#f59e0b';
+            if (rate > -60) return '#f97316';
+            return '#ef4444';
         }
 
         function showToast(message, type = 'info') {

@@ -576,13 +576,13 @@
 
             const fields = property.fields || property;
 
-            // Use section polygon styling (subtle red, solid borders)
+            // Use section polygon styling (blue, solid borders)
             const layer = L.geoJSON(geometry, {
                 style: {
-                    color: '#DC2626',        // --your-property-dark
+                    color: '#2563EB',        // Blue border
                     weight: 2,
-                    fillColor: '#FCA5A5',   // --your-property
-                    fillOpacity: 0.2,       // More subtle than before
+                    fillColor: '#93C5FD',   // Light blue fill
+                    fillOpacity: 0.2,       // Subtle fill
                     opacity: 0.7            // Solid borders for properties
                 }
             });

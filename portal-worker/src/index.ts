@@ -148,6 +148,7 @@ import {
   handleGetTownships,
   handleGetCountyStats,
   handleGetCountyProduction,
+  handleGetPoolingRates,
   handleGetMapDataVersion,
   // Docket heatmap handler
   handleGetDocketHeatmap,
@@ -1202,6 +1203,9 @@ var index_default = {
       if (path === "/api/map/county-production" && request.method === "GET") {
         return handleGetCountyProduction(request, env);
       }
+      if (path === "/api/map/pooling-rates" && request.method === "GET") {
+        return handleGetPoolingRates(request, env);
+      }
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);
       }
@@ -1388,6 +1392,10 @@ var index_default = {
         const { handleGetProductionDeclineMarkets } = await import('./handlers/intelligence.js');
         return handleGetProductionDeclineMarkets(request, env);
       }
+      if (path === "/api/intelligence/production-decline/research" && request.method === "GET") {
+        const { handleGetDeclineResearch } = await import('./handlers/intelligence.js');
+        return handleGetDeclineResearch(request, env);
+      }
       if (path === "/api/intelligence/shut-in-detector" && request.method === "GET") {
         const { handleGetShutInDetector } = await import('./handlers/intelligence.js');
         return handleGetShutInDetector(request, env);
@@ -1395,6 +1403,10 @@ var index_default = {
       if (path === "/api/intelligence/shut-in-detector/markets" && request.method === "GET") {
         const { handleGetShutInDetectorMarkets } = await import('./handlers/intelligence.js');
         return handleGetShutInDetectorMarkets(request, env);
+      }
+      if (path === "/api/intelligence/shut-in-detector/research" && request.method === "GET") {
+        const { handleGetShutInResearch } = await import('./handlers/intelligence.js');
+        return handleGetShutInResearch(request, env);
       }
 
       // Operator Directory API (contact info, no financial data - fast)
@@ -1407,7 +1419,12 @@ var index_default = {
         const { handleGetOperatorEfficiency } = await import('./handlers/operators.js');
         return handleGetOperatorEfficiency(request, env);
       }
-      // Operator detail - must check after /directory and /efficiency to avoid path conflicts
+      // Operator name → number lookup (used by clickable operator names across all reports)
+      if (path === "/api/operators/lookup" && request.method === "GET") {
+        const { handleGetOperatorLookup } = await import('./handlers/operators.js');
+        return handleGetOperatorLookup(request, env);
+      }
+      // Operator detail - must check after /directory, /efficiency, /lookup to avoid path conflicts
       const operatorDetailMatch = path.match(/^\/api\/operators\/(\d+)$/);
       if (operatorDetailMatch && request.method === "GET") {
         const { handleGetOperatorDetail } = await import('./handlers/operators.js');
@@ -1522,6 +1539,17 @@ var index_default = {
       if (path === "/print/intelligence/shut-in-detector" && request.method === "GET") {
         const { handleShutInDetectorPrint } = await import('./handlers/intelligence.js');
         return handleShutInDetectorPrint(request, env);
+      }
+      if (path === "/print/intelligence/pooling" && request.method === "GET") {
+        const { handlePoolingPrint } = await import('./handlers/intelligence.js');
+        return handlePoolingPrint(request, env);
+      }
+
+      // Operator Print Summary
+      const operatorPrintMatch = path.match(/^\/print\/operators\/(\d+)$/);
+      if (operatorPrintMatch && request.method === "GET") {
+        const { handleOperatorPrint } = await import('./handlers/operators.js');
+        return handleOperatorPrint(request, env, operatorPrintMatch[1]);
       }
 
       // Track This Well endpoint

@@ -2304,9 +2304,6 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       .sort((a, b) => b.orderCount - a.orderCount)
       .slice(0, 5);
 
-    // Get user's plan for tier gate
-    const userPlan = userRecord.fields.Plan || 'Free';
-
     const response = {
       summary: {
         totalNearbyOrders: uniqueOrderIds.size,
@@ -2330,9 +2327,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
         topFormations,
         topPayingOperators,
         hottestCounties
-      },
-      // User tier for frontend gate display
-      userPlan
+      }
     };
 
     // Cache for 1 hour
@@ -2353,6 +2348,308 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
+}
+
+/**
+ * GET /print/intelligence/pooling
+ * Generates a print-friendly HTML page for the Pooling Report
+ */
+export async function handlePoolingPrint(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) {
+      const url = new URL(request.url);
+      return Response.redirect(`/portal/login?redirect=${encodeURIComponent(url.pathname)}`, 302);
+    }
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return new Response('User not found', { status: 404 });
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return new Response('Intelligence features not available for your account', { status: 403 });
+    }
+
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'properties';
+
+    // Fetch pooling data (includes marketResearch in same response)
+    const apiUrl = new URL('/api/intelligence/pooling-report', request.url);
+    const apiRequest = new Request(apiUrl.toString(), { method: 'GET', headers: request.headers });
+    const apiResponse = await handleGetPoolingReport(apiRequest, env);
+    const data = await apiResponse.json() as any;
+
+    if (data.error) {
+      return new Response(`Error: ${data.error}`, { status: 500 });
+    }
+
+    const html = generatePoolingPrintHtml(data, userRecord.fields.Name || 'User', { tab });
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+
+  } catch (error) {
+    console.error('[Pooling Print] Error:', error);
+    return new Response(`Error generating report: ${error instanceof Error ? error.message : 'Unknown'}`, { status: 500 });
+  }
+}
+
+function generatePoolingPrintHtml(data: any, userName: string, options?: { tab?: string }): string {
+  const { summary, byProperty, countyAverages, marketResearch } = data;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+  const fmtCurrency = (n: number) => n != null ? '$' + Math.round(n).toLocaleString() : '—';
+
+  // Build body content based on active tab
+  let bodyContent = '';
+  if (options?.tab === 'research') {
+    // Market Research tab
+    const topFormations = marketResearch?.topFormations || [];
+    const topPayingOperators = marketResearch?.topPayingOperators || [];
+    const hottestCounties = marketResearch?.hottestCounties || [];
+
+    bodyContent = `
+    <div class="section">
+      <div class="section-title">Statewide Market Research — Pooling Activity</div>
+      <p style="font-size: 10px; color: #64748b; margin-bottom: 16px;">Statewide pooling intelligence from OCC forced pooling orders.</p>
+    </div>`;
+
+    if (topFormations.length) {
+      bodyContent += `
+    <div class="section">
+      <div class="section-title">Highest-Paying Formations</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Formation</th>
+            <th class="right">Avg Bonus $/Acre</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topFormations.map((f: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(f.name)}</td>
+            <td class="right" style="color: #059669; font-weight: 600;">${fmtCurrency(f.avgBonus)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+    }
+
+    if (topPayingOperators.length) {
+      bodyContent += `
+    <div class="section">
+      <div class="section-title">Top-Paying Operators</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Avg Bonus $/Acre</th>
+            <th class="right">Orders</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topPayingOperators.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.name)}</td>
+            <td class="right" style="color: #059669; font-weight: 600;">${fmtCurrency(op.avgBonus)}</td>
+            <td class="right">${fmt(op.orderCount)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+    }
+
+    if (hottestCounties.length) {
+      bodyContent += `
+    <div class="section">
+      <div class="section-title">Hottest Counties (Last 90 Days)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>County</th>
+            <th class="right">Orders</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${hottestCounties.map((c: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(c.county)}</td>
+            <td class="right" style="font-weight: 600;">${fmt(c.orderCount)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+    }
+  } else {
+    // Portfolio tab (default) — summary + top properties
+    const properties = byProperty || [];
+    const topProps = properties
+      .filter((p: any) => p.nearbyOrders?.length > 0)
+      .sort((a: any, b: any) => (b.nearbyOrders?.length || 0) - (a.nearbyOrders?.length || 0))
+      .slice(0, 15);
+
+    bodyContent = `
+    <div class="section">
+      <div class="section-title">Portfolio Summary</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Nearby Orders</div>
+          <div class="summary-value">${fmt(summary?.totalNearbyOrders || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Avg Bonus/Acre</div>
+          <div class="summary-value" style="color: #059669;">${fmtCurrency(summary?.avgBonusPerAcre)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Bonus Range</div>
+          <div class="summary-value">${fmtCurrency(summary?.bonusRange?.min)} – ${fmtCurrency(summary?.bonusRange?.max)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Counties</div>
+          <div class="summary-value">${fmt(summary?.countyCount || 0)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Properties with Nearby Pooling Orders (Top ${topProps.length})</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>County</th>
+            <th class="right">Nearby Orders</th>
+            <th class="right">Avg Bonus</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topProps.length > 0 ? topProps.map((p: any, i: number) => {
+            const orders = p.nearbyOrders || [];
+            const bonuses = orders.flatMap((o: any) => o.bonuses || []);
+            const avgBonus = bonuses.length > 0 ? Math.round(bonuses.reduce((a: number, b: number) => a + b, 0) / bonuses.length) : null;
+            return `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td class="bold">${escapeHtml(p.propertyName || p.description || '—')}</td>
+            <td>${escapeHtml(p.county || '—')}</td>
+            <td class="right">${orders.length}</td>
+            <td class="right" style="color: #059669; font-weight: 600;">${avgBonus ? fmtCurrency(avgBonus) : '—'}</td>
+          </tr>`;
+          }).join('') : '<tr><td colspan="4" style="text-align: center; color: #64748b;">No properties with nearby pooling orders</td></tr>'}
+        </tbody>
+      </table>
+      ${properties.filter((p: any) => p.nearbyOrders?.length > 0).length > 15 ? `<p class="note">+ more properties. See full report online.</p>` : ''}
+    </div>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pooling Report - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 100px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media screen and (max-width: 768px) {
+      body { padding: 8px; }
+      .print-controls { flex-direction: column; align-items: stretch; max-width: 100%; }
+      .print-btn { justify-content: center; }
+      .print-container { width: 100%; min-height: auto; box-shadow: none; }
+      .header { flex-direction: column; gap: 10px; padding: 16px; }
+      .header .brand { text-align: left; }
+      .header .brand-name { font-size: 17px; }
+      .section { padding: 12px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .summary-grid { gap: 12px; }
+      .summary-item { min-width: 80px; }
+      .summary-value { font-size: 16px; }
+      .data-table { min-width: 400px; }
+      .footer { flex-direction: column; gap: 4px; padding: 10px 14px; }
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>POOLING REPORT${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
+        <div class="subtitle">OCC forced pooling orders near your properties</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
+    </div>
+
+    ${bodyContent}
+
+    <div class="footer">
+      <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
+      <span>Data sourced from Oklahoma Corporation Commission pooling orders</span>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 // =============================================
@@ -2720,8 +3017,9 @@ interface CountyAggregate {
  * GET /api/intelligence/production-decline/markets
  *
  * Returns county benchmark data for the My Markets tab.
- * Computes YoY decline metrics for ALL wells in each of the user's counties,
- * allowing comparison of user's wells against county averages.
+ * Computes YoY decline metrics for ACTIVE wells (produced within 3 months of data horizon)
+ * in each of the user's counties. Idle wells are excluded from benchmarks so
+ * comparisons reflect producing-well performance, not idle-well dilution.
  *
  * Uses 24-hour cache TTL since county averages barely change day-to-day.
  */
@@ -2857,7 +3155,8 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
       const recentData = wellData.monthlyData.find(m => m.oil > 0 || m.gas > 0);
 
       let yoyPct: number | null = null;
-      if (recentData) {
+      // Only compute YoY for active wells (produced within 3 months of data horizon)
+      if (recentData && recentData.yearMonth >= activeThreshold) {
         const recentYear = parseInt(recentData.yearMonth.substring(0, 4));
         const recentMonth = parseInt(recentData.yearMonth.substring(4, 6));
         const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
@@ -3047,7 +3346,7 @@ async function computeCountyAggregate(
       continue;
     }
 
-    // Determine active/idle
+    // Determine active/idle based on data horizon threshold
     const isActive = recentData.yearMonth >= activeThreshold;
     if (isActive) {
       activeCount++;
@@ -3055,9 +3354,10 @@ async function computeCountyAggregate(
     } else {
       idleCount++;
       formationStats.idleCount++;
+      continue; // Only compare active wells — idle wells skew county benchmarks
     }
 
-    // Compute YoY
+    // Compute YoY (active wells only)
     const recentYear = parseInt(recentData.yearMonth.substring(0, 4));
     const recentMonth = parseInt(recentData.yearMonth.substring(4, 6));
     const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
@@ -3266,20 +3566,37 @@ export async function handleDeductionAuditPrint(request: Request, env: Env): Pro
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
+    // Check which tab to print
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'properties';
+
     // Fetch data using internal API call pattern (reuse cache)
     const apiUrl = new URL('/api/intelligence/deduction-report', request.url);
     const apiRequest = new Request(apiUrl.toString(), {
       method: 'GET',
       headers: request.headers
     });
-    const apiResponse = await handleGetDeductionReport(apiRequest, env);
-    const data = await apiResponse.json() as any;
+    const fetchPromises: Promise<Response>[] = [
+      handleGetDeductionReport(apiRequest, env),
+    ];
+
+    // Also fetch research data if on research tab
+    if (tab === 'research') {
+      const researchUrl = new URL('/api/intelligence/deduction-research', request.url);
+      fetchPromises.push(
+        handleGetDeductionResearch(new Request(researchUrl.toString(), { method: 'GET', headers: request.headers }), env)
+      );
+    }
+
+    const responses = await Promise.all(fetchPromises);
+    const data = await responses[0].json() as any;
+    const researchData = tab === 'research' ? await responses[1].json() as any : null;
 
     if (data.error) {
       return new Response(`Error: ${data.error}`, { status: 500 });
     }
 
-    const html = generateDeductionAuditPrintHtml(data, userRecord.fields.Name || 'User');
+    const html = generateDeductionAuditPrintHtml(data, userRecord.fields.Name || 'User', { tab, researchData });
     return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
@@ -3290,7 +3607,105 @@ export async function handleDeductionAuditPrint(request: Request, env: Env): Pro
   }
 }
 
-function generateDeductionAuditPrintHtml(data: any, userName: string): string {
+function generateDeductionResearchPrintSection(options?: { tab?: string; researchData?: any }): string {
+  if (!options?.researchData) return '';
+
+  const { researchData } = options;
+  const { topDeductionCounties, topPcrrOperators, topNetReturnOperators } = researchData;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+  const fmtCurrency = (n: number) => n != null ? '$' + Math.round(n).toLocaleString() : '—';
+
+  let html = `
+    <div class="section">
+      <div class="section-title">Statewide Market Research — Deduction Trends</div>
+      <p style="font-size: 10px; color: #64748b; margin-bottom: 16px;">Statewide deduction intelligence from Oklahoma Tax Commission gross production reports (last 6 months).</p>
+    </div>`;
+
+  // Top Deduction Counties
+  if (topDeductionCounties?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Highest Deduction Counties</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>County</th>
+            <th class="right">Wells</th>
+            <th class="right">Avg Deduction %</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topDeductionCounties.map((c: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(c.county)}</td>
+            <td class="right">${fmt(c.well_count)}</td>
+            <td class="right ${c.avg_deduction_pct >= 50 ? 'danger' : c.avg_deduction_pct >= 35 ? 'warning' : ''}" style="font-weight: 600;">${c.avg_deduction_pct}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Most Efficient Operators (PCRR)
+  if (topPcrrOperators?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Most Efficient Operators (Processing Cost Recovery Ratio)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Wells</th>
+            <th class="right">PCRR</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topPcrrOperators.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator_name)}</td>
+            <td class="right">${fmt(op.well_count)}</td>
+            <td class="right" style="color: #059669; font-weight: 600;">${op.pcrr}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  // Highest Net Return Operators
+  if (topNetReturnOperators?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Highest Net Value Return Operators</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Wells</th>
+            <th class="right">Net Return</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${topNetReturnOperators.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator_name)}</td>
+            <td class="right">${fmt(op.well_count)}</td>
+            <td class="right" style="color: #059669; font-weight: 600;">${fmtCurrency(op.net_value_return)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  return html;
+}
+
+function generateDeductionAuditPrintHtml(data: any, userName: string, options?: { tab?: string; researchData?: any }): string {
   const { flaggedWells, portfolio, summary } = data;
   const fmt = (n: number) => n?.toLocaleString() ?? '—';
   const fmtCurrency = (n: number) => n != null ? '$' + Math.round(n).toLocaleString() : '—';
@@ -3313,90 +3728,12 @@ function generateDeductionAuditPrintHtml(data: any, userName: string): string {
     `;
   }).join('');
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deduction Audit Report - Mineral Watch</title>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
-    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-    .print-btn.primary { background: #1C2B36; color: white; }
-    .print-btn.primary:hover { background: #334E68; }
-    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
-    .print-btn.secondary:hover { background: #f8fafc; }
-    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
-    .header .subtitle { font-size: 12px; opacity: 0.8; }
-    .header .brand { text-align: right; }
-    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
-    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
-    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
-    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
-    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
-    .summary-item { flex: 1; min-width: 120px; }
-    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
-    .summary-value.danger { color: #dc2626; }
-    .summary-value.warning { color: #d97706; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    .data-table th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .data-table th.right { text-align: right; }
-    .data-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
-    .data-table td.bold { font-weight: 600; color: #1C2B36; }
-    .data-table tr.alt { background: #f8fafc; }
-    .data-table .danger { color: #dc2626; font-weight: 600; }
-    .data-table .warning { color: #d97706; font-weight: 600; }
-    .insight-box { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
-    .insight-title { font-size: 10px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .insight-text { font-size: 11px; color: #78350f; line-height: 1.5; }
-    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
-    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
-    @media print {
-      body { background: white; padding: 0; }
-      .print-controls { display: none !important; }
-      .print-container { box-shadow: none; width: 100%; }
-    }
-    @page { size: letter; margin: 0.25in; }
-  </style>
-</head>
-<body>
-  <div class="print-controls">
-    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
-    <button class="print-btn primary" onclick="window.print()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="6 9 6 2 18 2 18 9"></polyline>
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-        <rect x="6" y="14" width="12" height="8"></rect>
-      </svg>
-      Print Report
-    </button>
-  </div>
-
-  <div class="print-container">
-    <div class="header">
-      <div>
-        <h1>DEDUCTION AUDIT REPORT</h1>
-        <div class="subtitle">Analysis Period: ${summary?.analysis_period || '6 months'} ending ${formatReportMonth(summary?.latest_month || '')}</div>
-      </div>
-      <div class="brand">
-        <div class="brand-name">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
-          MINERAL WATCH
-        </div>
-        <div class="brand-url">mymineralwatch.com</div>
-      </div>
-    </div>
-
+  // Build body content based on active tab
+  let bodyContent = '';
+  if (options?.tab === 'research') {
+    bodyContent = generateDeductionResearchPrintSection(options);
+  } else {
+    bodyContent = `
     <div class="section">
       <div class="section-title">Portfolio Summary</div>
       <div class="summary-grid">
@@ -3452,7 +3789,110 @@ function generateDeductionAuditPrintHtml(data: any, userName: string): string {
           breakdown of deductions and citing specific lease provisions.
         </div>
       </div>
+    </div>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deduction Audit Report - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 120px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .data-table .danger { color: #dc2626; font-weight: 600; }
+    .data-table .warning { color: #d97706; font-weight: 600; }
+    .insight-box { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+    .insight-title { font-size: 10px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .insight-text { font-size: 11px; color: #78350f; line-height: 1.5; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media screen and (max-width: 768px) {
+      body { padding: 8px; }
+      .print-controls { flex-direction: column; align-items: stretch; max-width: 100%; }
+      .print-btn { justify-content: center; }
+      .print-container { width: 100%; min-height: auto; box-shadow: none; }
+      .header { flex-direction: column; gap: 10px; padding: 16px; }
+      .header .brand { text-align: left; }
+      .header .brand-name { font-size: 17px; }
+      .section { padding: 12px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .summary-grid { gap: 12px; }
+      .summary-item { min-width: 80px; }
+      .summary-value { font-size: 16px; }
+      .data-table { min-width: 540px; }
+      .insight-box { margin-top: 12px; }
+      .footer { flex-direction: column; gap: 4px; padding: 10px 14px; }
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>DEDUCTION AUDIT REPORT${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
+        <div class="subtitle">Analysis Period: ${summary?.analysis_period || '6 months'} ending ${formatReportMonth(summary?.latest_month || '')}</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
     </div>
+
+    ${bodyContent}
 
     <div class="footer">
       <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
@@ -3483,21 +3923,37 @@ export async function handleProductionDeclinePrint(request: Request, env: Env): 
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
+    // Check which tab to print
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'properties';
+    const researchView = url.searchParams.get('view') || 'decliners';
+
     // Fetch decline data and markets data in parallel
     const apiUrl = new URL('/api/intelligence/production-decline', request.url);
     const marketsUrl = new URL('/api/intelligence/production-decline/markets?bust=1', request.url);
-    const [apiResponse, marketsResponse] = await Promise.all([
+    const fetchPromises: Promise<Response>[] = [
       handleGetProductionDecline(new Request(apiUrl.toString(), { method: 'GET', headers: request.headers }), env),
       handleGetProductionDeclineMarkets(new Request(marketsUrl.toString(), { method: 'GET', headers: request.headers }), env),
-    ]);
-    const data = await apiResponse.json() as any;
-    const marketsData = await marketsResponse.json() as any;
+    ];
+
+    // Also fetch research data if on research tab
+    if (tab === 'research') {
+      const researchUrl = new URL('/api/intelligence/production-decline/research', request.url);
+      fetchPromises.push(
+        handleGetDeclineResearch(new Request(researchUrl.toString(), { method: 'GET', headers: request.headers }), env)
+      );
+    }
+
+    const responses = await Promise.all(fetchPromises);
+    const data = await responses[0].json() as any;
+    const marketsData = await responses[1].json() as any;
+    const researchData = tab === 'research' ? await responses[2].json() as any : null;
 
     if (data.error) {
       return new Response(`Error: ${data.error}`, { status: 500 });
     }
 
-    const html = generateProductionDeclinePrintHtml(data, userRecord.fields.Name || 'User', marketsData);
+    const html = generateProductionDeclinePrintHtml(data, userRecord.fields.Name || 'User', marketsData, { tab, researchView, researchData });
     return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
@@ -3508,7 +3964,7 @@ export async function handleProductionDeclinePrint(request: Request, env: Env): 
   }
 }
 
-function generateProductionDeclinePrintHtml(data: any, userName: string, marketsData?: any): string {
+function generateProductionDeclinePrintHtml(data: any, userName: string, marketsData?: any, options?: { tab?: string; researchView?: string; researchData?: any }): string {
   const { latestDataMonth, summary, wells, monthlyTotals } = data;
   const fmt = (n: number) => n?.toLocaleString() ?? '—';
 
@@ -3592,6 +4048,22 @@ function generateProductionDeclinePrintHtml(data: any, userName: string, markets
     .status-badge.idle { background: #f3f4f6; color: #6b7280; }
     .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
     .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media screen and (max-width: 768px) {
+      body { padding: 8px; }
+      .print-controls { flex-direction: column; align-items: stretch; max-width: 100%; }
+      .print-btn { justify-content: center; }
+      .print-container { width: 100%; min-height: auto; box-shadow: none; }
+      .header { flex-direction: column; gap: 10px; padding: 16px; }
+      .header .brand { text-align: left; }
+      .header .brand-name { font-size: 17px; }
+      .section { padding: 12px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .summary-grid { gap: 12px; }
+      .summary-item { min-width: 80px; }
+      .summary-value { font-size: 16px; }
+      .data-table { min-width: 540px; }
+      .chart-container svg { max-width: 100%; height: auto; }
+      .footer { flex-direction: column; gap: 4px; padding: 10px 14px; }
+    }
     @media print {
       body { background: white; padding: 0; }
       .print-controls { display: none !important; }
@@ -3616,7 +4088,7 @@ function generateProductionDeclinePrintHtml(data: any, userName: string, markets
   <div class="print-container">
     <div class="header">
       <div>
-        <h1>PRODUCTION DECLINE ANALYSIS</h1>
+        <h1>PRODUCTION DECLINE ANALYSIS${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
         <div class="subtitle">Production through ${formatReportMonth(latestDataMonth || '')}</div>
       </div>
       <div class="brand">
@@ -3631,6 +4103,7 @@ function generateProductionDeclinePrintHtml(data: any, userName: string, markets
       </div>
     </div>
 
+    ${options?.tab === 'research' ? generateDeclineResearchPrintSection(options) : `
     <div class="section">
       <div class="section-title">Portfolio Summary</div>
       <div class="summary-grid">
@@ -3696,6 +4169,7 @@ function generateProductionDeclinePrintHtml(data: any, userName: string, markets
       </table>
       ${(wells || []).filter((w: any) => w.yoyChangePct !== null && w.yoyChangePct < 0).length > 15 ? `<p class="note">+ more wells in decline. See full report online for complete data.</p>` : ''}
     </div>
+    `}
 
     <div class="footer">
       <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
@@ -3734,7 +4208,7 @@ function generateTrendChartSvg(monthlyTotals: Array<{ yearMonth: string; totalBO
 
   const boeTrend = calcMovingAvg(data.map(d => d.totalBOE));
 
-  let svg = `<svg width="${width}" height="${height}" style="display: block;">`;
+  let svg = `<svg viewBox="0 0 ${width} ${height}" style="display: block; width: 100%; height: auto;">`;
   svg += `<g transform="translate(${padding.left}, ${padding.top})">`;
 
   // Grid lines
@@ -3812,7 +4286,7 @@ function generateRiskChartSvg(counties: any[]): string {
   const totalWidth = labelWidth + chartAreaWidth + valueWidth + 10;
   const totalHeight = scores.length * (barHeight + barGap) + 10;
 
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="${totalWidth}" height="${totalHeight}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">`;
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" style="display: block; width: 100%; height: auto; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">`;
 
   // Center line
   svg += `<line x1="${centerX}" y1="0" x2="${centerX}" y2="${totalHeight}" stroke="#e2e8f0" stroke-width="1"/>`;
@@ -3839,6 +4313,134 @@ function generateRiskChartSvg(counties: any[]): string {
 
   svg += '</svg>';
   return svg;
+}
+
+function getDeclineColorPrint(rate: number): string {
+  if (rate > -10) return '#059669';    // Green — outperforming basin
+  if (rate > -35) return '#d97706';    // Yellow — normal basin range
+  if (rate > -60) return '#f97316';    // Orange — significantly underperforming
+  return '#dc2626';                     // Red — alarming decline
+}
+
+function generateDeclineResearchPrintSection(options?: { tab?: string; researchView?: string; researchData?: any }): string {
+  if (!options || options.tab !== 'research' || !options.researchData) return '';
+
+  const { researchData, researchView } = options;
+  const { summary, operatorsByDecline, operatorsByGrowth, counties } = researchData;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+
+  const horizonStr = summary?.dataHorizon
+    ? (() => { const m = parseInt(summary.dataHorizon.substring(4, 6)); const y = summary.dataHorizon.substring(0, 4); return `${MONTH_ABBR[m - 1]} ${y}`; })()
+    : '';
+
+  // HUD cards — always shown
+  let html = `
+    <div class="section">
+      <div class="section-title">Statewide Market Research — Production Decline</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Statewide Avg Decline</div>
+          <div class="summary-value" style="color: ${getDeclineColorPrint(summary?.avgDecline || 0)}">${summary?.avgDecline ?? '—'}%</div>
+          <div class="summary-sub">BOE YoY (active wells)</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Steep Decline (&gt;25%)</div>
+          <div class="summary-value danger">${fmt(summary?.steepDecline || 0)}</div>
+          <div class="summary-sub">wells declining &gt;25% YoY</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Growing Production</div>
+          <div class="summary-value success">${fmt(summary?.growingWells || 0)}</div>
+          <div class="summary-sub">wells with positive YoY</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Active PUNs</div>
+          <div class="summary-value">${fmt(summary?.activePuns || 0)}</div>
+          <div class="summary-sub">statewide${horizonStr ? ` • data thru ${horizonStr}` : ''}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // View-specific section
+  if (researchView === 'decliners' && operatorsByDecline?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Steepest Declining Operators (Min 20 Active Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Active Wells</th>
+            <th class="right">Avg Decline</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operatorsByDecline.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator)}</td>
+            <td class="right">${fmt(op.activeWells)}</td>
+            <td class="right" style="color: ${getDeclineColorPrint(op.avgDecline)}; font-weight: 600;">${op.avgDecline > 0 ? '+' : ''}${op.avgDecline}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  } else if (researchView === 'growers' && operatorsByGrowth?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Top Growing Operators (Min 20 Active Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Active Wells</th>
+            <th class="right">Avg Decline</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operatorsByGrowth.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator)}</td>
+            <td class="right">${fmt(op.activeWells)}</td>
+            <td class="right" style="color: ${getDeclineColorPrint(op.avgDecline)}; font-weight: 600;">${op.avgDecline > 0 ? '+' : ''}${op.avgDecline}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  } else if (researchView === 'counties' && counties?.length) {
+    // Sort by decline rate for print
+    const sorted = [...counties].sort((a: any, b: any) => a.avgDecline - b.avgDecline);
+    html += `
+    <div class="section">
+      <div class="section-title">County Production Trends (Min 10 Active Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>County</th>
+            <th class="right">Active Wells</th>
+            <th class="right">Avg Decline</th>
+            <th class="right">Declining</th>
+            <th class="right">Growing</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map((c: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td class="bold">${escapeHtml(c.county)}</td>
+            <td class="right">${fmt(c.activeWells)}</td>
+            <td class="right" style="color: ${getDeclineColorPrint(c.avgDecline)}; font-weight: 600;">${c.avgDecline > 0 ? '+' : ''}${c.avgDecline}%</td>
+            <td class="right">${fmt(c.decliningWells)}</td>
+            <td class="right">${fmt(c.growingWells)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  return html;
 }
 
 // =============================================
@@ -3920,7 +4522,8 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
              p.peak_month, p.decline_rate_12m,
              tp.period_start_date as tp_start_date,
              tp.max_is_active as tp_is_active,
-             tp.latest_end_date as tp_end_date
+             tp.latest_end_date as tp_end_date,
+             (SELECT ol.operator_number FROM otc_leases ol WHERE ol.pun = wpl.pun AND ol.operator_number IS NOT NULL LIMIT 1) as operator_number
       FROM client_wells cw
       JOIN wells w ON w.api_number = cw.api_number
       LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
@@ -3964,6 +4567,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
       tp_start_date: string | null;
       tp_is_active: number | null;
       tp_end_date: string | null;
+      operator_number: string | null;
     }>;
 
     // Deduplicate by api_number (a well may have multiple PUNs — take the one with latest production)
@@ -4166,6 +4770,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
         wellName: well.w_well_name || well.cw_well_name || `API ${well.api_number}`,
         apiNumber: well.api_number,
         operator: well.operator || 'Unknown',
+        operatorNumber: well.operator_number || null,
         county: well.county || 'Unknown',
         wellType: well.well_type || 'Unknown',
         pun: well.pun,
@@ -4237,20 +4842,38 @@ export async function handleShutInDetectorPrint(request: Request, env: Env): Pro
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
+    // Check which tab to print
+    const url = new URL(request.url);
+    const tab = url.searchParams.get('tab') || 'properties';
+    const researchView = url.searchParams.get('view') || 'byCount';
+
     // Fetch data using internal API call pattern (reuse cache)
     const apiUrl = new URL('/api/intelligence/shut-in-detector', request.url);
     const apiRequest = new Request(apiUrl.toString(), {
       method: 'GET',
       headers: request.headers
     });
-    const apiResponse = await handleGetShutInDetector(apiRequest, env);
-    const data = await apiResponse.json() as any;
+    const fetchPromises: Promise<Response>[] = [
+      handleGetShutInDetector(apiRequest, env),
+    ];
+
+    // Also fetch research data if on research tab
+    if (tab === 'research') {
+      const researchUrl = new URL('/api/intelligence/shut-in-detector/research', request.url);
+      fetchPromises.push(
+        handleGetShutInResearch(new Request(researchUrl.toString(), { method: 'GET', headers: request.headers }), env)
+      );
+    }
+
+    const responses = await Promise.all(fetchPromises);
+    const data = await responses[0].json() as any;
+    const researchData = tab === 'research' ? await responses[1].json() as any : null;
 
     if (data.error) {
       return new Response(`Error: ${data.error}`, { status: 500 });
     }
 
-    const html = generateShutInDetectorPrintHtml(data, userRecord.fields.Name || 'User');
+    const html = generateShutInDetectorPrintHtml(data, userRecord.fields.Name || 'User', { tab, researchView, researchData });
     return new Response(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' }
     });
@@ -4297,7 +4920,7 @@ function generateShutInDonutSvg(total: number, recentlyIdle: number, extendedIdl
       <text x="${legendX + 230}" y="${y + 9}" font-size="10" fill="#64748b" text-anchor="end">${pct}%</text>`;
   }).join('\n');
 
-  return `<svg width="400" height="140" viewBox="0 0 400 140" style="display: block; margin: 0 auto;">
+  return `<svg viewBox="0 0 400 140" style="display: block; width: 100%; max-width: 400px; height: auto; margin: 0 auto;">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="${stroke}"/>
     ${arcs.join('\n')}
     <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="#1C2B36">${total}</text>
@@ -4306,7 +4929,140 @@ function generateShutInDonutSvg(total: number, recentlyIdle: number, extendedIdl
   </svg>`;
 }
 
-function generateShutInDetectorPrintHtml(data: any, userName: string): string {
+function getIdleRateColor(rate: number): string {
+  if (rate < 15) return '#059669';     // Green — low idle rate
+  if (rate < 30) return '#d97706';     // Yellow — moderate
+  if (rate < 50) return '#f97316';     // Orange — high
+  return '#dc2626';                     // Red — very high
+}
+
+function generateShutInResearchPrintSection(options?: { tab?: string; researchView?: string; researchData?: any }): string {
+  if (!options?.researchData) return '';
+
+  const { researchData, researchView } = options;
+  const { summary, operatorsByCount, operatorsByRate, counties } = researchData;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+
+  const horizonStr = summary?.dataHorizon
+    ? (() => { const m = parseInt(summary.dataHorizon.substring(4, 6)); const y = summary.dataHorizon.substring(0, 4); return `${MONTH_ABBR[m - 1]} ${y}`; })()
+    : '';
+
+  const idleRatePct = summary?.idleRatePct || 0;
+
+  // HUD cards — always shown
+  let html = `
+    <div class="section">
+      <div class="section-title">Statewide Market Research — Shut-In / Idle Wells</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Statewide Idle Rate</div>
+          <div class="summary-value" style="color: ${getIdleRateColor(idleRatePct)}">${idleRatePct}%</div>
+          <div class="summary-sub">${fmt(summary?.idlePuns || 0)} of ${fmt(summary?.totalPuns || 0)} PUNs</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Recently Idle (3-6 mo)</div>
+          <div class="summary-value warning">${fmt(summary?.recentlyIdle || 0)}</div>
+          <div class="summary-sub">newly went idle</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Extended Idle (6-12 mo)</div>
+          <div class="summary-value danger">${fmt(summary?.extendedIdle || 0)}</div>
+          <div class="summary-sub">idle 6+ months</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Long-Term Idle (12+ mo)</div>
+          <div class="summary-value danger">${fmt(summary?.longTermIdle || 0)}</div>
+          <div class="summary-sub">${horizonStr ? `data thru ${horizonStr}` : ''}</div>
+        </div>
+      </div>
+    </div>`;
+
+  // View-specific section
+  if (researchView === 'byCount' && operatorsByCount?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Operators with Most Idle Wells (Min 50 Total Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Total Wells</th>
+            <th class="right">Idle Wells</th>
+            <th class="right">Idle Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operatorsByCount.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator)}</td>
+            <td class="right">${fmt(op.totalWells)}</td>
+            <td class="right">${fmt(op.idleWells)}</td>
+            <td class="right" style="color: ${getIdleRateColor(op.idleRatePct)}; font-weight: 600;">${op.idleRatePct}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  } else if (researchView === 'byRate' && operatorsByRate?.length) {
+    html += `
+    <div class="section">
+      <div class="section-title">Operators with Highest Idle Rate (Min 50 Total Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 40px;">#</th>
+            <th>Operator</th>
+            <th class="right">Total Wells</th>
+            <th class="right">Idle Wells</th>
+            <th class="right">Idle Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${operatorsByRate.map((op: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td style="color: #64748b;">${i + 1}</td>
+            <td class="bold">${escapeHtml(op.operator)}</td>
+            <td class="right">${fmt(op.totalWells)}</td>
+            <td class="right">${fmt(op.idleWells)}</td>
+            <td class="right" style="color: ${getIdleRateColor(op.idleRatePct)}; font-weight: 600;">${op.idleRatePct}%</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  } else if (researchView === 'counties' && counties?.length) {
+    const sorted = [...counties].sort((a: any, b: any) => b.idleRatePct - a.idleRatePct);
+    html += `
+    <div class="section">
+      <div class="section-title">County Idle Well Rates (Min 10 Wells)</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>County</th>
+            <th class="right">Total Wells</th>
+            <th class="right">Idle Wells</th>
+            <th class="right">Idle Rate</th>
+            <th>Top Idle Operator</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sorted.map((c: any, i: number) => `
+          <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+            <td class="bold">${escapeHtml(c.county)}</td>
+            <td class="right">${fmt(c.totalWells)}</td>
+            <td class="right">${fmt(c.idleWells)}</td>
+            <td class="right" style="color: ${getIdleRateColor(c.idleRatePct)}; font-weight: 600;">${c.idleRatePct}%</td>
+            <td style="font-size: 9px;">${escapeHtml(c.topIdleOperator || '—')}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  return html;
+}
+
+function generateShutInDetectorPrintHtml(data: any, userName: string, options?: { tab?: string; researchView?: string; researchData?: any }): string {
   const { summary, wells, generatedAt } = data;
   const fmt = (n: number) => n?.toLocaleString() ?? '—';
 
@@ -4389,106 +5145,12 @@ function generateShutInDetectorPrintHtml(data: any, userName: string): string {
   const suddenWells = (wells || []).filter((w: any) => w.riskFlags?.includes('Sudden Stop')).length;
   const operatorWells = (wells || []).filter((w: any) => w.riskFlags?.includes('Operator Pattern')).length;
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Shut-In Detector Report - Mineral Watch</title>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
-    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-    .print-btn.primary { background: #1C2B36; color: white; }
-    .print-btn.primary:hover { background: #334E68; }
-    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
-    .print-btn.secondary:hover { background: #f8fafc; }
-    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
-    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
-    .header .subtitle { font-size: 12px; opacity: 0.8; }
-    .header .brand { text-align: right; }
-    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
-    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
-    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
-    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
-    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
-    .summary-item { flex: 1; min-width: 100px; }
-    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
-    .summary-value.danger { color: #dc2626; }
-    .summary-value.warning { color: #d97706; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
-    .data-table th { padding: 8px 8px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
-    .data-table th.right { text-align: right; }
-    .data-table th.center { text-align: center; }
-    .data-table td { padding: 7px 8px; border-bottom: 1px solid #e2e8f0; }
-    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
-    .data-table td.center { text-align: center; }
-    .data-table td.bold { font-weight: 600; color: #1C2B36; }
-    .data-table tr.alt { background: #f8fafc; }
-    .data-table .danger { color: #dc2626; font-weight: 600; }
-    .data-table .warning { color: #d97706; font-weight: 600; }
-    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
-    .status-badge.warning { background: #fef3c7; color: #92400e; }
-    .status-badge.danger { background: #fee2e2; color: #991b1b; }
-    .status-badge.critical { background: #fecaca; color: #7f1d1d; }
-    .risk-pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
-    .pill-hbp { background: #fee2e2; color: #991b1b; }
-    .pill-sudden { background: #ffedd5; color: #9a3412; }
-    .pill-operator { background: #dbeafe; color: #1e40af; }
-    .risk-breakdown { display: flex; gap: 16px; margin-top: 12px; }
-    .risk-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #475569; }
-    .risk-dot { width: 8px; height: 8px; border-radius: 50%; }
-    .risk-dot.hbp { background: #dc2626; }
-    .risk-dot.sudden { background: #ea580c; }
-    .risk-dot.operator { background: #2563eb; }
-    .insight-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
-    .insight-title { font-size: 10px; font-weight: 600; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-    .insight-text { font-size: 11px; color: #1e3a5f; line-height: 1.5; }
-    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
-    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
-    @media print {
-      body { background: white; padding: 0; }
-      .print-controls { display: none !important; }
-      .print-container { box-shadow: none; width: 100%; }
-    }
-    @page { size: letter; margin: 0.25in; }
-  </style>
-</head>
-<body>
-  <div class="print-controls">
-    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
-    <button class="print-btn primary" onclick="window.print()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="6 9 6 2 18 2 18 9"></polyline>
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-        <rect x="6" y="14" width="12" height="8"></rect>
-      </svg>
-      Print Report
-    </button>
-  </div>
-
-  <div class="print-container">
-    <div class="header">
-      <div>
-        <h1>SHUT-IN DETECTOR REPORT</h1>
-        <div class="subtitle">Wells with no reported production in 3+ months</div>
-      </div>
-      <div class="brand">
-        <div class="brand-name">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
-          MINERAL WATCH
-        </div>
-        <div class="brand-url">mymineralwatch.com</div>
-      </div>
-    </div>
-
+  // Build body content based on active tab
+  let bodyContent = '';
+  if (options?.tab === 'research') {
+    bodyContent = generateShutInResearchPrintSection(options);
+  } else {
+    bodyContent = `
     <div class="section">
       <div class="section-title">Portfolio Summary</div>
       <div class="summary-grid">
@@ -4555,7 +5217,127 @@ function generateShutInDetectorPrintHtml(data: any, userName: string): string {
           <strong>Operator Pattern:</strong> More than 50% of this operator's wells in your portfolio are idle — may indicate broader operational or financial issues.
         </div>
       </div>
+    </div>`;
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shut-In Detector Report - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 100px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 8px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table th.center { text-align: center; }
+    .data-table td { padding: 7px 8px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.center { text-align: center; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .data-table .danger { color: #dc2626; font-weight: 600; }
+    .data-table .warning { color: #d97706; font-weight: 600; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+    .status-badge.warning { background: #fef3c7; color: #92400e; }
+    .status-badge.danger { background: #fee2e2; color: #991b1b; }
+    .status-badge.critical { background: #fecaca; color: #7f1d1d; }
+    .risk-pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+    .pill-hbp { background: #fee2e2; color: #991b1b; }
+    .pill-sudden { background: #ffedd5; color: #9a3412; }
+    .pill-operator { background: #dbeafe; color: #1e40af; }
+    .risk-breakdown { display: flex; gap: 16px; margin-top: 12px; }
+    .risk-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #475569; }
+    .risk-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .risk-dot.hbp { background: #dc2626; }
+    .risk-dot.sudden { background: #ea580c; }
+    .risk-dot.operator { background: #2563eb; }
+    .insight-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+    .insight-title { font-size: 10px; font-weight: 600; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .insight-text { font-size: 11px; color: #1e3a5f; line-height: 1.5; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media screen and (max-width: 768px) {
+      body { padding: 8px; }
+      .print-controls { flex-direction: column; align-items: stretch; max-width: 100%; }
+      .print-btn { justify-content: center; }
+      .print-container { width: 100%; min-height: auto; box-shadow: none; }
+      .header { flex-direction: column; gap: 10px; padding: 16px; }
+      .header .brand { text-align: left; }
+      .header .brand-name { font-size: 17px; }
+      .section { padding: 12px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .summary-grid { gap: 12px; }
+      .summary-item { min-width: 80px; }
+      .summary-value { font-size: 16px; }
+      .data-table { min-width: 540px; }
+      .risk-breakdown { flex-wrap: wrap; gap: 10px; }
+      .insight-box { margin-top: 12px; }
+      .footer { flex-direction: column; gap: 4px; padding: 10px 14px; }
+    }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>SHUT-IN DETECTOR REPORT${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
+        <div class="subtitle">Wells with no reported production in 3+ months</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
     </div>
+
+    ${bodyContent}
 
     <div class="footer">
       <span>Generated by Mineral Watch &bull; ${new Date().toLocaleDateString()}</span>
@@ -4805,4 +5587,421 @@ async function computeCountyIdleAggregate(
     userVsCountyDelta,
     topOperators
   };
+}
+
+/**
+ * GET /api/intelligence/shut-in-detector/research
+ *
+ * Returns statewide shut-in/idle well data for the Market Research tab:
+ * - HUD summary stats (idle rate, newly idle, long-term idle)
+ * - Top operators by idle well count
+ * - Top operators by idle rate %
+ * - County idle rates with top idle operator
+ *
+ * No user-specific data — shared KV cache across all users.
+ */
+export async function handleGetShutInResearch(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    // Check KV cache (24-hour TTL, shared across all users since it's statewide)
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get('shut-in-research', 'json');
+        if (cached) {
+          console.log('[Shut-In Research] Returning cached data');
+          return jsonResponse(cached);
+        }
+      } catch (e) {
+        console.error('[Shut-In Research] Cache read error:', e);
+      }
+    }
+
+    console.log('[Shut-In Research] Computing statewide idle stats...');
+
+    // Query 1: Statewide HUD stats
+    const hudResult = await env.WELLS_DB!.prepare(`
+      SELECT
+        COUNT(*) as total_puns,
+        SUM(CASE WHEN months_since_production >= 3 THEN 1 ELSE 0 END) as idle_puns,
+        SUM(CASE WHEN months_since_production BETWEEN 3 AND 6 THEN 1 ELSE 0 END) as recently_idle,
+        SUM(CASE WHEN months_since_production BETWEEN 7 AND 12 THEN 1 ELSE 0 END) as extended_idle,
+        SUM(CASE WHEN months_since_production > 12 THEN 1 ELSE 0 END) as long_term_idle,
+        SUM(CASE WHEN months_since_production <= 0 THEN 1 ELSE 0 END) as active_puns
+      FROM puns
+      WHERE months_since_production IS NOT NULL
+    `).first() as any;
+
+    // Query 2: Newly idle (went idle within 6 months of data horizon)
+    const newlyIdleResult = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as newly_idle
+      FROM puns
+      WHERE months_since_production BETWEEN 1 AND 6
+    `).first() as any;
+
+    // Query 3: Data horizon
+    const horizonResult = await env.WELLS_DB!.prepare(`
+      SELECT MAX(year_month) as horizon FROM otc_production
+    `).first() as any;
+
+    // Query 4: Count of unassigned wells (for data note)
+    const unassignedResult = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(DISTINCT w.api_number) as unassigned_count
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.months_since_production IS NOT NULL
+        AND (w.operator IS NULL OR w.operator = 'OTC/OCC NOT ASSIGNED')
+    `).first() as any;
+
+    // Query 5: Top operators by idle COUNT (min 50 wells)
+    // Uses COUNT(DISTINCT CASE WHEN...) to avoid join multiplication (one well can appear in multiple PUNs)
+    const opByCountResult = await env.WELLS_DB!.prepare(`
+      SELECT w.operator,
+        COUNT(DISTINCT w.api_number) as total_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.months_since_production IS NOT NULL
+        AND w.operator IS NOT NULL
+        AND w.operator != 'OTC/OCC NOT ASSIGNED'
+      GROUP BY w.operator
+      HAVING total_wells >= 50
+      ORDER BY idle_wells DESC
+      LIMIT 20
+    `).all();
+
+    // Query 6: Top operators by idle RATE (min 50 wells)
+    const opByRateResult = await env.WELLS_DB!.prepare(`
+      SELECT w.operator,
+        COUNT(DISTINCT w.api_number) as total_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.months_since_production IS NOT NULL
+        AND w.operator IS NOT NULL
+        AND w.operator != 'OTC/OCC NOT ASSIGNED'
+      GROUP BY w.operator
+      HAVING total_wells >= 50
+      ORDER BY idle_rate_pct DESC
+      LIMIT 20
+    `).all();
+
+    // Query 7: County idle rates
+    const countyResult = await env.WELLS_DB!.prepare(`
+      SELECT w.county,
+        COUNT(DISTINCT w.api_number) as total_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.months_since_production IS NOT NULL
+        AND w.county IS NOT NULL
+      GROUP BY w.county
+      HAVING total_wells >= 10
+      ORDER BY idle_rate_pct DESC
+    `).all();
+
+    // Query 8: Top idle operator per county
+    const countyOpResult = await env.WELLS_DB!.prepare(`
+      SELECT w.county, w.operator,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.months_since_production IS NOT NULL
+        AND w.county IS NOT NULL
+        AND w.operator IS NOT NULL
+        AND w.operator != 'OTC/OCC NOT ASSIGNED'
+        AND p.months_since_production >= 3
+      GROUP BY w.county, w.operator
+      ORDER BY w.county, idle_wells DESC
+    `).all();
+
+    // Post-process: build top idle operator lookup by county
+    const topOpByCounty = new Map<string, string>();
+    for (const row of countyOpResult.results as any[]) {
+      if (!topOpByCounty.has(row.county)) {
+        topOpByCounty.set(row.county, row.operator);
+      }
+    }
+
+    // Batch lookup: resolve operator names → operator_numbers via otc_leases + wells join
+    // Pick the operator_number with the most wells for each name (canonical resolution)
+    const allOpNames = new Set<string>();
+    for (const r of opByCountResult.results as any[]) allOpNames.add(r.operator);
+    for (const r of opByRateResult.results as any[]) allOpNames.add(r.operator);
+    for (const v of topOpByCounty.values()) allOpNames.add(v);
+
+    const opNameToNumber = new Map<string, string>();
+    if (allOpNames.size > 0) {
+      const placeholders = [...allOpNames].map(() => '?').join(',');
+      const opLookup = await env.WELLS_DB!.prepare(`
+        SELECT w.operator, ol.operator_number, COUNT(DISTINCT w.api_number) as well_count
+        FROM wells w
+        JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+        JOIN otc_leases ol ON wpl.pun = ol.pun
+        WHERE w.operator IN (${placeholders})
+          AND ol.operator_number IS NOT NULL
+        GROUP BY w.operator, ol.operator_number
+        ORDER BY well_count DESC
+      `).bind(...[...allOpNames]).all();
+      for (const r of opLookup.results as any[]) {
+        const key = (r.operator as string).toUpperCase();
+        if (!opNameToNumber.has(key)) {
+          opNameToNumber.set(key, r.operator_number as string);
+        }
+      }
+    }
+
+    // Build response
+    const totalPuns = hudResult?.total_puns || 0;
+    const idlePuns = hudResult?.idle_puns || 0;
+
+    const mapOperator = (r: any) => ({
+      operator: r.operator,
+      operatorNumber: opNameToNumber.get(r.operator?.toUpperCase()) || null,
+      totalWells: r.total_wells,
+      idleWells: r.idle_wells,
+      idleRatePct: r.idle_rate_pct
+    });
+
+    const response = {
+      summary: {
+        totalPuns,
+        activePuns: hudResult?.active_puns || 0,
+        idlePuns,
+        idleRatePct: totalPuns > 0 ? Math.round((idlePuns / totalPuns) * 1000) / 10 : 0,
+        recentlyIdle: hudResult?.recently_idle || 0,
+        extendedIdle: hudResult?.extended_idle || 0,
+        longTermIdle: hudResult?.long_term_idle || 0,
+        newlyIdle6mo: newlyIdleResult?.newly_idle || 0,
+        unassignedWells: unassignedResult?.unassigned_count || 0,
+        dataHorizon: horizonResult?.horizon || ''
+      },
+      operatorsByCount: (opByCountResult.results as any[]).map(mapOperator),
+      operatorsByRate: (opByRateResult.results as any[]).map(mapOperator),
+      counties: (countyResult.results as any[]).map((r: any) => ({
+        county: r.county,
+        totalWells: r.total_wells,
+        idleWells: r.idle_wells,
+        idleRatePct: r.idle_rate_pct,
+        topIdleOperator: topOpByCounty.get(r.county) || null,
+        topIdleOperatorNumber: opNameToNumber.get(topOpByCounty.get(r.county)?.toUpperCase() || '') || null
+      }))
+    };
+
+    console.log(`[Shut-In Research] ${response.operatorsByCount.length} operators by count, ${response.counties.length} counties`);
+
+    // Cache for 24 hours
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put('shut-in-research', JSON.stringify(response), { expirationTtl: 86400 });
+      } catch (e) {
+        console.error('[Shut-In Research] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Shut-In Research] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load shut-in research data',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * GET /api/intelligence/production-decline/research
+ * Statewide production decline intelligence — operator and county decline rankings.
+ * Uses pre-computed BOE-based decline_rate_12m from puns table.
+ * Cached 24h in KV, shared across all users.
+ */
+export async function handleGetDeclineResearch(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    // Check KV cache (24-hour TTL, shared across all users)
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get('decline-research', 'json');
+        if (cached) {
+          console.log('[Decline Research] Returning cached data');
+          return jsonResponse(cached);
+        }
+      } catch (e) {
+        console.error('[Decline Research] Cache read error:', e);
+      }
+    }
+
+    console.log('[Decline Research] Computing statewide decline stats...');
+
+    // Query 1: Statewide HUD stats (active PUNs with reasonable decline data)
+    const hudResult = await env.WELLS_DB!.prepare(`
+      SELECT
+        COUNT(*) as total_puns,
+        SUM(CASE WHEN months_since_production <= 3 THEN 1 ELSE 0 END) as active_puns,
+        ROUND(AVG(CASE WHEN decline_rate_12m BETWEEN -100 AND 100
+          AND months_since_production <= 3 THEN decline_rate_12m END), 1) as avg_decline,
+        SUM(CASE WHEN decline_rate_12m < -25 AND decline_rate_12m >= -100
+          AND months_since_production <= 3 THEN 1 ELSE 0 END) as steep_decline,
+        SUM(CASE WHEN decline_rate_12m BETWEEN -5 AND 5
+          AND months_since_production <= 3 THEN 1 ELSE 0 END) as flat_wells,
+        SUM(CASE WHEN decline_rate_12m > 5 AND decline_rate_12m <= 100
+          AND months_since_production <= 3 THEN 1 ELSE 0 END) as growing_wells
+      FROM puns
+      WHERE decline_rate_12m IS NOT NULL
+    `).first() as any;
+
+    // Query 2: Data horizon
+    const horizonResult = await env.WELLS_DB!.prepare(`
+      SELECT MAX(year_month) as horizon FROM otc_production
+    `).first() as any;
+
+    // Query 3: Top operators by steepest DECLINE (min 20 active PUNs)
+    const opByDeclineResult = await env.WELLS_DB!.prepare(`
+      SELECT w.operator,
+        COUNT(DISTINCT p.pun) as active_wells,
+        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.decline_rate_12m IS NOT NULL
+        AND p.decline_rate_12m BETWEEN -100 AND 100
+        AND p.months_since_production <= 3
+        AND w.operator IS NOT NULL
+        AND w.operator != 'OTC/OCC NOT ASSIGNED'
+      GROUP BY w.operator
+      HAVING active_wells >= 20
+      ORDER BY avg_decline ASC
+      LIMIT 20
+    `).all();
+
+    // Query 4: Top operators by GROWTH (min 20 active PUNs)
+    const opByGrowthResult = await env.WELLS_DB!.prepare(`
+      SELECT w.operator,
+        COUNT(DISTINCT p.pun) as active_wells,
+        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
+      FROM puns p
+      JOIN well_pun_links wpl ON p.pun = wpl.pun
+      JOIN wells w ON wpl.api_number = w.api_number
+      WHERE p.decline_rate_12m IS NOT NULL
+        AND p.decline_rate_12m BETWEEN -100 AND 100
+        AND p.months_since_production <= 3
+        AND w.operator IS NOT NULL
+        AND w.operator != 'OTC/OCC NOT ASSIGNED'
+      GROUP BY w.operator
+      HAVING active_wells >= 20
+      ORDER BY avg_decline DESC
+      LIMIT 20
+    `).all();
+
+    // Query 5: County decline rates (all qualifying counties)
+    const countyResult = await env.WELLS_DB!.prepare(`
+      SELECT p.county,
+        COUNT(*) as active_wells,
+        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline,
+        SUM(CASE WHEN p.decline_rate_12m < 0 THEN 1 ELSE 0 END) as declining_wells,
+        SUM(CASE WHEN p.decline_rate_12m >= 0 THEN 1 ELSE 0 END) as growing_wells
+      FROM puns p
+      WHERE p.decline_rate_12m IS NOT NULL
+        AND p.decline_rate_12m BETWEEN -100 AND 100
+        AND p.months_since_production <= 3
+        AND p.county IS NOT NULL
+      GROUP BY p.county
+      HAVING active_wells >= 10
+      ORDER BY avg_decline ASC
+    `).all();
+
+    // Batch lookup: resolve operator names → operator_numbers
+    // Pick the operator_number with the most wells for each name (canonical resolution)
+    const allOpNames = new Set<string>();
+    for (const r of opByDeclineResult.results as any[]) allOpNames.add(r.operator);
+    for (const r of opByGrowthResult.results as any[]) allOpNames.add(r.operator);
+
+    const opNameToNumber = new Map<string, string>();
+    if (allOpNames.size > 0) {
+      const placeholders = [...allOpNames].map(() => '?').join(',');
+      const opLookup = await env.WELLS_DB!.prepare(`
+        SELECT w.operator, ol.operator_number, COUNT(DISTINCT w.api_number) as well_count
+        FROM wells w
+        JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+        JOIN otc_leases ol ON wpl.pun = ol.pun
+        WHERE w.operator IN (${placeholders})
+          AND ol.operator_number IS NOT NULL
+        GROUP BY w.operator, ol.operator_number
+        ORDER BY well_count DESC
+      `).bind(...[...allOpNames]).all();
+      for (const r of opLookup.results as any[]) {
+        const key = (r.operator as string).toUpperCase();
+        if (!opNameToNumber.has(key)) {
+          opNameToNumber.set(key, r.operator_number as string);
+        }
+      }
+    }
+
+    // Build response
+    const mapOperator = (r: any) => ({
+      operator: r.operator,
+      operatorNumber: opNameToNumber.get(r.operator?.toUpperCase()) || null,
+      activeWells: r.active_wells,
+      avgDecline: r.avg_decline
+    });
+
+    const response = {
+      summary: {
+        totalPuns: hudResult?.total_puns || 0,
+        activePuns: hudResult?.active_puns || 0,
+        avgDecline: hudResult?.avg_decline || 0,
+        steepDecline: hudResult?.steep_decline || 0,
+        flatWells: hudResult?.flat_wells || 0,
+        growingWells: hudResult?.growing_wells || 0,
+        dataHorizon: horizonResult?.horizon || ''
+      },
+      operatorsByDecline: (opByDeclineResult.results as any[]).map(mapOperator),
+      operatorsByGrowth: (opByGrowthResult.results as any[]).map(mapOperator),
+      counties: (countyResult.results as any[]).map((r: any) => ({
+        county: r.county,
+        activeWells: r.active_wells,
+        avgDecline: r.avg_decline,
+        decliningWells: r.declining_wells,
+        growingWells: r.growing_wells
+      }))
+    };
+
+    console.log(`[Decline Research] ${response.operatorsByDecline.length} decliners, ${response.operatorsByGrowth.length} growers, ${response.counties.length} counties`);
+
+    // Cache for 24 hours
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put('decline-research', JSON.stringify(response), { expirationTtl: 86400 });
+      } catch (e) {
+        console.error('[Decline Research] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Decline Research] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load decline research data',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
 }

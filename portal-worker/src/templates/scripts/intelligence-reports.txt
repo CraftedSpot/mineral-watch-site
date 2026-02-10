@@ -5,6 +5,22 @@
         // Track which report is currently displayed for print functionality
         let currentReportType = null; // 'deduction-audit' | 'production-decline' | 'pooling' | etc.
 
+        // History API: allow browser back button to close reports
+        let intelViewOpen = null; // 'report' | 'directory' | null
+        window.addEventListener('popstate', function(e) {
+            if (e.state && e.state.intelView === 'home') {
+                if (intelViewOpen === 'report') {
+                    closeReport(true);
+                } else if (intelViewOpen === 'directory') {
+                    closeOperatorDirectory(true);
+                }
+            }
+        });
+        // Push initial state so we have a "home" entry
+        if (!history.state || !history.state.intelView) {
+            history.replaceState({ intelView: 'home' }, '');
+        }
+
         // Global print function that opens the dedicated print page
         function openPrintSummary() {
             if (!currentReportType) {
@@ -15,11 +31,30 @@
             const printUrls = {
                 'deduction-audit': '/print/intelligence/deduction-audit',
                 'production-decline': '/print/intelligence/production-decline',
-                'shut-in-detector': '/print/intelligence/shut-in-detector'
+                'shut-in-detector': '/print/intelligence/shut-in-detector',
+                'pooling': '/print/intelligence/pooling'
             };
 
-            const printUrl = printUrls[currentReportType];
+            let printUrl = printUrls[currentReportType];
             if (printUrl) {
+                // Pass current tab (and sub-view for reports that have them)
+                const params = new URLSearchParams();
+                if (currentReportType === 'deduction-audit') {
+                    params.set('tab', deductionCurrentTab);
+                } else if (currentReportType === 'production-decline') {
+                    params.set('tab', declineCurrentTab);
+                    if (declineCurrentTab === 'research') {
+                        params.set('view', declineResearchView || 'decliners');
+                    }
+                } else if (currentReportType === 'shut-in-detector') {
+                    params.set('tab', shutInCurrentTab);
+                    if (shutInCurrentTab === 'research') {
+                        params.set('view', shutInResearchView || 'byCount');
+                    }
+                } else if (currentReportType === 'pooling') {
+                    params.set('tab', poolingCurrentTab);
+                }
+                printUrl += '?' + params.toString();
                 window.open(printUrl, '_blank');
             } else {
                 // Fallback for reports without dedicated print pages
@@ -250,6 +285,9 @@
         let marketsOperators = [];
 
         async function loadDeductionReport(initialTab) {
+            // Push history so back button returns to intelligence home
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
             // Set report type for print functionality
             currentReportType = 'deduction-audit';
             deductionResearchLoaded = false;
@@ -379,7 +417,7 @@
             html += `
                 <div class="pooling-tabs">
                     <button class="pooling-tab ${initialTab === 'properties' ? 'active' : ''}" data-tab="properties" onclick="switchDeductionTab('properties')">
-                        My Properties <span class="tab-badge">${summary.flagged_count || 0}</span>
+                        My Portfolio <span class="tab-badge">${summary.flagged_count || 0}</span>
                     </button>
                     <button class="pooling-tab ${initialTab === 'markets' ? 'active' : ''}" data-tab="markets" onclick="switchDeductionTab('markets')">
                         My Markets <span class="tab-badge">${operatorCount}</span>
@@ -1315,13 +1353,15 @@
             }
         }
 
-        function closeReport() {
+        function closeReport(fromPopstate) {
             const main = document.querySelector('main');
             const hero = document.querySelector('.intel-hero');
             const viewer = document.getElementById('reportViewer');
             if (main) main.style.display = '';
             if (hero) hero.style.display = '';
             viewer.style.display = 'none';
+            intelViewOpen = null;
+            if (!fromPopstate) history.back();
             window.scrollTo(0, 0);
         }
 
@@ -1507,6 +1547,9 @@
         let poolingTableSort = { key: 'orderDate', dir: 'desc' };
 
         async function loadPoolingReport(forceRefresh = false) {
+            // Push history so back button returns to intelligence home
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
             // Show report viewer, hide main page content
             const main = document.querySelector('main');
             const hero = document.querySelector('.intel-hero');
@@ -1579,9 +1622,8 @@
         }
 
         function renderPoolingReport(data) {
-            const { summary, byProperty, countyAverages, marketResearch, userPlan } = data;
+            const { summary, byProperty, countyAverages, marketResearch } = data;
             lastPoolingData = data;
-            lastPoolingData.userPlan = userPlan || 'Free';
             poolingExpandedProperties = new Set();
             poolingCurrentTab = 'properties';
             poolingSearchTerm = '';
@@ -1681,7 +1723,7 @@
             html += `
                 <div class="pooling-tabs">
                     <button class="pooling-tab active" data-tab="properties" onclick="switchPoolingTab('properties')">
-                        My Properties <span class="tab-badge">${propertiesWithOrders.length}</span>
+                        My Portfolio <span class="tab-badge">${propertiesWithOrders.length}</span>
                     </button>
                     <button class="pooling-tab" data-tab="markets" onclick="switchPoolingTab('markets')">
                         My Markets <span class="tab-badge">${countyAverages.length}</span>
@@ -1707,7 +1749,7 @@
 
             // TAB 3: MARKET RESEARCH
             html += `<div id="pooling-tab-research" class="pooling-tab-content" style="display:none;">`;
-            html += renderPoolingResearchTab(marketResearch, userPlan);
+            html += renderPoolingResearchTab(marketResearch);
             html += `</div>`;
 
             html += `</div>`; // Close tab contents
@@ -2073,10 +2115,13 @@
             }
 
             let html = `
-                <p class="pooling-tab-intro">
-                    Average bonus rates and formation activity in counties where you own mineral rights.
-                    Use this to benchmark offers you receive against local market conditions.
-                </p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        Average bonus rates and formation activity in counties where you own mineral rights.
+                        Use this to benchmark offers you receive against local market conditions.
+                    </p>
+                    <button class="pooling-btn-export" onclick="exportPoolingMarketsCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+                </div>
                 <div class="pooling-markets-grid">
             `;
 
@@ -2140,18 +2185,20 @@
             return html;
         }
 
-        function renderPoolingResearchTab(marketResearch, userPlan) {
+        function renderPoolingResearchTab(marketResearch) {
             const research = marketResearch || {};
             const topFormations = research.topFormations || [];
             const topPayingOperators = research.topPayingOperators || [];
             const hottestCounties = research.hottestCounties || [];
-            const plan = (userPlan || 'Free').toLowerCase();
 
             let html = `
-                <p class="pooling-tab-intro">
-                    Statewide pooling market intelligence from OCC orders. Identify formation premiums,
-                    top-paying operators, and market trends across Oklahoma.
-                </p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        Statewide pooling market intelligence from OCC orders. Identify formation premiums,
+                        top-paying operators, and market trends across Oklahoma.
+                    </p>
+                    <button class="pooling-btn-export" onclick="exportPoolingResearchCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+                </div>
                 <div class="pooling-insight-cards">
             `;
 
@@ -2195,23 +2242,6 @@
             `;
 
             html += `</div>`;
-
-            // Tier Gate: Business+ gets full access, everyone else sees gate
-            const hasFullAccess = plan.includes('business') || plan.includes('enterprise');
-
-            if (!hasFullAccess) {
-                html += `
-                    <div class="pooling-tier-gate">
-                        <div class="tier-gate-icon">🔒</div>
-                        <div class="tier-gate-title">Full Market Research requires Business tier</div>
-                        <div class="tier-gate-desc">
-                            Access the complete statewide dataset, formation-level analytics, operator comparison tools,
-                            exportable market reports, and trend analysis.
-                        </div>
-                        <button class="btn-upgrade" onclick="window.location.href='/account'">Upgrade to Business →</button>
-                    </div>
-                `;
-            }
 
             return html;
         }
@@ -2412,6 +2442,66 @@
             showToast('CSV downloaded', 'success');
         }
 
+        function exportPoolingMarketsCsv() {
+            if (!lastPoolingData || !lastPoolingData.countyAverages) {
+                showToast('No market data to export', 'error');
+                return;
+            }
+            const rows = [];
+            rows.push(['County', 'Orders', 'Avg Bonus/Acre', 'Min Bonus', 'Max Bonus', 'Most Active Operator', 'Dominant Royalty', 'Formations'].join(','));
+            for (const ca of lastPoolingData.countyAverages) {
+                rows.push([
+                    csvEscape(ca.county),
+                    ca.orderCount || 0,
+                    ca.avgBonus != null ? ca.avgBonus : '',
+                    ca.minBonus != null ? ca.minBonus : '',
+                    ca.maxBonus != null ? ca.maxBonus : '',
+                    csvEscape(ca.mostActiveOperator || ''),
+                    csvEscape(ca.dominantRoyalty || ''),
+                    csvEscape((ca.formations || []).join('; '))
+                ].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pooling-markets-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        function exportPoolingResearchCsv() {
+            if (!lastPoolingData || !lastPoolingData.marketResearch) {
+                showToast('No research data to export', 'error');
+                return;
+            }
+            const research = lastPoolingData.marketResearch;
+            const rows = [];
+            rows.push(['Category', 'Name', 'Value', 'Detail'].join(','));
+            for (const f of (research.topFormations || [])) {
+                rows.push(['Top Formation', csvEscape(f.name), f.avgBonus, 'Avg Bonus/Acre'].join(','));
+            }
+            for (const op of (research.topPayingOperators || [])) {
+                rows.push(['Top Operator', csvEscape(op.name), op.avgBonus, op.orderCount + ' orders'].join(','));
+            }
+            for (const c of (research.hottestCounties || [])) {
+                rows.push(['Hottest County', csvEscape(c.county), c.orderCount, 'orders (last 90 days)'].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pooling-research-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
         // =============================================
         // PRODUCTION DECLINE REPORT
         // =============================================
@@ -2422,8 +2512,14 @@
         let declineCountyFilter = '';
         let declineStatusFilter = '';
         let declineCurrentTab = 'properties';
+        let lastDeclineResearchData = null;
+        let declineResearchCountySort = 'rate';
+        let declineResearchView = 'decliners';
 
         async function loadProductionDeclineReport(forceRefresh = false) {
+            // Push history so back button returns to intelligence home
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
             // Set report type for print functionality
             currentReportType = 'production-decline';
 
@@ -2569,7 +2665,7 @@
                     <!-- Tabs -->
                     <div class="pooling-tabs">
                         <button class="pooling-tab active" data-tab="properties" onclick="switchDeclineTab('properties')">
-                            My Properties <span class="tab-badge">${summary.totalWells}</span>
+                            My Portfolio <span class="tab-badge">${summary.totalWells}</span>
                         </button>
                         <button class="pooling-tab" data-tab="markets" onclick="switchDeclineTab('markets')">
                             My Markets
@@ -2808,6 +2904,7 @@
 
         let lastMarketsData = null;
         let declineMarketSort = 'performance'; // 'performance' | 'name'
+        let declineMarketView = 'priority'; // 'priority' | 'counties'
 
         function switchDeclineTab(tab) {
             declineCurrentTab = tab;
@@ -2834,14 +2931,17 @@
                 // Fetch markets data
                 fetchDeclineMarkets();
             } else if (tab === 'research') {
-                content.innerHTML = `
-                    <div class="tier-gate" style="padding: 3rem; text-align: center; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px; border: 1px solid #fcd34d;">
-                        <div style="font-size: 2rem; margin-bottom: 1rem;">🔒</div>
-                        <div style="font-size: 1.1rem; font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">Formation Decline Curves & Statewide Insights</div>
-                        <div style="font-size: 0.9rem; color: #a16207; margin-bottom: 1.5rem;">See how your wells compare to formation type curves and statewide benchmarks</div>
-                        <button class="btn btn-primary" onclick="window.location.href='/pricing'" style="background: #b45309;">Upgrade to Business</button>
-                    </div>
-                `;
+                if (lastDeclineResearchData) {
+                    content.innerHTML = renderDeclineResearchTab(lastDeclineResearchData);
+                } else {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                            <div class="spinner-border" role="status" style="width: 2rem; height: 2rem; margin-bottom: 1rem;"></div>
+                            <div style="font-size: 1rem;">Loading statewide decline data...</div>
+                        </div>
+                    `;
+                    fetchDeclineResearch();
+                }
             }
         }
 
@@ -2887,6 +2987,19 @@
                 const content = document.getElementById('declineTabContent');
                 if (content) content.innerHTML = renderDeclineMarketsTab(lastMarketsData);
             }
+        }
+
+        function switchDeclineMarketView(view) {
+            declineMarketView = view;
+            document.querySelectorAll('.decline-market-view').forEach(el => el.style.display = 'none');
+            const active = document.getElementById('declineMarket_' + view);
+            if (active) active.style.display = '';
+            document.querySelectorAll('.decline-market-toggle .toggle-btn').forEach(b => {
+                const isActive = b.dataset.view === view;
+                b.classList.toggle('active', isActive);
+                b.style.background = isActive ? 'var(--oil-navy)' : 'transparent';
+                b.style.color = isActive ? 'white' : 'var(--slate-blue)';
+            });
         }
 
         function renderDeclineMarketsTab(data) {
@@ -3014,24 +3127,33 @@
             }
 
             let html = `
-                <p class="pooling-tab-intro">
-                    Compare your wells' year-over-year production change against county-wide benchmarks.
-                </p>
-
-                ${narrativeHtml}
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        Compare your active wells' year-over-year production change against active county-wide benchmarks.
+                    </p>
+                    <button class="pooling-btn-export" onclick="exportDeclineMarketsCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+                </div>
 
                 <div class="decline-summary-bar">${summaryParts.join(' <span class="decline-summary-sep">&middot;</span> ')}</div>
 
-                ${riskChartHtml}
-
-                <div class="decline-sort-controls">
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">Sort by:</span>
-                    <button class="decline-sort-btn ${declineMarketSort === 'performance' ? 'active' : ''}" onclick="sortDeclineMarkets('performance')">Performance</button>
-                    <button class="decline-sort-btn ${declineMarketSort === 'wells' ? 'active' : ''}" onclick="sortDeclineMarkets('wells')">Well Count</button>
-                    <button class="decline-sort-btn ${declineMarketSort === 'name' ? 'active' : ''}" onclick="sortDeclineMarkets('name')">Name</button>
+                <div class="decline-market-toggle" style="display: inline-flex; background: #f1f5f9; border-radius: 8px; padding: 3px; margin: 1rem 0 1.5rem;">
+                    <button class="toggle-btn ${declineMarketView === 'priority' ? 'active' : ''}" data-view="priority" onclick="switchDeclineMarketView('priority')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${declineMarketView === 'priority' ? 'var(--oil-navy)' : 'transparent'}; color: ${declineMarketView === 'priority' ? 'white' : 'var(--slate-blue)'};">Intervention Priority</button>
+                    <button class="toggle-btn ${declineMarketView === 'counties' ? 'active' : ''}" data-view="counties" onclick="switchDeclineMarketView('counties')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${declineMarketView === 'counties' ? 'var(--oil-navy)' : 'transparent'}; color: ${declineMarketView === 'counties' ? 'white' : 'var(--slate-blue)'};">County Benchmarks</button>
                 </div>
 
-                <div class="pooling-markets-grid">
+                <div id="declineMarket_priority" class="decline-market-view" style="${declineMarketView !== 'priority' ? 'display:none;' : ''}">
+                    ${narrativeHtml}
+                    ${riskChartHtml}
+                </div>
+
+                <div id="declineMarket_counties" class="decline-market-view" style="${declineMarketView !== 'counties' ? 'display:none;' : ''}">
+                    <div class="decline-sort-controls">
+                        <span style="font-size: 0.8rem; color: var(--text-muted);">Sort by:</span>
+                        <button class="decline-sort-btn ${declineMarketSort === 'performance' ? 'active' : ''}" onclick="sortDeclineMarkets('performance')">Performance</button>
+                        <button class="decline-sort-btn ${declineMarketSort === 'wells' ? 'active' : ''}" onclick="sortDeclineMarkets('wells')">Well Count</button>
+                        <button class="decline-sort-btn ${declineMarketSort === 'name' ? 'active' : ''}" onclick="sortDeclineMarkets('name')">Name</button>
+                    </div>
+                    <div class="pooling-markets-grid">
             `;
 
             for (const ca of counties) {
@@ -3116,9 +3238,9 @@
                 `;
             }
 
-            html += `</div>
+            html += `</div></div>
                 <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; margin-top: 1rem; text-align: right;">
-                    YoY calculated using 24-month production history. Wells below 50 BOE/yr excluded from county benchmarks. Hover labels for mean values.
+                    YoY based on active wells only (produced within 3 months of data horizon). Wells below 50 BOE/yr excluded. Hover labels for mean values.
                 </div>
             `;
             return html;
@@ -3168,6 +3290,71 @@
             const a = document.createElement('a');
             a.href = url;
             a.download = 'production-decline-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        function exportDeclineMarketsCsv() {
+            if (!lastDeclineMarketsData || !lastDeclineMarketsData.counties) {
+                showToast('No market data to export', 'error');
+                return;
+            }
+            const rows = [];
+            rows.push(['County', 'Your Wells', 'Your Median YoY %', 'Your Avg YoY %', 'County Median YoY %', 'Delta vs County', 'Active Wells', 'Idle Wells', 'Top Formations'].join(','));
+            for (const ca of lastDeclineMarketsData.counties) {
+                rows.push([
+                    csvEscape(ca.county),
+                    ca.userWellCount || 0,
+                    ca.userMedianYoyPct != null ? ca.userMedianYoyPct : '',
+                    ca.userAvgYoyPct != null ? ca.userAvgYoyPct : '',
+                    ca.countyMedianYoyPct != null ? ca.countyMedianYoyPct : '',
+                    ca.userVsCountyDelta != null ? ca.userVsCountyDelta : '',
+                    ca.activeWells || 0,
+                    ca.idleWells || 0,
+                    csvEscape((ca.topFormations || []).join('; '))
+                ].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'decline-markets-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        function exportDeclineResearchCsv() {
+            if (!lastDeclineResearchData) {
+                showToast('No research data to export', 'error');
+                return;
+            }
+            const rows = [];
+            // Export all three sections: decliners, growers, counties
+            rows.push(['Section', 'Rank', 'Name', 'Active Wells', 'Avg Decline %'].join(','));
+            const decliners = lastDeclineResearchData.operatorsByDecline || [];
+            for (let i = 0; i < decliners.length; i++) {
+                rows.push(['Steepest Decliners', i + 1, csvEscape(decliners[i].operator), decliners[i].activeWells, decliners[i].avgDecline].join(','));
+            }
+            const growers = lastDeclineResearchData.operatorsByGrowth || [];
+            for (let i = 0; i < growers.length; i++) {
+                rows.push(['Top Growers', i + 1, csvEscape(growers[i].operator), growers[i].activeWells, growers[i].avgDecline].join(','));
+            }
+            rows.push([]);
+            rows.push(['County', 'Active Wells', 'Avg Decline %', 'Declining Wells', 'Growing Wells'].join(','));
+            for (const c of (lastDeclineResearchData.counties || [])) {
+                rows.push([csvEscape(c.county), c.activeWells, c.avgDecline, c.decliningWells, c.growingWells].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'decline-research-' + new Date().toISOString().substring(0, 10) + '.csv';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -3394,6 +3581,7 @@
             const name = wellData.wellName || 'Unknown Well';
             const api = wellData.apiNumber || '—';
             const operator = wellData.operator || '—';
+            const opNum = wellData.operatorNumber || null;
             const county = wellData.county || '—';
             const wellType = wellData.wellType || wellData.formation || '—';
             const lastProd = (wellData.lastProdMonth || wellData.lastReportedMonth)
@@ -3423,7 +3611,7 @@
                     <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
                             <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Operator</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${operator !== '—' ? `<span class="vt-well-link" onclick="document.getElementById('intelWellModal').style.display='none'; lookupOperatorDetail('${escapeAttr(operator)}')">${escapeHtml(operator)}</span>` : '—'}</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${operator !== '—' ? `<span class="vt-well-link" onclick="document.getElementById('intelWellModal').style.display='none'; ${opNum ? `openOperatorDetail('${escapeAttr(opNum)}')` : `lookupOperatorDetail('${escapeAttr(operator)}')`}">${escapeHtml(operator)}</span>` : '—'}</div>
                         </div>
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
                             <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">County</div>
@@ -3464,15 +3652,14 @@
             if (!operatorName || operatorName === 'Unknown') return;
 
             // The operator modal and openOperatorDetail() are defined in intelligence-operators.txt
-            // But openOperatorDetail needs an operator_number. Search the directory API by name.
+            // But openOperatorDetail needs an operator_number. Use the operator-lookup endpoint.
             try {
                 showToast('Loading operator details...', '', 5000);
-                const response = await fetch('/api/operators/directory?search=' + encodeURIComponent(operatorName), { credentials: 'include' });
+                const response = await fetch('/api/operators/lookup?name=' + encodeURIComponent(operatorName), { credentials: 'include' });
                 if (!response.ok) throw new Error('API error');
                 const data = await response.json();
-                const operators = data.operators || [];
-                if (operators.length > 0 && operators[0].operator_number) {
-                    openOperatorDetail(operators[0].operator_number);
+                if (data.operator_number) {
+                    openOperatorDetail(data.operator_number);
                 } else {
                     showToast('Operator not found in directory', 'error');
                 }
@@ -3490,15 +3677,293 @@
         };
 
         // =============================================
+        // PRODUCTION DECLINE — MARKET RESEARCH TAB
+        // =============================================
+
+        async function fetchDeclineResearch() {
+            try {
+                const response = await fetch('/api/intelligence/production-decline/research', { credentials: 'include' });
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Decline research error:', data.error);
+                    const content = document.getElementById('declineTabContent');
+                    if (content) {
+                        content.innerHTML = `
+                            <div class="report-error">
+                                <p>Could not load market research data. Please try again.</p>
+                                <button class="btn btn-primary" onclick="fetchDeclineResearch()">Retry</button>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
+                lastDeclineResearchData = data;
+                const content = document.getElementById('declineTabContent');
+                if (content && declineCurrentTab === 'research') {
+                    content.innerHTML = renderDeclineResearchTab(data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch decline research:', error);
+                const content = document.getElementById('declineTabContent');
+                if (content) {
+                    content.innerHTML = `
+                        <div class="report-error">
+                            <p>Could not load market research data. Please try again.</p>
+                            <button class="btn btn-primary" onclick="fetchDeclineResearch()">Retry</button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function getDeclineColor(rate) {
+            if (rate > -10) return '#10b981';   // Green — outperforming the basin
+            if (rate > -35) return '#f59e0b';   // Amber — normal basin decline range
+            if (rate > -60) return '#f97316';   // Orange — significantly underperforming
+            return '#ef4444';                    // Red — alarming decline
+        }
+
+        function switchDeclineResearchView(view) {
+            declineResearchView = view;
+            document.querySelectorAll('.decline-research-view').forEach(el => el.style.display = 'none');
+            const active = document.getElementById('declineResearch_' + view);
+            if (active) active.style.display = '';
+            document.querySelectorAll('.decline-research-toggle .toggle-btn').forEach(b => {
+                const isActive = b.dataset.view === view;
+                b.classList.toggle('active', isActive);
+                b.style.background = isActive ? 'var(--oil-navy)' : 'transparent';
+                b.style.color = isActive ? 'white' : 'var(--slate-blue)';
+            });
+        }
+
+        function sortDeclineResearchCounties(sortType) {
+            declineResearchCountySort = sortType;
+            if (lastDeclineResearchData) {
+                const container = document.getElementById('declineResearchCounties');
+                if (container) {
+                    container.innerHTML = renderDeclineResearchCountyCards(lastDeclineResearchData.counties);
+                }
+                document.querySelectorAll('.decline-research-sort .sort-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.sort === sortType);
+                    b.style.background = b.dataset.sort === sortType ? 'var(--oil-navy)' : 'white';
+                    b.style.color = b.dataset.sort === sortType ? 'white' : 'var(--slate-blue)';
+                });
+            }
+        }
+
+        function renderDeclineResearchTab(data) {
+            const { summary, operatorsByDecline, operatorsByGrowth, counties } = data;
+            const horizonLabel = formatHorizonMonth(summary.dataHorizon);
+            let html = '';
+
+            html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                    Statewide production decline intelligence using BOE-equivalent year-over-year analysis.
+                </p>
+                <button class="pooling-btn-export" onclick="exportDeclineResearchCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+            </div>`;
+
+            // HUD Summary Cards
+            html += `<div class="pooling-insight-cards">`;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Statewide Avg Decline</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: ${getDeclineColor(summary.avgDecline)}; margin: 0.5rem 0;">
+                        ${summary.avgDecline}%
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        BOE year-over-year across ${summary.activePuns.toLocaleString()} active PUNs
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Steep Decline (>25%)</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #f97316; margin: 0.5rem 0;">
+                        ${summary.steepDecline.toLocaleString()}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        Wells losing more than 25% production YoY
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Growing Production</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #10b981; margin: 0.5rem 0;">
+                        ${summary.growingWells.toLocaleString()}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        Wells with >5% YoY growth (${summary.flatWells.toLocaleString()} flat)
+                    </div>
+                </div>
+            `;
+
+            html += `</div>`;
+
+            html += `
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin: 1rem 0 1.5rem; font-style: italic;">
+                    Data as of ${horizonLabel}. Decline = BOE year-over-year change comparing 3-month windows.
+                    Active wells only (produced within 3 months of data horizon). Min 20 wells per operator.
+                    Operators listed as "OTC/OCC NOT ASSIGNED" are excluded from rankings.
+                </div>
+            `;
+
+            // Segmented control
+            html += `
+                <div class="decline-research-toggle" style="display: inline-flex; background: #f1f5f9; border-radius: 8px; padding: 3px; margin-bottom: 1.5rem;">
+                    <button class="toggle-btn ${declineResearchView === 'decliners' ? 'active' : ''}" data-view="decliners" onclick="switchDeclineResearchView('decliners')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${declineResearchView === 'decliners' ? 'var(--oil-navy)' : 'transparent'}; color: ${declineResearchView === 'decliners' ? 'white' : 'var(--slate-blue)'};">Steepest Decliners</button>
+                    <button class="toggle-btn ${declineResearchView === 'growers' ? 'active' : ''}" data-view="growers" onclick="switchDeclineResearchView('growers')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${declineResearchView === 'growers' ? 'var(--oil-navy)' : 'transparent'}; color: ${declineResearchView === 'growers' ? 'white' : 'var(--slate-blue)'};">Top Growers</button>
+                    <button class="toggle-btn ${declineResearchView === 'counties' ? 'active' : ''}" data-view="counties" onclick="switchDeclineResearchView('counties')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${declineResearchView === 'counties' ? 'var(--oil-navy)' : 'transparent'}; color: ${declineResearchView === 'counties' ? 'white' : 'var(--slate-blue)'};">County Trends</button>
+                </div>
+            `;
+
+            // View: Steepest Decliners
+            html += `<div id="declineResearch_decliners" class="decline-research-view" style="${declineResearchView !== 'decliners' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">Steepest Declining Operators</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Operators with steepest average production decline (minimum 20 active wells)</p>
+                </div>
+                ${renderDeclineOperatorTable(operatorsByDecline)}
+            </div>`;
+
+            // View: Top Growers
+            html += `<div id="declineResearch_growers" class="decline-research-view" style="${declineResearchView !== 'growers' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">Top Growing Operators</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Operators maintaining or growing production (minimum 20 active wells)</p>
+                </div>
+                ${renderDeclineOperatorTable(operatorsByGrowth)}
+            </div>`;
+
+            // View: County Trends
+            html += `<div id="declineResearch_counties" class="decline-research-view" style="${declineResearchView !== 'counties' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">County Production Trends</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Average decline rates across Oklahoma counties (minimum 10 active wells)</p>
+                </div>
+                <div class="decline-research-sort" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button class="sort-btn ${declineResearchCountySort === 'rate' ? 'active' : ''}" data-sort="rate" onclick="sortDeclineResearchCounties('rate')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${declineResearchCountySort === 'rate' ? 'var(--oil-navy)' : 'white'}; color: ${declineResearchCountySort === 'rate' ? 'white' : 'var(--slate-blue)'};">Decline Rate</button>
+                    <button class="sort-btn ${declineResearchCountySort === 'count' ? 'active' : ''}" data-sort="count" onclick="sortDeclineResearchCounties('count')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${declineResearchCountySort === 'count' ? 'var(--oil-navy)' : 'white'}; color: ${declineResearchCountySort === 'count' ? 'white' : 'var(--slate-blue)'};">Well Count</button>
+                    <button class="sort-btn ${declineResearchCountySort === 'name' ? 'active' : ''}" data-sort="name" onclick="sortDeclineResearchCounties('name')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${declineResearchCountySort === 'name' ? 'var(--oil-navy)' : 'white'}; color: ${declineResearchCountySort === 'name' ? 'white' : 'var(--slate-blue)'};">Name</button>
+                </div>
+                <div id="declineResearchCounties">${renderDeclineResearchCountyCards(counties)}</div>
+            </div>`;
+
+            return html;
+        }
+
+        function renderDeclineOperatorTable(operators) {
+            if (!operators || operators.length === 0) {
+                return '<div class="pooling-empty">No operator data available</div>';
+            }
+
+            let html = `<div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy);">Operator</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Active Wells</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right; min-width: 140px;">Avg Decline (YoY)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const op of operators) {
+                const rateColor = getDeclineColor(op.avgDecline);
+                // Map decline to bar width: -100% = full bar left, +50% = full bar right
+                // Normalize around 0: negative = red bar, positive = green bar
+                const barPct = Math.min(Math.abs(op.avgDecline), 100);
+                const sign = op.avgDecline >= 0 ? '+' : '';
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.5rem 0.75rem; font-weight: 500; color: var(--oil-navy); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(op.operator)}">${op.operatorNumber ? `<span class="vt-well-link" onclick="openOperatorDetail('${escapeAttr(op.operatorNumber)}')">${escapeHtml(op.operator)}</span>` : escapeHtml(op.operator)}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${op.activeWells.toLocaleString()}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right;">
+                            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
+                                <div style="width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${barPct}%; height: 100%; background: ${rateColor}; border-radius: 3px;"></div>
+                                </div>
+                                <span style="font-weight: 600; color: ${rateColor}; min-width: 50px; text-align: right;">${sign}${op.avgDecline}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table></div>`;
+            return html;
+        }
+
+        function renderDeclineResearchCountyCards(counties) {
+            if (!counties || counties.length === 0) {
+                return '<div class="pooling-empty">No county data available</div>';
+            }
+
+            let sorted = [...counties];
+            if (declineResearchCountySort === 'rate') {
+                sorted.sort((a, b) => a.avgDecline - b.avgDecline);
+            } else if (declineResearchCountySort === 'count') {
+                sorted.sort((a, b) => b.activeWells - a.activeWells);
+            } else if (declineResearchCountySort === 'name') {
+                sorted.sort((a, b) => (a.county || '').localeCompare(b.county || ''));
+            }
+
+            let html = '<div class="pooling-insight-cards" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">';
+
+            for (const c of sorted) {
+                const rateColor = getDeclineColor(c.avgDecline);
+                const sign = c.avgDecline >= 0 ? '+' : '';
+                const totalWells = c.decliningWells + c.growingWells;
+                const growPct = totalWells > 0 ? Math.round(100 * c.growingWells / totalWells) : 0;
+                html += `
+                    <div class="pooling-insight-card" style="padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                            <div class="insight-card-title" style="margin-bottom: 0;">${escapeHtml(c.county)}</div>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: ${rateColor};">${sign}${c.avgDecline}%</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--slate-blue); margin-bottom: 0.5rem;">
+                            ${c.activeWells.toLocaleString()} active wells
+                        </div>
+                        <div style="margin-bottom: 0.25rem;">
+                            <div style="display: flex; height: 4px; border-radius: 2px; overflow: hidden; background: #fee2e2;">
+                                <div style="width: ${growPct}%; background: #bbf7d0;"></div>
+                            </div>
+                        </div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted); display: flex; justify-content: space-between;">
+                            <span>${c.growingWells} growing</span>
+                            <span>${c.decliningWells} declining</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        // =============================================
         // SHUT-IN DETECTOR
         // =============================================
         let lastShutInData = null;
         let shutInVirtualTable = null;
         let shutInCurrentTab = 'properties';
         let lastShutInMarketsData = null;
+        let lastShutInResearchData = null;
         let shutInMarketSort = 'performance';
+        let shutInResearchCountySort = 'rate';
+        let shutInResearchView = 'byCount';
 
         async function loadShutInDetectorReport(forceRefresh = false) {
+            // Push history so back button returns to intelligence home
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
             currentReportType = 'shut-in-detector';
             shutInCurrentTab = 'properties';
             lastShutInMarketsData = null;
@@ -3665,7 +4130,7 @@
                 const label = noDataSubLabel(w);
                 return `<tr style="border-bottom:1px solid #f1f5f9;">
                     <td style="padding:8px 10px;font-size:0.82rem;"><span class="vt-well-link" onclick="showWellInfoById('${w.clientWellId || w.apiNumber}')">${escapeHtml(w.wellName)}</span></td>
-                    <td style="padding:8px 10px;font-size:0.82rem;" class="vt-hide-mobile">${w.operator !== 'Unknown' ? '<span class="vt-well-link" onclick="lookupOperatorDetail(\'' + escapeAttr(w.operator) + '\')">' + escapeHtml(w.operator) + '</span>' : escapeHtml(w.operator)}</td>
+                    <td style="padding:8px 10px;font-size:0.82rem;" class="vt-hide-mobile">${w.operator !== 'Unknown' ? '<span class="vt-well-link" onclick="' + (w.operatorNumber ? "openOperatorDetail('" + escapeAttr(w.operatorNumber) + "')" : "lookupOperatorDetail('" + escapeAttr(w.operator) + "')") + '">' + escapeHtml(w.operator) + '</span>' : escapeHtml(w.operator)}</td>
                     <td style="padding:8px 10px;font-size:0.82rem;">${escapeHtml(w.county)}</td>
                     <td style="padding:8px 10px;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;background:${badgeColor};color:white;">${escapeHtml(label)}</span></td>
                     <td style="padding:8px 10px;font-size:0.82rem;color:var(--text-muted);">${w.riskFlags.length > 0 ? w.riskFlags.map(f => { let cls = 'risk-pill'; if (f === 'HBP Risk') cls += ' risk-hbp'; else if (f === 'Sudden Stop') cls += ' risk-sudden'; else if (f === 'Operator Pattern') cls += ' risk-operator'; return '<span class="' + cls + '">' + escapeHtml(f) + '</span>'; }).join(' ') : '—'}</td>
@@ -3796,10 +4261,13 @@
             const tabHtml = `
                 <div class="pooling-tabs" id="shutInTabs">
                     <button class="pooling-tab active" data-tab="properties" onclick="switchShutInTab('properties')">
-                        My Properties <span class="tab-badge">${idleCount}</span>
+                        My Portfolio <span class="tab-badge">${idleCount}</span>
                     </button>
                     <button class="pooling-tab" data-tab="markets" onclick="switchShutInTab('markets')">
                         My Markets <span class="tab-badge" id="shutInMarketsCountBadge">&ndash;</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="research" onclick="switchShutInTab('research')">
+                        Market Research
                     </button>
                 </div>
             `;
@@ -3893,7 +4361,7 @@
                         width: '18%',
                         sortable: true,
                         className: 'vt-hide-mobile',
-                        render: (val) => val && val !== 'Unknown' ? `<span class="vt-well-link" onclick="lookupOperatorDetail('${escapeAttr(val)}')">${escapeHtml(val)}</span>` : escapeHtml(val || '—')
+                        render: (val, row) => val && val !== 'Unknown' ? `<span class="vt-well-link" onclick="${row.operatorNumber ? `openOperatorDetail('${escapeAttr(row.operatorNumber)}')` : `lookupOperatorDetail('${escapeAttr(val)}')`}">${escapeHtml(val)}</span>` : escapeHtml(val || '—')
                     },
                     {
                         key: 'county',
@@ -4008,6 +4476,70 @@
             showToast('CSV downloaded', 'success');
         }
 
+        function exportShutInMarketsCsv() {
+            if (!lastShutInMarketsData || !lastShutInMarketsData.counties) {
+                showToast('No market data to export', 'error');
+                return;
+            }
+            const rows = [];
+            rows.push(['County', 'Your Wells', 'Your Idle Wells', 'Your Idle Rate %', 'County Idle Rate %', 'Delta vs County', 'County Total Wells', 'County Idle Wells'].join(','));
+            for (const ca of lastShutInMarketsData.counties) {
+                rows.push([
+                    csvEscape(ca.county),
+                    ca.userWellCount || 0,
+                    ca.userIdleWells || 0,
+                    ca.userIdleRate != null ? ca.userIdleRate.toFixed(1) : '',
+                    ca.idleRate != null ? ca.idleRate.toFixed(1) : '',
+                    ca.userVsCountyDelta != null ? ca.userVsCountyDelta.toFixed(1) : '',
+                    ca.totalWells || 0,
+                    ca.idleWells || 0
+                ].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'shut-in-markets-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        function exportShutInResearchCsv() {
+            if (!lastShutInResearchData) {
+                showToast('No research data to export', 'error');
+                return;
+            }
+            const rows = [];
+            rows.push(['Section', 'Rank', 'Name', 'Total Wells', 'Idle Wells', 'Idle Rate %'].join(','));
+            const byCount = lastShutInResearchData.operatorsByCount || [];
+            for (let i = 0; i < byCount.length; i++) {
+                rows.push(['Most Idle Wells', i + 1, csvEscape(byCount[i].operator), byCount[i].totalWells, byCount[i].idleWells, byCount[i].idleRatePct].join(','));
+            }
+            const byRate = lastShutInResearchData.operatorsByRate || [];
+            for (let i = 0; i < byRate.length; i++) {
+                rows.push(['Highest Idle Rate', i + 1, csvEscape(byRate[i].operator), byRate[i].totalWells, byRate[i].idleWells, byRate[i].idleRatePct].join(','));
+            }
+            rows.push([]);
+            rows.push(['County', 'Total Wells', 'Idle Wells', 'Idle Rate %', 'Top Idle Operator'].join(','));
+            for (const c of (lastShutInResearchData.counties || [])) {
+                const countyName = (c.county || '').replace(/^\d{3}-/, '');
+                rows.push([csvEscape(countyName), c.totalWells, c.idleWells, c.idleRatePct, csvEscape(c.topIdleOperator || '')].join(','));
+            }
+            const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'shut-in-research-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
         // =============================================
         // SHUT-IN DETECTOR — MY MARKETS TAB
         // =============================================
@@ -4042,6 +4574,17 @@
                         </div>
                     `;
                     fetchShutInMarkets();
+                }
+            } else if (tab === 'research') {
+                if (lastShutInResearchData) {
+                    content.innerHTML = renderShutInResearchTab(lastShutInResearchData);
+                } else {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                            <div class="report-loading">Loading statewide idle data...</div>
+                        </div>
+                    `;
+                    fetchShutInResearch();
                 }
             }
         }
@@ -4169,9 +4712,12 @@
             if (concern > 0) summaryParts.push(`<span class="decline-summary-pill pill-negative">${concern} concern</span>`);
 
             let html = `
-                <p class="pooling-tab-intro">
-                    Compare your wells' idle rates against county-wide statistics. See which operators are shutting in the most wells.
-                </p>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        Compare your wells' idle rates against county-wide statistics. See which operators are shutting in the most wells.
+                    </p>
+                    <button class="pooling-btn-export" onclick="exportShutInMarketsCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+                </div>
 
                 <div class="decline-summary-bar">${summaryParts.join(' <span class="decline-summary-sep">&middot;</span> ')}</div>
 
@@ -4251,6 +4797,278 @@
                     Idle = no production in 3+ months. Includes wells with no reported production in available OTC data. Updated daily at 8am CT.
                 </div>
             `;
+            return html;
+        }
+
+        // =============================================
+        // SHUT-IN DETECTOR — MARKET RESEARCH TAB
+        // =============================================
+
+        async function fetchShutInResearch() {
+            try {
+                const response = await fetch('/api/intelligence/shut-in-detector/research', { credentials: 'include' });
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error('Shut-in research error:', data.error);
+                    const content = document.getElementById('shutInTabContent');
+                    if (content) {
+                        content.innerHTML = `
+                            <div class="report-error">
+                                <p>Could not load market research data. Please try again.</p>
+                                <button class="btn btn-primary" onclick="fetchShutInResearch()">Retry</button>
+                            </div>
+                        `;
+                    }
+                    return;
+                }
+
+                lastShutInResearchData = data;
+                const content = document.getElementById('shutInTabContent');
+                if (content && shutInCurrentTab === 'research') {
+                    content.innerHTML = renderShutInResearchTab(data);
+                }
+            } catch (error) {
+                console.error('Failed to fetch shut-in research:', error);
+                const content = document.getElementById('shutInTabContent');
+                if (content) {
+                    content.innerHTML = `
+                        <div class="report-error">
+                            <p>Could not load market research data. Please try again.</p>
+                            <button class="btn btn-primary" onclick="fetchShutInResearch()">Retry</button>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function formatHorizonMonth(ym) {
+            if (!ym || ym.length < 6) return 'Unknown';
+            const year = ym.substring(0, 4);
+            const month = parseInt(ym.substring(4, 6));
+            const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            return months[month - 1] + ' ' + year;
+        }
+
+        function getIdleRateColor(rate) {
+            if (rate < 20) return '#10b981';
+            if (rate < 50) return '#f59e0b';
+            if (rate < 75) return '#f97316';
+            return '#ef4444';
+        }
+
+        function sortShutInResearchCounties(sortType) {
+            shutInResearchCountySort = sortType;
+            if (lastShutInResearchData) {
+                const container = document.getElementById('shutInResearchCounties');
+                if (container) {
+                    container.innerHTML = renderShutInResearchCountyCards(lastShutInResearchData.counties);
+                }
+                document.querySelectorAll('.shutin-research-sort .sort-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.sort === sortType);
+                    b.style.background = b.dataset.sort === sortType ? 'var(--oil-navy)' : 'white';
+                    b.style.color = b.dataset.sort === sortType ? 'white' : 'var(--slate-blue)';
+                });
+            }
+        }
+
+        function switchShutInResearchView(view) {
+            shutInResearchView = view;
+            document.querySelectorAll('.shutin-research-view').forEach(el => el.style.display = 'none');
+            const active = document.getElementById('shutinResearch_' + view);
+            if (active) active.style.display = '';
+            document.querySelectorAll('.shutin-research-toggle .toggle-btn').forEach(b => {
+                const isActive = b.dataset.view === view;
+                b.classList.toggle('active', isActive);
+                b.style.background = isActive ? 'var(--oil-navy)' : 'transparent';
+                b.style.color = isActive ? 'white' : 'var(--slate-blue)';
+            });
+        }
+
+        function renderShutInResearchTab(data) {
+            const { summary, operatorsByCount, operatorsByRate, counties } = data;
+            const horizonLabel = formatHorizonMonth(summary.dataHorizon);
+            let html = '';
+
+            html += `<div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                    Statewide shut-in and idle well intelligence from OTC production data.
+                </p>
+                <button class="pooling-btn-export" onclick="exportShutInResearchCsv()" style="flex-shrink: 0; margin-left: 1rem;">⤓ Export CSV</button>
+            </div>`;
+
+            // HUD Summary Cards
+            html += `<div class="pooling-insight-cards">`;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Statewide Idle Rate</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: ${getIdleRateColor(summary.idleRatePct)}; margin: 0.5rem 0;">
+                        ${summary.idleRatePct}%
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        ${summary.idlePuns.toLocaleString()} of ${summary.totalPuns.toLocaleString()} PUNs idle (3+ months)
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Recently Gone Idle</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #f59e0b; margin: 0.5rem 0;">
+                        ${summary.newlyIdle6mo.toLocaleString()}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        Went idle within 6 months of ${horizonLabel}
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Long-Term Idle</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #6b7280; margin: 0.5rem 0;">
+                        ${summary.longTermIdle.toLocaleString()}
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-muted);">
+                        No production for 12+ months
+                    </div>
+                </div>
+            `;
+
+            html += `</div>`;
+
+            html += `
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin: 1rem 0 1.5rem; font-style: italic;">
+                    Data as of ${horizonLabel}. Of ${(summary.totalPuns + summary.unassignedWells).toLocaleString()} total wells tracked,
+                    ${summary.unassignedWells.toLocaleString()} have no assigned operator in OCC records and are excluded from operator rankings.
+                </div>
+            `;
+
+            // Segmented control
+            html += `
+                <div class="shutin-research-toggle" style="display: inline-flex; background: #f1f5f9; border-radius: 8px; padding: 3px; margin-bottom: 1.5rem;">
+                    <button class="toggle-btn ${shutInResearchView === 'byCount' ? 'active' : ''}" data-view="byCount" onclick="switchShutInResearchView('byCount')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${shutInResearchView === 'byCount' ? 'var(--oil-navy)' : 'transparent'}; color: ${shutInResearchView === 'byCount' ? 'white' : 'var(--slate-blue)'};">Most Idle Wells</button>
+                    <button class="toggle-btn ${shutInResearchView === 'byRate' ? 'active' : ''}" data-view="byRate" onclick="switchShutInResearchView('byRate')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${shutInResearchView === 'byRate' ? 'var(--oil-navy)' : 'transparent'}; color: ${shutInResearchView === 'byRate' ? 'white' : 'var(--slate-blue)'};">Highest Idle Rate</button>
+                    <button class="toggle-btn ${shutInResearchView === 'counties' ? 'active' : ''}" data-view="counties" onclick="switchShutInResearchView('counties')" style="padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; background: ${shutInResearchView === 'counties' ? 'var(--oil-navy)' : 'transparent'}; color: ${shutInResearchView === 'counties' ? 'white' : 'var(--slate-blue)'};">County Idle Rates</button>
+                </div>
+            `;
+
+            // View: Operators by Count
+            html += `<div id="shutinResearch_byCount" class="shutin-research-view" style="${shutInResearchView !== 'byCount' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">Top Operators by Idle Well Count</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Operators with the most non-producing wells (minimum 50 wells)</p>
+                </div>
+                ${renderShutInOperatorTable(operatorsByCount)}
+            </div>`;
+
+            // View: Operators by Rate
+            html += `<div id="shutinResearch_byRate" class="shutin-research-view" style="${shutInResearchView !== 'byRate' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">Highest Idle Rate by Operator</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Operators with highest percentage of idle wells (minimum 50 wells)</p>
+                </div>
+                ${renderShutInOperatorTable(operatorsByRate)}
+            </div>`;
+
+            // View: County Idle Rates
+            html += `<div id="shutinResearch_counties" class="shutin-research-view" style="${shutInResearchView !== 'counties' ? 'display:none;' : ''}">
+                <div style="margin-bottom: 1rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">County Idle Rates</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">Idle well rates across Oklahoma counties (minimum 10 wells)</p>
+                </div>
+                <div class="shutin-research-sort" style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button class="sort-btn ${shutInResearchCountySort === 'rate' ? 'active' : ''}" data-sort="rate" onclick="sortShutInResearchCounties('rate')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${shutInResearchCountySort === 'rate' ? 'var(--oil-navy)' : 'white'}; color: ${shutInResearchCountySort === 'rate' ? 'white' : 'var(--slate-blue)'};">Idle Rate</button>
+                    <button class="sort-btn ${shutInResearchCountySort === 'count' ? 'active' : ''}" data-sort="count" onclick="sortShutInResearchCounties('count')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${shutInResearchCountySort === 'count' ? 'var(--oil-navy)' : 'white'}; color: ${shutInResearchCountySort === 'count' ? 'white' : 'var(--slate-blue)'};">Well Count</button>
+                    <button class="sort-btn ${shutInResearchCountySort === 'name' ? 'active' : ''}" data-sort="name" onclick="sortShutInResearchCounties('name')" style="padding: 0.375rem 0.75rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: ${shutInResearchCountySort === 'name' ? 'var(--oil-navy)' : 'white'}; color: ${shutInResearchCountySort === 'name' ? 'white' : 'var(--slate-blue)'};">Name</button>
+                </div>
+                <div id="shutInResearchCounties">${renderShutInResearchCountyCards(counties)}</div>
+            </div>`;
+
+            return html;
+        }
+
+        function renderShutInOperatorTable(operators) {
+            if (!operators || operators.length === 0) {
+                return '<div class="pooling-empty">No operator data available</div>';
+            }
+
+            let html = `<div style="overflow-x: auto;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy);">Operator</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Total</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Idle</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right; min-width: 120px;">Idle Rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const op of operators) {
+                const rateColor = getIdleRateColor(op.idleRatePct);
+                const barWidth = Math.min(op.idleRatePct, 100);
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.5rem 0.75rem; font-weight: 500; color: var(--oil-navy); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(op.operator)}">${op.operatorNumber ? `<span class="vt-well-link" onclick="openOperatorDetail('${escapeAttr(op.operatorNumber)}')">${escapeHtml(op.operator)}</span>` : escapeHtml(op.operator)}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${op.totalWells.toLocaleString()}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${op.idleWells.toLocaleString()}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right;">
+                            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
+                                <div style="width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                                    <div style="width: ${barWidth}%; height: 100%; background: ${rateColor}; border-radius: 3px;"></div>
+                                </div>
+                                <span style="font-weight: 600; color: ${rateColor}; min-width: 40px; text-align: right;">${op.idleRatePct}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            html += `</tbody></table></div>`;
+            return html;
+        }
+
+        function renderShutInResearchCountyCards(counties) {
+            if (!counties || counties.length === 0) {
+                return '<div class="pooling-empty">No county data available</div>';
+            }
+
+            let sorted = [...counties];
+            if (shutInResearchCountySort === 'rate') {
+                sorted.sort((a, b) => b.idleRatePct - a.idleRatePct);
+            } else if (shutInResearchCountySort === 'count') {
+                sorted.sort((a, b) => b.totalWells - a.totalWells);
+            } else if (shutInResearchCountySort === 'name') {
+                sorted.sort((a, b) => (a.county || '').localeCompare(b.county || ''));
+            }
+
+            let html = '<div class="pooling-insight-cards" style="grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));">';
+
+            for (const c of sorted) {
+                const rateColor = getIdleRateColor(c.idleRatePct);
+                const countyName = (c.county || '').replace(/^\d{3}-/, '');
+                html += `
+                    <div class="pooling-insight-card" style="padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                            <div class="insight-card-title" style="margin-bottom: 0;">${escapeHtml(countyName)}</div>
+                            <span style="font-size: 1.1rem; font-weight: 700; color: ${rateColor};">${c.idleRatePct}%</span>
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--slate-blue); margin-bottom: 0.5rem;">
+                            ${c.idleWells.toLocaleString()} idle of ${c.totalWells.toLocaleString()} wells
+                        </div>
+                        ${c.topIdleOperator ? `
+                            <div style="font-size: 0.7rem; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 0.375rem; margin-top: 0.25rem;">
+                                Top idle: ${c.topIdleOperatorNumber ? `<span class="vt-well-link" onclick="openOperatorDetail('${escapeAttr(c.topIdleOperatorNumber)}')">${escapeHtml(c.topIdleOperator)}</span>` : escapeHtml(c.topIdleOperator)}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            html += '</div>';
             return html;
         }
 

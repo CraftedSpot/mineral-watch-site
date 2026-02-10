@@ -101,7 +101,7 @@
 
         function escapeAttr(str) {
             if (!str) return '';
-            return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            return str.replace(/&/g, '&amp;').replace(/'/g, "\\'").replace(/"/g, '&quot;');
         }
 
         function showToast(message, type, duration) {

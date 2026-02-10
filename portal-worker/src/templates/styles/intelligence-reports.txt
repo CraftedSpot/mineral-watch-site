@@ -204,8 +204,8 @@
             .report-actions { width: 100%; }
             .report-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
             .well-detail-content { max-width: 100%; padding: 1rem; }
-            /* Decline chart — scroll with min-width like Unit Report */
-            #declineTrendChart { min-width: 600px; }
+            /* Decline chart — fit mobile screen width, no scroll needed */
+            #declineTrendChart { min-width: 0; }
             /* On mobile, don't use sticky - just scroll */
             .report-data-table th.sticky, .report-data-table td.sticky { position: static; }
             .report-data-table th.sticky-operator, .report-data-table td.sticky-operator { border-right: none; }
@@ -762,13 +762,6 @@
         .insight-item-sub { font-size: 0.72rem; color: var(--text-muted); margin-left: 0.3rem; }
 
         /* Tier Gate */
-        .pooling-tier-gate { background: linear-gradient(135deg, var(--oil-navy), #2d4a5e); border-radius: 10px; padding: 2rem; text-align: center; margin-top: 1.5rem; position: relative; overflow: hidden; }
-        .pooling-tier-gate::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 40%, rgba(251,191,36,0.08) 0%, transparent 60%); }
-        .tier-gate-icon { font-size: 1.5rem; margin-bottom: 0.75rem; }
-        .tier-gate-title { color: white; font-size: 1.1rem; font-weight: 700; margin-bottom: 0.35rem; position: relative; }
-        .tier-gate-desc { color: #94a3b8; font-size: 0.88rem; max-width: 450px; margin: 0 auto 1rem; line-height: 1.5; position: relative; }
-        .btn-upgrade { background: #f59e0b; color: var(--oil-navy); border: none; padding: 0.65rem 1.5rem; border-radius: 8px; font-size: 0.88rem; font-weight: 700; cursor: pointer; font-family: inherit; position: relative; transition: background 0.15s; }
-        .btn-upgrade:hover { background: #fbbf24; }
 
         /* Pooling Responsive */
         @media (max-width: 768px) {

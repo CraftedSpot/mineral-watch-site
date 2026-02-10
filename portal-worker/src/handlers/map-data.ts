@@ -7,6 +7,11 @@
 import { jsonResponse } from '../utils/responses.js';
 import type { Env } from '../types/env.js';
 
+// Escapes HTML entities in tooltip strings
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
  * Get all Oklahoma counties with boundaries
  * GET /api/map/counties
@@ -329,6 +334,140 @@ export async function handleGetCountyProduction(request: Request, env: Env): Pro
     console.error('[MapData] Error fetching county production:', error);
     return jsonResponse({
       error: 'Failed to fetch county production',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}
+
+/**
+ * Get pooling rates by township for choropleth map layer
+ * GET /api/map/pooling-rates?months=18
+ * Returns GeoJSON FeatureCollection with township geometry + pooling rate stats
+ */
+export async function handleGetPoolingRates(request: Request, env: Env): Promise<Response> {
+  try {
+    if (!env.WELLS_DB) {
+      return jsonResponse({ error: 'Database not configured' }, 503);
+    }
+
+    const url = new URL(request.url);
+    const months = Math.min(Math.max(parseInt(url.searchParams.get('months') || '18') || 18, 6), 60);
+    const refresh = url.searchParams.get('refresh') === '1';
+
+    // Check KV cache (4-hour TTL)
+    const cacheKey = `pooling-rates:${months}`;
+    if (!refresh && env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey);
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=3600',
+              'Access-Control-Allow-Origin': '*',
+              'X-Cache': 'HIT'
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[MapData] KV cache read error:', e);
+      }
+    }
+
+    console.log(`[MapData] Fetching pooling rates (${months} months)`);
+
+    // CTE: normalize to max bonus per order, then aggregate by township
+    const query = `
+      WITH order_max_bonus AS (
+        SELECT po.id, po.township, po.range, po.county, po.operator,
+          po.order_date,
+          MAX(peo.bonus_per_acre) as max_bonus
+        FROM pooling_orders po
+        JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+        WHERE peo.bonus_per_acre > 0
+          AND po.order_date >= date('now', '-${months} months')
+        GROUP BY po.id
+      ),
+      township_rates AS (
+        SELECT township, range,
+          ROUND(AVG(max_bonus)) as avg_bonus,
+          ROUND(MIN(max_bonus)) as min_bonus,
+          ROUND(MAX(max_bonus)) as max_bonus,
+          COUNT(*) as order_count,
+          GROUP_CONCAT(DISTINCT county) as counties,
+          GROUP_CONCAT(DISTINCT operator) as operators,
+          MAX(order_date) as latest_order
+        FROM order_max_bonus
+        GROUP BY township, range
+      )
+      SELECT tr.*, t.geometry, t.center_lat, t.center_lng, t.meridian
+      FROM township_rates tr
+      JOIN townships t ON t.township = tr.township AND t.range = tr.range
+      WHERE t.geometry IS NOT NULL
+    `;
+
+    const result = await env.WELLS_DB.prepare(query).all();
+
+    if (!result.results || result.results.length === 0) {
+      const empty = JSON.stringify({ type: "FeatureCollection", features: [] });
+      return new Response(empty, {
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+
+    // Build GeoJSON FeatureCollection
+    const featureCollection = {
+      type: "FeatureCollection",
+      features: (result.results as any[]).map(row => {
+        // Limit operators list to top 5 for tooltip readability
+        const operators = (row.operators || '').split(',').slice(0, 5).join(', ');
+
+        return {
+          type: "Feature",
+          properties: {
+            township: row.township,
+            range: row.range,
+            meridian: row.meridian,
+            avg_bonus: row.avg_bonus,
+            min_bonus: row.min_bonus,
+            max_bonus: row.max_bonus,
+            order_count: row.order_count,
+            counties: row.counties,
+            operators,
+            latest_order: row.latest_order,
+            TWNSHPLAB: `${row.township} ${row.range}`
+          },
+          geometry: JSON.parse(row.geometry)
+        };
+      })
+    };
+
+    console.log(`[MapData] Returning pooling rates for ${featureCollection.features.length} townships`);
+
+    const body = JSON.stringify(featureCollection);
+
+    // Cache in KV (4 hours)
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, body, { expirationTtl: 14400 });
+      } catch (e) {
+        console.error('[MapData] KV cache write error:', e);
+      }
+    }
+
+    return new Response(body, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'public, max-age=3600',
+        'Access-Control-Allow-Origin': '*',
+        'X-Cache': 'MISS'
+      }
+    });
+
+  } catch (error) {
+    console.error('[MapData] Error fetching pooling rates:', error);
+    return jsonResponse({
+      error: 'Failed to fetch pooling rates',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     }, 500);
   }

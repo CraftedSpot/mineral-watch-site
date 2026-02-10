@@ -452,9 +452,12 @@ export async function handleComputePunRollups(
     `, [sixMonthsAgo, referenceYearMonth, referenceYearMonth]);
     const step3Changes = staleResult.meta.changes;
 
-    // Step 4: Compute decline rate (compare recent 3 months avg to same period last year)
+    // Step 4: Compute decline rate (compare recent 3 months BOE to same period last year)
+    // Uses BOE (Barrels of Oil Equivalent) across ALL product codes:
+    //   Oil (1) + Condensate (6) = BBL as-is
+    //   Gas (5) + Casinghead (3) = MCF / 6 to convert to BOE
     // Anchored to data horizon, not today
-    console.log(`${logPrefix} Step 4: Updating decline rates...`);
+    console.log(`${logPrefix} Step 4: Updating decline rates (BOE-based)...`);
     const recentMonthEnd = referenceYearMonth;
     const recentMonthStart = subtractMonths(referenceYearMonth, 3);
     const yearAgoEnd = subtractMonths(referenceYearMonth, 12);
@@ -465,20 +468,22 @@ export async function handleComputePunRollups(
         decline_rate_12m = (
           SELECT
             CASE
-              WHEN COALESCE(old_vol, 0) = 0 THEN NULL
-              ELSE ROUND(((COALESCE(new_vol, 0) - old_vol) / old_vol) * 100, 2)
+              WHEN COALESCE(old_boe, 0) = 0 THEN NULL
+              ELSE ROUND(((COALESCE(new_boe, 0) - old_boe) / old_boe) * 100, 2)
             END
           FROM (
             SELECT
-              (SELECT SUM(gross_volume) FROM otc_production
-               WHERE pun = puns.pun AND product_code IN ('1', '3')
-               AND year_month >= ? AND year_month <= ?) as new_vol,
-              (SELECT SUM(gross_volume) FROM otc_production
-               WHERE pun = puns.pun AND product_code IN ('1', '3')
-               AND year_month >= ? AND year_month <= ?) as old_vol
+              (SELECT SUM(CASE WHEN product_code IN ('1', '6') THEN gross_volume ELSE gross_volume / 6.0 END)
+               FROM otc_production
+               WHERE pun = puns.pun
+               AND year_month >= ? AND year_month <= ?) as new_boe,
+              (SELECT SUM(CASE WHEN product_code IN ('1', '6') THEN gross_volume ELSE gross_volume / 6.0 END)
+               FROM otc_production
+               WHERE pun = puns.pun
+               AND year_month >= ? AND year_month <= ?) as old_boe
           )
         )
-      WHERE EXISTS (SELECT 1 FROM otc_production WHERE pun = puns.pun AND product_code IN ('1', '3'))
+      WHERE EXISTS (SELECT 1 FROM otc_production WHERE pun = puns.pun)
       ${countyCondition}
     `, [recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd]);
     const step4Changes = declineResult.meta.changes;

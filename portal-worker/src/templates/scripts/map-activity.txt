@@ -11,6 +11,30 @@
             ensureLayerOrder();
         }
 
+        function togglePoolingRates() {
+            const checkbox = document.getElementById('toggle-pooling-rates');
+            const legend = document.getElementById('poolingRatesLegend');
+            const btn = document.getElementById('poolingRatesBtn');
+            if (checkbox.checked) {
+                if (!poolingRateLayer) {
+                    loadPoolingRates(); // Lazy load on first enable
+                } else {
+                    if (!map.hasLayer(poolingRateLayer)) map.addLayer(poolingRateLayer);
+                    enrichPropertyTooltips(true);
+                }
+                if (legend) legend.style.display = '';
+                if (btn) btn.classList.add('active');
+            } else {
+                if (poolingRateLayer && map.hasLayer(poolingRateLayer)) {
+                    map.removeLayer(poolingRateLayer);
+                }
+                enrichPropertyTooltips(false);
+                if (legend) legend.style.display = 'none';
+                if (btn) btn.classList.remove('active');
+            }
+            ensureLayerOrder();
+        }
+
         function toggleProperties() {
             const checkbox = document.getElementById('toggle-properties');
             if (checkbox.checked && propertiesLayer) {
@@ -915,8 +939,10 @@
                 map.removeLayer(horizontalHeatmapLayer);
             }
 
-            // Update button state - active if any heatmap is shown
-            const anyHeatmapActive = showPermits || showCompletions || showPooling || showDensity || showSpacing || showHorizontal;
+            // Update button state - active if any heatmap or filing marker is shown
+            const showFilingPermits = document.getElementById('toggle-permits')?.checked;
+            const showFilingCompletions = document.getElementById('toggle-completions')?.checked;
+            const anyHeatmapActive = showPermits || showCompletions || showPooling || showDensity || showSpacing || showHorizontal || showFilingPermits || showFilingCompletions;
             const heatmapBtn = document.getElementById('heatmapBtn');
             if (anyHeatmapActive) {
                 heatmapBtn.classList.add('active');

@@ -83,6 +83,8 @@
         let nearbyWellsLayer = null; // Initialize later after map is ready
         let lateralsLayer = L.featureGroup(); // Layer for horizontal well laterals
         let activityHeatmapLayer = null; // Will be created as heat layer
+        let poolingRateLayer = null; // Choropleth: pooling bonus rates by township
+        let poolingRateByTwp = {}; // Lookup: "09N-05W" -> { avg_bonus, order_count, ... }
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
         // OCC Application heatmap layers

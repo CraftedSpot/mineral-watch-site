@@ -181,9 +181,14 @@
             .questions-grid { grid-template-columns: 1fr; }
             .market-tools-grid { grid-template-columns: 1fr; }
         }
+        @media (max-width: 768px) {
+            .header-inner { flex-direction: column; gap: 10px; }
+            .logo { text-align: center; }
+            .nav-links { gap: 20px; }
+            .user-menu { gap: 10px; }
+        }
         @media (max-width: 600px) {
             .summary-cards { grid-template-columns: 1fr; }
-            .header-inner { flex-wrap: wrap; gap: 10px; }
             .nav-links { gap: 15px; }
             .nav-links a { font-size: 13px; }
             .intel-hero { padding: 0 0 1.5rem; }
@@ -212,9 +217,7 @@
             .summary-value { font-size: 1.2rem; }
             .summary-card { padding: 0.875rem; }
             .summary-label { font-size: 0.65rem; }
-            .header-inner { flex-wrap: wrap; }
-            .nav-links { width: 100%; justify-content: center; gap: 12px; order: 3; }
+            .nav-links { width: 100%; justify-content: center; gap: 12px; }
             .nav-links a { font-size: 12px; }
-            .user-menu { gap: 10px; }
             .user-name { display: none; }
         }

@@ -21,6 +21,7 @@
                     <a href="/portal/map">Map</a>
                     <a href="/portal/intelligence" class="active">Intelligence</a>
                     <a href="/portal/account">Account</a>
+                    <a href="/portal/learn">Learn</a>
                 </nav>
                 <div class="user-menu">
                     <span class="user-name" id="userName">Loading...</span>
@@ -193,24 +194,6 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card disabled" title="Coming soon">
-                        <div class="tool-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                                <line x1="16" y1="13" x2="8" y2="13"/>
-                                <line x1="16" y1="17" x2="8" y2="17"/>
-                            </svg>
-                        </div>
-                        <div class="tool-content">
-                            <h3>Pooling Orders</h3>
-                            <p>Research pooling orders and bonus terms by location</p>
-                            <span class="coming-soon-badge">Coming Soon</span>
-                        </div>
-                        <div class="tool-arrow">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
-                        </div>
-                    </div>
                 </div>
             </section>
 
@@ -263,9 +246,7 @@
                 <div class="report-breadcrumb" style="margin-bottom: 1rem;">
                     <a href="#" onclick="closeOperatorDirectory(); return false;">Intelligence</a>
                     <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <a href="#" onclick="closeOperatorDirectory(); return false;">Operators</a>
-                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <span>Directory</span>
+                    <span>Operator Directory</span>
                 </div>
                 <div class="report-title-row">
                     <div>
@@ -310,14 +291,18 @@
 
     <!-- Operator Detail Modal -->
     <div class="modal-overlay" id="operatorModal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2 id="modalOperatorName">Operator Details</h2>
-                <button class="modal-close" onclick="closeOperatorModal()">&times;</button>
+        <div class="modal-content" style="overflow: hidden; display: flex; flex-direction: column;">
+            <div class="modal-header operator-header" id="operatorModalHeader" style="background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0; flex-direction: column; align-items: flex-start;">
+                <button class="modal-close" onclick="closeOperatorModal()" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">&times;</button>
+                <h2 id="modalOperatorName" style="margin: 0; font-family: 'Merriweather', serif; font-size: 20px; font-weight: 700; color: white; padding-right: 40px;">Operator Details</h2>
+                <div id="modalOperatorMeta" style="display: flex; align-items: center; gap: 8px; margin-top: 6px; flex-wrap: wrap;"></div>
             </div>
-            <div class="modal-body" id="modalBody">
+            <div class="modal-body" id="modalBody" style="flex: 1; overflow-y: auto; min-height: 0;">
                 <div class="loading-spinner"></div>
                 <span>Loading details...</span>
+            </div>
+            <div class="modal-footer" id="operatorModalFooter" style="display: none; padding: 12px 24px; border-top: 1px solid #e5e7eb; flex-shrink: 0; background: white;">
+                <div style="display: flex; gap: 8px; justify-content: flex-end;"></div>
             </div>
         </div>
     </div>

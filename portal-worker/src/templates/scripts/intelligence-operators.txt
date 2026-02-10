@@ -345,6 +345,8 @@
         }
 
         function loadOperatorDirectory() {
+            history.pushState({ intelView: 'directory' }, '');
+            intelViewOpen = 'directory';
             document.querySelector('main').style.display = 'none';
             document.querySelector('.intel-hero').style.display = 'none';
             document.getElementById('operatorDirectoryViewer').style.display = 'block';
@@ -353,10 +355,12 @@
             fetchOperatorDirectory();
         }
 
-        function closeOperatorDirectory() {
+        function closeOperatorDirectory(fromPopstate) {
             document.getElementById('operatorDirectoryViewer').style.display = 'none';
             document.querySelector('main').style.display = 'block';
             document.querySelector('.intel-hero').style.display = 'block';
+            intelViewOpen = null;
+            if (!fromPopstate) history.back();
             window.scrollTo(0, 0);
         }
 
@@ -587,14 +591,36 @@
 
         function renderOperatorModal(data) {
             const modalBody = document.getElementById('modalBody');
-            document.getElementById('modalOperatorName').textContent = data.operator_name;
-
             const summary = data.summary;
             const contact = data.contact;
 
-            const netValueReturn = summary.pcrr_value - summary.residue_deductions;
-            const netReturnClass = netValueReturn >= 0 ? 'positive' : netValueReturn <= -1000000 ? 'negative' : '';
+            // === HEADER: Name, operator number, status, gas profile ===
+            document.getElementById('modalOperatorName').innerHTML = escapeHtml(data.operator_name);
 
+            // Build meta line under the name
+            const metaEl = document.getElementById('modalOperatorMeta');
+            if (metaEl) {
+                let metaHtml = '';
+                metaHtml += `<span style="font-size: 14px; opacity: 0.9;">#${escapeHtml(data.operator_number)}</span>`;
+
+                if (data.status === 'OPEN') {
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: rgba(16,185,129,0.25); color: #d1fae5; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Active</span>`;
+                } else if (data.status === 'CLOSED') {
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: rgba(148,163,184,0.3); color: #e2e8f0; padding: 2px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Inactive</span>`;
+                }
+
+                if (data.gas_profile && data.gas_profile.label) {
+                    const gpLabel = data.gas_profile.label.includes('Lean') ? 'Primarily Gas' :
+                                    data.gas_profile.label.includes('Rich') ? 'Primarily Oil' : 'Mixed Portfolio';
+                    const gpColor = data.gas_profile.label.includes('Lean') ? 'rgba(59,130,246,0.3)' :
+                                    data.gas_profile.label.includes('Rich') ? 'rgba(245,158,11,0.3)' : 'rgba(148,163,184,0.3)';
+                    metaHtml += `<span style="font-size: 11px; font-weight: 600; background: ${gpColor}; color: white; padding: 2px 8px; border-radius: 4px;">${escapeHtml(gpLabel)}</span>`;
+                }
+
+                metaEl.innerHTML = metaHtml;
+            }
+
+            // === BODY: Summary Stats ===
             let html = `
                 <div class="modal-stats">
                     <div class="modal-stat">
@@ -616,10 +642,101 @@
                 </div>
             `;
 
-            // Financial Breakdown
+            // === Contact Information (moved up) ===
+            if (contact && (contact.phone || contact.address || contact.contact_name)) {
+                html += `
+                    <div class="modal-section contact-box">
+                        <h3>Contact Information</h3>
+                        <div class="contact-grid">
+                            ${contact.contact_name ? `<div class="contact-row"><span class="contact-label">Contact</span><span>${escapeHtml(contact.contact_name)}</span></div>` : ''}
+                            ${contact.phone ? `<div class="contact-row"><span class="contact-label">Phone</span><a href="tel:${escapeHtml(contact.phone)}" style="color: #7c3aed;">${escapeHtml(contact.phone)}</a></div>` : ''}
+                            ${contact.address ? `<div class="contact-row"><span class="contact-label">Address</span><span>${escapeHtml(contact.address)}<br>${escapeHtml(contact.city || '')}, ${escapeHtml(contact.state || '')} ${escapeHtml(contact.zip || '')}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // === Operational Health ===
+            if (data.production_health) {
+                const h = data.production_health;
+                const idleColor = getIdleRateColor(h.idleRatePct);
+                const declineColor = getDeclineColor(h.avgDecline);
+                const totalIdle = h.recentlyIdle + h.extendedIdle + h.longTermIdle;
+
+                html += `
+                    <div class="modal-section">
+                        <h3>Operational Health</h3>
+                        <div class="pooling-insight-cards" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 0.75rem;">
+                            <div class="pooling-insight-card" style="padding: 0.75rem;">
+                                <div class="insight-card-title">Well Activity</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${idleColor}; margin: 0.25rem 0;">
+                                    ${h.idleRatePct}% idle
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    ${formatNumber(h.idlePuns)} idle of ${formatNumber(h.totalPuns)} PUNs
+                                </div>
+                            </div>
+                            <div class="pooling-insight-card" style="padding: 0.75rem;">
+                                <div class="insight-card-title">Avg Decline (12mo)</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${declineColor}; margin: 0.25rem 0;">
+                                    ${h.avgDecline != null ? h.avgDecline + '%' : 'N/A'}
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    BOE year-over-year
+                                </div>
+                            </div>
+                            <div class="pooling-insight-card" style="padding: 0.75rem;">
+                                <div class="insight-card-title">Production Trend</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--oil-navy); margin: 0.25rem 0;">
+                                    ${formatNumber(h.decliningWells)} <span style="font-size: 0.8rem; color: #ef4444;">↓</span>
+                                    <span style="font-size: 0.9rem; color: var(--text-muted);">/</span>
+                                    ${formatNumber(h.growingWells)} <span style="font-size: 0.8rem; color: #10b981;">↑</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    Declining vs Growing
+                                </div>
+                            </div>
+                        </div>
+                `;
+
+                if (totalIdle > 0) {
+                    const recentPct = Math.round(h.recentlyIdle / totalIdle * 100);
+                    const extPct = Math.round(h.extendedIdle / totalIdle * 100);
+                    const longPct = 100 - recentPct - extPct;
+                    html += `
+                        <div style="margin-top: 0.5rem;">
+                            <div style="font-size: 0.7rem; color: var(--text-muted); margin-bottom: 0.375rem; text-transform: uppercase; letter-spacing: 0.5px;">Idle Breakdown (${formatNumber(totalIdle)} wells)</div>
+                            <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #e5e7eb;">
+                                ${h.recentlyIdle > 0 ? `<div style="width: ${recentPct}%; background: #f59e0b;" title="Recently idle (3-6mo): ${h.recentlyIdle}"></div>` : ''}
+                                ${h.extendedIdle > 0 ? `<div style="width: ${extPct}%; background: #f97316;" title="Extended idle (6-12mo): ${h.extendedIdle}"></div>` : ''}
+                                ${h.longTermIdle > 0 ? `<div style="width: ${longPct}%; background: #94a3b8;" title="Long-term idle (12+mo): ${h.longTermIdle}"></div>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.375rem; font-size: 0.7rem; color: var(--text-muted);">
+                                ${h.recentlyIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f59e0b;margin-right:3px;"></span>3-6mo: ${h.recentlyIdle}</span>` : ''}
+                                ${h.extendedIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#f97316;margin-right:3px;"></span>6-12mo: ${h.extendedIdle}</span>` : ''}
+                                ${h.longTermIdle > 0 ? `<span><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#94a3b8;margin-right:3px;"></span>12+mo: ${h.longTermIdle}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `</div>`;
+            } else if (data.production_health === null) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Operational Health</h3>
+                        <p style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No production unit data available for this operator.</p>
+                    </div>
+                `;
+            }
+
+            // === Efficiency Breakdown ===
+            const netValueReturn = summary.pcrr_value - summary.residue_deductions;
+            const netReturnClass = netValueReturn >= 0 ? 'positive' : netValueReturn <= -1000000 ? 'negative' : '';
+
             html += `
                 <div class="modal-section financial-breakdown">
-                    <h3>Financial Breakdown (6 Months)</h3>
+                    <h3>Efficiency Breakdown (6 Months)</h3>
                     <div class="breakdown-grid">
                         <div class="breakdown-row">
                             <span class="breakdown-label">Total Production Value</span>
@@ -645,7 +762,7 @@
                 </div>
             `;
 
-            // Purchaser info
+            // === Gas Purchaser ===
             if (data.purchaser && data.purchaser.primary_purchaser_name) {
                 const badge = data.purchaser.is_affiliated
                     ? '<span class="affiliated-badge" title="The gas purchaser is the same entity as the operator">Affiliated</span>'
@@ -668,27 +785,7 @@
                 `;
             }
 
-            // Contact info
-            if (contact && (contact.phone || contact.address || contact.contact_name)) {
-                const statusBadge = contact.status === 'OPEN'
-                    ? '<span class="contact-status active">Active</span>'
-                    : contact.status === 'CLOSED'
-                        ? '<span class="contact-status inactive">Inactive</span>'
-                        : '';
-
-                html += `
-                    <div class="modal-section contact-box">
-                        <h3>Contact Information ${statusBadge}</h3>
-                        <div class="contact-grid">
-                            ${contact.contact_name ? `<div class="contact-row"><span class="contact-label">Contact</span><span>${escapeHtml(contact.contact_name)}</span></div>` : ''}
-                            ${contact.phone ? `<div class="contact-row"><span class="contact-label">Phone</span><a href="tel:${escapeHtml(contact.phone)}">${escapeHtml(contact.phone)}</a></div>` : ''}
-                            ${contact.address ? `<div class="contact-row"><span class="contact-label">Address</span><span>${escapeHtml(contact.address)}<br>${escapeHtml(contact.city || '')}, ${escapeHtml(contact.state || '')} ${escapeHtml(contact.zip || '')}</span></div>` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Monthly trend
+            // === Monthly Trend ===
             if (data.monthly && data.monthly.length > 0) {
                 html += `
                     <div class="modal-section">
@@ -719,7 +816,7 @@
                 `;
             }
 
-            // Top Counties with metrics
+            // === Counties ===
             if (data.counties && data.counties.length > 0) {
                 html += `
                     <div class="modal-section">
@@ -731,7 +828,6 @@
                 `;
             }
 
-            // All counties
             if (data.all_counties && data.all_counties.length > 0) {
                 html += `
                     <div class="modal-section">
@@ -742,6 +838,22 @@
             }
 
             modalBody.innerHTML = html;
+
+            // === FOOTER ===
+            const footer = document.getElementById('operatorModalFooter');
+            if (footer) {
+                footer.style.display = '';
+                footer.querySelector('div').innerHTML = `
+                    <button onclick="printOperatorSummary('${escapeAttr(data.operator_number)}')" style="padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: #7c3aed; color: white; display: flex; align-items: center; gap: 6px; transition: background 0.15s;">
+                        Operator Summary ↗
+                    </button>
+                `;
+            }
+        }
+
+        function printOperatorSummary(operatorNumber) {
+            // Placeholder for future Operator Summary print page
+            window.open('/print/operators/' + operatorNumber, '_blank');
         }
 
         function closeOperatorModal() {
@@ -784,6 +896,21 @@
             if (!yyyymm || yyyymm.length !== 6) return yyyymm;
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             return months[parseInt(yyyymm.substring(4, 6), 10) - 1] + ' ' + yyyymm.substring(2, 4);
+        }
+
+        function getIdleRateColor(rate) {
+            if (rate < 20) return '#10b981';
+            if (rate < 50) return '#f59e0b';
+            if (rate < 75) return '#f97316';
+            return '#ef4444';
+        }
+
+        function getDeclineColor(rate) {
+            if (rate == null) return '#94a3b8';
+            if (rate > -10) return '#10b981';
+            if (rate > -35) return '#f59e0b';
+            if (rate > -60) return '#f97316';
+            return '#ef4444';
         }
 
         if (typeof escapeHtml === 'undefined') {

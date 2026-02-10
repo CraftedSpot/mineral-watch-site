@@ -2,50 +2,18 @@
         document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
         document.getElementById('toggle-section-numbers').addEventListener('change', toggleSectionNumbers);
+        document.getElementById('toggle-pooling-rates').addEventListener('change', togglePoolingRates);
         document.getElementById('toggle-wells').addEventListener('change', toggleWells);
         document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
 
-        // Nearby Filings button dropdown
-        const filingsBtn = document.getElementById('filingsBtn');
-        const filingsMenu = document.getElementById('filingsMenu');
-        let filingsMenuOpen = false;
-
-        filingsBtn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            filingsMenuOpen = !filingsMenuOpen;
-            filingsMenu.classList.toggle('show', filingsMenuOpen);
-        });
-
-        // Close filings menu when clicking outside
-        document.addEventListener('click', function(event) {
-            if (filingsMenuOpen && !filingsMenu.contains(event.target) && event.target !== filingsBtn) {
-                filingsMenuOpen = false;
-                filingsMenu.classList.remove('show');
-            }
-        });
-
-        // Update filings button state
-        function updateFilingsButton() {
-            const showPermits = document.getElementById('toggle-permits').checked;
-            const showCompletions = document.getElementById('toggle-completions').checked;
-
-            if (showPermits || showCompletions) {
-                filingsBtn.classList.add('active');
-                filingsBtn.classList.remove('inactive');
-            } else {
-                filingsBtn.classList.remove('active');
-                filingsBtn.classList.add('inactive');
-            }
-        }
-
-        // Filings checkbox handlers
+        // Nearby filings checkbox handlers (now inside heatmap dropdown)
         document.getElementById('toggle-permits').addEventListener('change', function() {
             togglePermits();
-            updateFilingsButton();
+            updateHeatmapLayers(); // Update button active state
         });
         document.getElementById('toggle-completions').addEventListener('change', function() {
             toggleCompletions();
-            updateFilingsButton();
+            updateHeatmapLayers(); // Update button active state
         });
 
         // Heatmap button dropdown (similar to Overlays)

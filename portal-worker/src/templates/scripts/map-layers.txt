@@ -231,6 +231,121 @@
             }
         }
 
+        // Pooling rate color scale (green = high bonus, yellow/orange = low)
+        function getPoolingRateColor(avgBonus) {
+            if (avgBonus >= 1000) return '#166534';  // Dark green — premium
+            if (avgBonus >= 500) return '#22c55e';   // Green
+            if (avgBonus >= 200) return '#86efac';   // Light green
+            if (avgBonus >= 50) return '#fef08a';    // Yellow
+            return '#fed7aa';                         // Light orange
+        }
+
+        // Load pooling rates choropleth layer
+        async function loadPoolingRates() {
+            try {
+                updateStatus('Loading pooling rates...');
+                const res = await fetch('/api/map/pooling-rates', { credentials: 'include' });
+                if (!res.ok) throw new Error('Failed to fetch pooling rates');
+                const data = await res.json();
+
+                if (!data.features || data.features.length === 0) {
+                    updateStatus('No pooling rate data available');
+                    return;
+                }
+
+                // Build lookup for property tooltip enrichment
+                poolingRateByTwp = {};
+                data.features.forEach(f => {
+                    const key = f.properties.township + '-' + f.properties.range;
+                    poolingRateByTwp[key] = f.properties;
+                });
+
+                poolingRateLayer = L.geoJSON(data, {
+                    style: function(feature) {
+                        return {
+                            color: '#334155',
+                            weight: 1.5,
+                            fillColor: getPoolingRateColor(feature.properties.avg_bonus),
+                            fillOpacity: 0.5,
+                            opacity: 0.7
+                        };
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const p = feature.properties;
+                        const counties = (p.counties || '').split(',').join(', ');
+                        const operators = p.operators || 'N/A';
+                        const range = p.min_bonus !== p.max_bonus
+                            ? ' ($' + p.min_bonus.toLocaleString() + '–$' + p.max_bonus.toLocaleString() + ')'
+                            : '';
+                        const tooltip = '<div style="font-size:12px;line-height:1.5">'
+                            + '<strong>' + p.TWNSHPLAB + '</strong> — ' + counties + '<br>'
+                            + 'Avg Bonus: <strong>$' + p.avg_bonus.toLocaleString() + '/acre</strong>' + range + '<br>'
+                            + p.order_count + ' order' + (p.order_count !== 1 ? 's' : '') + ' (last 18 months)<br>'
+                            + '<span style="color:#64748b">Top operators: ' + operators + '</span>'
+                            + '</div>';
+                        layer.bindTooltip(tooltip, { sticky: true, direction: 'top', opacity: 0.95 });
+
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, fillOpacity: 0.7 });
+                        });
+                        layer.on('mouseout', function() {
+                            poolingRateLayer.resetStyle(this);
+                        });
+                    }
+                });
+
+                // Add to map and show legend
+                const checkbox = document.getElementById('toggle-pooling-rates');
+                if (checkbox && checkbox.checked) {
+                    map.addLayer(poolingRateLayer);
+                    ensureLayerOrder();
+                    const legend = document.getElementById('poolingRatesLegend');
+                    if (legend) legend.style.display = '';
+                }
+
+                // Enrich property tooltips with pooling rate context
+                enrichPropertyTooltips(true);
+
+                updateStatus('Pooling rates loaded (' + data.features.length + ' townships)');
+                setTimeout(() => updateStatus('Map ready'), 2000);
+
+            } catch (error) {
+                console.error('Failed to load pooling rates:', error);
+                updateStatus('Map ready');
+            }
+        }
+
+        // Enrich/revert property tooltips with pooling rate context
+        function enrichPropertyTooltips(enrich) {
+            if (!propertiesLayer || !propertiesLayer.getLayers) return;
+            propertiesLayer.getLayers().forEach(function(layer) {
+                if (!layer.feature || !layer.feature.properties) return;
+                const props = layer.feature.properties;
+                const twp = props.TWN || props.township;
+                const rng = props.RNG || props.range;
+                if (!twp || !rng) return;
+                const key = twp + '-' + rng;
+                const rate = poolingRateByTwp[key];
+
+                // Store original tooltip if not already stored
+                if (!layer._originalTooltip && layer.getTooltip()) {
+                    layer._originalTooltip = layer.getTooltip().getContent();
+                }
+
+                if (enrich && rate) {
+                    const base = layer._originalTooltip || (props.PROPERTY_NAME || props.name || 'Property');
+                    const enriched = base + '<br><span style="color:#166534;font-weight:600">Pooling Avg: $'
+                        + rate.avg_bonus.toLocaleString() + '/acre</span>'
+                        + ' <span style="color:#64748b">(' + rate.order_count + ' orders)</span>';
+                    layer.unbindTooltip();
+                    layer.bindTooltip(enriched, { sticky: true, direction: 'top' });
+                } else if (!enrich && layer._originalTooltip) {
+                    layer.unbindTooltip();
+                    layer.bindTooltip(layer._originalTooltip, { sticky: true, direction: 'top' });
+                }
+            });
+        }
+
         // Fallback county data for testing - enhanced with more Oklahoma counties
         function createFallbackCountyData() {
             const fallbackData = {
@@ -426,6 +541,10 @@
                 map.addLayer(activityHeatmapLayer);
             }
 
+            // Pooling rate choropleth above heatmap but below wells
+            if (poolingRateLayer && map.hasLayer(poolingRateLayer)) {
+                poolingRateLayer.bringToFront();
+            }
 
             // Bring wells layer to appropriate position
             if (wellsLayer && map.hasLayer(wellsLayer)) {
