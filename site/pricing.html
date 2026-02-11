@@ -98,6 +98,16 @@
             color: white;
         }
 
+        /* Mobile Menu Toggle */
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            color: var(--oil-navy);
+        }
+
         /* Hero / Pricing Header */
         .pricing-header {
             text-align: center;
@@ -524,6 +534,48 @@
 
         /* Responsive */
         @media (max-width: 900px) {
+            .menu-toggle {
+                display: block;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #fff;
+                flex-direction: column;
+                padding: 20px;
+                gap: 0;
+                border-bottom: 1px solid var(--border);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 12px 0;
+                border-bottom: 1px solid var(--border);
+                font-size: 16px;
+            }
+
+            .nav-links a:last-child {
+                border-bottom: none;
+            }
+
+            .nav-links .btn-login {
+                text-align: center;
+                margin-top: 8px;
+                padding: 12px 20px;
+            }
+
+            header {
+                position: relative;
+            }
+
             .pricing-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -556,14 +608,6 @@
                 grid-template-columns: 1fr;
             }
             
-            .nav-links {
-                gap: 15px;
-            }
-            
-            .nav-links a:not(.btn-login) {
-                display: none;
-            }
-            
             footer {
                 padding: 30px 15px;
             }
@@ -576,6 +620,9 @@
         <div class="container">
             <div class="header-inner">
                 <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+                <button class="menu-toggle" aria-label="Menu">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <nav class="nav-links">
                     <a href="https://mymineralwatch.com/features">Features</a>
                     <a href="https://mymineralwatch.com/pricing">Pricing</a>
@@ -906,6 +953,11 @@
                     window.location.href = link;
                 }
             });
+        });
+
+        // Hamburger menu toggle
+        document.querySelector('.menu-toggle').addEventListener('click', function() {
+            document.querySelector('.nav-links').classList.toggle('open');
         });
     </script>
 </body>

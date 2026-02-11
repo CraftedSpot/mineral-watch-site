@@ -40,6 +40,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .nav-links a.active { color: var(--oil-navy); font-weight: 600; }
 .nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
 .nav-links .btn-login:hover { background: var(--slate-blue); color: white; }
+.menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: var(--oil-navy); }
 
 /* Hero */
 .hero { background: linear-gradient(145deg, #1C2B36 0%, #334E68 100%); padding: 80px 48px 64px; text-align: center; color: var(--white); position: relative; overflow: hidden; }
@@ -176,7 +177,13 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 /* Responsive */
 @media (max-width: 900px) {
   header .container { padding: 0 20px; }
-  .nav-links { gap: 15px; }
+  .menu-toggle { display: block; }
+  .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; flex-direction: column; padding: 20px; gap: 0; border-bottom: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .nav-links.open { display: flex; }
+  .nav-links a { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 16px; }
+  .nav-links a:last-child { border-bottom: none; }
+  .nav-links .btn-login { text-align: center; margin-top: 8px; padding: 12px 20px; }
+  header { position: relative; }
   .hero { padding: 60px 24px 48px; } .hero h1 { font-size: 36px; }
   .features-section { padding: 48px 24px; }
   .feature-row { grid-template-columns: 1fr; gap: 32px; }
@@ -188,7 +195,6 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
   .footer-inner { flex-direction: column; } .footer-links { gap: 32px; }
 }
 @media (max-width: 600px) {
-  .nav-links a:not(.btn-login) { display: none; }
   .matrix-header, .matrix-row { grid-template-columns: 1fr; gap: 8px; }
   .m-watch { margin: 0; border-radius: 4px; }
   .hero-ctas { flex-direction: column; align-items: center; }
@@ -202,6 +208,9 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
   <div class="container">
     <div class="header-inner">
       <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+      <button class="menu-toggle" aria-label="Menu">
+        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
       <nav class="nav-links">
         <a href="https://mymineralwatch.com/features" class="active">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
@@ -660,6 +669,10 @@ document.querySelectorAll('.map-carousel-tabs').forEach(tabGroup => {
       images[idx].classList.add('active');
     });
   });
+});
+// Hamburger menu toggle
+document.querySelector('.menu-toggle').addEventListener('click', function() {
+  document.querySelector('.nav-links').classList.toggle('open');
 });
 </script>
 </body>
