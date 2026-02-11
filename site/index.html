@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mineral Watch - Oklahoma Mineral Rights Management & OCC Monitoring</title>
-    <meta name="description" content="Your mineral command center. OCC monitoring, pooling order alerts, smart document extraction, and interactive mapping for Oklahoma mineral owners.">
+    <title>Mineral Watch - The Intelligence Platform for Oklahoma Mineral Owners</title>
+    <meta name="description" content="Monitor. Analyze. Manage. OCC alerts, production reports, smart document extraction, and interactive mapping — your complete mineral intelligence platform.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
@@ -222,6 +222,40 @@
             align-items: center;
             justify-content: center;
             gap: 6px;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            background: var(--oil-navy);
+            padding: 24px 0;
+            border-bottom: 3px solid var(--red-dirt);
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 60px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            display: block;
+            font-family: 'Merriweather', serif;
+            font-size: 28px;
+            font-weight: 900;
+            color: #fff;
+            line-height: 1.2;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #A0AEC0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
         }
 
         /* Sections */
@@ -626,26 +660,35 @@
                 grid-template-columns: 1fr;
                 gap: 40px;
             }
-            
+
             .hero h1 {
                 font-size: 36px;
             }
-            
+
             .grid-3 {
                 grid-template-columns: 1fr;
             }
-            
+
             .nav-links {
                 gap: 15px;
             }
-            
+
             .how-it-works-layout {
                 grid-template-columns: 1fr;
                 gap: 50px;
             }
-            
+
             .phone-mockup {
                 max-width: 300px;
+            }
+
+            .stats-row {
+                gap: 30px;
+                flex-wrap: wrap;
+            }
+
+            .stat-number {
+                font-size: 24px;
             }
         }
         
@@ -653,28 +696,44 @@
             .hero {
                 padding: 60px 0;
             }
-            
+
             .hero h1 {
                 font-size: 30px;
             }
-            
+
             .cta-box {
                 padding: 25px;
             }
-            
+
             .section-header h2 {
                 font-size: 28px;
             }
-            
+
             .header-inner {
                 flex-direction: column;
                 gap: 15px;
             }
-            
+
             .steps-side h2 {
                 font-size: 26px;
             }
-            
+
+            .stats-row {
+                gap: 20px;
+            }
+
+            .stat-item {
+                flex: 1 1 40%;
+            }
+
+            .stat-number {
+                font-size: 22px;
+            }
+
+            .stat-label {
+                font-size: 11px;
+            }
+
             /* Footer mobile fixes */
             .footer-links {
                 flex-wrap: wrap;
@@ -717,8 +776,8 @@
                         <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         Built by Oklahoma Mineral Owners
                     </div>
-                    <h1>Know Before the Rig Shows Up on Your Land</h1>
-                    <p class="subtitle">Your mineral command center. OCC monitoring, pooling order alerts, smart document extraction, and an interactive map — all in one place.</p>
+                    <h1>The Command Center for Oklahoma Mineral Owners</h1>
+                    <p class="subtitle">Monitor. Analyze. Manage. Your complete mineral intelligence platform.</p>
                 </div>
                 
                 <div class="cta-box">
@@ -734,6 +793,29 @@
                         <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                         We never sell your data or make offers to buy.
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="stats-bar">
+        <div class="container">
+            <div class="stats-row">
+                <div class="stat-item">
+                    <span class="stat-number">77</span>
+                    <span class="stat-label">Oklahoma Counties</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">7</span>
+                    <span class="stat-label">OCC Filing Types</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">190K+</span>
+                    <span class="stat-label">Wells Tracked</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-number">8</span>
+                    <span class="stat-label">Adjacent Sections Watched</span>
                 </div>
             </div>
         </div>
@@ -789,11 +871,15 @@
                 
                 <div class="card">
                     <div class="icon-box">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
                     </div>
-                    <h3>Instant Data Enrichment</h3>
-                    <p>Add a property or well and we pull in OCC records, operator info, permit history, and status automatically. No manual research required.</p>
+                    <h3>Production Reports</h3>
+                    <p>Monthly oil and gas production data for every well in Oklahoma. Spot trends, compare operators, and verify your royalty checks with real numbers.</p>
                 </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 40px;">
+                <a href="https://mymineralwatch.com/features" style="color: var(--red-dirt); font-weight: 600; font-size: 16px; text-decoration: none;">See All Features →</a>
             </div>
         </div>
     </section>
@@ -817,8 +903,8 @@
                     <div class="step-compact">
                         <div class="step-num">2</div>
                         <div class="step-content">
-                            <h3>We Monitor Everything</h3>
-                            <p>Daily scans for permits, completions, transfers, and OCC docket filings. Weekly digests summarize activity. Plain English — no jargon.</p>
+                            <h3>Stay Informed Automatically</h3>
+                            <p>Daily scans for permits, completions, transfers, and OCC filings. Production reports and weekly digests delivered in plain English — no jargon.</p>
                         </div>
                     </div>
                     
