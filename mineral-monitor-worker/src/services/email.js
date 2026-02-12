@@ -1097,22 +1097,22 @@ function buildDigestHtmlBody(digestData) {
   const propertySections = [];
 
   if (alerts.expirations && alerts.expirations.length > 0) {
-    propertySections.push(buildAlertSection('Permit Expirations', alerts.expirations, '#DC2626', ''));
+    propertySections.push(buildAlertSection('Permit Expirations', alerts.expirations, '#DC2626', '', portalUrl));
   }
   if (alerts.permits && alerts.permits.length > 0) {
-    propertySections.push(buildAlertSection('New Permits', alerts.permits, '#2563EB', ''));
+    propertySections.push(buildAlertSection('New Permits', alerts.permits, '#2563EB', '', portalUrl));
   }
   if (alerts.completions && alerts.completions.length > 0) {
-    propertySections.push(buildAlertSection('Well Completions', alerts.completions, '#059669', ''));
+    propertySections.push(buildAlertSection('Well Completions', alerts.completions, '#059669', '', portalUrl));
   }
   if (alerts.transfers && alerts.transfers.length > 0) {
-    propertySections.push(buildAlertSection('Operator Transfers', alerts.transfers, '#7C3AED', ''));
+    propertySections.push(buildAlertSection('Operator Transfers', alerts.transfers, '#7C3AED', '', portalUrl));
   }
   if (alerts.statusChanges && alerts.statusChanges.length > 0) {
-    propertySections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', ''));
+    propertySections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', '', portalUrl));
   }
   if (alerts.occFilings && alerts.occFilings.length > 0) {
-    propertySections.push(buildAlertSection('OCC Filings', alerts.occFilings, '#D97706', ''));
+    propertySections.push(buildAlertSection('OCC Filings', alerts.occFilings, '#D97706', '', portalUrl));
   }
 
   // Wrap property alerts in a "Your Properties" header if weekly digest
@@ -1329,8 +1329,24 @@ function buildDigestHtmlBody(digestData) {
 /**
  * Build an alert section for the digest email
  */
-function buildAlertSection(title, alerts, color, icon) {
-  const alertItems = alerts.map(alert => `
+function buildAlertSection(title, alerts, color, icon, portalUrl) {
+  const alertItems = alerts.map(alert => {
+    // Build "View on Map" link for alerts with STR location
+    let mapLink = '';
+    if (alert.section_township_range && portalUrl) {
+      const strMatch = alert.section_township_range.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
+      if (strMatch) {
+        const mapUrl = `${portalUrl.replace('/portal', '/portal/oklahoma-map')}?section=${strMatch[1]}&township=${strMatch[2]}&range=${strMatch[3]}&county=${encodeURIComponent(alert.county || '')}`;
+        mapLink = `<a href="${mapUrl}" style="color: #2563EB; font-size: 11px; text-decoration: none; margin-right: 12px;">View on Map &rarr;</a>`;
+      }
+    }
+
+    // "View Details" link to activity tab
+    const detailsLink = portalUrl
+      ? `<a href="${portalUrl}#activity" style="color: #2563EB; font-size: 11px; text-decoration: none;">View Details &rarr;</a>`
+      : '';
+
+    return `
     <tr>
       <td style="padding: 12px 0; border-bottom: 1px solid #F1F5F9;">
         <table width="100%" cellpadding="0" cellspacing="0">
@@ -1342,6 +1358,11 @@ function buildAlertSection(title, alerts, color, icon) {
               <p style="margin: 0; font-size: 12px; color: #64748B;">
                 ${alert.operator ? `${alert.operator} • ` : ''}${alert.county ? `${alert.county} County • ` : ''}${alert.section_township_range || ''}
               </p>
+              ${alert.case_number ? `
+                <p style="margin: 2px 0 0; font-size: 11px; color: #94A3B8;">
+                  Case: ${alert.case_number}
+                </p>
+              ` : ''}
               ${alert.days_until_expiration !== null && alert.days_until_expiration !== undefined ? `
                 <p style="margin: 4px 0 0; font-size: 12px; color: ${alert.days_until_expiration < 0 ? '#DC2626' : '#F59E0B'}; font-weight: 600;">
                   ${alert.days_until_expiration < 0 ? 'EXPIRED' : `Expires in ${alert.days_until_expiration} days`}
@@ -1357,6 +1378,11 @@ function buildAlertSection(title, alerts, color, icon) {
                   ${alert.previous_status} → ${alert.new_status}
                 </p>
               ` : ''}
+              ${(mapLink || detailsLink) ? `
+                <p style="margin: 6px 0 0;">
+                  ${mapLink}${detailsLink}
+                </p>
+              ` : ''}
             </td>
             <td width="80" align="right" valign="top">
               <span style="display: inline-block; background: #F1F5F9; color: #64748B; font-size: 10px; padding: 4px 8px; border-radius: 4px;">
@@ -1367,7 +1393,8 @@ function buildAlertSection(title, alerts, color, icon) {
         </table>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div style="margin-bottom: 24px;">

@@ -192,6 +192,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             source_type = source_meta.get('type', '')
             if source_type == 'occ_1002a':
                 known_doc_type = 'completion_report'
+            elif source_type == 'occ_1000':
+                known_doc_type = 'drilling_permit'
             elif source_type == 'occ_filing':
                 known_doc_type = source_meta.get('filing_type')  # Future: pooling_order, spacing_order, etc.
         except (json.JSONDecodeError, TypeError):

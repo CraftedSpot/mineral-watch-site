@@ -1,22 +1,30 @@
+        // Activity state
+        let allActivityRecords = [];
+        let activityRecordLimit = 5;
+        let activityPlan = 'Free';
+        let activitySearchTerm = '';
+        let activitySortBy = 'date-desc';
+        let activityFilterType = null; // null = all
+
         async function loadActivityStats() {
             try {
                 const res = await fetch('/api/activity/stats');
                 if (!res.ok) return;
                 const stats = await res.json();
-                
+
                 // Format last alert date
                 if (stats.lastAlert) {
                     const date = new Date(stats.lastAlert);
                     const now = new Date();
                     const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-                    
+
                     let lastAlertText;
                     if (diffDays === 0) lastAlertText = 'Today';
                     else if (diffDays === 1) lastAlertText = 'Yesterday';
                     else if (diffDays < 7) lastAlertText = diffDays + ' days ago';
                     else if (diffDays < 30) lastAlertText = Math.floor(diffDays / 7) + ' weeks ago';
                     else lastAlertText = date.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
-                    
+
                     document.getElementById('statLastAlert').textContent = lastAlertText;
                     document.getElementById('statsCard').classList.remove('no-alerts');
                 } else {
@@ -30,166 +38,299 @@
                 console.error('Failed to load activity stats:', err);
             }
         }
-        
+
+        // Normalize activity type for display
+        function normalizeActivityType(type) {
+            if (type === 'New Permit') return 'New Drilling Permit';
+            return type || 'Status Change';
+        }
+
+        // Get filter category for an activity type (groups related types)
+        function getFilterCategory(activityType) {
+            if (activityType.includes('Permit')) return 'Permits';
+            if (activityType.includes('Completed')) return 'Completions';
+            if (activityType.includes('Transfer') || activityType === 'Operator Change' || activityType === 'Well Transfer') return 'Transfers';
+            if (activityType.includes('Application') || activityType.includes('Exception') ||
+                activityType === 'OCC Filing' || activityType === 'Order Modification') return 'OCC Filings';
+            if (activityType.includes('Abandoned') || activityType.includes('Plugged')) return 'Plugged/Abandoned';
+            return 'Other';
+        }
+
         async function loadActivity() {
             try {
                 const res = await fetch('/api/activity');
                 if (!res.ok) throw new Error('Failed to load');
                 const data = await res.json();
-                const records = data.records || [];
-                const recordLimit = data.recordLimit || 5;
-                const plan = data.plan || 'Free';
-                
-                if (records.length === 0) {
-                    let msg = `<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they'll appear here.</p></div>`;
-                    document.getElementById('activityContent').innerHTML = msg;
+                allActivityRecords = data.records || [];
+                activityRecordLimit = data.recordLimit || 5;
+                activityPlan = data.plan || 'Free';
+
+                if (allActivityRecords.length === 0) {
+                    document.getElementById('activityContent').innerHTML = `<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they'll appear here.</p></div>`;
                     return;
                 }
-                
-                let html = '<div class="activity-list">';
-                
-                // Show limit notice for lower tiers
-                if (recordLimit < 100 && plan !== 'Professional' && !plan.startsWith('Enterprise')) {
-                    html += `<div class="activity-limit-notice">Showing last ${recordLimit} alerts. <a href="/portal/upgrade">Upgrade</a> for more history.</div>`;
-                }
-                
-                records.forEach(r => {
-                    const f = r.fields;
-                    let activityType = f['Activity Type'] || 'Status Change';
-                    // Make "New Permit" more specific
-                    if (activityType === 'New Permit') {
-                        activityType = 'New Drilling Permit';
-                    }
-                    const alertLevel = f['Alert Level'] || 'YOUR PROPERTY';
-                    
-                    // Icon and class based on activity type
-                    let icon = '📋';
-                    let iconClass = 'status';
-                    if (activityType.includes('Permit')) { icon = '📋'; iconClass = 'permit'; }
-                    else if (activityType.includes('Drilling')) { icon = '🔨'; iconClass = 'drilling'; }
-                    else if (activityType.includes('Completed')) { icon = '✅'; iconClass = 'completed'; }
-                    else if (activityType.includes('Transfer')) { icon = '🔄'; iconClass = 'transfer'; }
-                    else if (activityType.includes('Abandoned') || activityType.includes('Plugged')) { icon = '⛔'; iconClass = 'abandoned'; }
-                    else if (activityType.includes('Application') || activityType.includes('Exception') ||
-                             activityType === 'OCC Filing' || activityType === 'Order Modification' ||
-                             activityType === 'Operator Change' || activityType === 'Well Transfer') { icon = '⚖️'; iconClass = 'occ-filing'; }
-                    
-                    // Alert level class
-                    let levelClass = 'property';
-                    if (alertLevel.includes('ADJACENT')) levelClass = 'adjacent';
-                    else if (alertLevel.includes('TRACKED')) levelClass = 'tracked';
-                    
-                    // Format date
-                    const date = new Date(f['Detected At']);
-                    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-                    
-                    // Build change text
-                    let changeText = '';
-                    if (f['Previous Value'] && f['New Value']) {
-                        if (activityType.includes('Transfer')) {
-                            changeText = `${f['Previous Value']} → ${f['New Value']}`;
-                        } else {
-                            changeText = `Status: ${f['Previous Value']} → ${f['New Value']}`;
-                        }
-                    }
-                    
-                    // Build action buttons
-                    const occLink = f['OCC Link'];
-                    const mapLink = f['OCC Map Link'] || f['Map Link']; // Support both field names
-                    const apiNumber = f['API Number'];
-                    
-                    // Check if this activity type should have a Track Well button
-                    const shouldShowTrackButton = apiNumber && (
-                        activityType === 'New Permit' ||
-                        activityType === 'New Drilling Permit' ||
-                        activityType === 'Well Completed' ||
-                        activityType.toLowerCase().includes('rework')
-                    );
-                    
-                    // Debug logging
-                    if (apiNumber && activityType === 'Well Completed') {
-                        console.log('Well Completed activity:', {
-                            activityType,
-                            apiNumber,
-                            shouldShowTrackButton,
-                            occLink,
-                            mapLink
-                        });
-                    }
-                    
-                    let actionsHtml = '<div class="activity-actions">';
-                    // OCC Filing first
-                    if (occLink) {
-                        // Remove &cr=1 from URLs to fix Laserfiche cookie error
-                        const fixedOccLink = occLink.replace(/&cr=1/g, '');
-                        actionsHtml += `<a href="${escapeHtml(fixedOccLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
-                    }
-                    // OCC Map second  
-                    if (mapLink) {
-                        actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
-                    }
-                    // Track Well last
-                    if (shouldShowTrackButton) {
-                        // Check if well is already tracked (V2: flat object)
-                        const isTracked = loadedWells.some(w => w.apiNumber === apiNumber);
-                        if (isTracked) {
-                            actionsHtml += `<button class="activity-btn track-btn" disabled style="background: #22C55E; color: white; border-color: #22C55E; cursor: default;">Added ✓</button>`;
-                        } else {
-                            actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', '${escapeHtml(occLink || '')}', this)">+ Track Well</button>`;
-                        }
-                    }
 
-                    // Analyze Order button for OCC filing types
-                    const caseNumber = f['Case Number'];
-                    const occFilingTypes = [
-                        'Pooling Application', 'Increased Density Application',
-                        'Spacing Unit Application', 'Location Exception',
-                        'Horizontal Well Application', 'OCC Filing', 'Order Modification'
-                    ];
-                    if (occFilingTypes.includes(activityType) && caseNumber) {
-                        actionsHtml += `<button class="activity-btn occ-analyze-btn" onclick="processOccFilingFromActivity('${escapeHtml(caseNumber)}', this)">Analyze Order</button>`;
-                    }
+                // Show toolbar and build filter chips
+                const toolbar = document.getElementById('activityToolbar');
+                if (toolbar) toolbar.style.display = 'block';
+                buildActivityFilterChips();
 
-                    actionsHtml += '</div>';
-                    
-                    html += `
-                        <div class="activity-item">
-                            <div class="activity-checkbox" onclick="event.stopPropagation()">
-                                <input type="checkbox" class="activity-checkbox-input" data-id="${r.id}">
-                            </div>
-                            <div class="activity-icon ${iconClass}">${icon}</div>
-                            <div class="activity-details">
-                                <div class="activity-header">
-                                    <span class="activity-type">${escapeHtml(activityType)}</span>
-                                    <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
-                                </div>
-                                <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
-                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(cleanCountyDisplay(f['County'])) || ''}</div>
-                                ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
-                                ${(occLink || mapLink) ? actionsHtml : ''}
-                            </div>
-                            <div class="activity-date">${dateStr}</div>
-                        </div>
-                    `;
-                });
-                
-                html += '</div>';
-                document.getElementById('activityContent').innerHTML = html;
-                
-                // Add event listeners for activity checkboxes
-                document.querySelectorAll('.activity-checkbox-input').forEach(checkbox => {
-                    checkbox.addEventListener('change', function() {
-                        const activityId = this.getAttribute('data-id');
-                        if (this.checked) {
-                            selectedActivity.add(activityId);
-                        } else {
-                            selectedActivity.delete(activityId);
-                        }
-                        updateBulkActionVisibility();
+                // Wire up search and sort
+                const searchInput = document.getElementById('activitySearch');
+                if (searchInput) {
+                    let debounceTimer;
+                    searchInput.addEventListener('input', function() {
+                        clearTimeout(debounceTimer);
+                        debounceTimer = setTimeout(() => {
+                            activitySearchTerm = this.value.trim().toLowerCase();
+                            renderActivityList();
+                        }, 200);
                     });
-                });
-                
+                }
+                const sortSelect = document.getElementById('activitySort');
+                if (sortSelect) {
+                    sortSelect.addEventListener('change', function() {
+                        activitySortBy = this.value;
+                        renderActivityList();
+                    });
+                }
+
+                renderActivityList();
+
             } catch (err) {
                 document.getElementById('activityContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading activity. Refresh page.</p></div>';
             }
+        }
+
+        function buildActivityFilterChips() {
+            const container = document.getElementById('activityFilters');
+            if (!container) return;
+
+            // Count occurrences of each filter category
+            const categoryCounts = {};
+            allActivityRecords.forEach(r => {
+                const type = normalizeActivityType(r.fields['Activity Type']);
+                const cat = getFilterCategory(type);
+                categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+            });
+
+            // Only show filter chips if there are at least 2 categories
+            const categories = Object.keys(categoryCounts).sort();
+            if (categories.length < 2) {
+                container.style.display = 'none';
+                return;
+            }
+
+            let html = `<span class="activity-filter-chip active" data-filter="">All (${allActivityRecords.length})</span>`;
+            categories.forEach(cat => {
+                html += `<span class="activity-filter-chip" data-filter="${escapeHtml(cat)}">${escapeHtml(cat)} (${categoryCounts[cat]})</span>`;
+            });
+            container.innerHTML = html;
+
+            // Wire up click handlers
+            container.querySelectorAll('.activity-filter-chip').forEach(chip => {
+                chip.addEventListener('click', function() {
+                    container.querySelectorAll('.activity-filter-chip').forEach(c => c.classList.remove('active'));
+                    this.classList.add('active');
+                    activityFilterType = this.dataset.filter || null;
+                    renderActivityList();
+                });
+            });
+        }
+
+        function filterAndSortActivity() {
+            let records = [...allActivityRecords];
+
+            // Apply type filter
+            if (activityFilterType) {
+                records = records.filter(r => {
+                    const type = normalizeActivityType(r.fields['Activity Type']);
+                    return getFilterCategory(type) === activityFilterType;
+                });
+            }
+
+            // Apply search
+            if (activitySearchTerm) {
+                const term = activitySearchTerm;
+                records = records.filter(r => {
+                    const f = r.fields;
+                    return (f['Well Name'] || '').toLowerCase().includes(term) ||
+                           (f['Operator'] || '').toLowerCase().includes(term) ||
+                           (f['County'] || '').toLowerCase().includes(term) ||
+                           (f['Case Number'] || '').toLowerCase().includes(term) ||
+                           (f['API Number'] || '').toLowerCase().includes(term) ||
+                           (f['Activity Type'] || '').toLowerCase().includes(term) ||
+                           (f['Section-Township-Range'] || '').toLowerCase().includes(term);
+                });
+            }
+
+            // Apply sort
+            records.sort((a, b) => {
+                const fa = a.fields, fb = b.fields;
+                switch (activitySortBy) {
+                    case 'date-asc':
+                        return new Date(fa['Detected At'] || 0) - new Date(fb['Detected At'] || 0);
+                    case 'type':
+                        return (normalizeActivityType(fa['Activity Type'])).localeCompare(normalizeActivityType(fb['Activity Type']));
+                    case 'county':
+                        return (fa['County'] || '').localeCompare(fb['County'] || '');
+                    case 'operator':
+                        return (fa['Operator'] || '').localeCompare(fb['Operator'] || '');
+                    case 'date-desc':
+                    default:
+                        return new Date(fb['Detected At'] || 0) - new Date(fa['Detected At'] || 0);
+                }
+            });
+
+            return records;
+        }
+
+        function renderActivityList() {
+            const records = filterAndSortActivity();
+
+            if (records.length === 0 && allActivityRecords.length > 0) {
+                document.getElementById('activityContent').innerHTML = `<div class="activity-no-results">No activities match your search or filter.</div>`;
+                return;
+            }
+
+            let html = '<div class="activity-list">';
+
+            // Show limit notice for lower tiers
+            if (activityRecordLimit < 100 && activityPlan !== 'Professional' && !activityPlan.startsWith('Enterprise')) {
+                html += `<div class="activity-limit-notice">Showing last ${activityRecordLimit} alerts. <a href="/portal/upgrade">Upgrade</a> for more history.</div>`;
+            }
+
+            records.forEach(r => {
+                const f = r.fields;
+                let activityType = normalizeActivityType(f['Activity Type']);
+                const alertLevel = f['Alert Level'] || 'YOUR PROPERTY';
+
+                // Icon and class based on activity type
+                let icon = '📋';
+                let iconClass = 'status';
+                if (activityType.includes('Permit')) { icon = '📋'; iconClass = 'permit'; }
+                else if (activityType.includes('Drilling')) { icon = '🔨'; iconClass = 'drilling'; }
+                else if (activityType.includes('Completed')) { icon = '✅'; iconClass = 'completed'; }
+                else if (activityType.includes('Transfer')) { icon = '🔄'; iconClass = 'transfer'; }
+                else if (activityType.includes('Abandoned') || activityType.includes('Plugged')) { icon = '⛔'; iconClass = 'abandoned'; }
+                else if (activityType.includes('Application') || activityType.includes('Exception') ||
+                         activityType === 'OCC Filing' || activityType === 'Order Modification' ||
+                         activityType === 'Operator Change' || activityType === 'Well Transfer') { icon = '⚖️'; iconClass = 'occ-filing'; }
+
+                // Alert level class
+                let levelClass = 'property';
+                if (alertLevel.includes('ADJACENT')) levelClass = 'adjacent';
+                else if (alertLevel.includes('TRACKED')) levelClass = 'tracked';
+
+                // Format date
+                const date = new Date(f['Detected At']);
+                const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+                // Build change text
+                let changeText = '';
+                if (f['Previous Value'] && f['New Value']) {
+                    if (activityType.includes('Transfer')) {
+                        changeText = `${f['Previous Value']} → ${f['New Value']}`;
+                    } else {
+                        changeText = `Status: ${f['Previous Value']} → ${f['New Value']}`;
+                    }
+                }
+
+                // Build action buttons
+                const occLink = f['OCC Link'];
+                const mapLink = f['OCC Map Link'] || f['Map Link'];
+                const apiNumber = f['API Number'];
+
+                // Check if this activity type should have a Track Well button
+                const shouldShowTrackButton = apiNumber && (
+                    activityType === 'New Permit' ||
+                    activityType === 'New Drilling Permit' ||
+                    activityType === 'Well Completed' ||
+                    activityType.toLowerCase().includes('rework')
+                );
+
+                let actionsHtml = '<div class="activity-actions">';
+                // OCC Filing first
+                if (occLink) {
+                    const fixedOccLink = occLink.replace(/&cr=1/g, '');
+                    actionsHtml += `<a href="${escapeHtml(fixedOccLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
+                }
+                // OCC Map second
+                if (mapLink) {
+                    actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
+                }
+                // View on Map for activities with STR location
+                const strField = f['Section-Township-Range'];
+                if (strField) {
+                    const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
+                    if (strMatch) {
+                        const mapParams = new URLSearchParams({
+                            section: strMatch[1],
+                            township: strMatch[2],
+                            range: strMatch[3],
+                            county: f['County'] || ''
+                        });
+                        actionsHtml += `<a href="/portal/oklahoma-map?${mapParams}" target="_blank" class="activity-btn">View on Map</a>`;
+                    }
+                }
+                // Track Well
+                if (shouldShowTrackButton) {
+                    const isTracked = loadedWells.some(w => w.apiNumber === apiNumber);
+                    if (isTracked) {
+                        actionsHtml += `<button class="activity-btn track-btn" disabled style="background: #22C55E; color: white; border-color: #22C55E; cursor: default;">Added ✓</button>`;
+                    } else {
+                        actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', '${escapeHtml(occLink || '')}', this)">+ Track Well</button>`;
+                    }
+                }
+
+                // Analyze Order button for OCC filing types
+                const caseNumber = f['Case Number'];
+                const occFilingTypes = [
+                    'Pooling Application', 'Increased Density Application',
+                    'Spacing Unit Application', 'Location Exception',
+                    'Horizontal Well Application', 'OCC Filing', 'Order Modification'
+                ];
+                if (occFilingTypes.includes(activityType) && caseNumber) {
+                    actionsHtml += `<button class="activity-btn occ-analyze-btn" onclick="processOccFilingFromActivity('${escapeHtml(caseNumber)}', this)">Analyze Order</button>`;
+                }
+
+                actionsHtml += '</div>';
+
+                html += `
+                    <div class="activity-item">
+                        <div class="activity-checkbox" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="activity-checkbox-input" data-id="${r.id}">
+                        </div>
+                        <div class="activity-icon ${iconClass}">${icon}</div>
+                        <div class="activity-details">
+                            <div class="activity-header">
+                                <span class="activity-type">${escapeHtml(activityType)}</span>
+                                <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
+                            </div>
+                            <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
+                            <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(cleanCountyDisplay(f['County'])) || ''}</div>
+                            ${caseNumber ? `<div class="activity-meta" style="color: #94A3B8; font-size: 11px;">Case: ${escapeHtml(caseNumber)}</div>` : ''}
+                            ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
+                            ${(occLink || mapLink || strField || shouldShowTrackButton || (occFilingTypes.includes(activityType) && caseNumber)) ? actionsHtml : ''}
+                        </div>
+                        <div class="activity-date">${dateStr}</div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            document.getElementById('activityContent').innerHTML = html;
+
+            // Add event listeners for activity checkboxes
+            document.querySelectorAll('.activity-checkbox-input').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const activityId = this.getAttribute('data-id');
+                    if (this.checked) {
+                        selectedActivity.add(activityId);
+                    } else {
+                        selectedActivity.delete(activityId);
+                    }
+                    updateBulkActionVisibility();
+                });
+            });
         }

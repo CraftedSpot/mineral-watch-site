@@ -239,6 +239,21 @@
                         </div>
                     </div>
 
+                    <!-- Activity Search/Sort/Filter Toolbar -->
+                    <div id="activityToolbar" style="display: none; padding: 12px 20px; border-bottom: 1px solid var(--border); display: none;">
+                        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input type="text" id="activitySearch" class="search-input" placeholder="Search by well, operator, county, case..." style="max-width: 320px;">
+                            <select id="activitySort" class="sort-select" style="min-width: 140px;">
+                                <option value="date-desc">Newest First</option>
+                                <option value="date-asc">Oldest First</option>
+                                <option value="type">Activity Type</option>
+                                <option value="county">County</option>
+                                <option value="operator">Operator</option>
+                            </select>
+                        </div>
+                        <div id="activityFilters" style="display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap;"></div>
+                    </div>
+
                     <div id="activityContent">
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>

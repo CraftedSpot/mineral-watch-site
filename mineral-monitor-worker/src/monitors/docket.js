@@ -617,19 +617,32 @@ async function processDocketAlerts(env, dryRun = false) {
       const reliefLabel = getReliefTypeLabel(entry.relief_type);
       const str = `${entry.section}-${entry.township}-${entry.range}`;
 
+      // Compute meaningful display name based on match type
+      let displayName;
+      if (match.isWellMatch && match.well) {
+        // Tracked well match — use actual well name
+        displayName = match.well.fields?.['Well Name'] || match.well.fields?.Name || entry.case_number;
+      } else {
+        // Property match — use operator + relief type (what mineral owners recognize)
+        displayName = entry.applicant
+          ? `${entry.applicant} - ${reliefLabel}`
+          : entry.case_number;
+      }
+
       // Create D1 activity log entry
       const activityLog = await createActivityLog(env, {
         userId: match.user.id,
         organizationId: match.organizationId || null,
-        apiNumber: null,
-        wellName: entry.case_number,
+        apiNumber: match.matchedAPI || null,
+        wellName: displayName,
         operator: entry.applicant,
         activityType: reliefLabel,
         alertLevel: match.alertLevel,
         county: entry.county,
         sectionTownshipRange: str,
         occLink: entry.source_url || null,
-        mapLink: null
+        mapLink: null,
+        caseNumber: entry.case_number
       });
 
       // Get user's notification mode for digest frequency
@@ -653,13 +666,14 @@ async function processDocketAlerts(env, dryRun = false) {
         organizationId: match.organizationId || null,
         activityLogId: activityLog.id,
         activityType: reliefLabel,
-        wellName: entry.case_number,
-        apiNumber: null,
+        wellName: displayName,
+        apiNumber: match.matchedAPI || null,
         operator: entry.applicant,
         county: entry.county,
         sectionTownshipRange: str,
         alertLevel: match.alertLevel,
-        digestFrequency: digestFrequency
+        digestFrequency: digestFrequency,
+        caseNumber: entry.case_number
       });
 
       // For 'Daily + Weekly' users, also queue for weekly
@@ -670,13 +684,14 @@ async function processDocketAlerts(env, dryRun = false) {
           organizationId: match.organizationId || null,
           activityLogId: null,
           activityType: reliefLabel,
-          wellName: entry.case_number,
-          apiNumber: null,
+          wellName: displayName,
+          apiNumber: match.matchedAPI || null,
           operator: entry.applicant,
           county: entry.county,
           sectionTownshipRange: str,
           alertLevel: match.alertLevel,
-          digestFrequency: 'weekly'
+          digestFrequency: 'weekly',
+          caseNumber: entry.case_number
         });
       }
 

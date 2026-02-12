@@ -163,6 +163,35 @@
                             tryZoomToWell();
                         }
 
+                        // Fallback: center on a section from STR params (e.g., from Activity tab "View on Map")
+                        else {
+                            const sectionParam = urlParams.get('section');
+                            const townshipParam = urlParams.get('township');
+                            const rangeParam = urlParams.get('range');
+
+                            if (sectionParam && townshipParam && rangeParam) {
+                                try {
+                                    const res = await fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`);
+                                    if (res.ok) {
+                                        const geojson = await res.json();
+                                        const highlightLayer = L.geoJSON(geojson, {
+                                            style: { color: '#D97706', weight: 3, fillColor: '#FEF3C7', fillOpacity: 0.3 }
+                                        });
+                                        highlightLayer.addTo(map);
+                                        map.fitBounds(highlightLayer.getBounds(), { maxZoom: 14, padding: [50, 50] });
+
+                                        const countyParam = urlParams.get('county');
+                                        highlightLayer.bindPopup(
+                                            `<b>Section ${sectionParam}</b><br>T${townshipParam} R${rangeParam}` +
+                                            (countyParam ? `<br>${countyParam} County` : '')
+                                        ).openPopup();
+                                    }
+                                } catch (err) {
+                                    console.error('Error loading section for deep link:', err);
+                                }
+                            }
+                        }
+
                     } catch (error) {
                         console.error('Error loading properties:', error);
                     }

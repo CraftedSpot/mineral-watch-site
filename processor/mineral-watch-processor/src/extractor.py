@@ -2184,6 +2184,19 @@ IMPORTANT: If you see many similar documents (like multiple mineral deeds),
 report them as SEPARATE documents if they have different recording references.
 This is critical for maintaining proper title chain records.
 
+DO NOT SPLIT these document types internally - each one is a single document,
+but they CAN appear alongside other documents in a multi-document PDF:
+- OCC Form 1000 (Drilling Permit / Intent to Drill): 12+ pages covering ONE well permit.
+  They contain multi-unit tables listing OTHER wells/sections and "Take Point" tables with
+  section crossings. These are all part of the SAME permit, not separate documents.
+- OCC Form 1002A/1002C (Completion Reports): Multi-page reports for ONE well completion.
+  They reference formations, perforations, and production data across multiple pages.
+- OCC Orders (pooling, spacing, increased density): Multi-page orders that reference
+  multiple sections, operators, and wells. These are ONE order document.
+Example: A PDF with a Form 1000 (pages 1-12) followed by a Lease (pages 13-16) is TWO
+documents. The Form 1000 is one document and the Lease is another. Do NOT merge them,
+but also do NOT split the Form 1000 into multiple documents.
+
 Return ONLY valid JSON in this format:
 
 For single document:
