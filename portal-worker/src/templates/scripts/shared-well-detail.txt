@@ -56,6 +56,28 @@
                    /\d+H$/.test(n) || /\d+HZ$/.test(n) || n.includes('HORIZONTAL');
         }
 
+        // Match reason helpers (inline fallback if shared-utils not loaded)
+        function _wdMatchReasonStyle(reason) {
+            if (typeof getMatchReasonStyle === 'function') return getMatchReasonStyle(reason);
+            switch(reason) {
+                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
+                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
+                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
+                case 'Adjacent Section': return 'background: #fef3c7; color: #92400e;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+        function _wdMatchReasonLabel(reason) {
+            if (typeof getMatchReasonLabel === 'function') return getMatchReasonLabel(reason);
+            switch(reason) {
+                case 'Surface Location': return 'Surface';
+                case 'Bottom Hole': return 'Bottom Hole';
+                case 'Lateral Path': return 'Lateral';
+                case 'Adjacent Section': return 'Adjacent';
+                default: return reason || '';
+            }
+        }
+
         // Format phone number
         function _wdFormatPhone(phone) {
             if (!phone) return '';
@@ -540,6 +562,22 @@
                     </div>
                 </div>
 
+                <!-- Linked Properties (collapsible, only shown when clientWellId available) -->
+                <div class="wd-section" id="wdLinkedPropsSection" style="display: none;">
+                    <div class="wd-section-header" onclick="_wdToggleSection('linkedprops')">
+                        <div class="wd-section-left">
+                            <span class="wd-section-arrow" id="wd-section-arrow-linkedprops">&#9654;</span>
+                            <span class="wd-section-title">Linked Properties</span>
+                            <span class="wd-section-count" id="wdLinkedPropsCount"><span class="wd-loading-badge"><span class="wd-pulse-dot"></span>Loading</span></span>
+                        </div>
+                    </div>
+                    <div class="wd-section-body" id="wd-section-body-linkedprops">
+                        <div id="wdLinkedProps" class="wd-section-scroll" style="max-height: 250px;">
+                            <div style="text-align: center; padding: 12px; color: #6b7280; font-size: 13px;">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- OCC Filings (collapsible) -->
                 <div class="wd-section">
                     <div class="wd-section-header" onclick="_wdToggleSection('occ')">
@@ -641,6 +679,42 @@
                 // No location — show message
                 document.getElementById('wdOCCCount').textContent = '—';
                 document.getElementById('wdOCCDirect').innerHTML = '<div style="color: #6b7280; font-size: 13px; padding: 8px 0; font-style: italic;">Location data not available for OCC filing search</div>';
+            }
+
+            // Linked Properties — only when we have an Airtable well ID
+            if (well.clientWellId) {
+                const lpSection = document.getElementById('wdLinkedPropsSection');
+                lpSection.style.display = '';
+                try {
+                    const lpResp = await fetch('/api/well/' + encodeURIComponent(well.clientWellId) + '/linked-properties', { credentials: 'include' });
+                    if (lpResp.ok) {
+                        const lpData = await lpResp.json();
+                        const props = (lpData.properties || []).filter(p => p.linkStatus !== 'Unlinked');
+                        document.getElementById('wdLinkedPropsCount').textContent = props.length;
+                        const lpContainer = document.getElementById('wdLinkedProps');
+                        if (props.length === 0) {
+                            lpContainer.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No linked properties</div>';
+                        } else {
+                            lpContainer.innerHTML = props.map(p => `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                                    <div style="flex: 1;">
+                                        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                            <span style="font-weight: 500; color: #1e3a5f;">${p.location || '—'}</span>
+                                            ${p.group ? '<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">' + p.group + '</span>' : ''}
+                                            ${p.nma ? '<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">' + parseFloat(p.nma.toFixed(4)) + ' NMA</span>' : ''}
+                                        </div>
+                                        <div style="font-size: 12px; color: #6b7280;">${p.county || '—'}${p.acres && !p.nma ? ' &bull; ' + p.acres + ' acres' : ''}</div>
+                                    </div>
+                                    <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${_wdMatchReasonStyle(p.matchReason)}">${_wdMatchReasonLabel(p.matchReason)}</span>
+                                </div>
+                            `).join('');
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error loading linked properties:', e);
+                    document.getElementById('wdLinkedProps').innerHTML = '<div style="color: #6b7280; font-size: 13px; padding: 8px 0;">Unable to load</div>';
+                    document.getElementById('wdLinkedPropsCount').textContent = '—';
+                }
             }
         }
 

@@ -3572,7 +3572,8 @@
                 operatorNumber: w.operator_number || w.operatorNumber,
                 county: w.county,
                 wellType: w.well_type || w.wellType || w.formation,
-                status: w.well_status || w.status
+                status: w.well_status || w.status,
+                clientWellId: w.clientWellId || null
             });
         }
 
