@@ -173,6 +173,10 @@ import {
   handleAnalyzeCompletion,
   handleGetProductionSummary,
   handleGetDecimalInterest,
+  // Drilling permits handlers (Form 1000)
+  handleGetDrillingPermits,
+  handleAnalyzePermit,
+  handleSyncPermitToWell,
   // Completions-to-wells sync handlers
   handleSyncCompletionsToWells,
   handleSyncSingleCompletion,
@@ -1015,6 +1019,16 @@ var index_default = {
         return handleAnalyzeCompletion(analyzeCompletionMatch[1], request, env);
       }
 
+      // Drilling permits endpoints (Form 1000)
+      const drillingPermitsMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/drilling-permits$/);
+      if (drillingPermitsMatch && request.method === "GET") {
+        return handleGetDrillingPermits(drillingPermitsMatch[1], env);
+      }
+      const analyzePermitMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/analyze-permit$/);
+      if (analyzePermitMatch && request.method === "POST") {
+        return handleAnalyzePermit(analyzePermitMatch[1], request, env);
+      }
+
       // Production summary endpoint
       const productionSummaryMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/production-summary$/);
       if (productionSummaryMatch && request.method === "GET") {
@@ -1354,7 +1368,13 @@ var index_default = {
       if (syncSingleCompletionMatch && request.method === "POST") {
         return handleSyncSingleCompletion(request, env, syncSingleCompletionMatch[1]);
       }
-      
+
+      // Permit-to-well enrichment sync endpoint
+      const syncPermitMatch = path.match(/^\/api\/admin\/sync-permit-to-well\/([a-zA-Z0-9-]+)$/);
+      if (syncPermitMatch && request.method === "POST") {
+        return handleSyncPermitToWell(syncPermitMatch[1], request, env);
+      }
+
       // Intelligence API endpoints
       if (path === "/api/intelligence/data" && request.method === "GET") {
         const { handleGetIntelligenceData } = await import('./handlers/intelligence.js');

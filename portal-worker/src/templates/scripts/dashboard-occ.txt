@@ -562,5 +562,355 @@
             }
         }
 
+        // ============================================================================
+        // Drilling Permits (Form 1000) Functions
+        // ============================================================================
+
+        const analyzedPermitsCache = {};
+
+        function toggleDrillingPermits() {
+            const content = document.getElementById('drilling-permits-content');
+            const arrow = document.getElementById('drilling-permits-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        window.toggleDrillingPermits = toggleDrillingPermits;
+
+        async function loadDrillingPermits(apiNumber) {
+            console.log('[DrillingPermits] Loading permits for API:', apiNumber);
+            const countBadge = document.getElementById('drilling-permits-count');
+            const container = document.getElementById('drilling-permits-container');
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/drilling-permits`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                const permits = data.drillingPermits || [];
+
+                console.log('[DrillingPermits] Loaded:', permits.length, 'permits');
+
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                countBadge.textContent = permits.length;
+
+                if (permits.length === 0) {
+                    container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No drilling permits found</div>';
+                    return;
+                }
+
+                // Sort by effective date (newest first)
+                permits.sort((a, b) => {
+                    const dateA = parseCompletionDate(a.effectiveDate);
+                    const dateB = parseCompletionDate(b.effectiveDate);
+                    return dateB - dateA;
+                });
+
+                // Populate cache for already-analyzed permits
+                for (const permit of permits) {
+                    if (permit.documentId && (permit.status === 'fetched' || permit.status === 'processed')) {
+                        analyzedPermitsCache[permit.entryId] = { documentId: permit.documentId, displayName: permit.wellName };
+                    }
+                }
+
+                container.innerHTML = permits.map((permit, idx) => renderDrillingPermit(permit, apiNumber, idx === 0)).join('');
+            } catch (error) {
+                console.error('[DrillingPermits] Error loading permits:', error);
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #fecaca; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #dc2626;';
+                countBadge.textContent = '!';
+                container.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px 0;">Error loading drilling permits</div>';
+            }
+        }
+        window.loadDrillingPermits = loadDrillingPermits;
+
+        function renderDrillingPermit(permit, apiNumber, isCurrent = false) {
+            const dateDisplay = formatCompletionDate(permit.effectiveDate);
+            const buttonId = `permit-btn-${permit.entryId}`;
+            const isFailed = permit.status === 'error';
+            const currentBadge = isCurrent ? '<span class="completion-current-badge">Latest</span>' : '';
+            const failedBadge = isFailed ? `<span class="completion-failed-badge" title="${escapeHtml(permit.errorMessage || 'Processing failed')}">Failed</span>` : '';
+
+            const cached = analyzedPermitsCache[permit.entryId];
+
+            let actionButton = '';
+            if (cached && cached.documentId) {
+                actionButton = `
+                    <button class="occ-reanalyze-btn"
+                            data-api-number="${apiNumber}"
+                            data-entry-id="${permit.entryId}"
+                            onclick="analyzePermit('${apiNumber}', ${permit.entryId}, this, true)"
+                            title="Re-process this document">Re-analyze</button>
+                    <button class="occ-view-doc-btn" onclick="openDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+            } else switch (permit.status) {
+                case 'available':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn"
+                                data-api-number="${apiNumber}"
+                                data-entry-id="${permit.entryId}"
+                                onclick="analyzePermit('${apiNumber}', ${permit.entryId}, this)">
+                            Analyze
+                        </button>`;
+                    break;
+                case 'fetching':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn analyzing" disabled>
+                            <span class="spinner-sm"></span>Analyzing...
+                        </button>`;
+                    break;
+                case 'fetched':
+                case 'processed':
+                    actionButton = `
+                        <button class="occ-reanalyze-btn"
+                                data-api-number="${apiNumber}"
+                                data-entry-id="${permit.entryId}"
+                                onclick="analyzePermit('${apiNumber}', ${permit.entryId}, this, true)"
+                                title="Re-process this document">Re-analyze</button>
+                        ${permit.documentId ? `<button class="occ-view-doc-btn" onclick="openDocumentDetail('${permit.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
+                    break;
+                case 'error':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn error"
+                                onclick="analyzePermit('${apiNumber}', ${permit.entryId}, this, true)"
+                                title="${escapeHtml(permit.errorMessage || 'Error occurred')}">
+                            Retry
+                        </button>`;
+                    break;
+                default:
+                    actionButton = '<span style="color: #888; font-size: 12px;">—</span>';
+            }
+
+            return `
+                <div class="completion-report-item${isCurrent ? ' is-current' : ''}${isFailed ? ' is-failed' : ''}">
+                    <div class="completion-report-main">
+                        <div>
+                            <span class="completion-report-type" style="background: #DBEAFE; color: #1E40AF;">PERMIT 1000</span>
+                            ${currentBadge}
+                            ${failedBadge}
+                            <span class="completion-report-location">${escapeHtml(permit.location || '')}</span>
+                        </div>
+                        <div class="completion-report-details">
+                            ${permit.county ? `<span>${escapeHtml(permit.county)} County</span>` : ''}
+                            ${permit.wellName ? `<span>• ${escapeHtml(permit.wellName)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <div class="completion-report-date">${dateDisplay}</div>
+                        <div class="occ-filing-actions">
+                            ${actionButton}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Permit processing states (mirrors completion pattern)
+        const permitProcessingStates = {};
+        const PERMIT_POLL_INTERVAL = 5000;
+        const PERMIT_MAX_POLL_DURATION = 5 * 60 * 1000;
+
+        async function analyzePermit(apiNumber, entryId, buttonEl, force = false) {
+            console.log(`[DrillingPermits] Analyzing ${apiNumber} entryId ${entryId}${force ? ' (force)' : ''}`);
+
+            const getCurrentButton = () => permitProcessingStates[entryId]?.buttonEl || buttonEl;
+
+            permitProcessingStates[entryId] = { status: 'fetching', buttonEl };
+            updatePermitButtonState(buttonEl, 'fetching');
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/analyze-permit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ entryId, force })
+                });
+
+                const result = await response.json();
+                const currentBtn = getCurrentButton();
+
+                if (response.status === 401) {
+                    permitProcessingStates[entryId] = { ...permitProcessingStates[entryId], status: 'idle' };
+                    updatePermitButtonState(currentBtn, 'idle');
+                    showToast('Please log in to analyze drilling permits', 'error');
+                    return;
+                }
+
+                if (result.alreadyProcessed) {
+                    console.log(`[DrillingPermits] Already processed: ${result.documentId}`);
+                    permitProcessingStates[entryId] = { ...permitProcessingStates[entryId], status: 'complete', documentId: result.documentId };
+                    updatePermitButtonState(currentBtn, 'complete', result.documentId, result.displayName);
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+                    console.log(`[DrillingPermits] Successfully queued: ${docId}, status: ${docStatus}`);
+
+                    if (typeof updateCreditsDisplay === 'function') {
+                        updateCreditsDisplay(result.creditsRemaining);
+                    }
+
+                    if (docStatus === 'complete') {
+                        permitProcessingStates[entryId] = { ...permitProcessingStates[entryId], status: 'complete', documentId: docId };
+                        analyzedPermitsCache[entryId] = { documentId: docId, displayName: result.document?.display_name };
+                        updatePermitButtonState(currentBtn, 'complete', docId);
+                        showToast('Drilling permit analyzed!', 'success');
+                        loadUsageStats();
+                    } else {
+                        permitProcessingStates[entryId] = {
+                            ...permitProcessingStates[entryId],
+                            status: docStatus === 'processing' ? 'processing' : 'queued',
+                            documentId: docId,
+                            pollStartTime: Date.now()
+                        };
+                        updatePermitButtonState(currentBtn, docStatus === 'processing' ? 'processing' : 'queued');
+                        startPermitDocumentPolling(entryId, docId, getCurrentButton());
+                    }
+                } else if (result.error === 'no_credits') {
+                    console.log(`[DrillingPermits] No credits available`);
+                    permitProcessingStates[entryId] = { ...permitProcessingStates[entryId], status: 'idle' };
+                    updatePermitButtonState(currentBtn, 'idle');
+                    showOutOfCreditsModal();
+                } else {
+                    throw new Error(result.message || result.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('[DrillingPermits] Error:', error);
+                const currentBtn = getCurrentButton();
+                permitProcessingStates[entryId] = { ...permitProcessingStates[entryId], status: 'error' };
+                updatePermitButtonState(currentBtn, 'error');
+                showToast('Failed to analyze: ' + error.message, 'error');
+            }
+        }
+        window.analyzePermit = analyzePermit;
+
+        function startPermitDocumentPolling(entryId, documentId, buttonEl) {
+            const state = permitProcessingStates[entryId];
+            if (!state || state.pollInterval) return;
+
+            console.log(`[DrillingPermits Poll] Starting polling for ${documentId}`);
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = permitProcessingStates[entryId];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                const currentButtonEl = currentState.buttonEl;
+
+                if (Date.now() - currentState.pollStartTime > PERMIT_MAX_POLL_DURATION) {
+                    console.log(`[DrillingPermits Poll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, {
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    const doc = data.document;
+                    if (!doc) return;
+
+                    console.log(`[DrillingPermits Poll] Document ${documentId} status: ${doc.status}`);
+
+                    if (doc.status === 'complete') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+                        analyzedPermitsCache[entryId] = { documentId: documentId, displayName: doc.display_name };
+                        updatePermitButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
+                        showToast('Drilling permit analyzed!', 'success');
+                        loadUsageStats();
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        currentState.status = 'processing';
+                        updatePermitButtonState(currentButtonEl, 'processing');
+                    } else if (doc.status === 'failed' || doc.status === 'error') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updatePermitButtonState(currentButtonEl, 'error');
+                        showToast('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[DrillingPermits Poll] Error polling ${documentId}:`, err);
+                }
+            }, PERMIT_POLL_INTERVAL);
+        }
+
+        function updatePermitButtonState(buttonEl, state, documentId = null, displayName = null) {
+            if (!buttonEl) return;
+
+            let parentContainer = buttonEl.parentElement;
+            let apiNum = buttonEl.dataset?.apiNumber || '';
+            let entryId = buttonEl.dataset?.entryId || '';
+
+            if (!parentContainer) {
+                console.warn('[Permit] Button element is detached from DOM');
+                return;
+            }
+
+            const createBtn = (stateClass, disabled, innerHTML, title) => {
+                parentContainer.innerHTML = `
+                    <button class="completion-analyze-btn ${stateClass}"
+                            data-api-number="${escapeHtml(apiNum)}"
+                            data-entry-id="${escapeHtml(entryId)}"
+                            ${disabled ? 'disabled' : ''}
+                            onclick="analyzePermit('${escapeHtml(apiNum)}', ${entryId}, this)"
+                            title="${title}">${innerHTML}</button>
+                `;
+                return parentContainer.querySelector('button');
+            };
+
+            let newButton = null;
+            switch (state) {
+                case 'fetching':
+                    newButton = createBtn('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
+                    break;
+                case 'queued':
+                    newButton = createBtn('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
+                    break;
+                case 'processing':
+                    newButton = createBtn('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
+                    break;
+                case 'complete':
+                    if (documentId) {
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    data-api-number="${escapeHtml(apiNum)}"
+                                    data-entry-id="${escapeHtml(entryId)}"
+                                    onclick="analyzePermit('${escapeHtml(apiNum)}', ${entryId}, this, true)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <button class="occ-view-doc-btn"
+                                    onclick="openDocumentDetail('${documentId}')"
+                                    title="View analyzed document">View Doc ↗</button>
+                        `;
+                        newButton = parentContainer.querySelector('button');
+                    } else {
+                        newButton = createBtn('analyzed', false, '✓ Analyzed', 'Analyzed');
+                    }
+                    break;
+                case 'error':
+                    newButton = createBtn('error', false, 'Retry', 'Click to retry');
+                    break;
+                case 'idle':
+                default:
+                    newButton = createBtn('', false, 'Analyze', 'Uses 1 document credit');
+                    break;
+            }
+
+            if (entryId && permitProcessingStates[entryId] && newButton) {
+                permitProcessingStates[entryId].buttonEl = newButton;
+            }
+        }
+
         // OCC helpers (getOccStatusClass, formatOccDate, isOccHearingUpcoming,
         // formatCompletionDate, parseCompletionDate) are in shared-occ-helpers.txt

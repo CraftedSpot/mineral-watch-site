@@ -203,6 +203,13 @@ export {
   handleGetDecimalInterest
 } from './completion-reports.js';
 
+// Drilling permits handlers (Form 1000)
+export {
+  handleGetDrillingPermits,
+  handleAnalyzePermit,
+  handleSyncPermitToWell
+} from './drilling-permits.js';
+
 // Completions-to-wells sync handlers
 export {
   handleSyncCompletionsToWells,

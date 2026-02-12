@@ -27,6 +27,9 @@ export default {
       if (url.pathname === '/get-1002a-forms') {
         return handleGet1002AForms(request, env);
       }
+      if (url.pathname === '/get-1000-forms') {
+        return handleGet1000Forms(request, env);
+      }
       return jsonResponse({ error: 'Not found' }, 404);
     }
 
@@ -57,6 +60,11 @@ export default {
     // 1002A Completion Report endpoints
     if (url.pathname === '/download-1002a-forms') {
       return handleDownload1002AForms(request, env);
+    }
+
+    // Form 1000 Drilling Permit endpoints
+    if (url.pathname === '/download-1000-forms') {
+      return handleDownload1000Forms(request, env);
     }
 
     return jsonResponse({ error: 'Not found' }, 404);
@@ -507,6 +515,232 @@ async function handleDownload1002AForms(request: Request, env: Env): Promise<Res
     });
   } catch (error) {
     console.error('[1002A] Error:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+}
+
+/**
+ * GET /get-1000-forms - List all Form 1000 drilling permits for an API number
+ */
+async function handleGet1000Forms(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const apiNumber = url.searchParams.get('api');
+
+  if (!apiNumber) {
+    return jsonResponse({ error: 'api parameter required' }, 400);
+  }
+
+  try {
+    const cookies = await getWellRecordsSessionCookies(env);
+    const forms = await searchWellRecords(apiNumber, cookies, '1000');
+
+    return jsonResponse({
+      success: true,
+      apiNumber,
+      count: forms.length,
+      forms,
+    });
+  } catch (error) {
+    console.error('[1000] Search error:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+}
+
+/**
+ * POST /download-1000-forms - Download Form 1000 drilling permits, store in R2, register with documents-worker
+ */
+async function handleDownload1000Forms(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { apiNumber, userId, userPlan, organizationId, wellApiNumber, entryIds } = body;
+
+  if (!apiNumber || !userId) {
+    return jsonResponse({ error: 'apiNumber and userId required' }, 400);
+  }
+
+  try {
+    const cookies = await getWellRecordsSessionCookies(env);
+    let forms = await searchWellRecords(apiNumber, cookies, '1000');
+
+    if (forms.length === 0) {
+      return jsonResponse({
+        success: false,
+        error: 'No Form 1000 drilling permits found',
+        apiNumber,
+      });
+    }
+
+    console.log(`[1000] Found ${forms.length} forms for API ${apiNumber}`);
+
+    // Filter to only requested entryIds if provided
+    if (entryIds && Array.isArray(entryIds) && entryIds.length > 0) {
+      const requestedIds = new Set(entryIds.map(id => Number(id)));
+      forms = forms.filter(f => requestedIds.has(f.entryId));
+      console.log(`[1000] Filtered to ${forms.length} requested forms (entryIds: ${entryIds.join(', ')})`);
+
+      if (forms.length === 0) {
+        return jsonResponse({
+          success: false,
+          error: 'Requested forms not found',
+          apiNumber,
+          requestedEntryIds: entryIds,
+        });
+      }
+    }
+
+    const results: any[] = [];
+
+    for (let i = 0; i < forms.length; i++) {
+      const form = forms[i];
+
+      // Rate limiting: 200ms delay between downloads (skip first)
+      if (i > 0) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      try {
+        console.log(`[1000] Downloading form ${i + 1}/${forms.length}: ${form.name} (entryId: ${form.entryId})`);
+
+        let pdfResponse = await fetch(form.downloadUrl, {
+          headers: {
+            Cookie: cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+
+        // Retry once on 5xx errors
+        if (!pdfResponse.ok && pdfResponse.status >= 500) {
+          console.log(`[1000] Retrying download for ${form.name} after ${pdfResponse.status} error`);
+          await new Promise(r => setTimeout(r, 1000));
+          pdfResponse = await fetch(form.downloadUrl, {
+            headers: {
+              Cookie: cookies,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          });
+        }
+
+        if (!pdfResponse.ok) {
+          console.error(`[1000] Failed to download PDF for ${form.name}: HTTP ${pdfResponse.status}`);
+          results.push({ success: false, form, error: `HTTP ${pdfResponse.status}` });
+          continue;
+        }
+
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+
+        // Validate PDF magic bytes
+        const pdfBytes = new Uint8Array(pdfBuffer.slice(0, 5));
+        const pdfMagic = String.fromCharCode(...pdfBytes);
+        if (!pdfMagic.startsWith('%PDF-')) {
+          console.error(`[1000] Downloaded file is not a PDF for ${form.name}. First bytes: ${pdfMagic}`);
+          results.push({ success: false, form, error: 'Downloaded file is not a valid PDF' });
+          continue;
+        }
+
+        console.log(`[1000] Successfully downloaded ${pdfBuffer.byteLength} bytes for ${form.name}`);
+
+        const filename = `1000-${form.apiNumber}-${form.wellName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+        const r2Key = `uploads/${userId}/${Date.now()}-${filename}`;
+
+        // Store in R2
+        if (env.UPLOADS_BUCKET) {
+          await env.UPLOADS_BUCKET.put(r2Key, pdfBuffer, {
+            httpMetadata: {
+              contentType: 'application/pdf',
+              contentDisposition: `attachment; filename="${filename}"`,
+            },
+            customMetadata: {
+              source: 'occ-1000-fetcher',
+              apiNumber: form.apiNumber,
+              formNumber: '1000',
+              wellName: form.wellName,
+              county: form.county,
+              effectiveDate: form.effectiveDate,
+              entryId: String(form.entryId),
+            },
+          });
+        }
+
+        // Register with documents-worker
+        let documentId: string | undefined;
+        if (env.DOCUMENTS_WORKER) {
+          try {
+            const registerResponse = await env.DOCUMENTS_WORKER.fetch(
+              new Request('https://internal/api/documents/register-external', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-API-Key': env.PROCESSING_API_KEY,
+                },
+                body: JSON.stringify({
+                  r2Key,
+                  userId,
+                  userPlan,
+                  organizationId,
+                  filename,
+                  fileSize: pdfBuffer.byteLength,
+                  contentType: 'application/pdf',
+                  sourceType: 'occ_1000',
+                  sourceApi: wellApiNumber || form.apiNumber,
+                  originalUrl: form.downloadUrl,
+                  metadata: {
+                    formNumber: '1000',
+                    apiNumber: form.apiNumber,
+                    wellName: form.wellName,
+                    county: form.county,
+                    location: form.location,
+                    effectiveDate: form.effectiveDate,
+                    entryId: form.entryId,
+                  },
+                }),
+              })
+            );
+            if (registerResponse.ok) {
+              const result = await registerResponse.json() as any;
+              documentId = result.document?.id;
+              console.log(`[1000] Registered document: ${documentId}`);
+            } else {
+              console.error(`[1000] Registration failed: ${registerResponse.status}`);
+            }
+          } catch (e) {
+            console.error('[1000] Document registration failed:', e);
+          }
+        }
+
+        results.push({ success: true, form, r2Key, documentId });
+      } catch (error) {
+        console.error(`[1000] Error processing form ${form.name}:`, error);
+        results.push({
+          success: false,
+          form,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return jsonResponse({
+      success: results.some(r => r.success),
+      apiNumber,
+      summary: {
+        total: forms.length,
+        downloaded: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      },
+      results,
+    });
+  } catch (error) {
+    console.error('[1000] Error:', error);
     return jsonResponse({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',

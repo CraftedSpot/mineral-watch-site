@@ -3319,6 +3319,144 @@ export default {
       }
     }
 
+    // Route: POST /api/occ/fetch-1000 - Fetch and process a Form 1000 drilling permit
+    // Called from portal UI when user clicks "Analyze" on a drilling permit
+    if (path === '/api/occ/fetch-1000' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const body = await request.json() as {
+          apiNumber: string;
+          entryId: number;
+          force?: boolean;
+        };
+
+        const { apiNumber, entryId, force } = body;
+
+        if (!apiNumber || !entryId) {
+          return errorResponse('apiNumber and entryId are required', 400, env);
+        }
+
+        console.log(`[1000 Fetch] User ${user.id} requesting API ${apiNumber} entryId ${entryId}${force ? ' (force re-analyze)' : ''}`);
+
+        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+
+        // Check if already processed (by entryId in source_metadata)
+        const existingQuery = `
+          SELECT id, display_name, status FROM documents
+          WHERE user_id = ?
+          AND deleted_at IS NULL
+          AND json_extract(source_metadata, '$.entryId') = ?
+        `;
+
+        const existing = await env.WELLS_DB.prepare(existingQuery).bind(user.id, entryId).first() as { id: string; display_name: string; status: string } | null;
+
+        if (existing && !force) {
+          console.log(`[1000 Fetch] Document already exists: ${existing.id}`);
+
+          const creditUserId = user.organizationId || user.id;
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+
+          return jsonResponse({
+            alreadyProcessed: true,
+            documentId: existing.id,
+            displayName: existing.display_name,
+            status: existing.status,
+            creditsRemaining: creditCheck.totalAvailable
+          }, 200, env);
+        }
+
+        // If force re-analyze and document exists, soft-delete the old one
+        if (existing && force) {
+          console.log(`[1000 Fetch] Force re-analyze: soft-deleting existing document ${existing.id}`);
+          await env.WELLS_DB.prepare(`
+            UPDATE documents SET deleted_at = datetime('now') WHERE id = ?
+          `).bind(existing.id).run();
+        }
+
+        // Check credits before fetching
+        const creditUserId = user.organizationId || user.id;
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+
+        if (!creditCheck.hasCredits) {
+          console.log(`[1000 Fetch] User ${user.id} has no credits`);
+          return jsonResponse({
+            error: 'no_credits',
+            message: creditCheck.message || 'No credits available. Please purchase a credit pack or upgrade your plan.',
+            creditsRemaining: 0
+          }, 402, env);
+        }
+
+        console.log(`[1000 Fetch] User has ${creditCheck.totalAvailable} credits, calling occ-fetcher`);
+
+        // Call occ-fetcher to download specific Form 1000
+        const occResponse = await env.OCC_FETCHER.fetch(
+          new Request('https://internal/download-1000-forms', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': env.PROCESSING_API_KEY
+            },
+            body: JSON.stringify({
+              apiNumber,
+              entryIds: [entryId],
+              userId: user.id,
+              userPlan,
+              organizationId: userOrg
+            })
+          })
+        );
+
+        const occResult = await occResponse.json() as any;
+
+        if (!occResponse.ok || !occResult.success) {
+          console.error('[1000 Fetch] occ-fetcher error:', occResult);
+          return jsonResponse({
+            error: 'fetch_failed',
+            message: occResult.error || 'Failed to fetch Form 1000 from OCC',
+            creditsRemaining: creditCheck.totalAvailable
+          }, occResponse.status || 500, env);
+        }
+
+        // Find the result for our entryId
+        const formResult = occResult.results?.find((r: any) => r.form?.entryId === entryId);
+
+        if (!formResult?.success || !formResult?.documentId) {
+          console.error('[1000 Fetch] Form not found in results:', occResult.results);
+          return jsonResponse({
+            error: 'fetch_failed',
+            message: formResult?.error || 'Failed to process Form 1000',
+            creditsRemaining: creditCheck.totalAvailable
+          }, 500, env);
+        }
+
+        console.log(`[1000 Fetch] Successfully fetched document ${formResult.documentId}`);
+
+        const doc = await env.WELLS_DB.prepare(
+          'SELECT id, status, display_name FROM documents WHERE id = ?'
+        ).bind(formResult.documentId).first();
+
+        return jsonResponse({
+          success: true,
+          document: {
+            id: formResult.documentId,
+            status: doc?.status || 'pending',
+            displayName: doc?.display_name
+          },
+          form: formResult.form,
+          creditsRemaining: creditCheck.totalAvailable - 1
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[1000 Fetch] Error:', error);
+        return errorResponse('Failed to fetch Form 1000 document: ' + (error as Error).message, 500, env);
+      }
+    }
+
     // Route: POST /api/processing/extract-county-record - Extract a county record from OKCR
     if (path === '/api/processing/extract-county-record' && request.method === 'POST') {
       const apiKey = request.headers.get('X-API-Key');
