@@ -242,24 +242,21 @@
                 const apiNumber = f['API Number'];
 
                 // Check if this activity type should have a Track Well button
+                // Show for permits/completions AND for OCC filings that have an API (tracked well matches)
                 const shouldShowTrackButton = apiNumber && (
                     activityType === 'New Permit' ||
                     activityType === 'New Drilling Permit' ||
                     activityType === 'Well Completed' ||
-                    activityType.toLowerCase().includes('rework')
+                    activityType.toLowerCase().includes('rework') ||
+                    activityType.includes('Application') ||
+                    activityType.includes('Exception') ||
+                    activityType === 'OCC Filing' ||
+                    activityType === 'Order Modification' ||
+                    activityType === 'Operator Change'
                 );
 
                 let actionsHtml = '<div class="activity-actions">';
-                // OCC Filing first
-                if (occLink) {
-                    const fixedOccLink = occLink.replace(/&cr=1/g, '');
-                    actionsHtml += `<a href="${escapeHtml(fixedOccLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
-                }
-                // OCC Map second
-                if (mapLink) {
-                    actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
-                }
-                // View on Map for activities with STR location
+                // View on Map first (our map with section highlight)
                 const strField = f['Section-Township-Range'];
                 if (strField) {
                     const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
@@ -272,6 +269,10 @@
                         });
                         actionsHtml += `<a href="/portal/oklahoma-map?${mapParams}" target="_blank" class="activity-btn">View on Map</a>`;
                     }
+                }
+                // OCC Map second
+                if (mapLink) {
+                    actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
                 }
                 // Track Well
                 if (shouldShowTrackButton) {
@@ -311,7 +312,7 @@
                             <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(cleanCountyDisplay(f['County'])) || ''}</div>
                             ${caseNumber ? `<div class="activity-meta" style="color: #94A3B8; font-size: 11px;">Case: ${escapeHtml(caseNumber)}</div>` : ''}
                             ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
-                            ${(occLink || mapLink || strField || shouldShowTrackButton || (occFilingTypes.includes(activityType) && caseNumber)) ? actionsHtml : ''}
+                            ${(mapLink || strField || shouldShowTrackButton || (occFilingTypes.includes(activityType) && caseNumber)) ? actionsHtml : ''}
                         </div>
                         <div class="activity-date">${dateStr}</div>
                     </div>

@@ -6273,13 +6273,15 @@
                         display: grid;
                         gap: 16px;
                         margin-bottom: 24px;
+                        max-width: 600px;
                     }
                     .doc-field {
                         display: flex;
                         justify-content: space-between;
-                        align-items: center;
+                        align-items: baseline;
                         padding: 12px 0;
                         border-bottom: 1px solid #E5E7EB;
+                        gap: 16px;
                     }
                     .doc-field:last-child {
                         border-bottom: none;
@@ -6295,6 +6297,23 @@
                         color: #111827;
                         text-align: right;
                         flex: 1;
+                    }
+                    @media (max-width: 600px) {
+                        .doc-detail-grid {
+                            max-width: 100%;
+                        }
+                        .doc-field {
+                            flex-direction: column;
+                            align-items: flex-start;
+                            gap: 4px;
+                        }
+                        .doc-field label {
+                            flex: none;
+                        }
+                        .doc-value {
+                            text-align: left;
+                            word-break: break-word;
+                        }
                     }
                     .detail-section {
                         margin-bottom: 24px;

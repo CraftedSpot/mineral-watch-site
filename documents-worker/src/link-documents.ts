@@ -1,5 +1,16 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
+// Normalize API number: strip separators and ensure 35 prefix (Oklahoma)
+const normalizeApiNumber = (api: string): string | null => {
+  if (!api) return null;
+  const digits = api.replace(/[\s\-\.]/g, '').replace(/[^0-9]/g, '');
+  if (digits.length === 10 && digits.startsWith('35')) return digits;
+  if (digits.length === 14 && digits.startsWith('35')) return digits;
+  if (digits.length === 8) return '35' + digits;
+  if (digits.length === 12) return '35' + digits;
+  return digits.length >= 8 ? digits : null;
+};
+
 // Normalize section (strip leading zeros)
 const normalizeSection = (s: string | null | undefined): string | null => {
   if (!s) return null;
@@ -528,15 +539,21 @@ export async function linkDocumentToEntities(
   const firstWell = Array.isArray(wellsList) ? wellsList[0] : null;
   
   // Match well by API number or name using cascading search strategy
-  const apiNumber = getValue(firstWell?.api_number) ||
+  // Prefer normalized API (with 35 prefix) over raw extracted API
+  const rawApiNumber = getValue(firstWell?.api_number) ||
                     getValue(firstWell?.api) ||
                     getValue(wellInfoObj?.api_number) ||
                     getValue(wellInfoObj?.api) ||
-                    getValue(extractedFields.api_number) || 
+                    getValue(extractedFields.api_number) ||
                     getValue(extractedFields.api) ||
                     getValue(extractedFields.API) ||
                     getValue(extractedFields['API Number']) ||
                     getValue(extractedFields.api_no);
+  // Use normalized version (always has 35 prefix) if available, fall back to raw
+  const apiNumber = getValue(extractedFields.api_number_normalized) ||
+                    getValue(firstWell?.api_number_normalized) ||
+                    getValue(wellInfoObj?.api_number_normalized) ||
+                    (rawApiNumber ? normalizeApiNumber(rawApiNumber) : null);
                     
   const rawWellName = getValue(firstWell?.well_name) ||
                       getValue(firstWell?.name) ||
