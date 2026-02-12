@@ -90,7 +90,6 @@
                 countBadge: document.getElementById('drilling-permits-count')
             });
         }
-        window.loadDrillingPermits = loadDashboardDrillingPermits;
 
         // Legacy aliases for old onclick handlers
         window.analyzePermit = analyzeDrillingPermit;

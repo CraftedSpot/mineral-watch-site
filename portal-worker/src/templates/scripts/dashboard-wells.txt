@@ -1261,7 +1261,7 @@
                 }
                 // Load Drilling Permits (Form 1000) in separate section
                 if (well.apiNumber) {
-                    loadDrillingPermits(well.apiNumber);
+                    loadDashboardDrillingPermits(well.apiNumber);
                 }
 
                 // Load OCC filings using section/township/range/meridian

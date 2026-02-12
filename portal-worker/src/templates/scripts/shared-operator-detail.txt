@@ -33,6 +33,13 @@
             return '#f59e0b';
         }
 
+        // Guard: formatNumber may not exist on map page
+        function _opFormatNumber(num) {
+            if (typeof formatNumber === 'function') return formatNumber(num);
+            if (num == null) return '0';
+            return Number(num).toLocaleString();
+        }
+
         /**
          * Ensure the operator modal DOM + CSS exist.
          * Created lazily on first use — no template HTML needed.
@@ -45,7 +52,7 @@
             style.textContent = `
                 #sharedOperatorModal {
                     position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-                    background: rgba(0,0,0,0.6); z-index: 100010;
+                    background: rgba(0,0,0,0.6); z-index: 1000003;
                     display: none; align-items: center; justify-content: center;
                     padding: 16px;
                 }
@@ -55,7 +62,7 @@
                     box-shadow: 0 20px 60px rgba(0,0,0,0.3);
                 }
                 #sharedOperatorModal .op-header {
-                    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                    background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 100%);
                     color: white; padding: 20px 24px; border-radius: 12px 12px 0 0;
                     display: flex; justify-content: space-between; align-items: flex-start;
                 }
@@ -224,7 +231,7 @@
             let html = `
                 <div class="op-stats">
                     <div class="op-stat">
-                        <div class="op-stat-val">${formatNumber(summary.well_count)}</div>
+                        <div class="op-stat-val">${_opFormatNumber(summary.well_count)}</div>
                         <div class="op-stat-lbl">Wells</div>
                     </div>
                     <div class="op-stat">
@@ -268,7 +275,7 @@
                             <div class="op-health-card">
                                 <div class="op-health-title">Well Activity</div>
                                 <div class="op-health-val" style="color: ${_opIdleColor(h.idleRatePct)};">${h.idleRatePct}% idle</div>
-                                <div class="op-health-sub">${formatNumber(h.idlePuns)} of ${formatNumber(h.totalPuns)}</div>
+                                <div class="op-health-sub">${_opFormatNumber(h.idlePuns)} of ${_opFormatNumber(h.totalPuns)}</div>
                             </div>
                             <div class="op-health-card">
                                 <div class="op-health-title">Avg Decline (12mo)</div>
@@ -278,9 +285,9 @@
                             <div class="op-health-card">
                                 <div class="op-health-title">Production Trend</div>
                                 <div class="op-health-val" style="color: #1e293b;">
-                                    ${formatNumber(h.decliningWells)} <span style="font-size: 0.8rem; color: #ef4444;">&#8595;</span>
+                                    ${_opFormatNumber(h.decliningWells)} <span style="font-size: 0.8rem; color: #ef4444;">&#8595;</span>
                                     <span style="color: #94a3b8;">/</span>
-                                    ${formatNumber(h.growingWells)} <span style="font-size: 0.8rem; color: #10b981;">&#8593;</span>
+                                    ${_opFormatNumber(h.growingWells)} <span style="font-size: 0.8rem; color: #10b981;">&#8593;</span>
                                 </div>
                                 <div class="op-health-sub">Declining vs Growing</div>
                             </div>
@@ -293,7 +300,7 @@
                     const longPct = 100 - recentPct - extPct;
                     html += `
                         <div>
-                            <div style="font-size: 10px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Idle Breakdown (${formatNumber(totalIdle)} wells)</div>
+                            <div style="font-size: 10px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Idle Breakdown (${_opFormatNumber(totalIdle)} wells)</div>
                             <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: #e5e7eb;">
                                 ${h.recentlyIdle > 0 ? `<div style="width: ${recentPct}%; background: #f59e0b;" title="Recently idle (3-6mo): ${h.recentlyIdle}"></div>` : ''}
                                 ${h.extendedIdle > 0 ? `<div style="width: ${extPct}%; background: #f97316;" title="Extended idle (6-12mo): ${h.extendedIdle}"></div>` : ''}
