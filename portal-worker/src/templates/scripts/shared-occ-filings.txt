@@ -475,7 +475,9 @@
                             ${esc(filing.reliefTypeDisplay)}
                             ${adjacentNote}
                         </div>
-                        <div class="occ-filing-applicant">${esc(filing.applicant) || 'Unknown Applicant'}</div>
+                        <div class="occ-filing-applicant">${filing.applicant && typeof lookupAndOpenOperator === 'function'
+                            ? `<span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator('${esc(filing.applicant).replace(/'/g, "\\'")}')">${esc(filing.applicant)}</span>`
+                            : (esc(filing.applicant) || 'Unknown Applicant')}</div>
                         <div class="occ-filing-details">
                             <span class="occ-filing-case">${esc(filing.caseNumber)}</span>
                             <span class="occ-filing-status ${statusClass}">${esc(filing.statusDisplay)}</span>

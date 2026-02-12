@@ -1,0 +1,657 @@
+        // ============================================
+        // Shared Well Detail Modal
+        // Lazily creates modal DOM + CSS on first use.
+        // Opens a full well detail view by API number.
+        // Uses shared sub-modules (OTC production, OCC filings,
+        // completion reports, drilling permits) via ctx pattern.
+        // ============================================
+
+        // Provide a minimal openDocumentDetail fallback if neither dashboard nor map version exists.
+        // This lets "View Doc" buttons work on pages without a full document viewer (e.g., intelligence).
+        if (typeof openDocumentDetail !== 'function' && typeof openMapDocumentDetail !== 'function') {
+            window.openDocumentDetail = function(docId) {
+                window.open('/api/documents/' + encodeURIComponent(docId) + '/download', '_blank');
+            };
+        }
+
+        const _wdStatusColors = {
+            'AC': '#10b981', 'ACTIVE': '#10b981',
+            'PA': '#ef4444', 'PLUGGED': '#ef4444',
+            'IN': '#f59e0b', 'INACTIVE': '#f59e0b',
+            'SI': '#8b5cf6', 'SHUT-IN': '#8b5cf6',
+            'TA': '#6366f1', 'TEMP ABANDON': '#6366f1',
+            'NEW': '#3b82f6', 'NR': '#6b7280',
+            'default': '#64748b'
+        };
+
+        // Toast helper (works on any page)
+        function _wdToast(msg, type, dur) {
+            if (typeof showToast === 'function') return showToast(msg, type, dur);
+            if (typeof showMapToast === 'function') return showMapToast(msg, type, dur);
+        }
+
+        // Operator click helper (works with either shared or intelligence operator detail)
+        function _wdOpenOperator(operatorName) {
+            if (!operatorName || operatorName === '—' || operatorName === 'Unknown') return;
+            if (typeof lookupAndOpenOperator === 'function') {
+                lookupAndOpenOperator(operatorName);
+            } else if (typeof lookupOperatorDetail === 'function') {
+                lookupOperatorDetail(operatorName);
+            }
+        }
+
+        // Title case helper
+        function _wdTitleCase(str) {
+            if (!str) return '';
+            return str.replace(/\b\w+/g, w =>
+                w.length <= 2 ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+            );
+        }
+
+        // Detect horizontal well from name
+        function _wdIsHorizontal(name) {
+            if (!name) return false;
+            const n = name.toUpperCase();
+            return n.includes(' H ') || n.includes(' HZ ') || n.endsWith(' H') || n.endsWith(' HZ') ||
+                   /\d+H$/.test(n) || /\d+HZ$/.test(n) || n.includes('HORIZONTAL');
+        }
+
+        // Format phone number
+        function _wdFormatPhone(phone) {
+            if (!phone) return '';
+            const clean = phone.replace(/\D/g, '');
+            if (clean.length === 10) return `(${clean.slice(0,3)}) ${clean.slice(3,6)}-${clean.slice(6)}`;
+            return phone;
+        }
+
+        /**
+         * Ensure the well detail modal DOM + CSS exist.
+         * Created lazily on first use — no template HTML needed.
+         */
+        function _ensureWellDetailModal() {
+            if (document.getElementById('sharedWellDetail')) return;
+
+            // Inject scoped CSS
+            const style = document.createElement('style');
+            style.textContent = `
+                #sharedWellDetail {
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0,0,0,0.6); z-index: 1000004;
+                    display: none; align-items: center; justify-content: center;
+                    padding: 16px;
+                }
+                #sharedWellDetail .wd-modal {
+                    background: white; border-radius: 12px; width: 100%; max-width: 640px;
+                    max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+                }
+                #sharedWellDetail .wd-header {
+                    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+                    color: white; padding: 20px 24px; border-radius: 12px 12px 0 0; position: relative;
+                }
+                #sharedWellDetail .wd-close {
+                    position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2); color: white; width: 28px; height: 28px;
+                    border-radius: 6px; font-size: 18px; cursor: pointer; display: flex;
+                    align-items: center; justify-content: center;
+                }
+                #sharedWellDetail .wd-close:hover { background: rgba(255,255,255,0.2); }
+                #sharedWellDetail .wd-title {
+                    margin: 0; font-family: 'Merriweather', serif; font-size: 1.15rem; font-weight: 700;
+                }
+                #sharedWellDetail .wd-subtitle { margin-top: 3px; font-size: 0.85rem; opacity: 0.85; }
+                #sharedWellDetail .wd-body { padding: 20px 24px; }
+
+                /* Status row */
+                #sharedWellDetail .wd-status-row {
+                    display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;
+                }
+                #sharedWellDetail .wd-status-item {
+                    display: flex; flex-direction: column; gap: 2px;
+                }
+                #sharedWellDetail .wd-status-label {
+                    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280;
+                }
+                #sharedWellDetail .wd-status-badge {
+                    display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px;
+                    font-weight: 600; background: #f1f5f9; color: #64748b;
+                }
+
+                /* Info boxes */
+                #sharedWellDetail .wd-info-row {
+                    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;
+                }
+                #sharedWellDetail .wd-info-box {
+                    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px;
+                }
+                #sharedWellDetail .wd-info-label {
+                    font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; margin-bottom: 4px;
+                }
+                #sharedWellDetail .wd-info-value {
+                    font-size: 14px; font-weight: 500; color: #1e293b;
+                }
+                #sharedWellDetail .wd-info-sub {
+                    font-size: 12px; color: #64748b; margin-top: 2px;
+                }
+                #sharedWellDetail .wd-op-link {
+                    color: #2563eb; cursor: pointer; text-decoration: underline;
+                }
+                #sharedWellDetail .wd-op-link:hover { color: #1d4ed8; }
+
+                /* Collapsible sections */
+                #sharedWellDetail .wd-section {
+                    margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 8px;
+                }
+                #sharedWellDetail .wd-section-header {
+                    display: flex; justify-content: space-between; align-items: center;
+                    padding: 10px 14px; cursor: pointer; background: #f9fafb; border-radius: 8px;
+                    user-select: none;
+                }
+                #sharedWellDetail .wd-section-header:hover { background: #f3f4f6; }
+                #sharedWellDetail .wd-section-left {
+                    display: flex; align-items: center; gap: 8px;
+                }
+                #sharedWellDetail .wd-section-arrow {
+                    transition: transform 0.2s; font-size: 12px; color: #6b7280;
+                }
+                #sharedWellDetail .wd-section-title {
+                    font-weight: 500; font-size: 14px; color: #1e293b;
+                }
+                #sharedWellDetail .wd-section-count {
+                    background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #374151;
+                }
+                #sharedWellDetail .wd-section-body {
+                    display: none; padding: 0 14px 14px;
+                }
+                #sharedWellDetail .wd-section-scroll {
+                    max-height: 300px; overflow-y: auto;
+                }
+
+                /* Production section (non-collapsible) */
+                #sharedWellDetail .wd-production {
+                    display: none; margin-top: 12px;
+                }
+                #sharedWellDetail .wd-production-header {
+                    display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;
+                }
+                #sharedWellDetail .wd-production-title {
+                    font-weight: 600; font-size: 14px; color: #1e293b;
+                }
+
+                /* Footer */
+                #sharedWellDetail .wd-footer {
+                    padding: 16px 24px; border-top: 1px solid #e5e7eb;
+                    display: flex; gap: 8px; flex-wrap: wrap;
+                }
+                #sharedWellDetail .wd-footer-btn {
+                    display: inline-flex; align-items: center; gap: 4px;
+                    padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+                    text-decoration: none; border: 1px solid #e2e8f0; background: white;
+                    color: #374151; cursor: pointer; transition: all 0.15s;
+                }
+                #sharedWellDetail .wd-footer-btn:hover { background: #f3f4f6; border-color: #cbd5e1; }
+                #sharedWellDetail .wd-footer-btn.primary {
+                    background: #2563eb; color: white; border-color: #2563eb;
+                }
+                #sharedWellDetail .wd-footer-btn.primary:hover { background: #1d4ed8; }
+
+                /* Loading badge */
+                #sharedWellDetail .wd-loading-badge {
+                    display: inline-flex; align-items: center; gap: 6px;
+                    background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px; color: #6b7280;
+                }
+                #sharedWellDetail .wd-pulse-dot {
+                    width: 6px; height: 6px; border-radius: 50%; background: #6b7280;
+                    animation: wdPulse 1.5s infinite;
+                }
+                @keyframes wdPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+                /* OCC Filing styles (scoped) */
+                #sharedWellDetail .occ-filing-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+                #sharedWellDetail .occ-filing-item:last-child { border-bottom: none; }
+                #sharedWellDetail .occ-filing-main { flex: 1; }
+                #sharedWellDetail .occ-filing-type { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+                #sharedWellDetail .occ-filing-applicant { color: #666; font-size: 13px; margin-top: 2px; }
+                #sharedWellDetail .occ-filing-details { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; color: #888; flex-wrap: wrap; }
+                #sharedWellDetail .occ-filing-case { font-family: monospace; }
+                #sharedWellDetail .occ-filing-status { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+                #sharedWellDetail .occ-filing-status.heard { background: #d4edda; color: #155724; }
+                #sharedWellDetail .occ-filing-status.continued { background: #fff3cd; color: #856404; }
+                #sharedWellDetail .occ-filing-status.scheduled { background: #cce5ff; color: #004085; }
+                #sharedWellDetail .occ-filing-status.dismissed { background: #f8d7da; color: #721c24; }
+                #sharedWellDetail .occ-filing-status.filed { background: #e2e3e5; color: #383d41; }
+                #sharedWellDetail .occ-filing-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+                #sharedWellDetail .occ-filing-link { color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 8px; }
+                #sharedWellDetail .occ-adjacent-note { font-size: 10px; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; color: #6b7280; }
+                #sharedWellDetail .occ-hearing-warning { margin-right: 4px; }
+                #sharedWellDetail .occ-filing-actions { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+                #sharedWellDetail .occ-process-btn {
+                    background: #2563eb; color: white; border: none; padding: 6px 12px;
+                    border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer;
+                    transition: all 0.2s; white-space: nowrap;
+                }
+                #sharedWellDetail .occ-process-btn:hover { background: #1d4ed8; }
+                #sharedWellDetail .occ-process-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+                #sharedWellDetail .occ-process-btn.fetching { background: #8b5cf6; }
+                #sharedWellDetail .occ-process-btn.queued { background: #f59e0b; }
+                #sharedWellDetail .occ-process-btn.processing { background: #6366f1; }
+                #sharedWellDetail .occ-process-btn.complete { background: #10b981; cursor: pointer; }
+                #sharedWellDetail .occ-process-btn.complete:hover { background: #059669; }
+                #sharedWellDetail .occ-process-btn.error { background: #ef4444; }
+                #sharedWellDetail .occ-process-btn .spinner-sm {
+                    display: inline-block; width: 12px; height: 12px;
+                    border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+                    border-radius: 50%; animation: wdSpin 1s linear infinite;
+                    margin-right: 6px; vertical-align: middle;
+                }
+                @keyframes wdSpin { to { transform: rotate(360deg); } }
+                #sharedWellDetail .occ-pending-text { font-size: 11px; color: #6b7280; font-style: italic; padding: 6px 0; }
+                #sharedWellDetail .occ-view-doc-btn {
+                    background: #10b981; color: white; padding: 5px 12px; border: none;
+                    border-radius: 4px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+                }
+                #sharedWellDetail .occ-view-doc-btn:hover { background: #059669; }
+                #sharedWellDetail .occ-reanalyze-btn {
+                    background: #f1f5f9; color: #64748b; padding: 5px 10px; border-radius: 4px;
+                    font-size: 11px; font-weight: 500; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.2s; margin-right: 8px;
+                }
+                #sharedWellDetail .occ-reanalyze-btn:hover { background: #e2e8f0; }
+
+                /* Completion Report styles (scoped) */
+                #sharedWellDetail .completion-report-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+                #sharedWellDetail .completion-report-item:last-child { border-bottom: none; }
+                #sharedWellDetail .completion-report-main { flex: 1; }
+                #sharedWellDetail .completion-report-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 8px; }
+                #sharedWellDetail .completion-report-type.completion { background: #dbeafe; color: #1e40af; }
+                #sharedWellDetail .completion-report-type.recompletion { background: #fef3c7; color: #92400e; }
+                #sharedWellDetail .completion-current-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #dcfce7; color: #166534; margin-right: 8px; }
+                #sharedWellDetail .completion-report-item.is-current { background: #f0fdf4; margin: 0 -14px; padding: 12px 14px; border-radius: 4px; }
+                #sharedWellDetail .completion-report-location { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+                #sharedWellDetail .completion-report-details { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: #666; flex-wrap: wrap; align-items: center; }
+                #sharedWellDetail .completion-report-details span { display: inline-flex; align-items: center; }
+                #sharedWellDetail .completion-report-pun { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+                #sharedWellDetail .completion-report-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+                #sharedWellDetail .completion-analyze-btn {
+                    background: #2563eb; color: white; padding: 5px 10px; border-radius: 4px;
+                    font-size: 12px; font-weight: 500; border: none; cursor: pointer;
+                    white-space: nowrap; transition: all 0.2s;
+                }
+                #sharedWellDetail .completion-analyze-btn:hover { background: #1d4ed8; }
+                #sharedWellDetail .completion-analyze-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+                #sharedWellDetail .completion-analyze-btn.fetching { background: #8b5cf6; }
+                #sharedWellDetail .completion-analyze-btn.queued { background: #f59e0b; }
+                #sharedWellDetail .completion-analyze-btn.processing { background: #6366f1; }
+                #sharedWellDetail .completion-analyze-btn.analyzed { background: #10b981; cursor: default; }
+                #sharedWellDetail .completion-analyze-btn.error { background: #ef4444; }
+                #sharedWellDetail .completion-analyze-btn .spinner-sm {
+                    display: inline-block; width: 12px; height: 12px;
+                    border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+                    border-radius: 50%; animation: wdSpin 1s linear infinite;
+                    margin-right: 4px; vertical-align: middle;
+                }
+
+                /* Skeleton loading */
+                #sharedWellDetail .wd-skeleton {
+                    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                    background-size: 200% 100%; animation: wdSkelPulse 1.5s ease-in-out infinite; border-radius: 4px;
+                }
+                @keyframes wdSkelPulse { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+                #sharedWellDetail .wd-skel-row {
+                    display: flex; justify-content: space-between; align-items: center;
+                    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+                }
+                #sharedWellDetail .wd-skel-row:last-child { border-bottom: none; }
+                #sharedWellDetail .wd-skel-left { flex: 1; }
+                #sharedWellDetail .wd-skel-badge { width: 100px; height: 18px; margin-bottom: 8px; }
+                #sharedWellDetail .wd-skel-text { height: 14px; margin-bottom: 4px; width: 80%; }
+                #sharedWellDetail .wd-skel-text.short { width: 60%; }
+                #sharedWellDetail .wd-skel-details { display: flex; gap: 8px; margin-top: 6px; }
+                #sharedWellDetail .wd-skel-detail { width: 80px; height: 12px; }
+                #sharedWellDetail .wd-skel-right { display: flex; align-items: center; gap: 8px; }
+                #sharedWellDetail .wd-skel-btn { width: 60px; height: 26px; }
+            `;
+            document.head.appendChild(style);
+
+            // Create modal element
+            const modal = document.createElement('div');
+            modal.id = 'sharedWellDetail';
+            modal.onclick = (e) => { if (e.target === modal) closeWellDetailModal(); };
+            modal.innerHTML = `
+                <div class="wd-modal">
+                    <div class="wd-header">
+                        <button class="wd-close" onclick="closeWellDetailModal()">×</button>
+                        <h2 class="wd-title" id="wdTitle">Well Detail</h2>
+                        <div class="wd-subtitle" id="wdSubtitle"></div>
+                    </div>
+                    <div class="wd-body" id="wdBody">
+                        <div style="text-align: center; padding: 2rem; color: #6b7280;">Loading...</div>
+                    </div>
+                    <div class="wd-footer" id="wdFooter"></div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        /**
+         * Skeleton HTML for a collapsible section while it loads
+         */
+        function _wdSkeletonRows(count) {
+            let html = '';
+            for (let i = 0; i < count; i++) {
+                html += `<div class="wd-skel-row"><div class="wd-skel-left">
+                    <div class="wd-skeleton wd-skel-badge"></div>
+                    <div class="wd-skel-details"><div class="wd-skeleton wd-skel-detail"></div><div class="wd-skeleton wd-skel-detail"></div></div>
+                </div><div class="wd-skel-right"><div class="wd-skeleton wd-skel-btn"></div></div></div>`;
+            }
+            return html;
+        }
+
+        /**
+         * Toggle a collapsible section in the well detail modal
+         */
+        function _wdToggleSection(sectionId) {
+            const body = document.getElementById('wd-section-body-' + sectionId);
+            const arrow = document.getElementById('wd-section-arrow-' + sectionId);
+            if (!body) return;
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            } else {
+                body.style.display = 'none';
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        window._wdToggleSection = _wdToggleSection;
+
+        /**
+         * Open the well detail modal for a given API number.
+         * @param {string} apiNumber - Well API number (10 digits)
+         * @param {Object} [basicData] - Optional pre-known fields for instant display
+         */
+        async function openWellDetailByApi(apiNumber, basicData) {
+            if (!apiNumber) return;
+            _ensureWellDetailModal();
+
+            const modal = document.getElementById('sharedWellDetail');
+            modal.style.display = 'flex';
+
+            // Pre-populate header with whatever we know
+            const bd = basicData || {};
+            document.getElementById('wdTitle').textContent = _wdTitleCase(bd.wellName || bd.well_name || '') || 'Well Detail';
+            document.getElementById('wdSubtitle').textContent = `API: ${apiNumber}`;
+
+            // Show loading body
+            document.getElementById('wdBody').innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <div class="wd-pulse-dot" style="width: 12px; height: 12px; margin: 0 auto 12px;"></div>
+                    <div style="color: #6b7280; font-size: 14px;">Loading well details...</div>
+                </div>
+            `;
+            document.getElementById('wdFooter').innerHTML = '';
+
+            // Merge basicData with enrichment from D1
+            let well = { ...bd, apiNumber };
+
+            try {
+                const res = await fetch(`/api/well-enrichment/${apiNumber}`, { credentials: 'include' });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.data) {
+                        // Enrichment fills in gaps — basicData takes priority for user-facing fields
+                        well = {
+                            ...json.data,
+                            ...bd,
+                            apiNumber,
+                            // Always use enrichment for these (more reliable source)
+                            section: json.data.section || bd.section || '',
+                            township: json.data.township || bd.township || '',
+                            range: json.data.range || bd.range || '',
+                            county: bd.county || json.data.county || '',
+                            formation_name: json.data.formation_name || bd.formation || bd.wellType || '',
+                            well_status: bd.status || bd.well_status || json.data.well_status || '',
+                            well_type: bd.wellType || bd.well_type || json.data.well_type || '',
+                            operator: bd.operator || json.data.operator || '',
+                            well_name: bd.wellName || bd.well_name || json.data.well_name || '',
+                            measured_total_depth: json.data.measured_total_depth || '',
+                            ip_oil_bbl: json.data.ip_oil_bbl || null,
+                            ip_gas_mcf: json.data.ip_gas_mcf || null,
+                            operator_phone: json.data.operator_phone || bd.operator_phone || '',
+                            operator_contact: json.data.operator_contact || bd.operator_contact || ''
+                        };
+                    }
+                }
+            } catch (err) {
+                console.warn('[WellDetail] Enrichment failed:', err);
+            }
+
+            // Update header with enriched data
+            const wellName = _wdTitleCase(well.well_name || well.wellName || '') || `API ${apiNumber}`;
+            document.getElementById('wdTitle').textContent = wellName;
+
+            _renderWellDetailBody(well, apiNumber);
+        }
+
+        /**
+         * Render the full well detail body + start async loaders.
+         */
+        function _renderWellDetailBody(well, apiNumber) {
+            const status = (well.well_status || well.status || '').toUpperCase() || 'Unknown';
+            const statusColor = _wdStatusColors[status] || _wdStatusColors.default;
+            const wellType = _wdTitleCase(well.well_type || well.wellType || '');
+            const isHorizontal = _wdIsHorizontal(well.well_name || well.wellName || '');
+            const operator = _wdTitleCase(well.operator || '');
+            const operatorPhone = well.operator_phone || '';
+            const operatorContact = _wdTitleCase(well.operator_contact || '');
+            const county = _wdTitleCase(well.county || '');
+            const section = well.section || '';
+            const township = well.township || '';
+            const range = well.range || '';
+            const formation = _wdTitleCase(well.formation_name || '');
+            const depth = well.measured_total_depth ? `${Number(well.measured_total_depth).toLocaleString()} ft` : '';
+            const ipOil = well.ip_oil_bbl ? `${Number(well.ip_oil_bbl).toLocaleString()} BBL/day` : '';
+            const ipGas = well.ip_gas_mcf ? `${Number(well.ip_gas_mcf).toLocaleString()} MCF/day` : '';
+
+            const locationStr = section && township && range
+                ? `T${township} R${range} ${section}`
+                : 'Location not available';
+
+            // Contact line
+            let contactHtml = '';
+            if (operatorPhone) {
+                const clean = operatorPhone.replace(/\D/g, '');
+                contactHtml += `<a href="tel:${clean}" style="color:#2563eb; text-decoration:none;">${_wdFormatPhone(operatorPhone)}</a>`;
+            }
+            if (operatorPhone && operatorContact) contactHtml += ' &bull; ';
+            if (operatorContact) contactHtml += operatorContact;
+
+            // Operator clickable?
+            const hasOpLookup = typeof lookupAndOpenOperator === 'function' || typeof lookupOperatorDetail === 'function';
+            const operatorHtml = operator && hasOpLookup
+                ? `<span class="wd-op-link" onclick="_wdOpenOperator('${operator.replace(/'/g, "\\'")}')">${operator}</span>`
+                : (operator || '—');
+
+            // Formation / IP row (only show if we have data)
+            const hasFormation = formation || depth;
+            const hasIP = ipOil || ipGas;
+            let formationIPHtml = '';
+            if (hasFormation || hasIP) {
+                formationIPHtml = `<div class="wd-info-row">`;
+                if (hasFormation) {
+                    formationIPHtml += `<div class="wd-info-box">
+                        <div class="wd-info-label">Formation & Depth</div>
+                        <div class="wd-info-value">${formation || '—'}</div>
+                        ${depth ? `<div class="wd-info-sub">${depth}</div>` : ''}
+                    </div>`;
+                }
+                if (hasIP) {
+                    const ipParts = [];
+                    if (ipOil) ipParts.push(ipOil + ' oil');
+                    if (ipGas) ipParts.push(ipGas + ' gas');
+                    formationIPHtml += `<div class="wd-info-box">
+                        <div class="wd-info-label">Initial Production</div>
+                        <div class="wd-info-value">${ipParts[0] || '—'}</div>
+                        ${ipParts[1] ? `<div class="wd-info-sub">${ipParts[1]}</div>` : ''}
+                    </div>`;
+                }
+                formationIPHtml += `</div>`;
+            }
+
+            const body = document.getElementById('wdBody');
+            body.innerHTML = `
+                <!-- Status Row -->
+                <div class="wd-status-row">
+                    <div class="wd-status-item">
+                        <span class="wd-status-label">Status</span>
+                        <span class="wd-status-badge" style="background:${statusColor}20; color:${statusColor};">${status}</span>
+                    </div>
+                    <div class="wd-status-item">
+                        <span class="wd-status-label">Well Type</span>
+                        <span class="wd-status-badge">${wellType || '—'}</span>
+                    </div>
+                    <div class="wd-status-item">
+                        <span class="wd-status-label">Direction</span>
+                        <span class="wd-status-badge" style="${isHorizontal ? 'background:#dbeafe; color:#1e40af;' : ''}">${isHorizontal ? 'Horizontal' : 'Vertical'}</span>
+                    </div>
+                </div>
+
+                <!-- Operator / Location -->
+                <div class="wd-info-row">
+                    <div class="wd-info-box">
+                        <div class="wd-info-label">Operator</div>
+                        <div class="wd-info-value">${operatorHtml}</div>
+                        ${contactHtml ? `<div class="wd-info-sub">${contactHtml}</div>` : ''}
+                    </div>
+                    <div class="wd-info-box">
+                        <div class="wd-info-label">Location</div>
+                        <div class="wd-info-value">${locationStr}</div>
+                        ${county ? `<div class="wd-info-sub">${county}</div>` : ''}
+                    </div>
+                </div>
+
+                ${formationIPHtml}
+
+                <!-- OTC Production (non-collapsible, auto-shows) -->
+                <div class="wd-production" id="wdOTCSection">
+                    <div class="wd-production-header">
+                        <span class="wd-production-title">OTC Production</span>
+                        <span class="wd-status-badge" id="wdOTCStatus">...</span>
+                    </div>
+                    <div id="wdOTCContent">
+                        <div style="text-align: center; padding: 8px; color: #6b7280; font-size: 13px;">Loading production data...</div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings (collapsible) -->
+                <div class="wd-section">
+                    <div class="wd-section-header" onclick="_wdToggleSection('occ')">
+                        <div class="wd-section-left">
+                            <span class="wd-section-arrow" id="wd-section-arrow-occ">&#9654;</span>
+                            <span class="wd-section-title">OCC Filings</span>
+                            <span class="wd-section-count" id="wdOCCCount"><span class="wd-loading-badge"><span class="wd-pulse-dot"></span>Loading</span></span>
+                        </div>
+                    </div>
+                    <div class="wd-section-body" id="wd-section-body-occ">
+                        <div id="wdOCCDirect" class="wd-section-scroll">${_wdSkeletonRows(2)}</div>
+                        <div id="wdOCCAdjacentWrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 12px 0 8px; padding-top: 10px; border-top: 2px dashed #ddd; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="wdOCCAdjacentCount" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="wdOCCAdjacent" class="wd-section-scroll" style="max-height: 200px;"></div>
+                        </div>
+                        <div id="wdOCCEmpty" style="display: none; color: #6b7280; font-size: 13px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Well Records (Completion Reports, collapsible) -->
+                <div class="wd-section">
+                    <div class="wd-section-header" onclick="_wdToggleSection('completions')">
+                        <div class="wd-section-left">
+                            <span class="wd-section-arrow" id="wd-section-arrow-completions">&#9654;</span>
+                            <span class="wd-section-title">Well Records</span>
+                            <span class="wd-section-count" id="wdCompletionsCount"><span class="wd-loading-badge"><span class="wd-pulse-dot"></span>Loading</span></span>
+                        </div>
+                    </div>
+                    <div class="wd-section-body" id="wd-section-body-completions">
+                        <div id="wdCompletions" class="wd-section-scroll">${_wdSkeletonRows(2)}</div>
+                    </div>
+                </div>
+
+                <!-- Drilling Permits (collapsible) -->
+                <div class="wd-section">
+                    <div class="wd-section-header" onclick="_wdToggleSection('permits')">
+                        <div class="wd-section-left">
+                            <span class="wd-section-arrow" id="wd-section-arrow-permits">&#9654;</span>
+                            <span class="wd-section-title">Drilling Permits</span>
+                            <span class="wd-section-count" id="wdPermitsCount"><span class="wd-loading-badge"><span class="wd-pulse-dot"></span>Loading</span></span>
+                        </div>
+                    </div>
+                    <div class="wd-section-body" id="wd-section-body-permits">
+                        <div id="wdPermits" class="wd-section-scroll">${_wdSkeletonRows(2)}</div>
+                    </div>
+                </div>
+            `;
+
+            // Footer links
+            const occRecordsUrl = `https://imaging.occ.ok.gov/OG/Well%20Records/${apiNumber.substring(2)}/`;
+            const footer = document.getElementById('wdFooter');
+            footer.innerHTML = `
+                <a href="/portal" class="wd-footer-btn primary">Open in Dashboard</a>
+                <a href="${occRecordsUrl}" target="_blank" class="wd-footer-btn">OCC Well Records ↗</a>
+            `;
+
+            // Start async loaders in parallel (OTC, completions, permits need only apiNumber)
+            if (typeof loadOTCProduction === 'function') {
+                loadOTCProduction(apiNumber, {
+                    container: document.getElementById('wdOTCContent'),
+                    statusBadge: document.getElementById('wdOTCStatus'),
+                    section: document.getElementById('wdOTCSection')
+                });
+            }
+
+            if (typeof loadCompletionReports === 'function') {
+                loadCompletionReports(apiNumber, {
+                    container: document.getElementById('wdCompletions'),
+                    countBadge: document.getElementById('wdCompletionsCount')
+                });
+            }
+
+            if (typeof loadDrillingPermits === 'function') {
+                loadDrillingPermits(apiNumber, {
+                    container: document.getElementById('wdPermits'),
+                    countBadge: document.getElementById('wdPermitsCount')
+                });
+            }
+
+            // OCC filings need section/township/range
+            if (section && township && range && typeof loadOccFilingsShared === 'function') {
+                loadOccFilingsShared(
+                    { section, township, range, meridian: 'IM', type: 'property' },
+                    {
+                        directContainer: document.getElementById('wdOCCDirect'),
+                        adjacentContainer: document.getElementById('wdOCCAdjacent'),
+                        adjacentWrapper: document.getElementById('wdOCCAdjacentWrapper'),
+                        emptyEl: document.getElementById('wdOCCEmpty'),
+                        countBadge: document.getElementById('wdOCCCount'),
+                        adjacentCountBadge: document.getElementById('wdOCCAdjacentCount')
+                    }
+                );
+            } else {
+                // No location — show message
+                document.getElementById('wdOCCCount').textContent = '—';
+                document.getElementById('wdOCCDirect').innerHTML = '<div style="color: #6b7280; font-size: 13px; padding: 8px 0; font-style: italic;">Location data not available for OCC filing search</div>';
+            }
+        }
+
+        /**
+         * Close the well detail modal
+         */
+        function closeWellDetailModal() {
+            const modal = document.getElementById('sharedWellDetail');
+            if (modal) modal.style.display = 'none';
+            // Stop any running polling from shared modules
+            if (typeof stopAllOccPolling === 'function') stopAllOccPolling();
+        }
+        window.closeWellDetailModal = closeWellDetailModal;
+        window.openWellDetailByApi = openWellDetailByApi;

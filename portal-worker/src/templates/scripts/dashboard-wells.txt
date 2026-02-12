@@ -525,7 +525,10 @@
                 }
 
                 // Format operator contact for compact view (with bold operator name)
-                let operatorContactDisplay = `<strong>${operator}</strong>`;
+                const operatorLink = w.operator
+                    ? `<strong><span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator('${escapeHtmlAttr(w.operator)}')">${operator}</span></strong>`
+                    : `<strong>${operator}</strong>`;
+                let operatorContactDisplay = operatorLink;
                 if (operatorPhone || contactPerson) {
                     const contactParts = [];
                     if (operatorPhone) {

@@ -2041,7 +2041,9 @@
             return `
                 <tr class="pooling-order-row expandable-row" onclick="togglePoolingRowExpand('${rowId}', this)">
                     <td>${formatPoolingDate(order.orderDate)}</td>
-                    <td><span class="operator-name">${escapeHtml(order.operator || '—')}</span></td>
+                    <td>${order.operator && order.operator !== '—'
+                        ? `<span class="operator-name" style="color:#5b21b6;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupOperatorDetail('${escapeAttr(order.operator)}')">${escapeHtml(order.operator)}</span>`
+                        : `<span class="operator-name">—</span>`}</td>
                     <td>${formationTags}</td>
                     <td><span class="location-mono">${escapeHtml(location)}</span></td>
                     <td><span class="bonus-amount ${bonusClass}">${bonusRangeHtml}</span></td>
@@ -2052,7 +2054,9 @@
                     <td colspan="7">
                         <div class="pooling-options-detail">
                             <div class="comp-order-meta">
-                                <span class="comp-meta-item"><strong>Operator:</strong> ${escapeHtml(order.operator || '—')}</span>
+                                <span class="comp-meta-item"><strong>Operator:</strong> ${order.operator && order.operator !== '—'
+                                    ? `<span style="color:#5b21b6;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupOperatorDetail('${escapeAttr(order.operator)}')">${escapeHtml(order.operator)}</span>`
+                                    : '—'}</span>
                                 <span class="comp-meta-item"><strong>Case:</strong> ${escapeHtml(order.caseNumber || '—')}</span>
                                 <span class="comp-meta-item"><strong>Order Date:</strong> ${formatPoolingDate(order.orderDate)}</span>
                             </div>
@@ -3562,90 +3566,17 @@
         }
         function showWellInfoById(id) {
             const w = _wellDataMap[id];
-            if (w) showWellInfo(w);
+            if (w) openWellDetailByApi(w.api_number || w.apiNumber, {
+                wellName: w.well_name || w.wellName,
+                operator: w.operator,
+                operatorNumber: w.operator_number || w.operatorNumber,
+                county: w.county,
+                wellType: w.well_type || w.wellType || w.formation,
+                status: w.well_status || w.status
+            });
         }
 
-        // Quick well info popup using data already in the report (no API call needed)
-        // Full well detail modal is tightly coupled to dashboard — shared module planned for map refactor
-        function showWellInfo(wellData) {
-            let modal = document.getElementById('intelWellModal');
-            if (!modal) {
-                modal = document.createElement('div');
-                modal.id = 'intelWellModal';
-                modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center;';
-                modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
-                document.body.appendChild(modal);
-            }
-            modal.style.display = 'flex';
-
-            const name = wellData.wellName || 'Unknown Well';
-            const api = wellData.apiNumber || '—';
-            const operator = wellData.operator || '—';
-            const opNum = wellData.operatorNumber || null;
-            const county = wellData.county || '—';
-            const wellType = wellData.wellType || wellData.formation || '—';
-            const lastProd = (wellData.lastProdMonth || wellData.lastReportedMonth)
-                ? formatDeclineMonth(wellData.lastProdMonth || wellData.lastReportedMonth)
-                : (wellData.taxPeriodStart ? 'Since ' + wellData.taxPeriodStart.substring(0, 4) : '—');
-            const firstProd = wellData.firstProdMonth ? formatDeclineMonth(wellData.firstProdMonth) : '—';
-            const monthsIdle = wellData.monthsIdle != null && wellData.monthsIdle < 999 ? wellData.monthsIdle + ' months' : null;
-            const flags = wellData.riskFlags || [];
-            const flagsHtml = flags.length > 0
-                ? flags.map(f => {
-                    let cls = 'risk-pill';
-                    if (f === 'HBP Risk') cls += ' risk-hbp';
-                    else if (f === 'Sudden Stop') cls += ' risk-sudden';
-                    else if (f === 'Operator Pattern') cls += ' risk-operator';
-                    const desc = RISK_FLAG_DESCRIPTIONS[f] || f;
-                    return `<span class="${cls}" title="${escapeHtml(desc)}">${escapeHtml(f)}</span>`;
-                }).join(' ')
-                : '<span style="color:var(--text-muted);">None</span>';
-
-            modal.innerHTML = `<div style="background:white; border-radius:12px; max-width:480px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
-                <div style="background:linear-gradient(135deg, var(--oil-navy), var(--slate-blue)); color:white; padding:20px 24px; border-radius:12px 12px 0 0; position:relative;">
-                    <button onclick="document.getElementById('intelWellModal').style.display='none'" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; width:28px; height:28px; border-radius:6px; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">×</button>
-                    <h2 style="margin:0; font-family:'Merriweather',serif; font-size:1.15rem; font-weight:700;">${escapeHtml(name)}</h2>
-                    <div style="margin-top:3px; font-size:0.85rem; opacity:0.85;">API: ${escapeHtml(api)}</div>
-                </div>
-                <div style="padding:20px 24px;">
-                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Operator</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${operator !== '—' ? `<span class="vt-well-link" onclick="document.getElementById('intelWellModal').style.display='none'; ${opNum ? `openOperatorDetail('${escapeAttr(opNum)}')` : `lookupOperatorDetail('${escapeAttr(operator)}')`}">${escapeHtml(operator)}</span>` : '—'}</div>
-                        </div>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">County</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${escapeHtml(county)}</div>
-                        </div>
-                    </div>
-                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Well Type</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${escapeHtml(wellType)}</div>
-                        </div>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">First Prod</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${firstProd}</div>
-                        </div>
-                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Last Prod</div>
-                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${lastProd}</div>
-                        </div>
-                    </div>
-                    ${monthsIdle || flags.length > 0 ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
-                        ${monthsIdle ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Months Idle</div>
-                            <div style="font-size:0.85rem; font-weight:600; color:${wellData.monthsIdle >= 12 ? 'var(--danger-red)' : wellData.monthsIdle >= 6 ? 'var(--warning-amber)' : 'var(--oil-navy)'};">${monthsIdle}</div>
-                        </div>` : ''}
-                        ${flags.length > 0 ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Risk Flags</div>
-                            <div style="margin-top:2px;">${flagsHtml}</div>
-                        </div>` : ''}
-                    </div>` : ''}
-                    <a href="/portal" target="_blank" class="btn btn-secondary" style="width:100%; justify-content:center; text-decoration:none; font-size:0.8rem;">Open Full Well Details in Dashboard ↗</a>
-                </div>
-            </div>`;
-        }
+        // showWellInfo() removed — replaced by shared openWellDetailByApi() module
 
         // Look up operator by name and open the operator detail modal
         async function lookupOperatorDetail(operatorName) {

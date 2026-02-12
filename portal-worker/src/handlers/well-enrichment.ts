@@ -59,7 +59,12 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
         longitude,
         well_name,
         well_type,
-        operator
+        well_status,
+        operator,
+        county,
+        section,
+        township,
+        range
       FROM wells
       WHERE api_number = ?
       LIMIT 1
@@ -124,7 +129,12 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
         // Additional context
         well_name: result.well_name || null,
         well_type: result.well_type || null,
-        operator: result.operator || null
+        well_status: result.well_status || null,
+        operator: result.operator || null,
+        county: result.county || null,
+        section: result.section || null,
+        township: result.township || null,
+        range: result.range || null
       }
     };
 

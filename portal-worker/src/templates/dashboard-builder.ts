@@ -26,6 +26,7 @@ import sharedCompletionReports from './scripts/shared-completion-reports.txt';
 import sharedDrillingPermits from './scripts/shared-drilling-permits.txt';
 import sharedOperatorDetail from './scripts/shared-operator-detail.txt';
 import sharedDocDetail from './scripts/shared-document-detail.txt';
+import sharedWellDetail from './scripts/shared-well-detail.txt';
 
 // JS components (imported as text via .txt extension — esbuild would execute .js)
 import utilsJsRaw from './scripts/dashboard-utils.txt';
@@ -126,6 +127,7 @@ html = html.replace('/* __SHARED_COMPLETION_REPORTS__ */\n', () => sharedComplet
 html = html.replace('/* __SHARED_DRILLING_PERMITS__ */\n', () => sharedDrillingPermits);
 html = html.replace('/* __SHARED_OPERATOR_DETAIL__ */\n', () => sharedOperatorDetail);
 html = html.replace('/* __SHARED_DOCUMENT_DETAIL__ */\n', () => sharedDocDetail);
+html = html.replace('/* __SHARED_WELL_DETAIL__ */\n', () => sharedWellDetail);
 html = html.replace('/* __PRODUCTION_JS__ */\n', () => productionJs);
 html = html.replace('/* __OCC_JS__ */\n', () => occJs);
 html = html.replace('/* __BULK_JS__ */\n', () => bulkJsMain);
