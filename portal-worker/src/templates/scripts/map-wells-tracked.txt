@@ -547,8 +547,20 @@
                 directionBadge.className = 'status-badge vertical';
             }
 
-            // Operator
-            document.getElementById('wellModalOperator').textContent = operator;
+            // Operator (clickable → opens operator detail modal)
+            const opEl = document.getElementById('wellModalOperator');
+            opEl.textContent = operator || '—';
+            if (operator) {
+                opEl.style.cursor = 'pointer';
+                opEl.style.color = '#2563EB';
+                opEl.style.textDecoration = 'underline';
+                opEl.onclick = () => lookupAndOpenOperator(operator);
+            } else {
+                opEl.style.cursor = '';
+                opEl.style.color = '';
+                opEl.style.textDecoration = '';
+                opEl.onclick = null;
+            }
 
             // Contact info
             const contactEl = document.getElementById('wellModalContact');

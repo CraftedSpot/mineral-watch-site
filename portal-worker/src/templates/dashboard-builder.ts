@@ -22,6 +22,9 @@ import sharedListController from './scripts/shared-list-controller.txt';
 import sharedOtcProduction from './scripts/shared-otc-production.txt';
 import sharedOtcCss from './styles/shared-otc-production.txt';
 import sharedOccFilings from './scripts/shared-occ-filings.txt';
+import sharedCompletionReports from './scripts/shared-completion-reports.txt';
+import sharedDrillingPermits from './scripts/shared-drilling-permits.txt';
+import sharedOperatorDetail from './scripts/shared-operator-detail.txt';
 import sharedDocDetail from './scripts/shared-document-detail.txt';
 
 // JS components (imported as text via .txt extension — esbuild would execute .js)
@@ -119,6 +122,9 @@ html = html.replace('/* __ACTIVITY_JS__ */\n', () => activityJs);
 html = html.replace('/* __SHARED_OTC_PRODUCTION__ */\n', () => sharedOtcProduction);
 html = html.replace('/* __SHARED_OTC_CSS__ */\n', () => sharedOtcCss);
 html = html.replace('/* __SHARED_OCC_FILINGS__ */\n', () => sharedOccFilings);
+html = html.replace('/* __SHARED_COMPLETION_REPORTS__ */\n', () => sharedCompletionReports);
+html = html.replace('/* __SHARED_DRILLING_PERMITS__ */\n', () => sharedDrillingPermits);
+html = html.replace('/* __SHARED_OPERATOR_DETAIL__ */\n', () => sharedOperatorDetail);
 html = html.replace('/* __SHARED_DOCUMENT_DETAIL__ */\n', () => sharedDocDetail);
 html = html.replace('/* __PRODUCTION_JS__ */\n', () => productionJs);
 html = html.replace('/* __OCC_JS__ */\n', () => occJs);

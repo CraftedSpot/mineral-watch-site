@@ -317,6 +317,99 @@
         }
 
         /**
+         * Load OCC filings for a section (or well unit).
+         * @param {Object} params - { section, township, range, meridian?, type?, apiNumber? }
+         *   type: 'property' (TRS with adjacent) | 'well' (PUN-scoped, no adjacent)
+         * @param {Object} ctx - { directContainer, adjacentContainer, adjacentWrapper,
+         *                         emptyEl, countBadge, adjacentCountBadge }
+         */
+        async function loadOccFilingsShared(params, ctx) {
+            const { section, township, range, meridian = 'IM', type = 'property', apiNumber = null } = params;
+            const { directContainer, adjacentContainer, adjacentWrapper, emptyEl, countBadge, adjacentCountBadge } = ctx;
+
+            // Reset
+            directContainer.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
+            if (adjacentContainer) adjacentContainer.innerHTML = '';
+            if (adjacentWrapper) adjacentWrapper.style.display = 'none';
+            if (emptyEl) emptyEl.style.display = 'none';
+            countBadge.textContent = '—';
+
+            try {
+                let directFilings = [];
+                let adjacentFilings = [];
+                let punInfo = null;
+
+                if (type === 'well' && apiNumber) {
+                    // Wells: PUN-scoped endpoint (no adjacent sections)
+                    const resp = await fetch(
+                        `/api/docket-entries-by-well?api=${encodeURIComponent(apiNumber)}`,
+                        { credentials: 'include' }
+                    );
+                    const data = await resp.json();
+                    if (!data.success) throw new Error(data.error || 'Failed to load filings');
+                    directFilings = data.direct || [];
+                    punInfo = data.pun ? `Unit: ${data.pun} (${data.wellCount} wells, ${data.trsCount || 1} sections)` : null;
+                } else {
+                    // Properties / TRS: adjacent sections included
+                    const resp = await fetch(
+                        `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
+                        { credentials: 'include' }
+                    );
+                    const data = await resp.json();
+                    if (!data.success) throw new Error(data.error || 'Failed to load filings');
+                    directFilings = data.direct || [];
+                    adjacentFilings = data.adjacent || [];
+                }
+
+                const docketCount = directFilings.length + adjacentFilings.length;
+
+                // Build direct filings HTML
+                let contentHtml = '';
+                if (directFilings.length > 0) {
+                    if (type === 'well' && apiNumber && punInfo) {
+                        contentHtml += `<div style="font-size: 11px; color: #6b7280; margin-bottom: 8px; padding: 4px 0;">${punInfo}</div>`;
+                    }
+                    contentHtml += directFilings.map(filing => renderOccFiling(filing, false)).join('');
+                } else if (type === 'property') {
+                    contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
+                } else if (type === 'well') {
+                    contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No OCC filings found for this unit</div>';
+                }
+
+                // Render
+                if (directFilings.length === 0 && adjacentFilings.length === 0) {
+                    directContainer.innerHTML = type === 'property' ? '' : contentHtml;
+                    if (emptyEl && type === 'property') emptyEl.style.display = 'block';
+                    countBadge.textContent = '0';
+                } else {
+                    directContainer.innerHTML = contentHtml;
+                    countBadge.textContent = String(docketCount);
+                }
+
+                // Adjacent filings
+                if (adjacentFilings.length > 0 && adjacentWrapper && adjacentContainer && adjacentCountBadge) {
+                    adjacentWrapper.style.display = 'block';
+                    adjacentCountBadge.textContent = String(adjacentFilings.length);
+                    adjacentContainer.innerHTML = adjacentFilings.map(filing => renderOccFiling(filing, true)).join('');
+                }
+
+                // Check analyzed status (fire and forget)
+                const allFilings = [...directFilings, ...adjacentFilings];
+                const analyzable = allFilings.filter(f =>
+                    (f.status === 'HEARD' || f.status === 'RECOMMENDED') && f.caseNumber
+                );
+                if (analyzable.length > 0) {
+                    checkAnalyzedFilings(analyzable);
+                }
+
+            } catch (error) {
+                console.error('[OccFilings] Error loading filings:', error);
+                directContainer.innerHTML = '<div style="color: #dc3545; font-size: 13px; padding: 8px 0;">Error loading filings</div>';
+                countBadge.textContent = '0';
+            }
+        }
+
+        /**
          * Render a single OCC filing item with cache-aware button state.
          */
         function renderOccFiling(filing, isAdjacent = false) {

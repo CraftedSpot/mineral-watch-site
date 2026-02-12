@@ -1,0 +1,301 @@
+        // ============================================
+        // Shared Completion Reports (Well Records)
+        // Used by both dashboard and map pages.
+        // Follows ctx pattern: callers pass DOM element references.
+        // ============================================
+
+        const _completionCache = {};
+
+        // Helper: detect toast function available on this page
+        function _crToast(message, type) {
+            if (typeof showToast === 'function') showToast(message, type);
+            else if (typeof showMapToast === 'function') showMapToast(message, type);
+            else console.log(`[CompletionReports] ${type}: ${message}`);
+        }
+
+        // Helper: detect document detail opener
+        function _crOpenDocFn() {
+            if (typeof openDocumentDetail === 'function') return 'openDocumentDetail';
+            if (typeof openMapDocumentDetail === 'function') return 'openMapDocumentDetail';
+            return 'openDocumentDetail';
+        }
+
+        /**
+         * Load completion reports for a well.
+         * @param {string} apiNumber - Well API number
+         * @param {Object} ctx - { container: HTMLElement, countBadge: HTMLElement }
+         */
+        async function loadCompletionReports(apiNumber, ctx) {
+            const { container, countBadge } = ctx;
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/completion-reports`, { credentials: 'include' });
+                const data = await response.json();
+                const completionReports = data.completionReports || [];
+
+                // Update count badge
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                countBadge.textContent = completionReports.length;
+
+                if (completionReports.length === 0) {
+                    container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No completion reports found</div>';
+                    return;
+                }
+
+                // Sort by effective date (newest first)
+                completionReports.sort((a, b) => {
+                    const dateA = parseCompletionDate(a.effectiveDate);
+                    const dateB = parseCompletionDate(b.effectiveDate);
+                    return dateB - dateA;
+                });
+
+                // Populate cache for already-analyzed reports
+                for (const report of completionReports) {
+                    if (report.documentId && (report.status === 'fetched' || report.status === 'processed')) {
+                        _completionCache[report.entryId] = { documentId: report.documentId, displayName: report.wellName };
+                    }
+                }
+
+                container.innerHTML = completionReports.map((report, idx) =>
+                    renderCompletionReport(report, apiNumber, idx === 0)
+                ).join('');
+
+            } catch (error) {
+                console.error('[CompletionReports] Error loading:', error);
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #fecaca; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #dc2626;';
+                countBadge.textContent = '!';
+                container.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px 0;">Error loading completion reports</div>';
+            }
+        }
+
+        /**
+         * Render a single completion report item.
+         */
+        function renderCompletionReport(report, apiNumber, isCurrent = false) {
+            const isRecompletion = report.formType === '1002C';
+            const typeClass = isRecompletion ? 'recompletion' : 'completion';
+            const typeLabel = isRecompletion ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A';
+            const dateDisplay = formatCompletionDate(report.effectiveDate);
+            const isFailed = report.status === 'error';
+            const currentBadge = isCurrent ? '<span class="completion-current-badge">Current</span>' : '';
+            const failedBadge = isFailed ? `<span class="completion-failed-badge" title="${escapeHtml(report.errorMessage || 'Processing failed')}">Failed</span>` : '';
+
+            const cached = _completionCache[report.entryId];
+            const openDocFn = _crOpenDocFn();
+
+            let actionButton = '';
+            if (cached && cached.documentId) {
+                actionButton = `
+                    <button class="occ-reanalyze-btn"
+                            onclick="analyzeCompletionReport('${apiNumber}', ${report.entryId}, this, true)"
+                            title="Re-process this document">Re-analyze</button>
+                    <button class="occ-view-doc-btn" onclick="${openDocFn}('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+            } else switch (report.status) {
+                case 'available':
+                    actionButton = `
+                        <button class="completion-analyze-btn"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${report.entryId}, this)">
+                            Analyze
+                        </button>`;
+                    break;
+                case 'fetching':
+                    actionButton = `
+                        <button class="completion-analyze-btn fetching" disabled>
+                            <span class="spinner-sm"></span>Analyzing...
+                        </button>`;
+                    break;
+                case 'fetched':
+                case 'processed':
+                    actionButton = `
+                        <button class="occ-reanalyze-btn"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${report.entryId}, this, true)"
+                                title="Re-process this document">Re-analyze</button>
+                        ${report.documentId ? `<button class="occ-view-doc-btn" onclick="${openDocFn}('${report.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
+                    break;
+                case 'error':
+                    actionButton = `
+                        <button class="completion-analyze-btn error"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${report.entryId}, this, true)"
+                                title="${escapeHtml(report.errorMessage || 'Error occurred')}">
+                            Retry
+                        </button>`;
+                    break;
+                default:
+                    actionButton = '<span style="color: #888; font-size: 12px;">—</span>';
+            }
+
+            return `
+                <div class="completion-report-item${isCurrent ? ' is-current' : ''}${isFailed ? ' is-failed' : ''}">
+                    <div class="completion-report-main">
+                        <div>
+                            <span class="completion-report-type ${typeClass}">${typeLabel}</span>
+                            ${currentBadge}
+                            ${failedBadge}
+                            <span class="completion-report-location">${escapeHtml(report.location || '')}</span>
+                        </div>
+                        <div class="completion-report-details">
+                            ${report.county ? `<span>${escapeHtml(report.county)} County</span>` : ''}
+                            ${report.wellName ? `<span>• ${escapeHtml(report.wellName)}</span>` : ''}
+                            ${report.pun ? `<span class="completion-report-pun">PUN: ${escapeHtml(report.pun)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <div class="completion-report-date">${dateDisplay}</div>
+                        <div class="occ-filing-actions">
+                            ${actionButton}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        /**
+         * Analyze a completion report (fetch + process 1002A/1002C form).
+         * Uses parentContainer-based DOM updates (map pattern — simpler, no state objects).
+         */
+        async function analyzeCompletionReport(apiNumber, entryId, buttonEl, force = false) {
+            console.log(`[CompletionReports] ${force ? 'Re-analyzing' : 'Analyzing'} ${apiNumber} entryId ${entryId}`);
+
+            const parentContainer = buttonEl.closest('.occ-filing-actions');
+            if (!parentContainer) return;
+
+            const openDocFn = _crOpenDocFn();
+
+            // Show fetching state
+            parentContainer.innerHTML = `
+                <button class="completion-analyze-btn fetching" disabled>
+                    <span class="spinner-sm"></span>${force ? 'Re-analyzing...' : 'Fetching...'}
+                </button>`;
+
+            try {
+                const response = await fetch('/api/occ/fetch-1002a', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ apiNumber, entryId, force })
+                });
+
+                const result = await response.json();
+
+                if (response.status === 401) {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this)">
+                            Analyze
+                        </button>`;
+                    _crToast('Please log in to analyze completion reports', 'error');
+                    return;
+                }
+
+                if (result.alreadyProcessed) {
+                    _completionCache[entryId] = { documentId: result.documentId, displayName: result.displayName };
+                    parentContainer.innerHTML = `
+                        <button class="occ-reanalyze-btn"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this, true)"
+                                title="Re-process this document">Re-analyze</button>
+                        <button class="occ-view-doc-btn" onclick="${openDocFn}('${result.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+
+                    // Update credits display if available
+                    if (typeof updateCreditsDisplay === 'function') {
+                        updateCreditsDisplay(result.creditsRemaining);
+                    }
+
+                    if (docStatus === 'complete' || docStatus === 'processed') {
+                        _completionCache[entryId] = { documentId: docId, displayName: result.document?.display_name };
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this, true)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <button class="occ-view-doc-btn" onclick="${openDocFn}('${docId}')" title="View analyzed document">View Doc ↗</button>`;
+                        _crToast('Completion report analyzed!', 'success');
+                        if (typeof loadUsageStats === 'function') loadUsageStats();
+                    } else {
+                        // Start polling
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn ${docStatus === 'processing' ? 'processing' : 'queued'}" disabled>
+                                <span class="spinner-sm"></span>${docStatus === 'processing' ? 'Processing...' : 'Queued...'}
+                            </button>`;
+                        _startCompletionPolling(entryId, docId, apiNumber, parentContainer);
+                    }
+                } else if (result.error === 'no_credits') {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this)">
+                            Analyze
+                        </button>`;
+                    if (typeof showOutOfCreditsModal === 'function') showOutOfCreditsModal();
+                    else _crToast('No credits available', 'error');
+                } else {
+                    throw new Error(result.message || result.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('[CompletionReports] Analyze error:', error);
+                parentContainer.innerHTML = `
+                    <button class="completion-analyze-btn error"
+                            onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this)">
+                        Retry
+                    </button>`;
+                _crToast('Failed to analyze: ' + error.message, 'error');
+            }
+        }
+
+        /**
+         * Poll for completion report processing status (setTimeout pattern).
+         */
+        function _startCompletionPolling(entryId, docId, apiNumber, parentContainer) {
+            const startTime = Date.now();
+            const maxDuration = 5 * 60 * 1000; // 5 minutes
+            const openDocFn = _crOpenDocFn();
+
+            const poll = async () => {
+                if (Date.now() - startTime > maxDuration) {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn error"
+                                onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this)">
+                            Retry
+                        </button>`;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${docId}`, { credentials: 'include' });
+                    const result = await response.json();
+                    const doc = result.document || result;
+
+                    if (doc.status === 'complete' || doc.status === 'processed') {
+                        _completionCache[entryId] = { documentId: docId, displayName: doc.display_name };
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this, true)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <button class="occ-view-doc-btn" onclick="${openDocFn}('${docId}')" title="View analyzed document">View Doc ↗</button>`;
+                        _crToast('Completion report analyzed!', 'success');
+                        if (typeof loadUsageStats === 'function') loadUsageStats();
+                    } else if (doc.status === 'error' || doc.status === 'failed') {
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn error"
+                                    onclick="analyzeCompletionReport('${apiNumber}', ${entryId}, this)"
+                                    title="${escapeHtml(doc.extraction_error || 'Error occurred')}">
+                                Retry
+                            </button>`;
+                        _crToast('Analysis failed: ' + (doc.extraction_error || 'Unknown error'), 'error');
+                    } else {
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn ${doc.status === 'processing' ? 'processing' : 'queued'}" disabled>
+                                <span class="spinner-sm"></span>${doc.status === 'processing' ? 'Processing...' : 'Queued...'}
+                            </button>`;
+                        setTimeout(poll, 5000);
+                    }
+                } catch (error) {
+                    console.error('[CompletionReports] Poll error:', error);
+                    setTimeout(poll, 5000);
+                }
+            };
+
+            setTimeout(poll, 5000);
+        }

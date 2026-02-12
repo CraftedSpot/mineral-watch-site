@@ -1110,8 +1110,20 @@
             directionEl.textContent = direction;
             directionEl.className = direction === 'Horizontal' ? 'status-badge horizontal' : 'status-badge';
 
-            // Operator
-            document.getElementById('wellDetailsOperator').textContent = well.operator || '—';
+            // Operator (clickable → opens operator detail modal)
+            const opEl = document.getElementById('wellDetailsOperator');
+            opEl.textContent = well.operator || '—';
+            if (well.operator) {
+                opEl.style.cursor = 'pointer';
+                opEl.style.color = '#2563EB';
+                opEl.style.textDecoration = 'underline';
+                opEl.onclick = () => lookupAndOpenOperator(well.operator);
+            } else {
+                opEl.style.cursor = '';
+                opEl.style.color = '';
+                opEl.style.textDecoration = '';
+                opEl.onclick = null;
+            }
 
             // Contact line - phone + contact person
             const rawPhone = well.operator_phone || '';
