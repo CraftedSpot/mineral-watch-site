@@ -538,124 +538,6 @@
             transform: scale(1.3);
         }
 
-        /* Mini phone accent near Step 2 */
-        .mini-phone {
-            background: #1C2B36;
-            border-radius: 18px;
-            padding: 6px;
-            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
-            width: 150px;
-            margin-top: 12px;
-            margin-left: 40px;
-        }
-
-        .mini-phone-screen {
-            background: #fff;
-            border-radius: 14px;
-            overflow: hidden;
-        }
-
-        .mini-phone-notch {
-            background: #1C2B36;
-            height: 14px;
-            border-radius: 0 0 8px 8px;
-            width: 50px;
-            margin: 0 auto;
-            position: relative;
-            top: -1px;
-        }
-
-        .mini-phone-header {
-            background: #1C2B36;
-            padding: 6px 8px;
-        }
-
-        .mini-phone-header span {
-            color: #fff;
-            font-size: 8px;
-            font-weight: 700;
-            font-family: Georgia, serif;
-        }
-
-        .mini-phone-body {
-            padding: 8px;
-        }
-
-        .mini-phone-body .mini-label {
-            font-size: 6px;
-            color: #64748B;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            margin: 0 0 2px;
-        }
-
-        .mini-phone-body .mini-title {
-            font-size: 8px;
-            color: #1C2B36;
-            font-weight: 700;
-            font-family: Georgia, serif;
-            margin: 0 0 4px;
-        }
-
-        .mini-alert-card {
-            border: 1px solid #E2E8F0;
-            border-left: 3px solid #DC2626;
-            border-radius: 0 4px 4px 0;
-            overflow: hidden;
-        }
-
-        .mini-alert-header {
-            background: #FEF2F2;
-            padding: 4px 6px;
-            display: flex;
-            gap: 4px;
-        }
-
-        .mini-alert-header span {
-            font-size: 5px;
-            font-weight: 700;
-            padding: 2px 4px;
-            border-radius: 2px;
-            white-space: nowrap;
-        }
-
-        .mini-badge-red { background: #DC2626; color: white; }
-        .mini-badge-blue { background: #DBEAFE; color: #1E40AF; }
-
-        .mini-alert-body {
-            padding: 5px 6px;
-        }
-
-        .mini-alert-body p {
-            margin: 0 0 2px;
-            font-size: 6px;
-            color: #334E68;
-            line-height: 1.3;
-        }
-
-        .mini-alert-body strong {
-            color: #64748B;
-        }
-
-        .mini-insight {
-            background: #F8FAFC;
-            border-radius: 3px;
-            padding: 4px 5px;
-            margin-top: 4px;
-        }
-
-        .mini-insight p {
-            font-size: 5.5px;
-            color: #334E68;
-            line-height: 1.3;
-        }
-
-        @media (max-width: 768px) {
-            .mini-phone {
-                display: none;
-            }
-        }
-
         /* Active step highlight (when showcase tab matches) */
         .step-compact.active-step {
             background: rgba(188, 71, 37, 0.06);
@@ -665,6 +547,208 @@
             padding-left: 12px;
             padding-right: 12px;
             transition: background 0.3s ease;
+        }
+
+        /* Alerts Section */
+        .alerts-section {
+            padding: 80px 0;
+            background: #F8F9FA;
+        }
+
+        .alerts-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+        }
+
+        .alerts-text h2 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .alerts-text > p {
+            color: var(--slate-blue);
+            font-size: 17px;
+            margin-bottom: 24px;
+        }
+
+        .alert-types {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .alert-type-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 15px;
+            color: #334E68;
+        }
+
+        .alert-type-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        /* Phone Mockup */
+        .phone-mockup {
+            background: #1C2B36;
+            border-radius: 32px;
+            padding: 12px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            max-width: 300px;
+            margin: 0 auto;
+        }
+
+        .phone-screen {
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+        }
+
+        .phone-notch {
+            background: #1C2B36;
+            height: 28px;
+            border-radius: 0 0 16px 16px;
+            width: 120px;
+            margin: 0 auto;
+            position: relative;
+            top: -1px;
+        }
+
+        .alert-tabs-phone {
+            display: flex;
+            background: #F8F9FA;
+            border-bottom: 1px solid #E2E8F0;
+        }
+
+        .alert-tab-phone {
+            flex: 1;
+            padding: 10px 6px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #64748B;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .alert-tab-phone:hover {
+            color: #1C2B36;
+            background: #EDF2F7;
+        }
+
+        .alert-tab-phone.active {
+            color: var(--red-dirt);
+            border-bottom-color: var(--red-dirt);
+            background: #fff;
+        }
+
+        .alert-tab-phone .tab-icon {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+
+        .email-scroll {
+            height: 420px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .email-content-phone {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .email-content-phone.active {
+            display: block;
+        }
+
+        .mockup-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .mockup-btn-primary {
+            flex: 1;
+            text-align: center;
+            background: var(--red-dirt);
+            color: #ffffff;
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            border: 1px solid var(--red-dirt);
+        }
+
+        .mockup-btn-outline {
+            flex: 1;
+            text-align: center;
+            background: #fff;
+            border: 1px solid var(--red-dirt);
+            color: var(--red-dirt);
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .dots-phone {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            padding: 8px 0;
+            background: #F8F9FA;
+        }
+
+        .dot-phone {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #CBD5E0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dot-phone.active {
+            background: var(--red-dirt);
+            transform: scale(1.3);
+        }
+
+        @media (max-width: 768px) {
+            .alerts-layout {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+
+            .alerts-text h2 {
+                font-size: 26px;
+            }
+
+            .phone-mockup {
+                max-width: 280px;
+            }
         }
 
         /* CTA Section */
@@ -1009,47 +1093,24 @@
                     <div class="step-compact active-step" data-step="map">
                         <div class="step-num">1</div>
                         <div class="step-content">
-                            <h3>Add Your Properties</h3>
-                            <p>Enter your legal descriptions (Sec-Twn-Rng). We instantly map them and start watching the 8 surrounding sections for horizontal permits.</p>
+                            <h3>Map Your Properties</h3>
+                            <p>Enter your legal descriptions (Sec-Twn-Rng). We instantly map them, show pooling bonus rates, and highlight nearby well activity across 8 surrounding sections.</p>
                         </div>
                     </div>
 
                     <div class="step-compact" data-step="production">
                         <div class="step-num">2</div>
                         <div class="step-content">
-                            <h3>Stay Informed Automatically</h3>
-                            <p>Daily scans for permits, completions, transfers, and OCC filings. Production reports and weekly digests delivered in plain English — no jargon.</p>
-                            <div class="mini-phone">
-                                <div class="mini-phone-screen">
-                                    <div class="mini-phone-notch"></div>
-                                    <div class="mini-phone-header"><span>Mineral Watch</span></div>
-                                    <div class="mini-phone-body">
-                                        <p class="mini-label">Daily Alert</p>
-                                        <p class="mini-title">Activity on Your Property</p>
-                                        <div class="mini-alert-card">
-                                            <div class="mini-alert-header">
-                                                <span class="mini-badge-red">YOUR PROPERTY</span>
-                                                <span class="mini-badge-blue">NEW PERMIT</span>
-                                            </div>
-                                            <div class="mini-alert-body">
-                                                <p><strong>Well:</strong> Charlotte 1H-14X</p>
-                                                <p><strong>Operator:</strong> Continental Resources</p>
-                                                <div class="mini-insight">
-                                                    <p><strong>What this means:</strong> An operator has filed a permit to drill a new well on your property.</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                            <h3>Enrich Your Wells Automatically</h3>
+                            <p>Wells are auto-matched to your properties with production data, operator changes, and OCC filings enriched automatically. Track nearby wells and never miss activity in your area.</p>
                         </div>
                     </div>
 
                     <div class="step-compact" data-step="documents">
                         <div class="step-num">3</div>
                         <div class="step-content">
-                            <h3>Analyze & Manage Your Portfolio</h3>
-                            <p>View production trends for every well. Upload documents for AI extraction of royalty rates, bonus amounts, and legal descriptions. Your entire mineral portfolio — organized, analyzed, and connected.</p>
+                            <h3>Analyze Documents & Build Reports</h3>
+                            <p>Upload documents for AI extraction of royalty rates, bonus amounts, and legal descriptions. Generate unit production reports for your entire mineral portfolio.</p>
                         </div>
                     </div>
                 </div>
@@ -1086,13 +1147,201 @@
                     </div>
                 </div>
 
-                <!-- Old email alert mockups preserved for potential reuse -->
-                <!--
-                <div class="phone-mockup">
-                    [Email alert mockup HTML removed for brevity - was showing Permit/Complete/Transfer/Plugged alert previews in a phone frame carousel]
-                </div>
-                -->
                 
+            </div>
+        </div>
+    </section>
+
+    <section class="alerts-section">
+        <div class="container">
+            <div class="alerts-layout">
+                <div class="alerts-text">
+                    <h2>Stay Informed Automatically</h2>
+                    <p>Daily alerts and weekly digests delivered in plain English — no jargon, no missed deadlines.</p>
+                    <div class="alert-types">
+                        <div class="alert-type-item">
+                            <div class="alert-type-icon" style="background: #FEF2F2; color: #DC2626;">&#9679;</div>
+                            <span><strong>New Permits</strong> — know the moment an operator files to drill near your property</span>
+                        </div>
+                        <div class="alert-type-item">
+                            <div class="alert-type-icon" style="background: #F0FDFA; color: #047857;">&#9679;</div>
+                            <span><strong>Well Completions</strong> — royalty checks typically follow 3-6 months after</span>
+                        </div>
+                        <div class="alert-type-item">
+                            <div class="alert-type-icon" style="background: #EDE9FE; color: #6D28D9;">&#9679;</div>
+                            <span><strong>Operator Transfers</strong> — new operator means new division orders</span>
+                        </div>
+                        <div class="alert-type-item">
+                            <div class="alert-type-icon" style="background: #FEF3C7; color: #D97706;">&#9679;</div>
+                            <span><strong>OCC Filings</strong> — pooling hearings, spacing orders, and more</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="phone-mockup">
+                    <div class="phone-screen">
+                        <div class="phone-notch"></div>
+
+                        <div class="alert-tabs-phone">
+                            <button class="alert-tab-phone active" data-tab="permit">
+                                <span class="tab-icon">&#128203;</span>
+                                Permit
+                            </button>
+                            <button class="alert-tab-phone" data-tab="complete">
+                                <span class="tab-icon">&#128176;</span>
+                                Complete
+                            </button>
+                            <button class="alert-tab-phone" data-tab="transfer">
+                                <span class="tab-icon">&#128260;</span>
+                                Transfer
+                            </button>
+                        </div>
+
+                        <div class="email-scroll">
+
+                            <div class="email-content-phone active" id="permit">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Daily Alert</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Activity on Your Property</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
+
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #FEF2F2; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
+                                                <span style="background: #DBEAFE; color: #1E40AF; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">NEW PERMIT</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
+
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> An operator has filed a permit to drill a new well on your property.
+                                                </p>
+                                            </div>
+
+                                            <div style="background: #FEF3C7; border-radius: 4px; padding: 10px; border-left: 3px solid #F59E0B;">
+                                                <p style="margin: 0; font-size: 11px; color: #92400E; line-height: 1.4;">
+                                                    Watch for pooling notices or lease offers in the coming weeks.
+                                                </p>
+                                            </div>
+
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="email-content-phone" id="complete">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Well Now Producing</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
+
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #047857; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #F0FDFA; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
+                                                <span style="background: #D1FAE5; color: #047857; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">WELL COMPLETED</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <div style="background: #D1FAE5; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 10px; color: #047857;"><strong>Status changed:</strong> SP &rarr; AC</p>
+                                            </div>
+
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
+
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> Drilling is complete and the well is now producing oil or gas.
+                                                </p>
+                                            </div>
+
+                                            <div style="background: #F0FDF4; border-radius: 4px; padding: 10px; border-left: 3px solid #22C55E;">
+                                                <p style="margin: 0; font-size: 11px; color: #166534; line-height: 1.4;">
+                                                    Royalty checks should follow. First payment typically arrives 3-6 months after completion.
+                                                </p>
+                                            </div>
+
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="email-content-phone" id="transfer">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Operator Transfer</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 change.</p>
+
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #0D9488; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #F0FDFA; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #0D9488; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">TRACKED WELL</span>
+                                                <span style="background: #EDE9FE; color: #6D28D9; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">OPERATOR TRANSFER</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">API: 35-051-12345</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <div style="background: #EDE9FE; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 10px; color: #6D28D9;"><strong>Operator changed:</strong> Chesapeake &rarr; Citizen</p>
+                                            </div>
+
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Grandpa Joe 1-14H</span></p>
+
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> Operational control transferred. New operator handles royalty payments.
+                                                </p>
+                                            </div>
+
+                                            <div style="background: #FEF2F2; border-radius: 4px; padding: 10px; border-left: 3px solid #EF4444;">
+                                                <p style="margin: 0; font-size: 11px; color: #991B1B; line-height: 1.4;">
+                                                    Your checks will come from Citizen Energy. Watch for new division order.
+                                                </p>
+                                            </div>
+
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+
+                        <div class="dots-phone">
+                            <div class="dot-phone active" data-tab="permit"></div>
+                            <div class="dot-phone" data-tab="complete"></div>
+                            <div class="dot-phone" data-tab="transfer"></div>
+                        </div>
+
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -1177,6 +1426,26 @@
                 switchShowcase(showcaseTabs[showcaseIndex]);
             }
         }, { passive: true });
+
+        // Alert phone tab switching
+        var alertTabs = ['permit', 'complete', 'transfer'];
+
+        function switchAlertTab(tabId) {
+            document.querySelectorAll('.alert-tab-phone').forEach(function(t) { t.classList.remove('active'); });
+            document.querySelector('.alert-tab-phone[data-tab="' + tabId + '"]').classList.add('active');
+            document.querySelectorAll('.email-content-phone').forEach(function(c) { c.classList.remove('active'); });
+            document.getElementById(tabId).classList.add('active');
+            document.querySelectorAll('.dot-phone').forEach(function(d) { d.classList.remove('active'); });
+            document.querySelector('.dot-phone[data-tab="' + tabId + '"]').classList.add('active');
+        }
+
+        document.querySelectorAll('.alert-tab-phone').forEach(function(tab) {
+            tab.addEventListener('click', function() { switchAlertTab(tab.dataset.tab); });
+        });
+
+        document.querySelectorAll('.dot-phone').forEach(function(dot) {
+            dot.addEventListener('click', function() { switchAlertTab(dot.dataset.tab); });
+        });
 
         // Hamburger menu toggle
         document.querySelector('.menu-toggle').addEventListener('click', function() {
