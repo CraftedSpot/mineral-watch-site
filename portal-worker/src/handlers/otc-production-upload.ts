@@ -246,32 +246,36 @@ export async function handleUploadPunProductionData(
         if (mode === 'add') {
           // Add mode: increment existing values (for streaming uploads)
           return env.WELLS_DB!.prepare(
-            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
-             VALUES (?, ?, ?, ?, ?)
+            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value, base_pun)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
                gross_volume = gross_volume + excluded.gross_volume,
-               gross_value = gross_value + excluded.gross_value`
+               gross_value = gross_value + excluded.gross_value,
+               base_pun = excluded.base_pun`
           ).bind(
             record.pun,
             record.year_month,
             record.product_code,
             record.gross_volume,
-            record.gross_value || 0
+            record.gross_value || 0,
+            record.pun.substring(0, 10)
           );
         } else {
           // Replace mode: overwrite existing values (default, for full reloads)
           return env.WELLS_DB!.prepare(
-            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
-             VALUES (?, ?, ?, ?, ?)
+            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value, base_pun)
+             VALUES (?, ?, ?, ?, ?, ?)
              ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
                gross_volume = excluded.gross_volume,
-               gross_value = excluded.gross_value`
+               gross_value = excluded.gross_value,
+               base_pun = excluded.base_pun`
           ).bind(
             record.pun,
             record.year_month,
             record.product_code,
             record.gross_volume,
-            record.gross_value || 0
+            record.gross_value || 0,
+            record.pun.substring(0, 10)
           );
         }
       });

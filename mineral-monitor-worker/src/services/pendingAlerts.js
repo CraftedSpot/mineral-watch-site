@@ -234,7 +234,8 @@ export function groupAlertsForDigest(alerts) {
           completions: [],
           statusChanges: [],
           expirations: [],
-          transfers: []
+          transfers: [],
+          occFilings: []
         },
         highlights: []
       });
@@ -268,6 +269,12 @@ export function groupAlertsForDigest(alerts) {
         break;
       case 'Operator Transfer':
         userData.alerts.transfers.push(alert);
+        break;
+      default:
+        // OCC filing types: Pooling Application, Increased Density, Spacing, etc.
+        if (alert.activity_type && alert.activity_type !== 'New Permit') {
+          userData.alerts.occFilings.push(alert);
+        }
         break;
     }
   }

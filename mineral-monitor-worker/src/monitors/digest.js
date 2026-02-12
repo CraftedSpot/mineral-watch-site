@@ -390,7 +390,8 @@ async function processWeeklyDigest(env, pendingByUser, results) {
           (userData.alerts.completions?.length || 0) +
           (userData.alerts.statusChanges?.length || 0) +
           (userData.alerts.expirations?.length || 0) +
-          (userData.alerts.transfers?.length || 0);
+          (userData.alerts.transfers?.length || 0) +
+          (userData.alerts.occFilings?.length || 0);
 
         if (totalAlerts === 0) continue;
 
@@ -495,7 +496,8 @@ export async function runDailyDigest(env) {
           (userData.alerts.completions?.length || 0) +
           (userData.alerts.statusChanges?.length || 0) +
           (userData.alerts.expirations?.length || 0) +
-          (userData.alerts.transfers?.length || 0);
+          (userData.alerts.transfers?.length || 0) +
+          (userData.alerts.occFilings?.length || 0);
 
         if (totalAlerts === 0) {
           console.log(`[Digest] No alerts for ${userEmail}, skipping`);

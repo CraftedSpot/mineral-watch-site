@@ -994,7 +994,8 @@ export async function sendDigestEmail(env, digestData) {
     (alerts.completions?.length || 0) +
     (alerts.statusChanges?.length || 0) +
     (alerts.expirations?.length || 0) +
-    (alerts.transfers?.length || 0);
+    (alerts.transfers?.length || 0) +
+    (alerts.occFilings?.length || 0);
 
   const nearbyCount = nearbyActivity?.length || 0;
   const isWeeklyDigest = frequency === 'weekly' && (nearbyCount > 0 || newOperators?.length > 0 || countyStats?.length > 0);
@@ -1060,7 +1061,8 @@ function buildDigestHtmlBody(digestData) {
     (alerts.completions?.length || 0) +
     (alerts.statusChanges?.length || 0) +
     (alerts.expirations?.length || 0) +
-    (alerts.transfers?.length || 0);
+    (alerts.transfers?.length || 0) +
+    (alerts.occFilings?.length || 0);
 
   const isWeeklyDigest = frequency === 'weekly' && (nearbyActivity?.length > 0 || newOperators?.length > 0 || countyStats?.length > 0);
   const periodText = frequency === 'weekly' ? 'this week' : 'today';
@@ -1108,6 +1110,9 @@ function buildDigestHtmlBody(digestData) {
   }
   if (alerts.statusChanges && alerts.statusChanges.length > 0) {
     propertySections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', ''));
+  }
+  if (alerts.occFilings && alerts.occFilings.length > 0) {
+    propertySections.push(buildAlertSection('OCC Filings', alerts.occFilings, '#D97706', ''));
   }
 
   // Wrap property alerts in a "Your Properties" header if weekly digest
@@ -1395,7 +1400,8 @@ function buildDigestTextBody(digestData) {
     (alerts.completions?.length || 0) +
     (alerts.statusChanges?.length || 0) +
     (alerts.expirations?.length || 0) +
-    (alerts.transfers?.length || 0);
+    (alerts.transfers?.length || 0) +
+    (alerts.occFilings?.length || 0);
 
   const isWeeklyDigest = frequency === 'weekly' && (nearbyActivity?.length > 0 || newOperators?.length > 0 || countyStats?.length > 0);
   const title = frequency === 'daily' ? 'DAILY UPDATE' : isWeeklyDigest ? 'WEEKLY REPORT' : 'WEEKLY REPORT';
@@ -1434,7 +1440,8 @@ ${highlights.map(h => `• ${h.message}`).join('\n')}
     { name: 'NEW PERMITS', items: alerts.permits },
     { name: 'WELL COMPLETIONS', items: alerts.completions },
     { name: 'OPERATOR TRANSFERS', items: alerts.transfers },
-    { name: 'STATUS CHANGES', items: alerts.statusChanges }
+    { name: 'STATUS CHANGES', items: alerts.statusChanges },
+    { name: 'OCC FILINGS', items: alerts.occFilings }
   ];
 
   for (const section of sections) {

@@ -15,7 +15,14 @@ import {
   filterRelevantEntries
 } from '../services/docketParser.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
-import { sendEmail } from '../services/email.js';
+import { createActivityLog, getUserById } from '../services/airtable.js';
+import {
+  getEffectiveNotificationMode,
+  getDigestFrequency,
+  shouldQueueWeekly,
+  queuePendingAlert,
+  getOrganizationById
+} from '../services/pendingAlerts.js';
 
 /**
  * Generate unique ID for docket entry
@@ -472,7 +479,11 @@ async function processDocketAlerts(env, dryRun = false) {
 
   let alertCount = 0;
   const processedIds = [];
-  const alertsToLog = [];
+
+  // Collect all matches across entries for cross-entry dedup
+  // Key: userId|section-township-range|alertLevel -> first match wins
+  const userSectionAlerted = new Set();
+  const allAlerts = [];
 
   for (const entry of entries) {
     // Skip entries without location data
@@ -576,42 +587,105 @@ async function processDocketAlerts(env, dryRun = false) {
     console.log(`[Docket] ${entry.case_number}: ${rawMatches.length} raw matches, ${matches.length} after dedupe`);
 
     for (const match of matches) {
-      if (dryRun) {
-        console.log(`[Docket DRY RUN] Would alert ${match.user.email} (${match.alertLevel}) for ${entry.case_number}`);
-        alertCount++;
-        continue;
+      // Cross-entry dedup for ADJACENT SECTION alerts:
+      // If same user already alerted for the same section in this batch, skip
+      if (match.alertLevel === 'ADJACENT SECTION') {
+        const str = `${entry.section}-${entry.township}-${entry.range}`;
+        const dedupKey = `${match.user.id}|${str}|ADJACENT`;
+        if (userSectionAlerted.has(dedupKey)) {
+          console.log(`[Docket] Skipping duplicate adjacent alert for ${match.user.email} section ${str}`);
+          continue;
+        }
+        userSectionAlerted.add(dedupKey);
       }
 
-      // Build and send email
-      const { subject, html } = buildDocketAlertEmail(entry, match);
-
-      try {
-        await sendEmail(env, {
-          to: match.user.email,
-          subject,
-          html
-        });
-        alertCount++;
-
-        // Queue for Activity Log
-        alertsToLog.push({
-          entry,
-          alertLevel: match.alertLevel,
-          userId: match.user.id,
-          propertyId: match.property?.id
-        });
-
-      } catch (err) {
-        console.error(`[Docket] Error sending alert to ${match.user.email}:`, err.message);
-      }
+      allAlerts.push({ entry, match });
     }
 
     processedIds.push(entry.id);
   }
 
-  // Batch create Activity Log entries
-  if (!dryRun && alertsToLog.length > 0) {
-    await createActivityLogEntries(env, alertsToLog);
+  // Now process all collected alerts: create activity logs and queue for digest
+  for (const { entry, match } of allAlerts) {
+    if (dryRun) {
+      console.log(`[Docket DRY RUN] Would queue ${match.user.email} (${match.alertLevel}) for ${entry.case_number}`);
+      alertCount++;
+      continue;
+    }
+
+    try {
+      const reliefLabel = getReliefTypeLabel(entry.relief_type);
+      const str = `${entry.section}-${entry.township}-${entry.range}`;
+
+      // Create D1 activity log entry
+      const activityLog = await createActivityLog(env, {
+        userId: match.user.id,
+        organizationId: match.organizationId || null,
+        apiNumber: null,
+        wellName: entry.case_number,
+        operator: entry.applicant,
+        activityType: reliefLabel,
+        alertLevel: match.alertLevel,
+        county: entry.county,
+        sectionTownshipRange: str,
+        occLink: entry.source_url || null,
+        mapLink: null
+      });
+
+      // Get user's notification mode for digest frequency
+      const user = await getUserById(env, match.user.id);
+      const userOrgId = user?.fields?.Organization?.[0] || null;
+      const organization = userOrgId ? await getOrganizationById(env, userOrgId) : null;
+      const notificationMode = getEffectiveNotificationMode(user, organization);
+
+      if (notificationMode === 'None') {
+        console.log(`[Docket] Skipping ${match.user.email} - notifications disabled`);
+        continue;
+      }
+
+      const digestFrequency = getDigestFrequency(notificationMode);
+      if (!digestFrequency) continue;
+
+      // Queue for daily digest
+      await queuePendingAlert(env, {
+        userId: match.user.id,
+        userEmail: match.user.email,
+        organizationId: match.organizationId || null,
+        activityLogId: activityLog.id,
+        activityType: reliefLabel,
+        wellName: entry.case_number,
+        apiNumber: null,
+        operator: entry.applicant,
+        county: entry.county,
+        sectionTownshipRange: str,
+        alertLevel: match.alertLevel,
+        digestFrequency: digestFrequency
+      });
+
+      // For 'Daily + Weekly' users, also queue for weekly
+      if (shouldQueueWeekly(notificationMode) && digestFrequency === 'daily') {
+        await queuePendingAlert(env, {
+          userId: match.user.id,
+          userEmail: match.user.email,
+          organizationId: match.organizationId || null,
+          activityLogId: null,
+          activityType: reliefLabel,
+          wellName: entry.case_number,
+          apiNumber: null,
+          operator: entry.applicant,
+          county: entry.county,
+          sectionTownshipRange: str,
+          alertLevel: match.alertLevel,
+          digestFrequency: 'weekly'
+        });
+      }
+
+      alertCount++;
+      console.log(`[Docket] Queued ${reliefLabel} alert for ${match.user.email} (${match.alertLevel}) - ${entry.case_number}`);
+
+    } catch (err) {
+      console.error(`[Docket] Error queuing alert for ${match.user.email}:`, err.message);
+    }
   }
 
   // Mark all processed entries as alerted
