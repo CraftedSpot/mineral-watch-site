@@ -259,7 +259,9 @@
                 // View on Map first (our map with section highlight)
                 const strField = f['Section-Township-Range'];
                 if (strField) {
-                    const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
+                    // Handle both formats: "32-15N-21W" (docket) and "S32 T15N R21W" (permits)
+                    const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i) ||
+                                     strField.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
                     if (strMatch) {
                         const mapParams = new URLSearchParams({
                             section: strMatch[1],

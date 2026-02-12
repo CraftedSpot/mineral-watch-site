@@ -50,18 +50,36 @@
             return county.replace(/^\d+-/, '');
         }
         
-        // Format activity location from S15-T12N-R5W to T12N R5W 15
+        // Format activity location to consistent TWN-RNG-SEC format (e.g. 15N-21W-32)
         function formatActivityLocation(location) {
             if (!location) return '';
-            
-            // Try to parse S15-T12N-R5W format
-            const match = location.match(/S(\d+)-T([^-]+)-R(.+)/i);
-            if (match) {
-                const [_, section, township, range] = match;
-                return `T${township} R${range} ${section}`;
+
+            let sec, twn, rng;
+
+            // Format 1: "32-15N-21W" (docket monitor)
+            const m1 = location.match(/^(\d+)-(\d+[NS])-(\d+[EW])$/i);
+            if (m1) { sec = m1[1]; twn = m1[2]; rng = m1[3]; }
+
+            // Format 2: "S32 T15N R21W" (permit/completion monitors)
+            if (!sec) {
+                const m2 = location.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
+                if (m2) { sec = m2[1]; twn = m2[2]; rng = m2[3]; }
             }
-            
-            // Return original if can't parse
+
+            // Format 3: "S15-T12N-R5W" (legacy)
+            if (!sec) {
+                const m3 = location.match(/S(\d+)-T([^-]+)-R(.+)/i);
+                if (m3) { sec = m3[1]; twn = m3[2]; rng = m3[3]; }
+            }
+
+            if (sec && twn && rng) {
+                // Pad to 2-digit numbers: 15N-21W-32
+                const padTwn = twn.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                const padRng = rng.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                const padSec = sec.padStart(2, '0');
+                return `${padTwn}-${padRng}-${padSec}`;
+            }
+
             return escapeHtml(location);
         }
 
