@@ -412,6 +412,47 @@
                     </div>
                 </div>
 
+                <!-- Drilling Permits Section - Collapsible -->
+                <div class="occ-filings-section" id="wellModalDrillingPermitsSection" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapDrillingPermits()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-drilling-permits-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Drilling Permits</span>
+                            <span id="wellModalDrillingPermitsCount" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="map-drilling-permits-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalDrillingPermits" style="max-height: 300px; overflow-y: auto;">
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Notes Section (for tracked wells) - At bottom -->
                 <div id="wellModalNotesSection" style="display: none; margin-top: 16px;">
                     <div style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Notes</div>
@@ -685,6 +726,10 @@
             document.getElementById('map-well-records-content').style.display = 'none';
             document.getElementById('map-well-records-arrow').style.transform = 'rotate(0deg)';
 
+            // Reset Drilling Permits section
+            document.getElementById('map-drilling-permits-content').style.display = 'none';
+            document.getElementById('map-drilling-permits-arrow').style.transform = 'rotate(0deg)';
+
             // Reset OCC filings section
             document.getElementById('map-occ-count').textContent = '—';
             document.getElementById('map-occ-direct').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
@@ -719,6 +764,16 @@
                 document.getElementById('wellModalWellRecordsCount').style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
                 document.getElementById('wellModalWellRecordsCount').textContent = '0';
                 document.getElementById('wellModalCompletionReports').innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No API number available</div>';
+            }
+
+            // Load drilling permits
+            if (apiNumber && apiNumber !== 'Unknown') {
+                loadMapDrillingPermits(apiNumber);
+            } else {
+                document.getElementById('wellModalDrillingPermitsCount').className = '';
+                document.getElementById('wellModalDrillingPermitsCount').style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                document.getElementById('wellModalDrillingPermitsCount').textContent = '0';
+                document.getElementById('wellModalDrillingPermits').innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No API number available</div>';
             }
 
             // Load notes and linked properties for tracked wells

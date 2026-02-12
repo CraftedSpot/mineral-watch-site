@@ -75,6 +75,19 @@
             }
         }
 
+        // Toggle Drilling Permits accordion
+        function toggleMapDrillingPermits() {
+            const content = document.getElementById('map-drilling-permits-content');
+            const arrow = document.getElementById('map-drilling-permits-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
         // ============================================
         // Well Records Functions (Completion Reports)
         // ============================================
@@ -394,6 +407,276 @@
                 toast.style.animation = 'fadeOut 0.3s ease';
                 setTimeout(() => toast.remove(), 300);
             }, 3000);
+        }
+
+        // ============================================
+        // Drilling Permits Functions
+        // ============================================
+
+        const mapAnalyzedPermitsCache = {};
+
+        async function loadMapDrillingPermits(apiNumber) {
+            console.log('[MapDrillingPermits] Loading permits for API:', apiNumber);
+            const countBadge = document.getElementById('wellModalDrillingPermitsCount');
+            const container = document.getElementById('wellModalDrillingPermits');
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/drilling-permits`, { credentials: 'include' });
+                const data = await response.json();
+                const permits = data.drillingPermits || [];
+
+                console.log('[MapDrillingPermits] Found', permits.length, 'permits');
+
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                countBadge.textContent = permits.length;
+
+                if (permits.length === 0) {
+                    container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No drilling permits found</div>';
+                    return;
+                }
+
+                // Sort by effective date (newest first)
+                permits.sort((a, b) => {
+                    const dateA = parseCompletionDate(a.effectiveDate);
+                    const dateB = parseCompletionDate(b.effectiveDate);
+                    return dateB - dateA;
+                });
+
+                // Populate cache for already-analyzed permits
+                for (const permit of permits) {
+                    if (permit.documentId && (permit.status === 'fetched' || permit.status === 'processed')) {
+                        mapAnalyzedPermitsCache[permit.entryId] = { documentId: permit.documentId, displayName: permit.wellName };
+                    }
+                }
+
+                container.innerHTML = permits.map((permit, idx) => renderMapDrillingPermit(permit, apiNumber, idx === 0)).join('');
+            } catch (error) {
+                console.error('[MapDrillingPermits] Error loading permits:', error);
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #fecaca; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #dc2626;';
+                countBadge.textContent = '!';
+                container.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px 0;">Error loading drilling permits</div>';
+            }
+        }
+
+        function renderMapDrillingPermit(permit, apiNumber, isCurrent = false) {
+            const dateDisplay = formatCompletionDate(permit.effectiveDate);
+            const buttonId = `map-permit-btn-${permit.entryId}`;
+            const isFailed = permit.status === 'error';
+            const currentBadge = isCurrent ? '<span class="completion-current-badge">Latest</span>' : '';
+            const failedBadge = isFailed ? `<span class="completion-failed-badge" title="${escapeHtml(permit.errorMessage || 'Processing failed')}">Failed</span>` : '';
+
+            const cached = mapAnalyzedPermitsCache[permit.entryId];
+
+            const openDocFn = typeof openDocumentDetail === 'function' ? 'openDocumentDetail'
+                            : typeof openMapDocumentDetail === 'function' ? 'openMapDocumentDetail'
+                            : 'openDocumentDetail';
+
+            let actionButton = '';
+            if (cached && cached.documentId) {
+                actionButton = `
+                    <button class="occ-reanalyze-btn"
+                            onclick="analyzeMapPermit('${apiNumber}', ${permit.entryId}, this, true)"
+                            title="Re-process this document">Re-analyze</button>
+                    <button class="occ-view-doc-btn" onclick="${openDocFn}('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+            } else switch (permit.status) {
+                case 'available':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn"
+                                onclick="analyzeMapPermit('${apiNumber}', ${permit.entryId}, this)">
+                            Analyze
+                        </button>`;
+                    break;
+                case 'fetching':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn fetching" disabled>
+                            <span class="spinner-sm"></span>Analyzing...
+                        </button>`;
+                    break;
+                case 'fetched':
+                case 'processed':
+                    actionButton = `
+                        <button class="occ-reanalyze-btn"
+                                onclick="analyzeMapPermit('${apiNumber}', ${permit.entryId}, this, true)"
+                                title="Re-process this document">Re-analyze</button>
+                        ${permit.documentId ? `<button class="occ-view-doc-btn" onclick="${openDocFn}('${permit.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
+                    break;
+                case 'error':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn error"
+                                onclick="analyzeMapPermit('${apiNumber}', ${permit.entryId}, this, true)"
+                                title="${escapeHtml(permit.errorMessage || 'Error occurred')}">
+                            Retry
+                        </button>`;
+                    break;
+                default:
+                    actionButton = '<span style="color: #888; font-size: 12px;">—</span>';
+            }
+
+            return `
+                <div class="completion-report-item${isCurrent ? ' is-current' : ''}${isFailed ? ' is-failed' : ''}">
+                    <div class="completion-report-main">
+                        <div>
+                            <span class="completion-report-type" style="background: #DBEAFE; color: #1E40AF;">PERMIT 1000</span>
+                            ${currentBadge}
+                            ${failedBadge}
+                            <span class="completion-report-location">${escapeHtml(permit.location || '')}</span>
+                        </div>
+                        <div class="completion-report-details">
+                            ${permit.county ? `<span>${escapeHtml(permit.county)} County</span>` : ''}
+                            ${permit.wellName ? `<span>• ${escapeHtml(permit.wellName)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <div class="completion-report-date">${dateDisplay}</div>
+                        <div class="occ-filing-actions">
+                            ${actionButton}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Analyze drilling permit from map modal
+        async function analyzeMapPermit(apiNumber, entryId, buttonEl, force = false) {
+            console.log(`[MapDrillingPermits] ${force ? 'Re-analyzing' : 'Analyzing'} ${apiNumber} entryId ${entryId}`);
+
+            const parentContainer = buttonEl.closest('.occ-filing-actions');
+            if (!parentContainer) return;
+
+            const openDocFn = typeof openDocumentDetail === 'function' ? 'openDocumentDetail'
+                            : typeof openMapDocumentDetail === 'function' ? 'openMapDocumentDetail'
+                            : 'openDocumentDetail';
+
+            parentContainer.innerHTML = `
+                <button class="completion-analyze-btn fetching" disabled>
+                    <span class="spinner-sm"></span>${force ? 'Re-analyzing...' : 'Fetching...'}
+                </button>`;
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/analyze-permit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ entryId, force })
+                });
+
+                const result = await response.json();
+
+                if (response.status === 401) {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn"
+                                onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this)">
+                            Analyze
+                        </button>`;
+                    showMapToast('Please log in to analyze drilling permits', 'error');
+                    return;
+                }
+
+                if (result.alreadyProcessed) {
+                    mapAnalyzedPermitsCache[entryId] = { documentId: result.documentId };
+                    parentContainer.innerHTML = `
+                        <button class="occ-reanalyze-btn"
+                                onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this, true)"
+                                title="Re-process this document">Re-analyze</button>
+                        <button class="occ-view-doc-btn" onclick="${openDocFn}('${result.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+
+                    if (docStatus === 'complete' || docStatus === 'processed') {
+                        mapAnalyzedPermitsCache[entryId] = { documentId: docId };
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this, true)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <button class="occ-view-doc-btn" onclick="${openDocFn}('${docId}')" title="View analyzed document">View Doc ↗</button>`;
+                        showMapToast('Drilling permit analyzed!', 'success');
+                        loadMapDrillingPermits(apiNumber);
+                    } else {
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn ${docStatus === 'processing' ? 'processing' : 'queued'}" disabled>
+                                <span class="spinner-sm"></span>${docStatus === 'processing' ? 'Processing...' : 'Queued...'}
+                            </button>`;
+                        startMapPermitPolling(entryId, docId, apiNumber, parentContainer);
+                    }
+                } else if (result.error === 'no_credits') {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn"
+                                onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this)">
+                            Analyze
+                        </button>`;
+                    showMapToast('No credits available', 'error');
+                } else {
+                    throw new Error(result.message || result.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('[MapDrillingPermits] Analyze error:', error);
+                parentContainer.innerHTML = `
+                    <button class="completion-analyze-btn error"
+                            onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this)">
+                        Retry
+                    </button>`;
+                showMapToast('Error analyzing drilling permit', 'error');
+            }
+        }
+
+        // Poll for drilling permit processing status
+        function startMapPermitPolling(entryId, docId, apiNumber, parentContainer) {
+            const startTime = Date.now();
+            const maxDuration = 5 * 60 * 1000;
+
+            const openDocFn = typeof openDocumentDetail === 'function' ? 'openDocumentDetail'
+                            : typeof openMapDocumentDetail === 'function' ? 'openMapDocumentDetail'
+                            : 'openDocumentDetail';
+
+            const poll = async () => {
+                if (Date.now() - startTime > maxDuration) {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn error"
+                                onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this)">
+                            Retry
+                        </button>`;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${docId}`, { credentials: 'include' });
+                    const result = await response.json();
+                    const doc = result.document || result;
+
+                    if (doc.status === 'complete' || doc.status === 'processed') {
+                        mapAnalyzedPermitsCache[entryId] = { documentId: docId };
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this, true)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <button class="occ-view-doc-btn" onclick="${openDocFn}('${docId}')" title="View analyzed document">View Doc ↗</button>`;
+                        showMapToast('Drilling permit analyzed!', 'success');
+                        loadMapDrillingPermits(apiNumber);
+                    } else if (doc.status === 'error' || doc.status === 'failed') {
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn error"
+                                    onclick="analyzeMapPermit('${apiNumber}', ${entryId}, this)"
+                                    title="${escapeHtml(doc.extraction_error || 'Error occurred')}">
+                                Retry
+                            </button>`;
+                        showMapToast('Analysis failed: ' + (doc.extraction_error || 'Unknown error'), 'error');
+                    } else {
+                        parentContainer.innerHTML = `
+                            <button class="completion-analyze-btn ${doc.status === 'processing' ? 'processing' : 'queued'}" disabled>
+                                <span class="spinner-sm"></span>${doc.status === 'processing' ? 'Processing...' : 'Queued...'}
+                            </button>`;
+                        setTimeout(poll, 5000);
+                    }
+                } catch (error) {
+                    console.error('[MapDrillingPermits] Poll error:', error);
+                    setTimeout(poll, 5000);
+                }
+            };
+
+            setTimeout(poll, 5000);
         }
 
         // Load OTC production summary for a well (uses shared renderer)
