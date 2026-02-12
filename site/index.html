@@ -538,6 +538,124 @@
             transform: scale(1.3);
         }
 
+        /* Mini phone accent near Step 2 */
+        .mini-phone {
+            background: #1C2B36;
+            border-radius: 18px;
+            padding: 6px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.2);
+            width: 150px;
+            margin-top: 12px;
+            margin-left: 40px;
+        }
+
+        .mini-phone-screen {
+            background: #fff;
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        .mini-phone-notch {
+            background: #1C2B36;
+            height: 14px;
+            border-radius: 0 0 8px 8px;
+            width: 50px;
+            margin: 0 auto;
+            position: relative;
+            top: -1px;
+        }
+
+        .mini-phone-header {
+            background: #1C2B36;
+            padding: 6px 8px;
+        }
+
+        .mini-phone-header span {
+            color: #fff;
+            font-size: 8px;
+            font-weight: 700;
+            font-family: Georgia, serif;
+        }
+
+        .mini-phone-body {
+            padding: 8px;
+        }
+
+        .mini-phone-body .mini-label {
+            font-size: 6px;
+            color: #64748B;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin: 0 0 2px;
+        }
+
+        .mini-phone-body .mini-title {
+            font-size: 8px;
+            color: #1C2B36;
+            font-weight: 700;
+            font-family: Georgia, serif;
+            margin: 0 0 4px;
+        }
+
+        .mini-alert-card {
+            border: 1px solid #E2E8F0;
+            border-left: 3px solid #DC2626;
+            border-radius: 0 4px 4px 0;
+            overflow: hidden;
+        }
+
+        .mini-alert-header {
+            background: #FEF2F2;
+            padding: 4px 6px;
+            display: flex;
+            gap: 4px;
+        }
+
+        .mini-alert-header span {
+            font-size: 5px;
+            font-weight: 700;
+            padding: 2px 4px;
+            border-radius: 2px;
+            white-space: nowrap;
+        }
+
+        .mini-badge-red { background: #DC2626; color: white; }
+        .mini-badge-blue { background: #DBEAFE; color: #1E40AF; }
+
+        .mini-alert-body {
+            padding: 5px 6px;
+        }
+
+        .mini-alert-body p {
+            margin: 0 0 2px;
+            font-size: 6px;
+            color: #334E68;
+            line-height: 1.3;
+        }
+
+        .mini-alert-body strong {
+            color: #64748B;
+        }
+
+        .mini-insight {
+            background: #F8FAFC;
+            border-radius: 3px;
+            padding: 4px 5px;
+            margin-top: 4px;
+        }
+
+        .mini-insight p {
+            font-size: 5.5px;
+            color: #334E68;
+            line-height: 1.3;
+        }
+
+        @media (max-width: 768px) {
+            .mini-phone {
+                display: none;
+            }
+        }
+
         /* Active step highlight (when showcase tab matches) */
         .step-compact.active-step {
             background: rgba(188, 71, 37, 0.06);
@@ -901,6 +1019,29 @@
                         <div class="step-content">
                             <h3>Stay Informed Automatically</h3>
                             <p>Daily scans for permits, completions, transfers, and OCC filings. Production reports and weekly digests delivered in plain English — no jargon.</p>
+                            <div class="mini-phone">
+                                <div class="mini-phone-screen">
+                                    <div class="mini-phone-notch"></div>
+                                    <div class="mini-phone-header"><span>Mineral Watch</span></div>
+                                    <div class="mini-phone-body">
+                                        <p class="mini-label">Daily Alert</p>
+                                        <p class="mini-title">Activity on Your Property</p>
+                                        <div class="mini-alert-card">
+                                            <div class="mini-alert-header">
+                                                <span class="mini-badge-red">YOUR PROPERTY</span>
+                                                <span class="mini-badge-blue">NEW PERMIT</span>
+                                            </div>
+                                            <div class="mini-alert-body">
+                                                <p><strong>Well:</strong> Charlotte 1H-14X</p>
+                                                <p><strong>Operator:</strong> Continental Resources</p>
+                                                <div class="mini-insight">
+                                                    <p><strong>What this means:</strong> An operator has filed a permit to drill a new well on your property.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
