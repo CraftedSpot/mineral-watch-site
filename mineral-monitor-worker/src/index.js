@@ -11,7 +11,7 @@ import { runDocketMonitor } from './monitors/docket.js';
 import { runWeeklyDigest, runDailyDigest } from './monitors/digest.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendDocketSummary, sendFailureAlert } from './services/adminAlerts.js';
-import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning } from './backfill/dockets.js';
+import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning, findMissingDates, backfillMissingDates, getGapfillStatus, clearGapfillProgress, isGapfillRunning } from './backfill/dockets.js';
 import { backfillNewProperty, backfillUserProperties } from './services/historicalBackfill.js';
 
 // Helper for JSON responses
@@ -103,9 +103,9 @@ export default {
 
       // Docket monitor - 12 PM Central weekdays (18 UTC, Mon-Fri)
       if (cronPattern === '0 18 * * 1-5') {
-        // Skip if backfill is running to avoid conflicts
-        if (await isBackfillRunning(env)) {
-          console.log('[Docket] Skipping - backfill in progress');
+        // Skip if backfill or gap-fill is running to avoid conflicts
+        if (await isBackfillRunning(env) || await isGapfillRunning(env)) {
+          console.log('[Docket] Skipping - backfill/gap-fill in progress');
           await updateHealthStatus(env, 'docket', {
             timestamp: new Date().toISOString(),
             status: 'skipped',
@@ -776,6 +776,77 @@ export default {
       }
     }
 
+    // ─── Gap-Fill endpoints: targeted backfill for missing dates only ───
+
+    // Diagnostic: list all missing dates
+    if (url.pathname === '/backfill/gaps') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      try {
+        const gaps = await findMissingDates(env);
+        return jsonResponse({
+          total_weekdays: gaps.totalWeekdays,
+          total_existing: gaps.totalExisting,
+          total_missing: gaps.totalMissing,
+          sample: gaps.missingDates.slice(0, 20),
+          missing_dates: gaps.missingDates
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
+    // Run a batch of gap-fill processing
+    if (url.pathname === '/backfill/gaps/run') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      const batchSize = parseInt(url.searchParams.get('batch') || '50', 10);
+
+      // Run in background
+      ctx.waitUntil(
+        backfillMissingDates(env, batchSize)
+          .then(result => console.log('[GapFill] Done:', JSON.stringify(result)))
+          .catch(err => console.error('[GapFill] Failed:', err.message))
+      );
+
+      return jsonResponse({
+        status: 'started',
+        batch_size: batchSize,
+        message: `Processing up to ${batchSize} missing dates in background. Check /backfill/gaps/status for progress.`
+      });
+    }
+
+    // Gap-fill status
+    if (url.pathname === '/backfill/gaps/status') {
+      try {
+        const status = await getGapfillStatus(env);
+        return jsonResponse(status);
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
+    // Clear gap-fill progress (for fresh start)
+    if (url.pathname === '/backfill/gaps/clear') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      try {
+        const result = await clearGapfillProgress(env);
+        return jsonResponse(result);
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
     // Cache status endpoint - view processed APIs cache
     if (url.pathname === '/cache/status') {
       try {
@@ -932,7 +1003,11 @@ export default {
         '/test/unpdf',
         '/backfill/dockets?start=YYYY-MM-DD&end=YYYY-MM-DD',
         '/backfill/status',
-        '/backfill/clear'
+        '/backfill/clear',
+        '/backfill/gaps - List missing docket dates',
+        '/backfill/gaps/run?batch=50 - Fill missing dates (background)',
+        '/backfill/gaps/status - Gap-fill progress',
+        '/backfill/gaps/clear - Reset gap-fill progress'
       ]
     });
   }

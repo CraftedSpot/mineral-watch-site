@@ -65,9 +65,10 @@ function generateEntryId(entry) {
  * Store entries using D1 batch API with alerted_at set
  */
 async function storeEntriesBatch(db, entries, sourceUrl) {
-  if (entries.length === 0) return 0;
+  if (entries.length === 0) return { inserted: 0, updated: 0 };
 
-  let stored = 0;
+  let inserted = 0;
+  let updated = 0;
   const now = new Date().toISOString();
 
   // Process in batches of BATCH_SIZE
@@ -97,7 +98,13 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
           docket_date, docket_type, source_url, raw_text,
           order_number, related_order_numbers, alerted_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(case_number) DO NOTHING
+        ON CONFLICT(case_number) DO UPDATE SET
+          status = excluded.status,
+          continuation_date = excluded.continuation_date,
+          result_raw = excluded.result_raw,
+          additional_sections = COALESCE(excluded.additional_sections, additional_sections),
+          api_numbers = COALESCE(excluded.api_numbers, api_numbers),
+          updated_at = CURRENT_TIMESTAMP
       `).bind(
         id,
         entry.case_number,
@@ -132,16 +139,22 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
     });
 
     try {
-      await db.batch(statements);
-      stored += batch.length;
+      const results = await db.batch(statements);
+      // Count actual inserts vs updates from D1 meta
+      for (const r of results) {
+        const changes = r.meta?.changes || 0;
+        if (changes > 0) {
+          // D1 reports changes for both inserts and updates via ON CONFLICT
+          inserted += changes;
+        }
+      }
     } catch (err) {
-      // If batch fails, try individual inserts (some may be dupes)
+      // If batch fails, try individual inserts
       for (const stmt of statements) {
         try {
-          await stmt.run();
-          stored++;
+          const r = await stmt.run();
+          if (r.meta?.changes > 0) inserted++;
         } catch (individualErr) {
-          // Likely duplicate, ignore
           if (!individualErr.message.includes('UNIQUE')) {
             console.error(`[Backfill] Store error:`, individualErr.message);
           }
@@ -150,7 +163,7 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
     }
   }
 
-  return stored;
+  return { inserted, updated };
 }
 
 /**
@@ -192,8 +205,8 @@ async function processDate(env, date) {
   for (const result of results) {
     if (result.success) {
       docketsFetched++;
-      const stored = await storeEntriesBatch(env.WELLS_DB, result.entries, result.url);
-      entriesStored += stored;
+      const { inserted } = await storeEntriesBatch(env.WELLS_DB, result.entries, result.url);
+      entriesStored += inserted;
     } else if (result.skipped) {
       docketsSkipped++;
     } else {
@@ -366,4 +379,211 @@ export async function clearBackfillProgress(env) {
   await env.MINERAL_CACHE.delete('backfill:progress');
   await env.MINERAL_CACHE.delete('backfill:running');
   return { cleared: true };
+}
+
+// ─── Gap-Filler: Targeted backfill for missing dates only ───
+
+/**
+ * Find dates that exist in D1 vs expected weekdays, return the missing ones
+ */
+export async function findMissingDates(env) {
+  // Get all existing docket_dates from D1
+  const result = await env.WELLS_DB.prepare(
+    'SELECT DISTINCT docket_date FROM occ_docket_entries ORDER BY docket_date'
+  ).all();
+
+  const existingDates = new Set(
+    (result.results || []).map(r => r.docket_date)
+  );
+
+  // Generate all weekdays from EARLIEST_DATE to yesterday
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const end = yesterday;
+  const start = parseDate(EARLIEST_DATE);
+
+  const allWeekdays = [];
+  const current = new Date(start);
+  while (current <= end) {
+    if (isWeekday(current)) {
+      allWeekdays.push(formatDate(current));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  // Compute missing
+  const missing = allWeekdays.filter(d => !existingDates.has(d));
+
+  return {
+    totalWeekdays: allWeekdays.length,
+    totalExisting: existingDates.size,
+    totalMissing: missing.length,
+    missingDates: missing
+  };
+}
+
+/**
+ * Check if gap-fill is currently running
+ */
+export async function isGapfillRunning(env) {
+  const running = await env.MINERAL_CACHE.get('gapfill:running');
+  return running === 'true';
+}
+
+/**
+ * Get gap-fill progress and database stats
+ */
+export async function getGapfillStatus(env) {
+  const running = await isGapfillRunning(env);
+  const progressRaw = await env.MINERAL_CACHE.get('gapfill:progress');
+  const progress = progressRaw ? JSON.parse(progressRaw) : null;
+
+  const countResult = await env.WELLS_DB.prepare(`
+    SELECT COUNT(*) as total, COUNT(DISTINCT docket_date) as unique_dates,
+           MIN(docket_date) as earliest, MAX(docket_date) as latest
+    FROM occ_docket_entries
+  `).first();
+
+  return {
+    running,
+    progress: progress ? {
+      totalMissing: progress.missingDates?.length || 0,
+      processed: progress.nextIndex || 0,
+      remaining: (progress.missingDates?.length || 0) - (progress.nextIndex || 0),
+      lastDate: progress.lastDate || null,
+      stats: progress.stats || null,
+      updatedAt: progress.updatedAt || null
+    } : null,
+    database: countResult
+  };
+}
+
+/**
+ * Clear gap-fill progress (for fresh start)
+ */
+export async function clearGapfillProgress(env) {
+  await env.MINERAL_CACHE.delete('gapfill:progress');
+  await env.MINERAL_CACHE.delete('gapfill:running');
+  return { cleared: true };
+}
+
+/**
+ * Backfill only the missing dates, in a batch that fits within CPU limits.
+ *
+ * @param {Object} env - Worker environment
+ * @param {number} batchSize - Number of dates to process this invocation (default 50)
+ */
+export async function backfillMissingDates(env, batchSize = 50) {
+  const stats = {
+    docketsFetched: 0,
+    docketsSkipped: 0,
+    entriesStored: 0,
+    datesProcessed: 0,
+    datesFailed: 0,
+    errors: [],
+    startedAt: new Date().toISOString()
+  };
+
+  // Check lock
+  if (await isGapfillRunning(env)) {
+    return { error: 'Gap-fill already running', stats };
+  }
+
+  // Set lock (10 min safety TTL)
+  await env.MINERAL_CACHE.put('gapfill:running', 'true', { expirationTtl: 600 });
+
+  try {
+    // Load or compute missing dates list
+    let progressRaw = await env.MINERAL_CACHE.get('gapfill:progress');
+    let progress = progressRaw ? JSON.parse(progressRaw) : null;
+
+    if (!progress || !progress.missingDates || progress.missingDates.length === 0) {
+      // First run: compute the full list of missing dates
+      console.log('[GapFill] Computing missing dates...');
+      const gaps = await findMissingDates(env);
+      progress = {
+        missingDates: gaps.missingDates,
+        nextIndex: 0,
+        stats: { totalMissing: gaps.totalMissing },
+        updatedAt: new Date().toISOString()
+      };
+      await env.MINERAL_CACHE.put('gapfill:progress', JSON.stringify(progress));
+      console.log(`[GapFill] Found ${gaps.totalMissing} missing dates`);
+    }
+
+    const { missingDates, nextIndex } = progress;
+    const remaining = missingDates.length - nextIndex;
+
+    if (remaining <= 0) {
+      console.log('[GapFill] All dates already processed!');
+      stats.completedAt = new Date().toISOString();
+      return { complete: true, stats };
+    }
+
+    const endIndex = Math.min(nextIndex + batchSize, missingDates.length);
+    const batch = missingDates.slice(nextIndex, endIndex);
+
+    console.log(`[GapFill] Processing dates ${nextIndex + 1}-${endIndex} of ${missingDates.length} (${batch.length} this batch)`);
+
+    for (let i = 0; i < batch.length; i++) {
+      const dateStr = batch[i];
+
+      try {
+        const date = parseDate(dateStr);
+        const result = await processDate(env, date);
+
+        stats.docketsFetched += result.docketsFetched;
+        stats.docketsSkipped += result.docketsSkipped;
+        stats.entriesStored += result.entriesStored;
+        stats.datesProcessed++;
+
+        if (result.errors.length > 0) {
+          stats.errors.push(...result.errors);
+        }
+
+        // Update progress after each date
+        progress.nextIndex = nextIndex + i + 1;
+        progress.lastDate = dateStr;
+        progress.stats = {
+          ...progress.stats,
+          docketsFetched: (progress.stats.docketsFetched || 0) + result.docketsFetched,
+          entriesStored: (progress.stats.entriesStored || 0) + result.entriesStored,
+          datesProcessed: (progress.stats.datesProcessed || 0) + 1
+        };
+        progress.updatedAt = new Date().toISOString();
+        await env.MINERAL_CACHE.put('gapfill:progress', JSON.stringify(progress));
+
+        // Log progress every 10 dates
+        if ((i + 1) % 10 === 0) {
+          console.log(`[GapFill] Progress: ${dateStr} | ${i + 1}/${batch.length} this batch | Entries: ${stats.entriesStored}`);
+        }
+
+        // Rate limit
+        await new Promise(resolve => setTimeout(resolve, DELAY_MS));
+
+      } catch (err) {
+        stats.datesFailed++;
+        stats.errors.push({ date: dateStr, error: err.message });
+        console.error(`[GapFill] Error on ${dateStr}:`, err.message);
+        // Continue with next date — don't let one failure stop the batch
+        progress.nextIndex = nextIndex + i + 1;
+        progress.updatedAt = new Date().toISOString();
+        await env.MINERAL_CACHE.put('gapfill:progress', JSON.stringify(progress));
+      }
+    }
+
+    stats.completedAt = new Date().toISOString();
+    const newRemaining = missingDates.length - (nextIndex + batch.length);
+    console.log(`[GapFill] Batch complete: ${stats.datesProcessed} dates, ${stats.entriesStored} entries stored, ${newRemaining} remaining`);
+
+    return {
+      complete: newRemaining <= 0,
+      remaining: newRemaining,
+      stats
+    };
+
+  } finally {
+    // Release lock
+    await env.MINERAL_CACHE.delete('gapfill:running');
+  }
 }

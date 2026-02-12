@@ -161,6 +161,7 @@
                 if (directFilings.length === 0 && adjacentFilings.length === 0 && type === 'property') {
                     directContainer.innerHTML = '';
                     emptyMessage.style.display = 'block';
+                    countBadge.textContent = '0';
                 } else {
                     directContainer.innerHTML = contentHtml;
                     countBadge.textContent = String(docketCount);

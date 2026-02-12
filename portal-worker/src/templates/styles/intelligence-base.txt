@@ -12,6 +12,7 @@
         .user-menu { display: flex; align-items: center; gap: 15px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
 
         /* Hero / Summary Cards Zone — slightly lighter than header to create visual separation */
         .intel-hero { background: #213040; padding: 0 0 2rem; color: white; border-top: 1px solid rgba(255,255,255,0.06); }
@@ -182,14 +183,18 @@
             .market-tools-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 768px) {
-            .header-inner { flex-direction: column; gap: 10px; }
-            .logo { text-align: center; }
-            .nav-links { gap: 20px; }
-            .user-menu { gap: 10px; }
+            header { position: relative; z-index: 1000; }
+            .menu-toggle { display: block; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links, .user-menu { display: none; width: 100%; }
+            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
+            .nav-links a { padding: 12px 0; font-size: 15px; }
+            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
         }
         @media (max-width: 600px) {
             .summary-cards { grid-template-columns: 1fr; }
-            .nav-links { gap: 15px; }
+            .nav-links.open { gap: 0; }
             .nav-links a { font-size: 13px; }
             .intel-hero { padding: 0 0 1.5rem; }
             .intel-hero-header { padding: 1.5rem 0 1rem; }

@@ -12,6 +12,7 @@
         .user-menu { display: flex; align-items: center; gap: 15px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
 
         /* Hero Section */
         .operators-hero { background: #213040; padding: 2rem 0; color: white; border-top: 1px solid rgba(255,255,255,0.06); }
@@ -139,9 +140,14 @@
         @media (max-width: 768px) {
             .operators-table-container { overflow-x: auto; }
             .filter-controls { width: 100%; }
-            .header-inner { flex-wrap: wrap; gap: 10px; }
-            .nav-links { gap: 15px; }
-            .nav-links a { font-size: 13px; }
+            header { position: relative; z-index: 1000; }
+            .menu-toggle { display: block; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links, .user-menu { display: none; width: 100%; }
+            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
+            .nav-links a { padding: 12px 0; font-size: 15px; }
+            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
         }
         @media (max-width: 600px) {
             .search-section { flex-direction: column; }

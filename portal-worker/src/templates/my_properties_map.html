@@ -32,6 +32,7 @@
         .user-menu { display: flex; align-items: center; gap: 40px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
         main { padding: 20px 0; }
         
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -287,21 +288,15 @@
         
         /* Mobile Styles */
         @media (max-width: 768px) {
-            /* Mobile header adjustments to match dashboard */
-            .header-inner {
-                flex-wrap: wrap;
-                gap: 10px;
-            }
-            .logo {
-                font-size: 18px;
-            }
-            .nav-links {
-                gap: 10px;
-            }
-            .nav-links a {
-                font-size: 12px;
-                padding: 5px;
-            }
+            /* Mobile hamburger navigation */
+            header { position: relative; z-index: 1000; }
+            .menu-toggle { display: block; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links, .user-menu { display: none; width: 100%; }
+            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
+            .nav-links a { padding: 12px 0; font-size: 15px; }
+            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
             .user-menu {
                 gap: 10px;
                 width: 100%;
@@ -349,7 +344,8 @@
             </div>
         </div>
     </header>
-    
+    <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
+
     <main>
         <div class="container">
             <div class="page-header">

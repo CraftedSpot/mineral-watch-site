@@ -45,7 +45,7 @@ function normalizeSection(sec: string | number | null): number | null {
   return isNaN(num) ? null : num;
 }
 
-const BATCH_SIZE_D1 = 75;
+const BATCH_SIZE_D1 = 30; // D1 limit: 100 bound params; STR queries use 3 per item
 const WELLS_CACHE_TTL = 300; // 5 minutes
 
 // Document types that show on well modals
@@ -277,7 +277,7 @@ async function fetchOCCFilingCounts(
       const whereConditions = batch.map(() =>
         `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
       ).join(' OR ');
-      const whereBindings = batch.flatMap(({ sec, twn, rng }) => [sec, twn, rng]);
+      const whereBindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
 
       const query = `
         SELECT section as sec, township as twn, range as rng, COUNT(*) as count

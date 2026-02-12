@@ -397,200 +397,119 @@
             line-height: 1.5;
         }
 
-        /* Phone Mockup Carousel */
-        .phone-mockup {
+        /* App Showcase */
+        .app-showcase {
             background: #1C2B36;
-            border-radius: 32px;
-            padding: 12px;
+            border-radius: 16px;
             box-shadow: 0 25px 50px rgba(0,0,0,0.25);
-            max-width: 340px;
+            max-width: 480px;
             margin: 0 auto;
-        }
-        
-        .phone-screen {
-            background: #fff;
-            border-radius: 24px;
             overflow: hidden;
         }
-        
-        .phone-notch {
+
+        .showcase-titlebar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
             background: #1C2B36;
-            height: 28px;
-            border-radius: 0 0 16px 16px;
-            width: 120px;
-            margin: 0 auto;
-            position: relative;
-            top: -1px;
         }
-        
-        /* Tab Navigation inside phone */
-        .alert-tabs-phone {
+
+        .showcase-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .showcase-dots span {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #FF5F57; }
+        .dot-yellow { background: #FEBC2E; }
+        .dot-green { background: #28C840; }
+
+        .showcase-url {
+            font-size: 11px;
+            color: #8899A6;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        /* Tab Navigation */
+        .showcase-tabs {
             display: flex;
             background: #F8F9FA;
             border-bottom: 1px solid #E2E8F0;
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
         }
-        
-        .alert-tab-phone {
+
+        .showcase-tab {
             flex: 1;
-            padding: 10px 6px;
-            font-size: 9px;
+            padding: 10px 8px;
+            font-size: 11px;
             font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
             color: #64748B;
             background: transparent;
             border: none;
             cursor: pointer;
             transition: all 0.2s;
             border-bottom: 2px solid transparent;
-            white-space: nowrap;
             text-align: center;
         }
-        
-        .alert-tab-phone:hover {
+
+        .showcase-tab:hover {
             color: #1C2B36;
             background: #EDF2F7;
         }
-        
-        .alert-tab-phone.active {
+
+        .showcase-tab.active {
             color: var(--red-dirt);
             border-bottom-color: var(--red-dirt);
             background: #fff;
         }
-        
-        .alert-tab-phone .tab-icon {
-            display: block;
-            font-size: 14px;
-            margin-bottom: 2px;
-        }
-        
-        /* Email content wrapper */
-        .email-scroll {
-            height: 420px;
-            overflow-y: auto;
+
+        /* Screenshot content area */
+        .showcase-screen {
+            background: #fff;
+            aspect-ratio: 4 / 3;
+            overflow: hidden;
             position: relative;
         }
-        
-        .email-content-phone {
+
+        .showcase-content {
             display: none;
             animation: fadeIn 0.3s ease;
+            width: 100%;
+            height: 100%;
         }
-        
-        .email-content-phone.active {
+
+        .showcase-content.active {
             display: block;
         }
-        
+
+        .showcase-content img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top left;
+            display: block;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
-        
-        /* Mockup Buttons */
-        .mockup-btn-row {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-        }
 
-        .mockup-btn-primary {
-            flex: 1;
-            text-align: center;
-            background: var(--red-dirt);
-            color: #ffffff;
-            padding: 8px 0;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 10px;
-            cursor: pointer;
-            text-decoration: none;
-            border: 1px solid var(--red-dirt);
-        }
-
-        .mockup-btn-outline {
-            flex: 1;
-            text-align: center;
-            background: #fff;
-            border: 1px solid var(--red-dirt);
-            color: var(--red-dirt);
-            padding: 8px 0;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 10px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        
-        .mockup-btn-outline-gray {
-            flex: 1;
-            text-align: center;
-            background: #fff;
-            border: 1px solid #718096;
-            color: #718096;
-            padding: 8px 0;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 10px;
-            cursor: pointer;
-            text-decoration: none;
-        }
-        
-        .mockup-btn-primary-gray {
-            flex: 1;
-            text-align: center;
-            background: #718096;
-            color: #ffffff;
-            padding: 8px 0;
-            border-radius: 4px;
-            font-weight: 600;
-            font-size: 10px;
-            cursor: pointer;
-            text-decoration: none;
-            border: 1px solid #718096;
-        }
-        
-        /* Arrow buttons */
-        .carousel-nav {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            padding: 16px;
-            background: #F8F9FA;
-            border-top: 1px solid #E2E8F0;
-        }
-        
-        .nav-btn {
-            width: 36px;
-            height: 36px;
-            background: #fff;
-            border: 1px solid #E2E8F0;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 16px;
-            color: #334E68;
-            transition: all 0.2s;
-        }
-        
-        .nav-btn:hover {
-            background: var(--red-dirt);
-            color: white;
-            border-color: var(--red-dirt);
-        }
-        
         /* Dot indicators */
-        .dots-phone {
+        .showcase-dots-nav {
             display: flex;
             justify-content: center;
             gap: 6px;
-            padding-bottom: 4px;
+            padding: 8px 0;
             background: #F8F9FA;
         }
-        
-        .dot-phone {
+
+        .dot-showcase {
             width: 6px;
             height: 6px;
             border-radius: 50%;
@@ -598,10 +517,21 @@
             cursor: pointer;
             transition: all 0.2s;
         }
-        
-        .dot-phone.active {
+
+        .dot-showcase.active {
             background: var(--red-dirt);
             transform: scale(1.3);
+        }
+
+        /* Active step highlight (when showcase tab matches) */
+        .step-compact.active-step {
+            background: rgba(188, 71, 37, 0.06);
+            border-radius: 8px;
+            margin-left: -12px;
+            margin-right: -12px;
+            padding-left: 12px;
+            padding-right: 12px;
+            transition: background 0.3s ease;
         }
 
         /* CTA Section */
@@ -731,8 +661,8 @@
                 gap: 50px;
             }
 
-            .phone-mockup {
-                max-width: 300px;
+            .app-showcase {
+                max-width: 100%;
             }
 
             .stats-row {
@@ -828,7 +758,7 @@
                         Built by Oklahoma Mineral Owners
                     </div>
                     <h1>The Command Center for Oklahoma Mineral Owners</h1>
-                    <p class="subtitle">Monitor. Analyze. Manage. Your complete mineral intelligence platform.</p>
+                    <p class="subtitle">Monitor. Analyze. Manage. OCC alerts, production intelligence, AI document extraction, and interactive mapping — all in one platform.</p>
                 </div>
                 
                 <div class="cta-box">
@@ -857,16 +787,16 @@
                     <span class="stat-label">Oklahoma Counties</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number">7</span>
-                    <span class="stat-label">OCC Filing Types</span>
+                    <span class="stat-number">100K+</span>
+                    <span class="stat-label">Production Reports</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-number">450K+</span>
                     <span class="stat-label">Wells Tracked</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-number">8</span>
-                    <span class="stat-label">Adjacent Sections Watched</span>
+                    <span class="stat-number">1,000+</span>
+                    <span class="stat-label">Documents Extracted</span>
                 </div>
             </div>
         </div>
@@ -943,245 +873,69 @@
                     <h2>How Mineral Watch Works</h2>
                     <p>Set up once, stay informed forever.</p>
                     
-                    <div class="step-compact">
+                    <div class="step-compact active-step" data-step="map">
                         <div class="step-num">1</div>
                         <div class="step-content">
                             <h3>Add Your Properties</h3>
                             <p>Enter your legal descriptions (Sec-Twn-Rng). We instantly map them and start watching the 8 surrounding sections for horizontal permits.</p>
                         </div>
                     </div>
-                    
-                    <div class="step-compact">
+
+                    <div class="step-compact" data-step="production">
                         <div class="step-num">2</div>
                         <div class="step-content">
                             <h3>Stay Informed Automatically</h3>
                             <p>Daily scans for permits, completions, transfers, and OCC filings. Production reports and weekly digests delivered in plain English — no jargon.</p>
                         </div>
                     </div>
-                    
-                    <div class="step-compact">
+
+                    <div class="step-compact" data-step="documents">
                         <div class="step-num">3</div>
                         <div class="step-content">
-                            <h3>Build Your Knowledge Base</h3>
-                            <p>Track wells with one click. Upload documents for AI extraction. Everything connects automatically — your minerals, organized.</p>
+                            <h3>Analyze & Manage Your Portfolio</h3>
+                            <p>View production trends for every well. Upload documents for AI extraction of royalty rates, bonus amounts, and legal descriptions. Your entire mineral portfolio — organized, analyzed, and connected.</p>
                         </div>
                     </div>
                 </div>
                 
-                <div class="phone-mockup">
-                    <div class="phone-screen">
-                        <div class="phone-notch"></div>
-                        
-                        <div class="alert-tabs-phone">
-                            <button class="alert-tab-phone active" data-tab="permit">
-                                <span class="tab-icon">📋</span>
-                                Permit
-                            </button>
-                            <button class="alert-tab-phone" data-tab="complete">
-                                <span class="tab-icon">💰</span>
-                                Complete
-                            </button>
-                            <button class="alert-tab-phone" data-tab="transfer">
-                                <span class="tab-icon">🔄</span>
-                                Transfer
-                            </button>
-                            <button class="alert-tab-phone" data-tab="plugged">
-                                <span class="tab-icon">🔌</span>
-                                Plugged
-                            </button>
+                <div class="app-showcase">
+                    <div class="showcase-titlebar">
+                        <div class="showcase-dots">
+                            <span class="dot-red"></span>
+                            <span class="dot-yellow"></span>
+                            <span class="dot-green"></span>
                         </div>
-                        
-                        <div class="email-scroll">
-                            
-                            <div class="email-content-phone active" id="permit">
-                                <div style="background: #1C2B36; padding: 14px 16px;">
-                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
-                                </div>
-                                <div style="padding: 16px;">
-                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Daily Alert</p>
-                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Activity on Your Property</h2>
-                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
-                                    
-                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 0 6px 6px 0; overflow: hidden;">
-                                        <div style="background: #FEF2F2; padding: 10px 12px;">
-                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
-                                                <span style="background: #DBEAFE; color: #1E40AF; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">NEW PERMIT</span>
-                                            </div>
-                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
-                                        </div>
-                                        <div style="padding: 12px;">
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
-                                            
-                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
-                                                    <strong style="color: #1C2B36;">What this means:</strong> An operator has filed a permit to drill a new well on your property.
-                                                </p>
-                                            </div>
-                                            
-                                            <div style="background: #FEF3C7; border-radius: 4px; padding: 10px; border-left: 3px solid #F59E0B;">
-                                                <p style="margin: 0; font-size: 11px; color: #92400E; line-height: 1.4;">
-                                                    Watch for pooling notices or lease offers in the coming weeks.
-                                                </p>
-                                            </div>
-                                            
-                                            <div class="mockup-btn-row">
-                                                <a href="#" class="mockup-btn-outline">View PDF</a>
-                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="email-content-phone" id="complete">
-                                <div style="background: #1C2B36; padding: 14px 16px;">
-                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
-                                </div>
-                                <div style="padding: 16px;">
-                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
-                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Well Now Producing</h2>
-                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
-                                    
-                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #047857; border-radius: 0 6px 6px 0; overflow: hidden;">
-                                        <div style="background: #F0FDFA; padding: 10px 12px;">
-                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
-                                                <span style="background: #D1FAE5; color: #047857; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">WELL COMPLETED</span>
-                                            </div>
-                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
-                                        </div>
-                                        <div style="padding: 12px;">
-                                            <div style="background: #D1FAE5; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 10px; color: #047857;"><strong>Status changed:</strong> SP → AC</p>
-                                            </div>
-                                            
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
-                                            
-                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
-                                                    <strong style="color: #1C2B36;">What this means:</strong> Drilling is complete and the well is now producing oil or gas.
-                                                </p>
-                                            </div>
-                                            
-                                            <div style="background: #F0FDF4; border-radius: 4px; padding: 10px; border-left: 3px solid #22C55E;">
-                                                <p style="margin: 0; font-size: 11px; color: #166534; line-height: 1.4;">
-                                                    🎉 Royalty checks should follow. First payment typically arrives 3-6 months after completion.
-                                                </p>
-                                            </div>
-                                            
-                                            <div class="mockup-btn-row">
-                                                <a href="#" class="mockup-btn-outline">View PDF</a>
-                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="email-content-phone" id="transfer">
-                                <div style="background: #1C2B36; padding: 14px 16px;">
-                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
-                                </div>
-                                <div style="padding: 16px;">
-                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
-                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Operator Transfer</h2>
-                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 change.</p>
-                                    
-                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #0D9488; border-radius: 0 6px 6px 0; overflow: hidden;">
-                                        <div style="background: #F0FDFA; padding: 10px 12px;">
-                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                                                <span style="background: #0D9488; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">TRACKED WELL</span>
-                                                <span style="background: #EDE9FE; color: #6D28D9; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">OPERATOR TRANSFER</span>
-                                            </div>
-                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">API: 35-051-12345</p>
-                                        </div>
-                                        <div style="padding: 12px;">
-                                            <div style="background: #EDE9FE; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 10px; color: #6D28D9;"><strong>Operator changed:</strong> Chesapeake → Citizen</p>
-                                            </div>
-                                            
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Grandpa Joe 1-14H</span></p>
-                                            
-                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
-                                                    <strong style="color: #1C2B36;">What this means:</strong> Operational control transferred. New operator handles royalty payments.
-                                                </p>
-                                            </div>
-                                            
-                                            <div style="background: #FEF2F2; border-radius: 4px; padding: 10px; border-left: 3px solid #EF4444;">
-                                                <p style="margin: 0; font-size: 11px; color: #991B1B; line-height: 1.4;">
-                                                    ⚠️ Your checks will come from Citizen Energy. Watch for new division order.
-                                                </p>
-                                            </div>
-                                            
-                                            <div class="mockup-btn-row">
-                                                <a href="#" class="mockup-btn-outline">View PDF</a>
-                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="email-content-phone" id="plugged">
-                                <div style="background: #1C2B36; padding: 14px 16px;">
-                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
-                                </div>
-                                <div style="padding: 16px;">
-                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Status Alert</p>
-                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Well Plugged & Abandoned</h2>
-                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, status change detected.</p>
-                                    
-                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #718096; border-radius: 0 6px 6px 0; overflow: hidden;">
-                                        <div style="background: #F1F5F9; padding: 10px 12px;">
-                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
-                                                <span style="background: #718096; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">TRACKED WELL</span>
-                                                <span style="background: #CBD5E0; color: #475569; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">PLUGGED</span>
-                                            </div>
-                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
-                                        </div>
-                                        <div style="padding: 12px;">
-                                            <div style="background: #CBD5E0; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 10px; color: #1E293B;"><strong>Status changed:</strong> AC → PA</p>
-                                            </div>
-                                            
-                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
-                                            <p style="margin: 0 0 10px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
-                                            
-                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
-                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
-                                                    <strong style="color: #1C2B36;">What this means:</strong> Production has ceased and the well has been permanently plugged.
-                                                </p>
-                                            </div>
-                                            
-                                            <div class="mockup-btn-row">
-                                                <a href="#" class="mockup-btn-outline-gray">View PDF</a>
-                                                <a href="#" class="mockup-btn-primary-gray">+ Track Well</a>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
+                        <span class="showcase-url">portal.mymineralwatch.com</span>
+                    </div>
+                    <div class="showcase-tabs">
+                        <button class="showcase-tab active" data-tab="map">Property Map</button>
+                        <button class="showcase-tab" data-tab="production">Production Data</button>
+                        <button class="showcase-tab" data-tab="documents">Document Intelligence</button>
+                    </div>
+                    <div class="showcase-screen">
+                        <div class="showcase-content active" id="showcase-map">
+                            <img src="assets/showcase-map.png" alt="Interactive property map with pooling rate overlays" loading="lazy">
                         </div>
-                        
-                        <div class="carousel-nav">
-                            <button class="nav-btn" onclick="prevAlert()">←</button>
-                            <button class="nav-btn" onclick="nextAlert()">→</button>
+                        <div class="showcase-content" id="showcase-production">
+                            <img src="assets/showcase-production.png" alt="Unit production report with charts and well data" loading="lazy">
                         </div>
-                        
-                        <div class="dots-phone">
-                            <div class="dot-phone active" data-tab="permit"></div>
-                            <div class="dot-phone" data-tab="complete"></div>
-                            <div class="dot-phone" data-tab="transfer"></div>
-                            <div class="dot-phone" data-tab="plugged"></div>
+                        <div class="showcase-content" id="showcase-documents">
+                            <img src="assets/showcase-documents.png" alt="AI document extraction of pooling order with election options" loading="lazy">
                         </div>
-                        
+                    </div>
+                    <div class="showcase-dots-nav">
+                        <div class="dot-showcase active" data-tab="map"></div>
+                        <div class="dot-showcase" data-tab="production"></div>
+                        <div class="dot-showcase" data-tab="documents"></div>
                     </div>
                 </div>
+
+                <!-- Old email alert mockups preserved for potential reuse -->
+                <!--
+                <div class="phone-mockup">
+                    [Email alert mockup HTML removed for brevity - was showing Permit/Complete/Transfer/Plugged alert previews in a phone frame carousel]
+                </div>
+                -->
                 
             </div>
         </div>
@@ -1190,7 +944,7 @@
     <section class="cta-section">
         <div class="container">
             <h2>Your Minerals Deserve Better</h2>
-            <p>Join Oklahoma mineral owners who finally have visibility into what's happening on their land.</p>
+            <p>The complete mineral intelligence platform — monitoring, analysis, document extraction, and portfolio management. Start with one property free.</p>
             <a href="https://portal.mymineralwatch.com/" class="cta-button">Start Free</a>
         </div>
     </section>
@@ -1215,65 +969,77 @@
     </footer>
 
     <script>
-        const tabs = ['permit', 'complete', 'transfer', 'plugged'];
-        let currentIndex = 0;
-        
-        // Tab click handler
-        document.querySelectorAll('.alert-tab-phone').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const tabId = tab.dataset.tab;
-                switchToTab(tabId);
-            });
-        });
-        
-        // Dot click handler
-        document.querySelectorAll('.dot-phone').forEach(dot => {
-            dot.addEventListener('click', () => {
-                const tabId = dot.dataset.tab;
-                switchToTab(tabId);
-            });
-        });
-        
-        function switchToTab(tabId) {
-            currentIndex = tabs.indexOf(tabId);
-            
+        // Showcase tab switching
+        const showcaseTabs = ['map', 'production', 'documents'];
+        let showcaseIndex = 0;
+        let showcaseInterval;
+
+        function switchShowcase(tabId) {
+            showcaseIndex = showcaseTabs.indexOf(tabId);
             // Update tabs
-            document.querySelectorAll('.alert-tab-phone').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.alert-tab-phone[data-tab="${tabId}"]`).classList.add('active');
-            
+            document.querySelectorAll('.showcase-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.showcase-tab[data-tab="' + tabId + '"]').classList.add('active');
             // Update content
-            document.querySelectorAll('.email-content-phone').forEach(c => c.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            
+            document.querySelectorAll('.showcase-content').forEach(c => c.classList.remove('active'));
+            document.getElementById('showcase-' + tabId).classList.add('active');
             // Update dots
-            document.querySelectorAll('.dot-phone').forEach(d => d.classList.remove('active'));
-            document.querySelector(`.dot-phone[data-tab="${tabId}"]`).classList.add('active');
+            document.querySelectorAll('.dot-showcase').forEach(d => d.classList.remove('active'));
+            document.querySelector('.dot-showcase[data-tab="' + tabId + '"]').classList.add('active');
+            // Update step highlights
+            document.querySelectorAll('.step-compact').forEach(s => s.classList.remove('active-step'));
+            var activeStep = document.querySelector('.step-compact[data-step="' + tabId + '"]');
+            if (activeStep) activeStep.classList.add('active-step');
         }
-        
-        function nextAlert() {
-            currentIndex = (currentIndex + 1) % tabs.length;
-            switchToTab(tabs[currentIndex]);
+
+        // Tab clicks
+        document.querySelectorAll('.showcase-tab').forEach(function(tab) {
+            tab.addEventListener('click', function() { switchShowcase(tab.dataset.tab); });
+        });
+
+        // Dot clicks
+        document.querySelectorAll('.dot-showcase').forEach(function(dot) {
+            dot.addEventListener('click', function() { switchShowcase(dot.dataset.tab); });
+        });
+
+        // Step hover/click switches showcase
+        document.querySelectorAll('.step-compact[data-step]').forEach(function(step) {
+            step.addEventListener('mouseenter', function() {
+                switchShowcase(step.dataset.step);
+                clearInterval(showcaseInterval);
+            });
+            step.addEventListener('mouseleave', startAutoCycle);
+            step.addEventListener('click', function() { switchShowcase(step.dataset.step); });
+        });
+
+        // Auto-cycle every 6 seconds
+        function startAutoCycle() {
+            clearInterval(showcaseInterval);
+            showcaseInterval = setInterval(function() {
+                showcaseIndex = (showcaseIndex + 1) % showcaseTabs.length;
+                switchShowcase(showcaseTabs[showcaseIndex]);
+            }, 6000);
         }
-        
-        function prevAlert() {
-            currentIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-            switchToTab(tabs[currentIndex]);
-        }
-        
-        // Swipe support
+
+        // Pause auto-cycle on hover over showcase
+        var showcase = document.querySelector('.app-showcase');
+        showcase.addEventListener('mouseenter', function() { clearInterval(showcaseInterval); });
+        showcase.addEventListener('mouseleave', startAutoCycle);
+
+        // Swipe support for mobile
         let touchStartX = 0;
-        const wrapper = document.querySelector('.email-scroll');
-        
-        wrapper.addEventListener('touchstart', e => {
-            touchStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-        
-        wrapper.addEventListener('touchend', e => {
-            const diff = touchStartX - e.changedTouches[0].screenX;
+        var screen = document.querySelector('.showcase-screen');
+        screen.addEventListener('touchstart', function(e) { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+        screen.addEventListener('touchend', function(e) {
+            var diff = touchStartX - e.changedTouches[0].screenX;
             if (Math.abs(diff) > 50) {
-                diff > 0 ? nextAlert() : prevAlert();
+                showcaseIndex = diff > 0
+                    ? (showcaseIndex + 1) % showcaseTabs.length
+                    : (showcaseIndex - 1 + showcaseTabs.length) % showcaseTabs.length;
+                switchShowcase(showcaseTabs[showcaseIndex]);
             }
         }, { passive: true });
+
+        startAutoCycle();
 
         // Hamburger menu toggle
         document.querySelector('.menu-toggle').addEventListener('click', function() {

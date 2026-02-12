@@ -77,8 +77,8 @@ export async function handleUploadProductionData(
       }
     }
 
-    // Process in batches of 100 to avoid hitting D1 limits
-    const BATCH_SIZE = 100;
+    // Process in batches of 500 (D1 max batch size)
+    const BATCH_SIZE = 500;
     let totalInserted = 0;
 
     for (let i = 0; i < body.records.length; i += BATCH_SIZE) {
@@ -233,8 +233,8 @@ export async function handleUploadPunProductionData(
       }
     }
 
-    // Process in batches of 100 to avoid hitting D1 limits
-    const BATCH_SIZE = 100;
+    // Process in batches of 500 (D1 max batch size)
+    const BATCH_SIZE = 500;
     let totalInserted = 0;
     const mode = body.mode || 'replace';
 

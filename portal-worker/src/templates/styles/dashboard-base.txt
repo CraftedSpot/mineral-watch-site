@@ -12,6 +12,7 @@
         .user-menu { display: flex; align-items: center; gap: 15px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
         main { padding: 40px 0; }
         .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; flex-wrap: wrap; gap: 20px; }
         .page-header h1 { font-size: 28px; margin: 0; line-height: 1.2; }
@@ -1614,19 +1615,19 @@
         }
         
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; margin-top: auto; }
-        @media (max-width: 768px) { 
-            .form-row { grid-template-columns: 1fr; } 
-            .form-group.full { grid-column: span 1; } 
-            
-            /* Mobile navigation - match Learn page style */
-            .header-inner {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .nav-links {
-                gap: 20px;
-            }
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; }
+            .form-group.full { grid-column: span 1; }
+
+            /* Mobile hamburger navigation */
+            header { position: relative; z-index: 1000; }
+            .menu-toggle { display: block; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links, .user-menu { display: none; width: 100%; }
+            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
+            .nav-links a { padding: 12px 0; font-size: 15px; }
+            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
             
             /* Reset table layout for mobile */
             #propertiesContent .data-table, 

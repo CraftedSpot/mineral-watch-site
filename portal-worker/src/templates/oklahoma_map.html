@@ -59,7 +59,8 @@
         .user-menu { display: flex; align-items: center; gap: 15px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
-        
+        .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
+
         main { padding: 20px 0; }
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .page-header h1 { font-size: 28px; margin: 0; }
@@ -2436,15 +2437,15 @@
         
         /* Mobile Styles */
         @media (max-width: 768px) {
-            /* Mobile navigation - match Learn page style */
-            .header-inner {
-                flex-direction: column;
-                gap: 15px;
-            }
-            
-            .nav-links {
-                gap: 20px;
-            }
+            /* Mobile hamburger navigation */
+            header { position: relative; z-index: 1000; }
+            .menu-toggle { display: block; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links, .user-menu { display: none; width: 100%; }
+            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
+            .nav-links a { padding: 12px 0; font-size: 15px; }
+            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
             
             /* Map specific mobile adjustments */
             #map {
@@ -2486,6 +2487,9 @@
         <div class="container">
             <div class="header-inner">
                 <a href="/" class="logo">Mineral Watch</a>
+                <button class="menu-toggle" aria-label="Menu">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
                 <nav class="nav-links">
                     <a href="/portal">Dashboard</a>
                     <a href="/portal/map" class="active">Map</a>
@@ -2499,7 +2503,8 @@
             </div>
         </div>
     </header>
-    
+    <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
+
     <main>
         <div class="container">
             <div class="page-header">
