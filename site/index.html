@@ -471,16 +471,19 @@
         /* Screenshot content area */
         .showcase-screen {
             background: #fff;
-            aspect-ratio: 4 / 3;
+            aspect-ratio: 3 / 4;
             overflow: hidden;
             position: relative;
         }
 
         .showcase-content {
             display: none;
-            animation: fadeIn 0.3s ease;
+            position: absolute;
+            top: 0;
+            left: 0;
             width: 100%;
             height: 100%;
+            animation: fadeIn 0.3s ease;
         }
 
         .showcase-content.active {
@@ -972,8 +975,6 @@
         // Showcase tab switching
         const showcaseTabs = ['map', 'production', 'documents'];
         let showcaseIndex = 0;
-        let showcaseInterval;
-
         function switchShowcase(tabId) {
             showcaseIndex = showcaseTabs.indexOf(tabId);
             // Update tabs
@@ -1007,23 +1008,8 @@
                 switchShowcase(step.dataset.step);
                 clearInterval(showcaseInterval);
             });
-            step.addEventListener('mouseleave', startAutoCycle);
             step.addEventListener('click', function() { switchShowcase(step.dataset.step); });
         });
-
-        // Auto-cycle every 6 seconds
-        function startAutoCycle() {
-            clearInterval(showcaseInterval);
-            showcaseInterval = setInterval(function() {
-                showcaseIndex = (showcaseIndex + 1) % showcaseTabs.length;
-                switchShowcase(showcaseTabs[showcaseIndex]);
-            }, 6000);
-        }
-
-        // Pause auto-cycle on hover over showcase
-        var showcase = document.querySelector('.app-showcase');
-        showcase.addEventListener('mouseenter', function() { clearInterval(showcaseInterval); });
-        showcase.addEventListener('mouseleave', startAutoCycle);
 
         // Swipe support for mobile
         let touchStartX = 0;
@@ -1038,8 +1024,6 @@
                 switchShowcase(showcaseTabs[showcaseIndex]);
             }
         }, { passive: true });
-
-        startAutoCycle();
 
         // Hamburger menu toggle
         document.querySelector('.menu-toggle').addEventListener('click', function() {
