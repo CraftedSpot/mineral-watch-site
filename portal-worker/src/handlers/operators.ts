@@ -699,6 +699,7 @@ export async function handleGetOperatorDetail(request: Request, env: Env, operat
       WHERE SUBSTR(p.pun, 1, 10) IN (
         SELECT DISTINCT base_pun FROM otc_leases WHERE operator_number = ?
       )
+        AND p.months_since_production IS NOT NULL
     `).bind(operatorNumber).first();
 
     return jsonResponse({
