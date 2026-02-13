@@ -1117,9 +1117,75 @@ export function renderArticle(slug: string): string | null {
             .do-field { grid-template-columns: 1fr; }
             .do-field-label { border-right: none; border-bottom: 1px solid var(--border); }
         }
+
+        /* Print styles */
+        @media print {
+            header, .breadcrumb, .article-sidebar, .bottom-cta, footer,
+            .article-actions, .share-wrap, .article-meta, .article-tag,
+            .sidebar-cta, .article-lede { display: none !important; }
+            body { font-size: 11pt; line-height: 1.5; color: #000; }
+            .container { max-width: 100%; padding: 0; }
+            .article-layout { display: block !important; }
+            .article-hero { padding: 0; }
+            .article-hero h1 { font-size: 24pt; margin-bottom: 8px; }
+            .article-body h2 { font-size: 16pt; margin-top: 28px; page-break-after: avoid; }
+            .article-body h3 { font-size: 13pt; margin-top: 20px; page-break-after: avoid; }
+            .article-body p { font-size: 10.5pt; margin-bottom: 10px; }
+            .article-image { max-height: 280px; margin: 16px 0; }
+            .callout { border-left-width: 3px; padding: 12px 16px; margin: 16px 0; page-break-inside: avoid; }
+            .tool-card, .filing-card, .math-example, .do-anatomy, .step-box { page-break-inside: avoid; margin: 16px 0; }
+            .tool-card-header, .filing-card-header { padding: 12px 16px; }
+            .tool-card-body, .filing-card-body { padding: 12px 16px; }
+            .quick-ref { font-size: 9pt; }
+            .faq-section { page-break-before: auto; }
+            .faq-item { page-break-inside: avoid; }
+            a { color: #000 !important; text-decoration: none !important; }
+            a.tool-url { background: none; padding: 0; font-size: 10pt; }
+
+            /* Print header branding */
+            .print-header {
+                display: flex !important;
+                align-items: center;
+                justify-content: space-between;
+                padding: 16px 0 14px;
+                margin-bottom: 20px;
+                border-bottom: 3px solid #C05621;
+            }
+            .print-header-logo {
+                font-family: 'Merriweather', Georgia, serif;
+                font-size: 18pt;
+                font-weight: 900;
+                color: #1C2B36;
+            }
+            .print-header-info {
+                text-align: right;
+                font-size: 8.5pt;
+                color: #666;
+                line-height: 1.4;
+            }
+
+            /* Print footer */
+            .print-footer {
+                display: block !important;
+                margin-top: 30px;
+                padding-top: 12px;
+                border-top: 1px solid #ccc;
+                font-size: 8pt;
+                color: #888;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
+
+    <div class="print-header">
+        <div class="print-header-logo">Mineral Watch</div>
+        <div class="print-header-info">
+            mymineralwatch.com<br>
+            Oklahoma Mineral Rights Intelligence
+        </div>
+    </div>
 
     ${HEADER}
 
@@ -1147,36 +1213,42 @@ export function renderArticle(slug: string): string | null {
                         <span>${esc(article.readTime)}</span>
                         <span>${esc(article.updated)}</span>
                     </div>
-                    <div class="share-wrap">
-                        <button class="share-trigger" onclick="this.nextElementSibling.classList.toggle('open')">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
-                            Share
-                        </button>
-                        <div class="share-modal">
-                            <div class="share-modal-title">Share this article</div>
-                            <div class="share-link-box">
-                                <input class="share-link-input" type="text" value="${article.canonical}" readonly onclick="this.select()">
-                                <button class="share-copy-btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)">Copy</button>
-                            </div>
-                            <div class="share-options">
-                                <a class="share-opt" onclick="window.open('https://x.com/intent/tweet?url='+encodeURIComponent('${article.canonical}')+'&text='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
-                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                                    X
-                                </a>
-                                <a class="share-opt" onclick="window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
-                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                                    Facebook
-                                </a>
-                                <a class="share-opt" onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
-                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                                    LinkedIn
-                                </a>
-                                <a class="share-opt" onclick="window.location.href='mailto:?subject='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}')+'&body='+encodeURIComponent('I thought you might find this useful:\\n\\n${article.canonical}');return false;" href="#">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>
-                                    Email
-                                </a>
+                    <div class="article-actions">
+                        <div class="share-wrap">
+                            <button class="share-trigger" onclick="this.nextElementSibling.classList.toggle('open')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                                Share
+                            </button>
+                            <div class="share-modal">
+                                <div class="share-modal-title">Share this article</div>
+                                <div class="share-link-box">
+                                    <input class="share-link-input" type="text" value="${article.canonical}" readonly onclick="this.select()">
+                                    <button class="share-copy-btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)">Copy</button>
+                                </div>
+                                <div class="share-options">
+                                    <a class="share-opt" onclick="window.open('https://x.com/intent/tweet?url='+encodeURIComponent('${article.canonical}')+'&text='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                        X
+                                    </a>
+                                    <a class="share-opt" onclick="window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                        Facebook
+                                    </a>
+                                    <a class="share-opt" onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                        LinkedIn
+                                    </a>
+                                    <a class="share-opt" onclick="window.location.href='mailto:?subject='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}')+'&body='+encodeURIComponent('I thought you might find this useful:\\n\\n${article.canonical}');return false;" href="#">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>
+                                        Email
+                                    </a>
+                                </div>
                             </div>
                         </div>
+                        <button class="print-trigger" onclick="window.print()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            Print
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1213,6 +1285,10 @@ export function renderArticle(slug: string): string | null {
             <a href="https://portal.mymineralwatch.com/" class="sidebar-btn">Start Free &rarr;</a>
         </div>
     </section>
+
+    <div class="print-footer" style="display:none;">
+        ${article.canonical} &bull; &copy; 2026 Mineral Watch LLC &bull; mymineralwatch.com
+    </div>
 
     ${FOOTER}
     ${MENU_SCRIPT}
