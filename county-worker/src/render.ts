@@ -320,7 +320,7 @@ ${HEADER}
                     <div class="county-label">Oklahoma County Profile</div>
                     <h1>${esc(countyName)} County <em>Mineral</em> Intelligence</h1>
                     <p class="county-hero-description">${esc(heroDesc)}</p>
-                    <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
+                    <a href="https://portal.mymineralwatch.com/" class="hero-cta">Start Free &rarr;</a>
                 </div>
                 <div class="county-stats-grid">
                     <div class="county-stat-card">
@@ -351,7 +351,7 @@ ${HEADER}
                     <section class="activity-feed">
                         <div class="section-header">
                             <h2>Recent OCC Activity</h2>
-                            <a href="https://portal.mymineralwatch.com/register" class="view-all">See all activity &rarr;</a>
+                            <a href="https://portal.mymineralwatch.com/" class="view-all">See all activity &rarr;</a>
                         </div>
                         ${activityHtml}
                     </section>
@@ -372,8 +372,8 @@ ${HEADER}
                 <aside>
                     <div class="sidebar-card sidebar-cta">
                         <h3>Your Mineral Command Center</h3>
-                        <p>OCC alerts, production data, AI document extraction, and interactive mapping for your ${esc(countyName)} County minerals.</p>
-                        <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
+                        <p>Pooling order data, production tracking, OCC alerts, AI document extraction, reports & analysis, and interactive mapping for your ${esc(countyName)} County minerals.</p>
+                        <a href="https://portal.mymineralwatch.com/" class="hero-cta">Start Free &rarr;</a>
                     </div>
                     ${quickFactsHtml}
                     ${neighborsHtml}
@@ -394,7 +394,7 @@ ${HEADER}
         <div class="container">
             <h2>Your ${esc(countyName)} County Minerals Deserve Better</h2>
             <p>The complete mineral intelligence platform — OCC alerts, production data, document extraction, and portfolio management. Start with one property free.</p>
-            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
+            <a href="https://portal.mymineralwatch.com/" class="hero-cta">Start Free &rarr;</a>
         </div>
     </section>
 
@@ -483,7 +483,7 @@ ${HEADER}
         <div class="container">
             <h2>Your Minerals Deserve Better</h2>
             <p>The complete mineral intelligence platform — OCC alerts, production data, document extraction, and portfolio management. Start with one property free.</p>
-            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
+            <a href="https://portal.mymineralwatch.com/" class="hero-cta">Start Free &rarr;</a>
         </div>
     </section>
 
