@@ -506,6 +506,7 @@ async function sendMagicLinkEmail(env, email, name, magicLink) {
     headers: {
       "Accept": "application/json",
       "Content-Type": "application/json",
+      "User-Agent": "MineralWatch/1.0",
       "X-Postmark-Server-Token": env.POSTMARK_API_KEY
     },
     body: JSON.stringify({
