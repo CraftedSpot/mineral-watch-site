@@ -987,6 +987,35 @@ export function renderArticle(slug: string): string | null {
         .related-link:hover { color: var(--red-dirt); }
 
         /* Bottom CTA */
+        /* Tool cards (OCC website guide) */
+        .tool-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; margin: 28px 0; overflow: hidden; }
+        .tool-card-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--border); }
+        .tool-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: white; font-size: 18px; }
+        .tool-icon-well { background: #2B6CB0; }
+        .tool-icon-gis { background: #2F855A; }
+        .tool-icon-ecf { background: #6B46C1; }
+        .tool-icon-imaging { background: #B7791F; }
+        .tool-icon-case { background: #00796B; }
+        .tool-icon-data { background: #C05621; }
+        .tool-icon-docket { background: #9B2C2C; }
+        .tool-card-title { font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; color: var(--oil-navy); }
+        .tool-card-subtitle { font-size: 13px; color: #718096; margin-top: 2px; }
+        .tool-card-body { padding: 20px 24px; }
+        .tool-card-body p { font-size: 15px; margin-bottom: 14px; }
+        .tool-card-body p:last-child { margin-bottom: 0; }
+        .tool-url { display: inline-block; font-size: 13px; font-family: 'Courier New', monospace; background: #EDF2F7; color: #2B6CB0; padding: 3px 10px; border-radius: 3px; text-decoration: none; word-break: break-all; }
+        .tool-url:hover { background: #E2E8F0; }
+        .tool-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .tool-detail-item h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; font-family: 'Inter', sans-serif; font-weight: 600; margin-bottom: 4px; }
+        .tool-detail-item p { font-size: 14px; margin-bottom: 0; color: #2D3748; }
+
+        /* Step boxes (OCC website guide) */
+        .step-box { background: var(--paper); border: 1px solid var(--border); border-radius: 6px; padding: 20px 24px; margin: 20px 0; }
+        .step-box ol { list-style: none; counter-reset: steps; padding: 0; }
+        .step-box ol li { counter-increment: steps; position: relative; padding-left: 36px; margin-bottom: 12px; font-size: 15px; line-height: 1.6; color: #2D3748; }
+        .step-box ol li:last-child { margin-bottom: 0; }
+        .step-box ol li::before { content: counter(steps); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; background: var(--oil-navy); color: white; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
         .bottom-cta { background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); padding: 60px 0; text-align: center; color: white; }
         .bottom-cta h2 { font-size: 28px; margin-bottom: 12px; font-weight: 900; }
         .bottom-cta p { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 28px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.6; }
@@ -1002,6 +1031,7 @@ export function renderArticle(slug: string): string | null {
             .article-meta { flex-direction: column; align-items: flex-start; gap: 6px; }
             .article-sidebar { grid-template-columns: 1fr; }
             .filing-detail { grid-template-columns: 1fr; }
+            .tool-detail { grid-template-columns: 1fr; }
             .math-row { grid-template-columns: 1fr; gap: 2px; }
             .math-result { grid-template-columns: 1fr; gap: 2px; }
             .do-field { grid-template-columns: 1fr; }
