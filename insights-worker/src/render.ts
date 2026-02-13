@@ -852,8 +852,8 @@ export function renderArticle(slug: string): string | null {
         .author-name { font-weight: 600; color: var(--oil-navy); }
 
         /* Featured Image */
-        .article-image { margin: 32px 0; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); }
-        .article-image img { width: 100%; height: auto; display: block; }
+        .article-image { margin: 0 0 32px; border-radius: 6px; overflow: hidden; border: 1px solid var(--border); max-height: 380px; }
+        .article-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
         /* Article Layout */
         .article-layout { display: grid; grid-template-columns: 760px 1fr; gap: 60px; padding: 40px 0 60px; }
@@ -1038,10 +1038,9 @@ export function renderArticle(slug: string): string | null {
                 </div>
             </div>
 
-            ${imageHtml}
-
             <div class="article-layout">
                 <article class="article-body">
+                    ${imageHtml}
                     ${article.body}
                 </article>
 
