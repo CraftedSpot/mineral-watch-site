@@ -172,7 +172,7 @@
                     <thead>
                         <tr>
                             <th class="sortable" onclick="handleEfficiencySort('name')">Operator${renderEfficiencySortArrow('name')}</th>
-                            <th class="text-right sortable" onclick="handleEfficiencySort('well_count')" title="Number of active wells">Wells${renderEfficiencySortArrow('well_count')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('well_count')" title="Leases with financial production data in the last 6 months">Wells${renderEfficiencySortArrow('well_count')}</th>
                             <th class="text-right sortable" onclick="handleEfficiencySort('deductions')" title="Processing fees taken (Product 5 - Residue Gas)">Deductions${renderEfficiencySortArrow('deductions')}</th>
                             <th class="text-right sortable" onclick="handleEfficiencySort('pcrr_value')" title="Value returned from extracted liquids (Product 6 - NGLs)">NGL Returned${renderEfficiencySortArrow('pcrr_value')}</th>
                             <th class="text-right sortable" onclick="handleEfficiencySort('net_value_return')" title="NGL Returned minus Deductions. Positive = more returned than taken.">Net Return${renderEfficiencySortArrow('net_value_return')}</th>
@@ -222,6 +222,7 @@
             });
 
             html += '</tbody></table>';
+            html += '<div style="margin-top: 8px; font-size: 0.75rem; color: #94a3b8; font-style: italic;">Well counts reflect leases with financial production data in the last 6 months. Total PUNs managed by an operator may be higher — see Operational Health in operator detail for full counts.</div>';
             document.getElementById('efficiencyContent').innerHTML = html;
         }
 
@@ -624,8 +625,8 @@
             let html = `
                 <div class="modal-stats">
                     <div class="modal-stat">
-                        <div class="modal-stat-value">${formatNumber(summary.well_count)}</div>
-                        <div class="modal-stat-label">Wells</div>
+                        <div class="modal-stat-value">${formatNumber(summary.total_puns || summary.well_count)}</div>
+                        <div class="modal-stat-label">PUNs</div>
                     </div>
                     <div class="modal-stat">
                         <div class="modal-stat-value">${formatCurrencyShort(summary.total_gross)}</div>

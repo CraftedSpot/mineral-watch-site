@@ -727,7 +727,8 @@ export async function handleGetOperatorDetail(request: Request, env: Env, operat
         net_value_return: totals.pcrr_value - totals.residue_deductions,
         deduction_ratio: deductionRatio,
         pcrr,
-        well_count: monthly.length > 0 ? Math.max(...monthly.map(m => m.well_count)) : 0
+        well_count: monthly.length > 0 ? Math.max(...monthly.map(m => m.well_count)) : 0,
+        total_puns: healthResult ? healthResult.total_puns : 0
       },
       efficiency: {
         pcrr,

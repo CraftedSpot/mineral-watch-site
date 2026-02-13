@@ -231,8 +231,8 @@
             let html = `
                 <div class="op-stats">
                     <div class="op-stat">
-                        <div class="op-stat-val">${_opFormatNumber(summary.well_count)}</div>
-                        <div class="op-stat-lbl">Wells</div>
+                        <div class="op-stat-val">${_opFormatNumber(summary.total_puns || summary.well_count)}</div>
+                        <div class="op-stat-lbl">PUNs</div>
                     </div>
                     <div class="op-stat">
                         <div class="op-stat-val">${_opFormatCurrencyShort(summary.total_gross)}</div>
