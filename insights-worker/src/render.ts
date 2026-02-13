@@ -598,6 +598,63 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return POOLING_ORDERS_BODY; },
   },
+  'inherited-mineral-rights': {
+    slug: 'inherited-mineral-rights',
+    title: 'Inherited Mineral Rights in Oklahoma: A Complete Guide',
+    description: 'Just inherited mineral rights in Oklahoma? This complete guide walks you through what you own, how to confirm your interest, what to do with royalty checks, and how to protect your inheritance.',
+    canonical: 'https://mymineralwatch.com/insights/guides/inherited-mineral-rights',
+    ogImage: 'https://mymineralwatch.com/assets/insights/inherited-mineral-rights-guide.jpg',
+    tag: 'Essential Guide',
+    tagClass: 'tag-guide',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '18 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'Inherited Mineral Rights',
+    featuredImage: {
+      src: '/assets/insights/inherited-mineral-rights-guide.jpg',
+      alt: 'Kitchen table with vintage family photograph, mineral deed documents, reading glasses, and a laptop showing a county map — representing the process of inheriting mineral rights.',
+      width: 1100,
+      height: 620,
+    },
+    toc: [
+      { id: 'what-are-mineral-rights', label: 'What Are Mineral Rights?' },
+      { id: 'first-steps', label: 'First Steps After Inheriting' },
+      { id: 'establishing-ownership', label: 'Establishing Your Ownership' },
+      { id: 'figuring-out-what-you-own', label: 'Figuring Out What You Own' },
+      { id: 'royalty-checks', label: 'Understanding Royalty Checks' },
+      { id: 'taxes', label: 'Tax Implications' },
+      { id: 'protecting-your-inheritance', label: 'Protecting Your Inheritance' },
+      { id: 'common-mistakes', label: 'Common Mistakes' },
+      { id: 'when-to-get-help', label: 'When to Get Professional Help' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+      { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+    ],
+    ctaTitle: 'Protect What Your Family Built',
+    ctaText: 'Monitor your inherited Oklahoma mineral rights for new drilling activity, pooling orders, and production changes \u2014 know what\u2019s happening on your sections before deadlines pass.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How do I find out if I inherited mineral rights in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "Start by reviewing the deceased person's estate documents, including their will, trust, and any prior deeds. Check for royalty check stubs, lease agreements, or division orders in their records. You can also search the county clerk's records in the county where the minerals are located by looking up deeds and mineral conveyances under their name." } },
+        { "@type": "Question", "name": "Do I need to go through probate to inherit mineral rights in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "In most cases, yes. If the mineral rights were held in the deceased person's individual name and not in a trust or joint tenancy, probate is typically required to legally transfer ownership. Oklahoma allows both formal probate and a simplified summary probate process for smaller estates." } },
+        { "@type": "Question", "name": "How do I transfer mineral rights after someone dies in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "The most common methods are probate, an affidavit of heirship, or a trust distribution. Once you have the legal document transferring ownership, it should be recorded with the county clerk in every county where the minerals are located." } },
+        { "@type": "Question", "name": "Do I have to pay taxes on inherited mineral rights in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "Inheriting mineral rights is generally not a taxable event — you receive a stepped-up cost basis. However, any royalty income you receive is taxable as ordinary income. Oklahoma also has a gross production tax that is typically withheld by the operator." } },
+        { "@type": "Question", "name": "What is a division order and should I sign it?", "acceptedAnswer": { "@type": "Answer", "text": "A division order states your decimal ownership interest in a well and authorizes the operator to pay you royalties. Verify that the decimal interest is correct before signing. Signing a division order does not change your actual ownership." } },
+        { "@type": "Question", "name": "Can I sell inherited mineral rights?", "acceptedAnswer": { "@type": "Answer", "text": "Yes, but most professionals recommend caution. Mineral rights are an appreciating, income-producing asset that can generate royalties for decades. Buyers typically offer a fraction of the long-term value. If you consider selling, get multiple offers and have an attorney review any purchase agreement." } },
+        { "@type": "Question", "name": "What happens to my mineral rights if there is no will?", "acceptedAnswer": { "@type": "Answer", "text": "Oklahoma's intestate succession laws determine who inherits. Generally, the surviving spouse and children inherit in specific proportions defined by state law. An intestate probate proceeding or determination of heirship is typically required." } }
+      ]
+    }
+    </script>`,
+    get body() { return INHERITED_MINERAL_RIGHTS_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -712,6 +769,13 @@ export function renderArticle(slug: string): string | null {
         .risk-low { color: var(--success); font-weight: 600; }
         .risk-medium { color: var(--red-dirt); font-weight: 600; }
         .risk-high { color: #E53E3E; font-weight: 600; }
+
+        /* Steps */
+        .step-list { margin: 24px 0; }
+        .step-item { display: grid; grid-template-columns: 44px 1fr; gap: 16px; margin-bottom: 24px; align-items: start; }
+        .step-number { width: 44px; height: 44px; border-radius: 50%; background: var(--oil-navy); color: white; display: flex; align-items: center; justify-content: center; font-family: 'Merriweather', serif; font-weight: 900; font-size: 18px; flex-shrink: 0; }
+        .step-content h3 { margin-top: 0; font-size: 17px; }
+        .step-content p { margin-bottom: 10px; }
 
         /* FAQ */
         .faq-section { margin-top: 44px; }
