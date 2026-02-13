@@ -1150,8 +1150,8 @@ document.addEventListener('click', function(e) {
             var opt = poolingOptions[i];
             html += '<div class="pooling-row" data-idx="' + i + '">' +
                 '<span class="opt-label">' + esc(opt.label) + '</span>' +
-                '<div class="dollar-prefix"><input type="number" value="' + opt.bonus + '" placeholder="Bonus/acre" onchange="updatePoolOpt(' + i + ',\'bonus\',this.value)" oninput="updatePoolOpt(' + i + ',\'bonus\',this.value)"></div>' +
-                '<select onchange="updatePoolOpt(' + i + ',\'royalty\',this.value)">' +
+                '<div class="dollar-prefix"><input type="number" value="' + opt.bonus + '" placeholder="Bonus/acre" onchange="updatePoolOpt(' + i + ',\\'bonus\\',this.value)" oninput="updatePoolOpt(' + i + ',\\'bonus\\',this.value)"></div>' +
+                '<select onchange="updatePoolOpt(' + i + ',\\'royalty\\',this.value)">' +
                     '<option value="0.125"' + (opt.royalty === 0.125 ? ' selected' : '') + '>1/8 (12.5%)</option>' +
                     '<option value="0.1875"' + (opt.royalty === 0.1875 ? ' selected' : '') + '>3/16 (18.75%)</option>' +
                     '<option value="0.20"' + (opt.royalty === 0.20 ? ' selected' : '') + '>1/5 (20%)</option>' +
