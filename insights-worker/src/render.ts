@@ -257,7 +257,7 @@ export function renderInsightsHub(): string {
                 <div class="section-label">Featured</div>
                 <div class="featured-card">
                     <div class="featured-image">
-                        <img src="/assets/insights/pooling-orders-guide.jpg" alt="Pooling order documents and production data on a desk — representing the complexity of OCC filings for Oklahoma mineral owners" width="605" height="320" loading="eager">
+                        <img src="/assets/insights/pooling-orders-guide.jpg" alt="Pooling order documents and production data on a desk — representing the complexity of OCC filings for Oklahoma mineral owners" width="896" height="597" loading="eager">
                     </div>
                     <div class="featured-content">
                         <span class="tag tag-guide">Guide</span>
@@ -558,9 +558,8 @@ const ARTICLES: Record<string, Article> = {
     featuredImage: {
       src: '/assets/insights/pooling-orders-guide.jpg',
       alt: 'Pooling order documents on a desk with Oklahoma map and production data, representing the complexity of OCC filings for mineral rights owners.',
-      width: 1100,
-      height: 620,
-      objectPosition: 'center 30%',
+      width: 896,
+      height: 597,
     },
     toc: [
       { id: 'what-is-pooling', label: 'What Is a Pooling Order?' },
