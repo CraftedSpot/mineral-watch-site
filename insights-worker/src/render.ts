@@ -560,6 +560,7 @@ const ARTICLES: Record<string, Article> = {
       alt: 'Pooling order documents on a desk with Oklahoma map and production data, representing the complexity of OCC filings for mineral rights owners.',
       width: 1100,
       height: 620,
+      objectPosition: 'center 30%',
     },
     toc: [
       { id: 'what-is-pooling', label: 'What Is a Pooling Order?' },
@@ -673,6 +674,7 @@ const ARTICLES: Record<string, Article> = {
       alt: 'Official government documents with filing stamps arranged on a desk, representing the various types of Oklahoma Corporation Commission filings that affect mineral rights owners.',
       width: 1100,
       height: 620,
+      objectPosition: 'center 30%',
     },
     toc: [
       { id: 'quick-reference', label: 'Quick Reference Table' },
