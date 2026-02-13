@@ -1,0 +1,8 @@
+name = "insights-pages"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+routes = [
+  { pattern = "mymineralwatch.com/insights/*", zone_name = "mymineralwatch.com" },
+  { pattern = "mymineralwatch.com/insights", zone_name = "mymineralwatch.com" }
+]
