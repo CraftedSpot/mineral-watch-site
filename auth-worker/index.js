@@ -271,17 +271,13 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
   }
 
   // Get fresh user data
-  console.log(`[Auth] Looking up user: ${payload.email}`);
   const user = await findUserByEmail(env, payload.email);
-  console.log(`[Auth] User lookup result: ${user ? user.id : 'NOT FOUND'}`);
   if (!user) {
-    console.log(`[Auth] User not found: ${payload.email}`);
     return new Response(JSON.stringify({ error: "User not found" }), {
       status: 401,
       headers: { "Content-Type": "application/json", ...corsHeaders }
     });
   }
-  console.log(`[Auth] Returning user data for: ${user.fields.Email}`);
   
   // Get organization details if user is part of one
   let orgDefaultNotificationMode = null;
@@ -388,12 +384,8 @@ async function generateToken(env, payload) {
 }
 
 async function verifyToken(env, token) {
-  console.log(`[Auth] Verifying token: ${token.substring(0, 20)}...`);
-  console.log(`[Auth] Token length: ${token.length}`);
-  
   const [dataBase64, sigBase64] = token.split(".");
   if (!dataBase64 || !sigBase64) {
-    console.error(`[Auth] Invalid token format - missing parts. Token has ${token.split(".").length} parts`);
     throw new Error("Invalid token format");
   }
   
@@ -441,12 +433,7 @@ async function verifyToken(env, token) {
     throw new Error("Invalid signature");
   }
   
-  const payload = JSON.parse(data);
-  const now = Date.now();
-  const expiresIn = payload.exp - now;
-  console.log(`[Auth] Token payload: email=${payload.email}, exp=${new Date(payload.exp).toISOString()}, expires in ${Math.floor(expiresIn/1000)}s`);
-  
-  return payload;
+  return JSON.parse(data);
 }
 
 async function sendMagicLinkEmail(env, email, name, magicLink) {

@@ -1,0 +1,8 @@
+name = "tools-pages"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+routes = [
+  { pattern = "mymineralwatch.com/tools/*", zone_name = "mymineralwatch.com" },
+  { pattern = "mymineralwatch.com/tools", zone_name = "mymineralwatch.com" }
+]
