@@ -62,6 +62,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .nav-links { display: flex; gap: 30px; align-items: center; }
 .nav-links a { color: var(--slate-blue); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
 .nav-links a:hover { color: var(--oil-navy); }
+.nav-links a.active { color: var(--red-dirt); font-weight: 600; border-bottom: 2px solid var(--red-dirt); padding-bottom: 2px; }
 .nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
 .nav-links .btn-login:hover { background: var(--slate-blue); color: white; }
 .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: var(--oil-navy); }
@@ -160,8 +161,9 @@ const HEADER = `
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights">Insights</a>
+                <a href="/counties/" class="active">Counties</a>
                 <a href="/about">About</a>
-                <a href="/counties/">Counties</a>
+                <a href="/contact">Contact</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
         </div>
