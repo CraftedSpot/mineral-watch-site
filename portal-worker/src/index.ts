@@ -812,13 +812,18 @@ var index_default = {
               
               // Create new headers without duplicating Location
               const responseHeaders = new Headers();
-              
-              // Copy all headers except Location
+
+              // Copy all headers except Location and Set-Cookie
               authResponse.headers.forEach((value, key) => {
-                if (key.toLowerCase() !== 'location') {
+                if (key.toLowerCase() !== 'location' && key.toLowerCase() !== 'set-cookie') {
                   responseHeaders.set(key, value);
                 }
               });
+              // Preserve all Set-Cookie headers (getAll supported in CF Workers)
+              const redirectCookies = (authResponse.headers as any).getAll('set-cookie');
+              for (const cookie of redirectCookies) {
+                responseHeaders.append('set-cookie', cookie);
+              }
               
               // Set the corrected Location
               responseHeaders.set('Location', absoluteLocation);
@@ -837,12 +842,25 @@ var index_default = {
           }
           
           // Return auth-worker response with CORS headers
+          // Use Headers object to preserve multiple Set-Cookie headers
+          // (Object.fromEntries deduplicates them, breaking logout)
+          const respHeaders = new Headers();
+          for (const [key, value] of authResponse.headers.entries()) {
+            if (key.toLowerCase() !== 'set-cookie') {
+              respHeaders.set(key, value);
+            }
+          }
+          // getAll('set-cookie') is supported in Cloudflare Workers
+          const setCookies = (authResponse.headers as any).getAll('set-cookie');
+          for (const cookie of setCookies) {
+            respHeaders.append('set-cookie', cookie);
+          }
+          Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+            respHeaders.set(key, value as string);
+          });
           return new Response(await authResponse.text(), {
             status: authResponse.status,
-            headers: {
-              ...Object.fromEntries(authResponse.headers.entries()),
-              ...CORS_HEADERS
-            }
+            headers: respHeaders
           });
         } catch (error) {
           console.error('Auth proxy error:', error);

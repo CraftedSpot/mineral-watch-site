@@ -354,7 +354,6 @@ ${HEADER}
                     <section class="activity-feed">
                         <div class="section-header">
                             <h2>Recent OCC Activity</h2>
-                            <a href="https://portal.mymineralwatch.com/" class="view-all">See all activity &rarr;</a>
                         </div>
                         ${activityHtml}
                     </section>
