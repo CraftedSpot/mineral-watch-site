@@ -33,7 +33,7 @@ import {
   sendMagicLinkEmail,
   getFreeWelcomeEmailHtml,
   getFreeWelcomeEmailText
-} from '../services/postmark.js';
+} from '../services/email.js';
 
 import type { Env } from '../types/env.js';
 
@@ -238,18 +238,18 @@ export async function handleChangeEmail(request: Request, env: Env) {
     // Send verification email to the NEW email address
     const verificationLink = `${BASE_URL}/portal/verify-email-change?token=${encodeURIComponent(token)}`;
     
-    const emailResponse = await fetch("https://api.postmarkapp.com/email", {
+    const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        From: "support@mymineralwatch.com",
-        To: normalizedNewEmail,
-        Subject: "Verify Your New Email Address - Mineral Watch",
-        HtmlBody: `
+        from: "Mineral Watch <support@mymineralwatch.com>",
+        to: normalizedNewEmail,
+        subject: "Verify Your New Email Address - Mineral Watch",
+        html: `
           <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
             <h2 style="color: #1C2B36;">Verify Your New Email Address</h2>
             <p style="color: #334E68; font-size: 16px;">Hi ${user.name || 'there'},</p>
@@ -264,8 +264,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
             <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
             <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
           </div>
-        `,
-        MessageStream: "outbound"
+        `
       })
     });
     
@@ -342,18 +341,18 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
     console.log(`Email successfully changed for user ${payload.userId}: ${payload.currentEmail} -> ${payload.newEmail}`);
     
     // Send confirmation email to the OLD email address
-    await fetch("https://api.postmarkapp.com/email", {
+    await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+        "Authorization": `Bearer ${env.RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        From: "support@mymineralwatch.com",
-        To: payload.currentEmail,
-        Subject: "Your Email Address Has Been Changed - Mineral Watch",
-        HtmlBody: `
+        from: "Mineral Watch <support@mymineralwatch.com>",
+        to: payload.currentEmail,
+        subject: "Your Email Address Has Been Changed - Mineral Watch",
+        html: `
           <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
             <h2 style="color: #1C2B36;">Email Address Changed</h2>
             <p style="color: #334E68; font-size: 16px;">Hi,</p>
@@ -363,8 +362,7 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
             <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
             <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
           </div>
-        `,
-        MessageStream: "outbound"
+        `
       })
     });
     

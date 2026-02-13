@@ -21,7 +21,7 @@ async function testStatusChange() {
     AIRTABLE_WELLS_TABLE: process.env.AIRTABLE_WELLS_TABLE,
     AIRTABLE_USERS_TABLE: process.env.AIRTABLE_USERS_TABLE,
     AIRTABLE_ACTIVITY_TABLE: process.env.AIRTABLE_ACTIVITY_TABLE,
-    POSTMARK_API_KEY: process.env.POSTMARK_API_KEY,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
     DRY_RUN: 'true' // Set to false to actually send emails
   };
 

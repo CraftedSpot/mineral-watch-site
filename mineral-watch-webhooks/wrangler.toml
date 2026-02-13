@@ -7,4 +7,4 @@ compatibility_date = "2024-01-01"
 NOTIFICATION_EMAIL = "james@mymineralwatch.com"
 
 # Secrets to add:
-# wrangler secret put POSTMARK_SERVER_TOKEN
+# wrangler secret put RESEND_API_KEY

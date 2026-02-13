@@ -70,7 +70,7 @@ import {
   getFreeWelcomeEmailText,
   getInviteEmailHtml,
   getInviteEmailText
-} from './services/postmark.js';
+} from './services/email.js';
 
 // Import all handlers from central index
 import {

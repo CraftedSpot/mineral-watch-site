@@ -502,19 +502,17 @@ async function verifyToken(env, token) {
 }
 
 async function sendMagicLinkEmail(env, email, name, magicLink) {
-  const response = await fetch("https://api.postmarkapp.com/email", {
+  const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      "Accept": "application/json",
-      "Content-Type": "application/json",
-      "User-Agent": "MineralWatch/1.0",
-      "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+      "Authorization": `Bearer ${env.RESEND_API_KEY}`,
+      "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      From: "support@mymineralwatch.com",
-      To: email,
-      Subject: "Your Mineral Watch Login Link",
-      HtmlBody: `
+      from: "Mineral Watch <support@mymineralwatch.com>",
+      to: email,
+      subject: "Your Mineral Watch Login Link",
+      html: `
         <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
           <h2 style="color: #1C2B36;">Log in to Mineral Watch</h2>
           <p style="color: #334E68; font-size: 16px;">Hi ${name},</p>
@@ -528,18 +526,17 @@ async function sendMagicLinkEmail(env, email, name, magicLink) {
           <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
           <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
         </div>
-      `,
-      MessageStream: "outbound"
+      `
     })
   });
-  
-  console.log(`[Auth] Postmark response: status=${response.status}, content-type=${response.headers.get('content-type')}`);
+
+  console.log(`[Auth] Resend response: status=${response.status}`);
   if (!response.ok) {
     const err = await response.text();
-    console.error(`[Auth] Postmark error (first 200 chars): ${err.substring(0, 200)}`);
-    throw new Error(`Postmark error: status ${response.status}`);
+    console.error(`[Auth] Resend error: ${err}`);
+    throw new Error(`Resend error: status ${response.status}`);
   }
-  console.log(`[Auth] Postmark email sent successfully`);
+  console.log(`[Auth] Email sent successfully via Resend`);
 }
 
 async function updateLoginTracking(env, userId) {

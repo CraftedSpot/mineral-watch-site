@@ -11,7 +11,7 @@
  * - STRIPE_WEBHOOK_SECRET: Webhook signing secret from Stripe
  * - STRIPE_SECRET_KEY: Stripe secret key (for API calls)
  * - AIRTABLE_API_KEY: Airtable personal access token
- * - POSTMARK_API_KEY: Postmark server token
+ * - RESEND_API_KEY: Resend API key
  * - AUTH_SECRET: Secret for generating magic link tokens
  */
 
@@ -1066,7 +1066,7 @@ We'd love to know why you left. Just reply to this email—feedback helps us imp
 }
 
 /**
- * Send email via Postmark
+ * Send email via Resend
  */
 /**
  * Send admin notification for new signups and upgrades
@@ -1079,18 +1079,17 @@ async function sendAdminNotification(env, { type, email, name, plan, isAnnual, a
   const textBody = `${label}\n\nName: ${name || 'N/A'}\nEmail: ${email}\nPlan: ${plan} (${billing})\nAmount: ${amount}\nTime: ${new Date().toISOString()}`;
 
   try {
-    await fetch('https://api.postmarkapp.com/email', {
+    await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        From: 'system@mymineralwatch.com',
-        To: 'james@mymineralwatch.com',
-        Subject: subject,
-        TextBody: textBody
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: 'james@mymineralwatch.com',
+        subject: subject,
+        text: textBody
       })
     });
     console.log(`[Admin] Notified: ${subject}`);
@@ -1101,28 +1100,28 @@ async function sendAdminNotification(env, { type, email, name, plan, isAnnual, a
 
 async function sendEmail(env, to, subject, htmlBody, textBody) {
   try {
-    const response = await fetch('https://api.postmarkapp.com/email', {
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        From: 'support@mymineralwatch.com',
-        To: to,
-        Subject: subject,
-        HtmlBody: htmlBody,
-        TextBody: textBody
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: to,
+        subject: subject,
+        html: htmlBody,
+        text: textBody,
+        reply_to: 'support@mymineralwatch.com'
       })
     });
-    
+
     if (!response.ok) {
       const err = await response.text();
-      console.error('Postmark error:', err);
-      throw new Error(`Postmark failed: ${response.status}`);
+      console.error('Resend error:', err);
+      throw new Error(`Resend failed: ${response.status}`);
     }
-    
+
     console.log(`Email sent to ${to}: ${subject}`);
   } catch (err) {
     console.error('Failed to send email:', err);

@@ -211,7 +211,7 @@ export async function handleInviteMember(request: Request, env: Env) {
 
         // Send invitation email
         try {
-          const { sendInviteEmail } = await import('../services/postmark.js');
+          const { sendInviteEmail } = await import('../services/email.js');
           await sendInviteEmail(
             env,
             normalizedEmail,
@@ -307,7 +307,7 @@ export async function handleInviteMember(request: Request, env: Env) {
       );
       
       try {
-        const { sendInviteEmail } = await import('../services/postmark.js');
+        const { sendInviteEmail } = await import('../services/email.js');
         await sendInviteEmail(
           env,
           normalizedEmail,
@@ -400,7 +400,7 @@ export async function handleInviteMember(request: Request, env: Env) {
 
     // Send invitation email
     try {
-      const { sendInviteEmail } = await import('../services/postmark.js');
+      const { sendInviteEmail } = await import('../services/email.js');
       await sendInviteEmail(
         env,
         normalizedEmail,

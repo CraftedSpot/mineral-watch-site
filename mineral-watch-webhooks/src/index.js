@@ -1,27 +1,27 @@
 /**
  * Mineral Watch Webhook Handler
- * Processes Postmark webhooks for bounces and spam complaints
+ * Processes Resend webhooks for bounces and spam complaints
  */
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    
+
     // Health check endpoint
     if (request.method === 'GET' && url.pathname === '/') {
       return new Response(JSON.stringify({
         service: 'mineral-watch-webhooks',
         status: 'healthy',
         endpoints: {
-          postmark: '/postmark'
+          resend: '/resend'
         }
       }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
-    
-    // Only handle POST to /postmark endpoint
-    if (request.method !== 'POST' || url.pathname !== '/postmark') {
+
+    // Only handle POST to /resend endpoint
+    if (request.method !== 'POST' || url.pathname !== '/resend') {
       return new Response('Not Found', { status: 404 });
     }
 
@@ -118,26 +118,25 @@ async function handleSpamComplaint(payload, env) {
 }
 
 /**
- * Send notification email via Postmark
+ * Send notification email via Resend
  */
 async function sendNotificationEmail(env, subject, htmlBody) {
   try {
-    const response = await fetch('https://api.postmarkapp.com/email', {
+    const response = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
         'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': env.POSTMARK_SERVER_TOKEN
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`
       },
       body: JSON.stringify({
-        From: 'alerts@mymineralwatch.com',
-        To: env.NOTIFICATION_EMAIL,
-        Subject: subject,
-        HtmlBody: htmlBody,
-        MessageStream: 'outbound'
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: env.NOTIFICATION_EMAIL,
+        subject: subject,
+        html: htmlBody,
+        reply_to: 'support@mymineralwatch.com'
       })
     });
-    
+
     if (!response.ok) {
       const error = await response.text();
       console.error('[Webhook] Failed to send notification email:', error);

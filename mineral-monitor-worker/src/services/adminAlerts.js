@@ -2,7 +2,7 @@
  * Admin Alerts Service - Notifies you of worker health and issues
  */
 
-const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
+const RESEND_API_URL = 'https://api.resend.com/emails';
 const ADMIN_EMAIL = 'james@mymineralwatch.com'; // Or use env.ADMIN_EMAIL
 
 /**
@@ -27,19 +27,17 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
   const fullSubject = `${emoji} Mineral Watch: ${subject}`;
   
   try {
-    const response = await fetch(POSTMARK_API_URL, {
+    const response = await fetch(RESEND_API_URL, {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        From: 'system@mymineralwatch.com',
-        To: env.ADMIN_EMAIL || ADMIN_EMAIL,
-        Subject: fullSubject,
-        TextBody: `${body}\n\n---\nTimestamp: ${new Date().toISOString()}`,
-        MessageStream: 'outbound'
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: env.ADMIN_EMAIL || ADMIN_EMAIL,
+        subject: fullSubject,
+        text: `${body}\n\n---\nTimestamp: ${new Date().toISOString()}`
       })
     });
     
@@ -167,7 +165,7 @@ Failed Email Sends:
 ${failedEmails.map(f => `  - ${f.email}: ${f.totalCount} alert${f.totalCount > 1 ? 's' : ''} failed
     Wells: ${f.wells.join(', ')}${f.totalCount > 3 ? ` ... and ${f.totalCount - 3} more` : ''}`).join('\n')}
 
-ACTION REQUIRED: Check Postmark logs and Activity Log for details.` : ''}
+ACTION REQUIRED: Check Resend logs and Activity Log for details.` : ''}
 
 ${!hasErrors && !hasFailedEmails ? 'No action required.' : ''}
   `.trim();

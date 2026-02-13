@@ -55,6 +55,6 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 
 # Secrets (add via wrangler secret put)
 # - MINERAL_AIRTABLE_API_KEY
-# - POSTMARK_API_KEY
+# - RESEND_API_KEY
 # - TRIGGER_SECRET
 # - TRACK_WELL_SECRET

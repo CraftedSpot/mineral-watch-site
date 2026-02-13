@@ -1,44 +1,42 @@
 /**
- * Email Service - Sends alert emails via Postmark
+ * Email Service - Sends alert emails via Resend
  * Design matches Mineral Watch homepage mockups
  */
 
 import { normalizeSection } from '../utils/normalize.js';
 import { getOCCWellRecordsLink, getOCCCookieNotice } from '../utils/occLink.js';
 
-const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
+const RESEND_API_URL = 'https://api.resend.com/emails';
 const EMAIL_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * Send a simple email via Postmark
+ * Send a simple email via Resend
  * @param {Object} env - Worker environment
  * @param {Object} data - Email data
  * @param {string} data.to - Recipient email
  * @param {string} data.subject - Email subject
  * @param {string} data.html - Email HTML body
- * @returns {Promise<Object>} Postmark response
+ * @returns {Promise<Object>} Resend response
  */
 export async function sendEmail(env, { to, subject, html }) {
-  const response = await fetch(POSTMARK_API_URL, {
+  const response = await fetch(RESEND_API_URL, {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      From: 'alerts@mymineralwatch.com',
-      To: to,
-      Subject: subject,
-      HtmlBody: html,
-      TextBody: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-      MessageStream: 'outbound'
+      from: 'Mineral Watch <support@mymineralwatch.com>',
+      to,
+      subject,
+      html,
+      text: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
     })
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Postmark send failed: ${response.status} - ${error}`);
+    throw new Error(`Resend send failed: ${response.status} - ${error}`);
   }
 
   console.log(`[Email] Sent to ${to}: ${subject}`);
@@ -199,28 +197,26 @@ export async function sendAlertEmail(env, data) {
   const htmlBody = await buildHtmlBody(data, env);
   const textBody = buildTextBody(data);
   
-  const response = await fetch(POSTMARK_API_URL, {
+  const response = await fetch(RESEND_API_URL, {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      From: 'alerts@mymineralwatch.com',
-      To: to,
-      Subject: subject,
-      HtmlBody: htmlBody,
-      TextBody: textBody,
-      MessageStream: 'outbound'
+      from: 'Mineral Watch <support@mymineralwatch.com>',
+      to,
+      subject,
+      html: htmlBody,
+      text: textBody
     })
   });
-  
+
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Postmark send failed: ${response.status} - ${error}`);
+    throw new Error(`Resend send failed: ${response.status} - ${error}`);
   }
-  
+
   console.log(`[Email] Sent ${activityType} alert to ${to}`);
   return await response.json();
 }
@@ -1023,26 +1019,24 @@ export async function sendDigestEmail(env, digestData) {
   const htmlBody = buildDigestHtmlBody(digestData);
   const textBody = buildDigestTextBody(digestData);
 
-  const response = await fetch(POSTMARK_API_URL, {
+  const response = await fetch(RESEND_API_URL, {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+      'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      From: 'alerts@mymineralwatch.com',
-      To: to,
-      Subject: subject,
-      HtmlBody: htmlBody,
-      TextBody: textBody,
-      MessageStream: 'outbound'
+      from: 'Mineral Watch <support@mymineralwatch.com>',
+      to,
+      subject,
+      html: htmlBody,
+      text: textBody
     })
   });
 
   if (!response.ok) {
     const error = await response.text();
-    throw new Error(`Postmark digest send failed: ${response.status} - ${error}`);
+    throw new Error(`Resend digest send failed: ${response.status} - ${error}`);
   }
 
   console.log(`[Email] Sent ${frequency} digest to ${to} with ${totalAlerts} alerts`);

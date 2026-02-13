@@ -41,7 +41,7 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 
 # Environment variables (secrets set via CLI)
 # MINERAL_AIRTABLE_API_KEY = "your-airtable-api-key"
-# POSTMARK_API_KEY = "your-postmark-api-key"
+# RESEND_API_KEY = "your-resend-api-key"
 # AUTH_SECRET = "your-auth-secret"
 # STRIPE_SECRET_KEY = "your-stripe-secret-key"
 # SYNC_API_KEY = "your-sync-api-key"

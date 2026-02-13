@@ -27,7 +27,7 @@ export interface Env {
 
   // Environment Variables (secrets)
   MINERAL_AIRTABLE_API_KEY: string;
-  POSTMARK_API_KEY: string;
+  RESEND_API_KEY: string;
   AUTH_SECRET: string;
   STRIPE_SECRET_KEY: string;
   TRACK_WELL_SECRET: string;

@@ -1,11 +1,11 @@
 /**
  * Mineral Watch Contact Form Handler
- * Cloudflare Worker that receives form submissions and sends via Postmark
- * 
+ * Cloudflare Worker that receives form submissions and sends via Resend
+ *
  * Environment Variables Required:
- * - POSTMARK_API_KEY: Your Postmark server API token
+ * - RESEND_API_KEY: Your Resend API key
  * - NOTIFY_EMAIL: Email address to receive contact form submissions (e.g., support@mymineralwatch.com)
- * - FROM_EMAIL: Verified sender email in Postmark (e.g., noreply@mymineralwatch.com)
+ * - FROM_EMAIL: Verified sender email in Resend (e.g., noreply@mymineralwatch.com)
  * - MINERAL_AIRTABLE_API_KEY: Your Airtable API key
  * - AIRTABLE_BASE_ID: Your Airtable base ID (app3j3X29Uvp5stza)
  * - AIRTABLE_TABLE_ID: Contact form table ID (tblTJtePevMqzntKL)
@@ -74,30 +74,28 @@ export default {
 
       console.log('Airtable submission completed, sending email...');
       
-      // Send email via Postmark
-      const postmarkResponse = await fetch('https://api.postmarkapp.com/email', {
+      // Send email via Resend
+      const resendResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-          'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          From: env.FROM_EMAIL,
-          To: env.NOTIFY_EMAIL,
-          ReplyTo: email,
-          Subject: `[Mineral Watch Contact] ${topic} - ${name}`,
-          TextBody: formatTextEmail(name, email, topic, message),
-          HtmlBody: formatHtmlEmail(name, email, topic, message),
-          MessageStream: 'outbound'
+          from: `Mineral Watch <${env.FROM_EMAIL}>`,
+          to: env.NOTIFY_EMAIL,
+          reply_to: email,
+          subject: `[Mineral Watch Contact] ${topic} - ${name}`,
+          text: formatTextEmail(name, email, topic, message),
+          html: formatHtmlEmail(name, email, topic, message)
         })
       });
 
-      if (!postmarkResponse.ok) {
-        const errorData = await postmarkResponse.json();
-        console.error('Postmark error:', JSON.stringify(errorData));
-        console.error('Postmark status:', postmarkResponse.status);
-        return jsonResponse({ error: 'Failed to send message', postmarkError: errorData }, 500);
+      if (!resendResponse.ok) {
+        const errorData = await resendResponse.json();
+        console.error('Resend error:', JSON.stringify(errorData));
+        console.error('Resend status:', resendResponse.status);
+        return jsonResponse({ error: 'Failed to send message', resendError: errorData }, 500);
       }
 
       return jsonResponse({ success: true, message: 'Message sent successfully' }, 200);
