@@ -114,14 +114,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.5417,
     longitude: -97.9828,
     neighbors: ['kingfisher-county', 'blaine-county', 'caddo-county', 'grady-county', 'cleveland-county', 'oklahoma-county', 'logan-county'],
-    heroDescription: 'Canadian County sits at the heart of Oklahoma\'s STACK play, making it one of the most actively drilled counties in the state. Mineral Watch tracks every OCC filing, drilling permit, and completion so you never miss activity on your sections.',
+    heroDescription: 'Canadian County sits at the heart of Oklahoma\'s STACK play, making it one of the most actively drilled counties in the state. Mineral Watch gives Canadian County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — all in one platform.',
     overviewHtml: `
       <p>Canadian County, located in central Oklahoma just west of Oklahoma City, is one of the most prolific oil and gas producing counties in the state. The county seat is El Reno, and the county covers approximately 900 square miles of prime drilling territory within the STACK play (Sooner Trend, Anadarko, Canadian, and Kingfisher).</p>
-      <p>Mineral rights owners in Canadian County benefit from significant horizontal drilling activity targeting the Woodford Shale, Meramec, and Mississippian Lime formations. Multi-unit horizontal wells with 2-mile laterals have become standard, meaning a single well can affect multiple sections — making it critical for mineral owners to monitor OCC filings beyond just the sections where they own interests.</p>
+      <p>Mineral rights owners in Canadian County benefit from significant horizontal drilling activity targeting the Woodford Shale, Meramec, and Mississippian Lime formations. Multi-unit horizontal wells with 2-mile laterals have become standard, meaning a single well can affect multiple sections — making it critical for mineral owners to stay informed about OCC filings beyond just the sections where they own interests.</p>
       <h3>Common OCC Filings in Canadian County</h3>
       <p>The most frequent filings affecting Canadian County mineral owners are pooling orders (where the OCC forces unleased mineral owners into a drilling unit), spacing applications (establishing the boundaries for horizontal wells that may cross multiple sections), and increased density applications (allowing additional wells in an already-spaced unit). If you receive a pooling order, understanding your options and the associated bonus rates is critical to protecting your mineral interests.</p>
-      <h3>Why Monitor Your Canadian County Minerals?</h3>
-      <p>With dozens of OCC filings each month and horizontal wells spanning multiple sections, it's easy for mineral owners to miss critical deadlines. A pooling order typically gives you just 20 days to respond. Mineral Watch monitors every filing at the Oklahoma Corporation Commission and sends you instant email alerts when your sections are affected, so you can take action before deadlines pass.</p>`,
+      <h3>What Mineral Watch Does for Canadian County Owners</h3>
+      <p>Beyond automated OCC filing alerts, Mineral Watch gives you production tracking and decline curves for every well, AI-powered document extraction for pooling orders and division orders, operator profiles with deduction analysis, pooling bonus benchmarking across comparable sections, and interactive mapping with drilling activity heat maps — the complete mineral intelligence platform for Canadian County.</p>`,
   },
   'grady-county': {
     seat: 'Chickasha',
@@ -132,14 +132,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 34.9917,
     longitude: -97.8892,
     neighbors: ['canadian-county', 'caddo-county', 'comanche-county', 'stephens-county', 'garvin-county', 'mcclain-county', 'cleveland-county'],
-    heroDescription: 'Grady County is the epicenter of Oklahoma\'s SCOOP play with intense horizontal drilling in the Woodford and Springer formations. Mineral Watch monitors every permit, completion, and OCC filing so you stay ahead of activity on your sections.',
+    heroDescription: 'Grady County is the epicenter of Oklahoma\'s SCOOP play with intense horizontal drilling in the Woodford and Springer formations. Mineral Watch gives Grady County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping.',
     overviewHtml: `
       <p>Grady County, with its county seat in Chickasha, covers over 1,100 square miles in south-central Oklahoma and is one of the most active drilling counties in the state. It sits squarely in the SCOOP play (South Central Oklahoma Oil Province), a world-class unconventional resource play.</p>
-      <p>Horizontal drilling targeting the Woodford Shale and Springer Formation has transformed Grady County into a high-activity area for mineral owners. Multi-unit wells with extended laterals routinely cross section lines, making adjacent section monitoring essential.</p>
+      <p>Horizontal drilling targeting the Woodford Shale and Springer Formation has transformed Grady County into a high-activity area for mineral owners. Multi-unit wells with extended laterals routinely cross section lines, making adjacent section awareness essential.</p>
       <h3>Key Formations and Activity</h3>
       <p>The Woodford Shale and Springer Formation are the primary targets, with wells producing both oil and natural gas. Operators have reported strong initial production rates, and the county consistently ranks among the top in new drilling permits statewide.</p>
-      <h3>Why Monitor Your Grady County Minerals?</h3>
-      <p>The high pace of drilling means new pooling orders and spacing applications are filed frequently. Missing a pooling deadline could mean accepting default terms that may not reflect the true value of your minerals. Mineral Watch alerts you the moment your sections appear in any OCC filing.</p>`,
+      <h3>What Mineral Watch Does for Grady County Owners</h3>
+      <p>Beyond automated OCC filing alerts, Mineral Watch gives you production tracking and decline curves for every well, AI-powered document extraction for pooling orders and division orders, operator profiles with deduction analysis, pooling bonus benchmarking across comparable sections, and interactive mapping with drilling activity heat maps — the complete mineral intelligence platform for Grady County.</p>`,
   },
   'blaine-county': {
     seat: 'Watonga',
@@ -150,14 +150,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.8750,
     longitude: -98.4333,
     neighbors: ['major-county', 'dewey-county', 'custer-county', 'caddo-county', 'canadian-county', 'kingfisher-county'],
-    heroDescription: 'Blaine County is a core STACK play county with aggressive horizontal drilling in the Woodford, Meramec, and Mississippian Lime. Mineral Watch tracks every OCC filing and drilling permit so you never miss activity in your area.',
+    heroDescription: 'Blaine County is a core STACK play county with aggressive horizontal drilling in the Woodford, Meramec, and Mississippian Lime. Mineral Watch gives Blaine County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping.',
     overviewHtml: `
       <p>Blaine County, centered around the county seat of Watonga, occupies nearly 930 square miles in northwest-central Oklahoma. It is a core county within the STACK play, with operators targeting multiple prolific formations.</p>
       <p>The Woodford Shale, Meramec, and Mississippian Lime formations are all active targets in Blaine County. The stacked pay zones give operators multiple completion targets, which increases both drilling activity and the complexity of OCC filings affecting mineral owners.</p>
       <h3>Multi-Formation Drilling</h3>
       <p>Operators in Blaine County often drill multiple wells in the same section targeting different formations. This results in frequent spacing and increased density applications at the OCC, as well as pooling orders for each new drilling unit.</p>
-      <h3>Why Monitor Your Blaine County Minerals?</h3>
-      <p>With multiple formations being developed simultaneously, the volume of OCC filings can be overwhelming. A single section may see several pooling orders across different formations. Mineral Watch consolidates all this activity into clear, timely alerts.</p>`,
+      <h3>What Mineral Watch Does for Blaine County Owners</h3>
+      <p>Beyond automated OCC filing alerts, Mineral Watch gives you production tracking and decline curves for every well, AI-powered document extraction for pooling orders and division orders, operator profiles with deduction analysis, pooling bonus benchmarking across comparable sections, and interactive mapping with drilling activity heat maps — the complete mineral intelligence platform for Blaine County.</p>`,
   },
   'kingfisher-county': {
     seat: 'Kingfisher',
@@ -168,14 +168,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.9167,
     longitude: -97.9333,
     neighbors: ['garfield-county', 'blaine-county', 'canadian-county', 'logan-county', 'major-county'],
-    heroDescription: 'Kingfisher County is a northern STACK play powerhouse with prolific Mississippian Lime and Meramec wells. Mineral Watch monitors all OCC filings, permits, and completions across your sections.',
+    heroDescription: 'Kingfisher County is a northern STACK play powerhouse with prolific Mississippian Lime and Meramec wells. Mineral Watch gives Kingfisher County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping.',
     overviewHtml: `
       <p>Kingfisher County, with its county seat in the city of Kingfisher, covers approximately 905 square miles in north-central Oklahoma. It is one of the core counties in the STACK play, known for high-producing Mississippian Lime and Meramec wells.</p>
       <p>The county has seen sustained horizontal drilling activity with operators consistently filing new permits and spacing applications. The Mississippian Lime formation in particular has been a prolific producer in the northern townships.</p>
       <h3>Drilling Trends</h3>
       <p>Extended-reach laterals and multi-well pad development are common in Kingfisher County. Operators frequently file increased density applications to develop additional wells within existing spacing units, creating ongoing filing activity for mineral owners to track.</p>
-      <h3>Why Monitor Your Kingfisher County Minerals?</h3>
-      <p>As a core STACK county, Kingfisher sees a steady stream of pooling orders and spacing applications. Mineral Watch ensures you receive immediate alerts for every filing that affects your sections or adjacent sections.</p>`,
+      <h3>What Mineral Watch Does for Kingfisher County Owners</h3>
+      <p>Beyond automated OCC filing alerts, Mineral Watch gives you production tracking and decline curves for every well, AI-powered document extraction for pooling orders and division orders, operator profiles with deduction analysis, pooling bonus benchmarking across comparable sections, and interactive mapping with drilling activity heat maps — the complete mineral intelligence platform for Kingfisher County.</p>`,
   },
   'garfield-county': {
     seat: 'Enid',
@@ -186,14 +186,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 36.3833,
     longitude: -97.7833,
     neighbors: ['grant-county', 'kay-county', 'noble-county', 'logan-county', 'kingfisher-county', 'major-county'],
-    heroDescription: 'Garfield County has a long history of oil and gas production centered on the Mississippi Lime play. Mineral Watch monitors OCC filings, permits, and completions so Garfield County mineral owners stay informed.',
+    heroDescription: 'Mineral Watch gives Garfield County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering Mississippi Lime, Garber-Wellington, and every other active formation.',
     overviewHtml: `
       <p>Garfield County, with Enid as its county seat, covers over 1,050 square miles in north-central Oklahoma. It has a long and storied history of oil and gas production, with the Mississippi Lime formation being the primary development target in recent decades.</p>
       <p>While newer horizontal plays like the STACK have drawn attention, Garfield County continues to see steady activity in both the Mississippi Lime and the shallower Garber-Wellington formation. Enid serves as a major oil service hub for the region.</p>
       <h3>Production History</h3>
       <p>Garfield County's oil production dates back to the early 1900s, and thousands of wells have been drilled across the county. Both vertical and horizontal wells are active, with newer horizontal completions in the Mississippi Lime revitalizing interest in the area.</p>
-      <h3>Why Monitor Your Garfield County Minerals?</h3>
-      <p>Even in mature producing areas, new wells are drilled and OCC filings continue. Pooling orders, operator changes, and new permits can affect your mineral interests. Mineral Watch keeps you informed automatically.</p>`,
+      <h3>What Mineral Watch Does for Garfield County Owners</h3>
+      <p>Whether you hold minerals in the Miss Lime or Garber-Wellington, Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
   'stephens-county': {
     seat: 'Duncan',
@@ -204,14 +204,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 34.4667,
     longitude: -97.8333,
     neighbors: ['caddo-county', 'grady-county', 'garvin-county', 'carter-county', 'comanche-county', 'cotton-county', 'jefferson-county'],
-    heroDescription: 'Stephens County has a rich oil and gas heritage in the southern Anadarko Basin, with production from the Arbuckle, Sycamore, and Springer formations. Mineral Watch tracks every filing so you stay ahead.',
+    heroDescription: 'Mineral Watch gives Stephens County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering the Arbuckle, Sycamore, Springer, and every active formation.',
     overviewHtml: `
       <p>Stephens County, home to the city of Duncan, covers approximately 871 square miles in south-central Oklahoma. The county sits in the southern portion of the Anadarko Basin and has been a significant producer of oil and gas for over a century.</p>
       <p>Key formations include the Arbuckle, Sycamore, and Springer. Both conventional vertical wells and newer horizontal development target these formations, with operators increasingly applying modern completion techniques to legacy fields.</p>
       <h3>Historical Significance</h3>
-      <p>Duncan has long been a center for the oil and gas industry, serving as the headquarters for Halliburton. The county's mineral owners have benefited from decades of production, though staying current on new OCC filings remains essential as operators continue development.</p>
-      <h3>Why Monitor Your Stephens County Minerals?</h3>
-      <p>New horizontal drilling programs and infill development create ongoing OCC activity. Mineral Watch monitors every pooling order, spacing case, and permit so you never miss a filing in Stephens County.</p>`,
+      <p>Duncan has long been a center for the oil and gas industry, serving as the headquarters for Halliburton. The county's mineral owners have benefited from decades of production, and staying current on new activity is essential as operators continue development.</p>
+      <h3>What Mineral Watch Does for Stephens County Owners</h3>
+      <p>From legacy Arbuckle wells to new horizontal Springer targets, Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
   'carter-county': {
     seat: 'Ardmore',
@@ -222,14 +222,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 34.2500,
     longitude: -97.2833,
     neighbors: ['stephens-county', 'garvin-county', 'murray-county', 'johnston-county', 'love-county', 'jefferson-county'],
-    heroDescription: 'Carter County lies in the Ardmore Basin with production from Arbuckle, Sycamore, and Springer formations. Mineral Watch monitors all OCC activity to protect your mineral interests.',
+    heroDescription: 'Mineral Watch gives Carter County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering the Arbuckle, Sycamore, Springer, and every active Ardmore Basin formation.',
     overviewHtml: `
       <p>Carter County, with Ardmore as its county seat, covers approximately 824 square miles in southern Oklahoma. The county sits within the Ardmore Basin, a geologically complex area with multiple producing formations.</p>
       <p>The Arbuckle formation, Sycamore, and Springer are primary targets, with both vertical legacy wells and newer horizontal development. The structural geology of the Ardmore Basin creates unique drilling and production patterns.</p>
       <h3>Basin Geology</h3>
       <p>The Ardmore Basin's complex faulting and folding has created numerous trapping mechanisms for oil and gas. While this geology makes development more challenging, it also means mineral interests can be affected by diverse types of OCC filings.</p>
-      <h3>Why Monitor Your Carter County Minerals?</h3>
-      <p>Operators continue to find new opportunities in Carter County's stacked formations. Pooling orders, new permits, and spacing applications are filed regularly. Mineral Watch alerts you immediately when your sections are involved.</p>`,
+      <h3>What Mineral Watch Does for Carter County Owners</h3>
+      <p>Carter County's complex geology means diverse filing types across stacked formations. Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
   'mcclain-county': {
     seat: 'Purcell',
@@ -240,14 +240,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.0117,
     longitude: -97.4500,
     neighbors: ['cleveland-county', 'grady-county', 'garvin-county', 'pontotoc-county', 'pottawatomie-county'],
-    heroDescription: 'McClain County benefits from SCOOP play activity with growing horizontal drilling in the Woodford and Springer formations. Mineral Watch monitors every OCC filing, permit, and completion.',
+    heroDescription: 'Mineral Watch gives McClain County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering SCOOP Woodford, Springer, and every active formation.',
     overviewHtml: `
       <p>McClain County, centered around the county seat of Purcell, covers approximately 571 square miles south of Oklahoma City. The county sits in the northern transition zone of the SCOOP play, benefiting from its proximity to both the SCOOP and STACK development areas.</p>
       <p>Horizontal drilling targeting the Woodford Shale and Springer Formation has increased significantly in recent years. The county's position between the more established STACK and SCOOP core areas means new development continues to expand into McClain County.</p>
       <h3>Growing Activity</h3>
       <p>As operators extend their development programs outward from core SCOOP areas, McClain County has seen growing permit and drilling activity. This expanding development means more frequent OCC filings for mineral owners.</p>
-      <h3>Why Monitor Your McClain County Minerals?</h3>
-      <p>Expanding horizontal development means new pooling orders and spacing applications are increasing. Mineral Watch ensures you don't miss any filing deadlines as activity grows in your area.</p>`,
+      <h3>What Mineral Watch Does for McClain County Owners</h3>
+      <p>With SCOOP development expanding into McClain County, new filings are increasing rapidly. Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
   'caddo-county': {
     seat: 'Anadarko',
