@@ -772,6 +772,66 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return DIVISION_ORDERS_BODY; },
   },
+  'navigating-occ-website': {
+    slug: 'navigating-occ-website',
+    title: 'How to Navigate the OCC Website: A Mineral Owner\u2019s Guide to Oklahoma Corporation Commission Online Tools',
+    description: 'Step-by-step guide to using the Oklahoma Corporation Commission website. Learn how to search well records, find spacing and pooling orders, look up drilling permits, and monitor filings on your mineral sections.',
+    canonical: 'https://mymineralwatch.com/insights/guides/navigating-occ-website',
+    ogImage: 'https://mymineralwatch.com/assets/insights/navigating-occ-website-guide.jpg',
+    tag: 'Guide',
+    tagClass: 'tag-guide',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '20 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'Navigating the OCC Website',
+    featuredImage: {
+      src: '/assets/insights/navigating-occ-website-guide.jpg',
+      alt: 'Screenshot collage of the Oklahoma Corporation Commission website tools including Well Browse, Well Data Finder, and Electronic Case Filing system.',
+      width: 1344,
+      height: 768,
+    },
+    toc: [
+      { id: 'quick-reference', label: 'Quick Reference Table' },
+      { id: 'well-browse', label: 'Well Browse Database' },
+      { id: 'well-data-finder', label: 'Well Data Finder (GIS)' },
+      { id: 'ecf', label: 'Electronic Case Filing' },
+      { id: 'case-processing', label: 'Case Processing (Pre-2022)' },
+      { id: 'imaging', label: 'OCC Imaging System' },
+      { id: 'data-explorer', label: 'RBDMS Data Explorer' },
+      { id: 'dockets', label: 'Weekly & Daily Dockets' },
+      { id: 'common-tasks', label: 'Common Tasks' },
+      { id: 'forms-reference', label: 'Key OCC Forms' },
+      { id: 'okies', label: 'What\u2019s Changing: OKIES' },
+      { id: 'limitations', label: 'Limitations' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
+      { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
+    ],
+    ctaTitle: 'Let the OCC Come to You',
+    ctaText: 'Instead of manually searching multiple OCC databases, Mineral Watch monitors your sections automatically and sends you alerts when new filings appear. Free for up to 5 sections.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How do I search for wells on my section at the OCC?", "acceptedAnswer": { "@type": "Answer", "text": "The fastest way is to use the OCC Well Browse Database at wellbrowse.occ.ok.gov. Enter your section, township, and range in the legal description fields at the bottom of the search form, then click Search. The results will show every well on record for that section, including active, plugged, and permitted wells. You can also use the Well Data Finder, a GIS-based map tool, to visually locate wells on your section." } },
+        { "@type": "Question", "name": "Where do I find spacing and pooling orders for my section?", "acceptedAnswer": { "@type": "Answer", "text": "Spacing and pooling applications are filed as Conservation Docket (CD) cases. For cases filed after March 21, 2022, search the Electronic Case Filing (ECF) system at ecf.public.occ.ok.gov. Select 'Oil & Gas' as the Program Area and 'Conservation Docket' as the Docket Type. For older cases filed before March 2022, use the Case Processing system at case.occ.ok.gov." } },
+        { "@type": "Question", "name": "How do I look up a drilling permit on the OCC website?", "acceptedAnswer": { "@type": "Answer", "text": "Drilling permits are Form 1000 filings. You can find them in the Well Browse Database by searching for your section. To view the actual Form 1000 document, use the OCC Imaging system at imaging.occ.ok.gov, select 'Oil and Gas Well Records Forms,' choose Form 1000, and search by API number or legal description." } },
+        { "@type": "Question", "name": "What is the difference between Well Browse and Well Data Finder?", "acceptedAnswer": { "@type": "Answer", "text": "Well Browse is a traditional database search that returns detailed tabular results. Well Data Finder is a GIS-based map application that shows wells as points on a map. Both access the same underlying OCC well data." } },
+        { "@type": "Question", "name": "How do I find completion reports for wells on my section?", "acceptedAnswer": { "@type": "Answer", "text": "Completion reports (Form 1002A) can be found in the Well Browse Database by clicking the 'Completions' button on a well record. To view the scanned document, use the OCC Imaging system, select 'Oil and Gas Well Records Forms,' choose Form 1002A, and search by API number." } },
+        { "@type": "Question", "name": "What is the OCC Electronic Case Filing system?", "acceptedAnswer": { "@type": "Answer", "text": "The Electronic Case Filing (ECF) system is the OCC's current case management platform, launched on March 21, 2022. It replaced the older Case Processing system for all new filings. ECF allows the public to search for and view case documents including spacing applications, pooling orders, and other Conservation Docket cases." } },
+        { "@type": "Question", "name": "How do I check production data for a well in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "The OCC Well Browse Database includes production data for gas wells under the 'Production' tab. For oil production and gross production tax data, the Oklahoma Tax Commission is the primary source. The RBDMS Data Explorer on the OCC website also provides production reports." } }
+      ]
+    }
+    </script>`,
+    get body() { return NAVIGATING_OCC_WEBSITE_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -2271,4 +2331,491 @@ const DIVISION_ORDERS_BODY = `
 <p>Division orders are routine, not scary. They don&rsquo;t change your ownership, they don&rsquo;t commit you to anything permanent, and in most cases they&rsquo;re correct. But &ldquo;most cases&rdquo; isn&rsquo;t &ldquo;all cases,&rdquo; and the difference between a correct decimal and an incorrect one shows up in every single royalty check for the life of the well.</p>
 
 <p>Take 15 minutes to verify the math before you sign. Know your net mineral acres, your unit size, and your royalty rate. If the numbers check out, sign it and start collecting your royalties. If they don&rsquo;t, make a call. That one phone call could be worth thousands of dollars over the life of the well.</p>
+`;
+
+const NAVIGATING_OCC_WEBSITE_BODY = `
+<p>The OCC website &mdash; accessible at <strong>oklahoma.gov/occ</strong> &mdash; is the public-facing hub for everything the Oklahoma Corporation Commission regulates. For mineral owners, the Oil and Gas Conservation Division section is where the action is. But the site isn&rsquo;t built for mineral owners. It&rsquo;s built for operators, regulators, and attorneys. The information you need is all there; the challenge is knowing which of the half-dozen different databases to use, and how to search each one.</p>
+
+<p>This guide walks through each tool that matters for mineral owners, explains what it does, and shows you step by step how to use it to find information about your sections. We&rsquo;ll cover how to look up wells, find drilling permits, search for spacing and pooling orders, access scanned documents, and check production data &mdash; all using free, publicly available OCC databases.</p>
+
+<h2 id="quick-reference">Quick Reference: Which Tool Does What</h2>
+
+<p>Before diving into the details, here&rsquo;s a quick map of the OCC&rsquo;s online tools and what each one is best for. The OCC has accumulated multiple overlapping systems over the years, and knowing which one to use for a given task saves a lot of time.</p>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Tool</th>
+                <th>Best For</th>
+                <th>URL</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Well Browse</strong></td>
+                <td>Looking up well details by legal description, API number, or operator</td>
+                <td>wellbrowse.occ.ok.gov</td>
+            </tr>
+            <tr>
+                <td><strong>Well Data Finder</strong></td>
+                <td>Visual/map-based well search using GIS</td>
+                <td>oklahoma.gov/occ (GIS Data &amp; Maps)</td>
+            </tr>
+            <tr>
+                <td><strong>Electronic Case Filing (ECF)</strong></td>
+                <td>Spacing, pooling, and other CD cases filed after March 2022</td>
+                <td>ecf.public.occ.ok.gov</td>
+            </tr>
+            <tr>
+                <td><strong>Case Processing</strong></td>
+                <td>Spacing, pooling, and other CD cases filed before March 2022</td>
+                <td>case.occ.ok.gov</td>
+            </tr>
+            <tr>
+                <td><strong>Imaging System</strong></td>
+                <td>Scanned documents: Form 1000s, 1002As, well logs, orders</td>
+                <td>imaging.occ.ok.gov</td>
+            </tr>
+            <tr>
+                <td><strong>RBDMS Data Explorer</strong></td>
+                <td>Advanced search, reports, and data export</td>
+                <td>oklahoma.gov/occ (Oil &amp; Gas Division)</td>
+            </tr>
+            <tr>
+                <td><strong>Weekly/Daily Dockets</strong></td>
+                <td>Upcoming hearing schedules for CD cases</td>
+                <td>oklahoma.gov/occ (Court Dockets)</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Two systems, one dividing line: March 21, 2022</div>
+    <p>The OCC launched its Electronic Case Filing (ECF) system on March 21, 2022. This is the critical date to remember. Cases filed <strong>after</strong> that date live in ECF. Cases filed <strong>before</strong> that date live in the older Case Processing system and the Imaging system. If you&rsquo;re searching for a case and can&rsquo;t find it, make sure you&rsquo;re looking in the right system based on when it was filed.</p>
+</div>
+
+<h2 id="well-browse">Well Browse Database</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-well">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">Well Browse Database</div>
+            <div class="tool-card-subtitle">wellbrowse.occ.ok.gov</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The Well Browse Database is the workhorse tool for mineral owners. It contains records for every well under OCC jurisdiction &mdash; active producers, plugged and abandoned wells, permitted-but-not-yet-drilled wells, and injection wells. This is where you go to answer the basic question: what wells are on (or have ever been on) my section?</p>
+
+        <p>The database lets you search by well name, API number, county, operator name or number, and &mdash; most usefully for mineral owners &mdash; by legal description (section, township, and range). Each well record includes permit data, completion data, bottom hole location, and production information.</p>
+
+        <div class="step-box">
+            <ol>
+                <li>Go to <strong>wellbrowse.occ.ok.gov</strong></li>
+                <li>Scroll to the bottom of the search form to the <strong>Legal Description</strong> fields</li>
+                <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong> &mdash; for single-digit numbers, enter them as-is (e.g., &ldquo;4&rdquo; not &ldquo;04&rdquo;)</li>
+                <li>If your property is in the panhandle, select the <strong>County</strong> &mdash; otherwise it&rsquo;s optional</li>
+                <li>Click <strong>Search</strong></li>
+                <li>Browse the results list &mdash; click any well to see its full record, then use the <strong>Permits</strong>, <strong>Completions</strong>, <strong>Production</strong>, and <strong>All Images</strong> buttons to access detailed data</li>
+            </ol>
+        </div>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>What You&rsquo;ll Find</h4>
+                <p>Permit status, completion data, operator info, formation, total depth, production volumes, bottom hole location, well status.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Tips</h4>
+                <p>The API Number Suffix tracks multiple events on the same well &mdash; the highest suffix is the current record. Results can be exported to CSV.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Understanding legal descriptions</div>
+    <p>Oklahoma uses the Section-Township-Range system for legal descriptions. A section is a one-square-mile area (640 acres). Your section number, township, and range are the keys that unlock everything on the OCC website. You&rsquo;ll find them on your lease, your division order, or your royalty check stub. If you only have a street address for your surface property, you can use the county assessor&rsquo;s website to look up the legal description.</p>
+</div>
+
+<h2 id="well-data-finder">Well Data Finder (GIS Map)</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-gis">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">Well Data Finder</div>
+            <div class="tool-card-subtitle">GIS-Based Map Application</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The Well Data Finder is the OCC&rsquo;s map-based well search tool, built on ArcGIS. Instead of entering search criteria into a form, you navigate a map and see wells plotted as points on the landscape. This is particularly useful when you want to see the spatial relationship between wells &mdash; for instance, understanding which wells have laterals crossing your section, or seeing how dense the drilling pattern is in your area.</p>
+
+        <p>You can search by well name, API number, operator, or legal location. Clicking a well point on the map brings up its basic information and links to detailed records. The section grid overlay helps you identify your section visually.</p>
+
+        <div class="step-box">
+            <ol>
+                <li>Navigate to the OCC website &rarr; Oil &amp; Gas Division &rarr; <strong>GIS Data and Maps</strong></li>
+                <li>Click <strong>OCC Well Data Finder</strong> to launch the map application</li>
+                <li>Use the <strong>search bar</strong> or zoom/pan to navigate to your area</li>
+                <li>Turn on the <strong>section grid layer</strong> to see section boundaries</li>
+                <li>Click individual well points to view details and follow links to full records</li>
+            </ol>
+        </div>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Best For</h4>
+                <p>Visualizing well patterns, seeing horizontal lateral paths, understanding spatial relationships between wells and your section.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Complements</h4>
+                <p>Use Well Data Finder to identify wells visually, then switch to Well Browse for detailed data on specific wells.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="ecf">Electronic Case Filing (ECF)</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-ecf">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">Electronic Case Filing (ECF)</div>
+            <div class="tool-card-subtitle">ecf.public.occ.ok.gov &middot; Cases filed after March 21, 2022</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>For mineral owners, ECF is where you find the filings that matter most: spacing applications, pooling orders, increased density applications, and other Conservation Docket (CD) cases. When an operator files to space your section, pool your interests, or drill additional wells, those filings show up here.</p>
+
+        <p>The ECF system supports two search modes: <strong>Case Search</strong> and <strong>Document Search</strong>. Both let you filter by Program Area (choose &ldquo;Oil &amp; Gas&rdquo;), Docket Type (choose &ldquo;Conservation Docket&rdquo;), Relief Type (such as &ldquo;Spacing,&rdquo; &ldquo;Pooling,&rdquo; or &ldquo;Increased Density&rdquo;), case number, party name, legal description, and filing date range.</p>
+
+        <div class="step-box">
+            <ol>
+                <li>Go to <strong>ecf.public.occ.ok.gov</strong> and click <strong>Advanced Search</strong></li>
+                <li>Select <strong>Case</strong> as the Search Type</li>
+                <li>Under Program Area, select <strong>Oil &amp; Gas</strong></li>
+                <li>Under Docket Type, select <strong>Conservation Docket</strong></li>
+                <li>To narrow results: select a <strong>Relief Type</strong> (e.g., Spacing, Pooling), enter a <strong>legal description</strong>, or enter a <strong>party name</strong></li>
+                <li>Click <strong>Search</strong> &mdash; results can be sorted by clicking column headers</li>
+                <li>Click a case number to view its details, service list, and docket of filed documents</li>
+            </ol>
+        </div>
+
+        <p>The case number format in ECF uses a ten-character format: two-letter docket code followed by the year and a six-digit sequence number. For example, <strong>CD2024-000300</strong> is Conservation Docket case number 300 from 2024.</p>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Key Relief Types for Mineral Owners</h4>
+                <p>Spacing, Pooling, Increased Density, Location Exception, Multiunit Horizontal Well, Unitization.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Document Access</h4>
+                <p>Click into any case, then use the Docket tab to see all filed documents. Click &ldquo;View&rdquo; to open individual documents as PDFs.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="callout">
+    <div class="callout-title">Searching by legal description in ECF</div>
+    <p>ECF includes a location filter where you can enter section, township, and range. This is the most reliable way to find all cases affecting your section. Keep in mind that multi-unit horizontal wells may reference multiple sections &mdash; search each section you own separately to ensure you&rsquo;re catching everything.</p>
+</div>
+
+<h2 id="case-processing">Case Processing (Pre-2022 Cases)</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-case">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">Case Processing System</div>
+            <div class="tool-card-subtitle">case.occ.ok.gov &middot; Cases filed before March 21, 2022</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The legacy Case Processing system contains all OCC cases filed before March 21, 2022. If you&rsquo;re researching the history of your section &mdash; such as when it was originally spaced, or what pooling terms were set for an existing well &mdash; this is where you&rsquo;ll find those older records.</p>
+
+        <p>The search interface lets you filter by case type (select &ldquo;CD&rdquo; for Conservation Docket), party name, filing date, relief type (spacing, pooling, increased density, etc.), and legal description (section, township, range, and county).</p>
+
+        <div class="step-box">
+            <ol>
+                <li>Go to <strong>case.occ.ok.gov</strong></li>
+                <li>Select <strong>CD</strong> from the Case Type dropdown</li>
+                <li>Optionally select a <strong>Relief Sought</strong> code &mdash; 50 for Spacing, 41 for Pooling, 29 for Increased Density, 107 for Multiunit Horizontal Well</li>
+                <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong>, or enter a <strong>Party Name</strong> (the operator)</li>
+                <li>Click <strong>Search</strong></li>
+                <li>Sort results by clicking column headers &mdash; click &ldquo;Filing Date&rdquo; to sort chronologically</li>
+                <li>Click <strong>Link to Imaging</strong> for any case to view scanned documents</li>
+            </ol>
+        </div>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Coverage</h4>
+                <p>All cases filed with the OCC prior to March 21, 2022, across all docket types.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Search Tips</h4>
+                <p>Use wildcards (* or %) for partial name searches. Example: &ldquo;Continental*&rdquo; finds all Continental Resources cases.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="imaging">OCC Imaging System</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-imaging">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">OCC Imaging System</div>
+            <div class="tool-card-subtitle">imaging.occ.ok.gov &middot; Scanned Documents</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The Imaging system is the OCC&rsquo;s document archive. This is where you find the actual scanned PDF copies of Form 1000s (drilling permits), Form 1002As (completion reports), well logs, unitization orders, Commission orders, and other filed documents. When you need to see the original document &mdash; not just a database summary &mdash; this is where you go.</p>
+
+        <p>The system is organized by document type. From the main page, select the category you need:</p>
+
+        <div class="step-box">
+            <ol>
+                <li>Go to <strong>imaging.occ.ok.gov</strong></li>
+                <li>Select a document category &mdash; the most useful for mineral owners are <strong>Oil and Gas Well Records Forms</strong> and <strong>Commission Orders and Case Files</strong></li>
+                <li>For well records: choose the <strong>Form #</strong> (e.g., 1000 for permits, 1002A for completions), then search by API number, operator, legal description, or scan date range</li>
+                <li>For orders and case files: search by cause number, case type, or filing date</li>
+                <li>Click a document ID to open the scanned PDF</li>
+            </ol>
+        </div>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Key Document Types</h4>
+                <p>Form 1000 (permit to drill), Form 1002A (completion report), well logs, production records, Commission orders, unitization documents.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Note</h4>
+                <p>For case documents filed after March 2022, use ECF instead. The Imaging system contains pre-2022 case documents and ongoing well records forms.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="data-explorer">RBDMS Data Explorer</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-data">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">RBDMS Data Explorer</div>
+            <div class="tool-card-subtitle">Risk-Based Data Management System</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The RBDMS Data Explorer is the OCC&rsquo;s newest search tool, designed to provide more flexible access to the underlying well and entity data. It offers two search methods: a <strong>filter search</strong> where you build queries using specific criteria, and a <strong>full text search</strong> where you can type any combination of terms and the system returns matching records.</p>
+
+        <p>The Data Explorer also has a reporting feature that can generate reports for any chosen timeframe using publicly available OCC data. This is useful for mineral owners who want to see a summary of activity on their sections over a specific period &mdash; new permits, completions, and status changes.</p>
+
+        <p>You&rsquo;ll find the RBDMS Data Explorer linked from the Oil &amp; Gas Conservation Division page at oklahoma.gov/occ.</p>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Best For</h4>
+                <p>Flexible searching, generating date-ranged reports, exporting data for analysis.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Access</h4>
+                <p>Oil &amp; Gas Division page &rarr; RBDMS Data Explorer link. Help guide available on the same page.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="dockets">Weekly and Daily Dockets</h2>
+
+<div class="tool-card">
+    <div class="tool-card-header">
+        <div class="tool-icon tool-icon-docket">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div>
+            <div class="tool-card-title">Weekly &amp; Daily Dockets</div>
+            <div class="tool-card-subtitle">Hearing Schedules</div>
+        </div>
+    </div>
+    <div class="tool-card-body">
+        <p>The OCC publishes weekly and daily dockets as searchable PDFs on their website. These dockets list upcoming hearings &mdash; including the spacing and pooling hearings that directly affect mineral owners. Each entry includes the case number, applicant name, legal description, type of relief sought, and hearing date and time.</p>
+
+        <p>This is important because a hearing is where decisions get made. If a spacing or pooling application is on the docket and you haven&rsquo;t responded, attending the hearing (or ensuring your attorney does) is your last opportunity to be heard before the order is issued.</p>
+
+        <p>Find the dockets at: oklahoma.gov/occ &rarr; Court Dockets &rarr; select <strong>Weekly Dockets</strong> or <strong>Daily Dockets</strong>. Each PDF is searchable using Ctrl+F, so you can search for your section number or an operator name.</p>
+
+        <div class="tool-detail">
+            <div class="tool-detail-item">
+                <h4>Best For</h4>
+                <p>Tracking upcoming hearing dates for spacing, pooling, and increased density cases on your sections.</p>
+            </div>
+            <div class="tool-detail-item">
+                <h4>Format</h4>
+                <p>Searchable PDFs posted to the OCC website. Use Ctrl+F to find your section or operator.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="common-tasks">Common Tasks for Mineral Owners</h2>
+
+<p>Now that you know the tools, here&rsquo;s how to accomplish the specific tasks that come up most often as a mineral owner.</p>
+
+<h3>Finding all wells on your section</h3>
+
+<p>Start with the <strong>Well Browse Database</strong>. Enter your section, township, and range, and search. The results will include every well on record for that section &mdash; active producers, plugged wells, and permitted-but-not-yet-drilled wells. Pay attention to the well status field: &ldquo;A&rdquo; means active, &ldquo;P&rdquo; means plugged, &ldquo;N&rdquo; means new (permitted but not yet drilled). Check the completion data to see what formation each well targets and who the operator is.</p>
+
+<h3>Checking if a new drilling permit has been filed</h3>
+
+<p>Drilling permits are Form 1000 filings. New permits will show up in the <strong>Well Browse Database</strong> as wells with a permit status but no completion date. For the actual Form 1000 document &mdash; which shows the proposed well location, target depth, and operator details &mdash; use the <strong>Imaging system</strong>, select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by your legal description or a scan date range.</p>
+
+<h3>Finding a spacing or pooling order</h3>
+
+<p>These are Conservation Docket (CD) cases. If the case was filed <strong>after March 21, 2022</strong>, search in <strong>ECF</strong>. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type (Spacing or Pooling) and enter your legal description. If the case was filed <strong>before March 2022</strong>, use the <strong>Case Processing</strong> system and search by the operator name or the case number if you have it.</p>
+
+<h3>Reading a completion report</h3>
+
+<p>Completion reports (Form 1002A) tell you what the operator found when they drilled. They include the formation name, total depth, perforated intervals, initial production rates, and completion method. Find them in the <strong>Well Browse Database</strong> by clicking the &ldquo;Completions&rdquo; button on a well record, or view the scanned document in the <strong>Imaging system</strong> by searching for Form 1002A with the well&rsquo;s API number.</p>
+
+<h3>Verifying who operates a well</h3>
+
+<p>The <strong>Well Browse Database</strong> shows the current operator for each well. If you need the operator&rsquo;s contact information or operator number, use the <strong>Operator Directory</strong> &mdash; accessible from the Oil &amp; Gas Division page under &ldquo;Database Search and Imaged Documents.&rdquo;</p>
+
+<h3>Checking production data</h3>
+
+<p>The <strong>Well Browse Database</strong> includes gas production data under the &ldquo;Production&rdquo; tab for gas-classified wells. The <strong>RBDMS Data Explorer</strong> can generate production reports for specific timeframes. For gross production volumes and tax data (especially oil production), the Oklahoma Tax Commission&rsquo;s gross production reporting system is the primary source &mdash; though that&rsquo;s a separate agency from the OCC.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Cross-referencing tip</div>
+    <p>The most effective approach for mineral owners is to cross-reference multiple OCC tools. Start with Well Browse to identify wells on your section, then check ECF for any pending or recent cases (spacing, pooling, increased density), then use the Imaging system to pull the actual documents you need. This three-step process gives you the most complete picture of what&rsquo;s happening on your property.</p>
+</div>
+
+<h2 id="forms-reference">Key OCC Forms for Mineral Owners</h2>
+
+<p>The OCC uses a numbered form system. Knowing which form numbers matter helps you search the Imaging system more efficiently and understand what you&rsquo;re looking at when you find a document.</p>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Form</th>
+                <th>Name</th>
+                <th>Why It Matters</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Form 1000</strong></td>
+                <td>Intent to Drill / Permit to Drill</td>
+                <td>Filed when an operator plans to drill. Shows proposed location, target depth, target formation, and operator details. This is the first concrete signal that a rig is coming to your section.</td>
+            </tr>
+            <tr>
+                <td><strong>Form 1002A</strong></td>
+                <td>Well Completion Report</td>
+                <td>Filed within 60 days of completing a well. Shows actual total depth, formation, perforated intervals, initial production test results, and completion method.</td>
+            </tr>
+            <tr>
+                <td><strong>Form 1073</strong></td>
+                <td>Transfer of Operatorship</td>
+                <td>Filed when a well changes operators. If your royalty checks start coming from a different company, a 1073 should have been filed.</td>
+            </tr>
+            <tr>
+                <td><strong>Form 1006B</strong></td>
+                <td>Operator Agreement</td>
+                <td>The operator&rsquo;s registration with the OCC. Contains the operator&rsquo;s name, address, and contact information.</td>
+            </tr>
+            <tr>
+                <td><strong>Form 1014</strong></td>
+                <td>Plugging Report</td>
+                <td>Filed when a well is plugged and abandoned. If a producing well on your section stops generating royalties, a plugging report will eventually be filed.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2 id="okies">What&rsquo;s Changing: OKIES System</h2>
+
+<p>The OCC is transitioning to a new platform called the <strong>Oklahoma Information Exchange System (OKIES)</strong>, which began phased implementation on June 30, 2025. OKIES is a form management platform that is replacing legacy systems &mdash; starting with the Form 1000 (Intent to Drill) process. Additional forms and processes are being added in phases.</p>
+
+<p>For mineral owners, the key implication is that the way operators submit certain filings is changing. The underlying data &mdash; permits, completions, well records &mdash; will continue to be publicly accessible, but the systems through which you access them may look different over time.</p>
+
+<p>In the meantime, the existing tools described in this guide remain active. Well Browse, ECF, the Imaging system, and the other databases continue to function. If you can&rsquo;t find a recent filing in one system, it&rsquo;s worth checking whether it has moved to OKIES.</p>
+
+<h2 id="limitations">Limitations of the OCC Website</h2>
+
+<p>The OCC website is an invaluable resource, but it has real limitations that mineral owners should understand:</p>
+
+<p><strong>It&rsquo;s not designed for monitoring.</strong> The OCC databases are designed for searching &mdash; you look up something specific. They don&rsquo;t have a built-in way to set alerts or notifications when a new filing appears on your section. If you want to know when a new spacing application or drilling permit is filed, you have to manually check on a regular basis.</p>
+
+<p><strong>Multiple overlapping systems create confusion.</strong> The split between ECF (post-March 2022) and Case Processing (pre-March 2022), combined with the separate Imaging system, Well Browse, Well Data Finder, and RBDMS Data Explorer, means you often need to check multiple places to get the full picture.</p>
+
+<p><strong>Production data is incomplete.</strong> The OCC&rsquo;s production data focuses on gas volumes. For comprehensive production reporting including oil volumes, you often need to go to the Oklahoma Tax Commission, which is a separate system with its own search interface.</p>
+
+<p><strong>Horizontal well tracking is tricky.</strong> A multi-unit horizontal well may have its surface location in one section but its lateral extending through two or three sections. The OCC records the well under its surface location, which means a well producing from your section may not show up when you search your section by legal description alone. You may need to search adjacent sections as well.</p>
+
+<p><strong>Real-time updates aren&rsquo;t guaranteed.</strong> There can be a lag between when a document is filed and when it appears in the online databases. For time-sensitive filings like pooling orders (which have response deadlines), the mailed notice is the official notice &mdash; don&rsquo;t rely solely on the website for deadline tracking.</p>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Don&rsquo;t miss pooling deadlines</div>
+    <p>Pooling orders have strict response deadlines &mdash; typically 20 days from the date of the order. Missing a deadline means the OCC assigns you a default election, which may not be in your best interest. The official notice comes by mail, but if you&rsquo;re checking the website and see a pooling order on your section, act immediately. Contact the operator or an attorney to understand your options before the deadline passes.</p>
+</div>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">How do I search for wells on my section at the OCC?</div>
+        <p class="faq-answer">Use the Well Browse Database at wellbrowse.occ.ok.gov. Enter your section, township, and range in the legal description fields and click Search. The results show every well on record for that section. You can also use the Well Data Finder map tool to visually locate wells.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Where do I find spacing and pooling orders for my section?</div>
+        <p class="faq-answer">For cases filed after March 21, 2022, use the Electronic Case Filing system at ecf.public.occ.ok.gov. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type and legal description. For older cases, use the Case Processing system at case.occ.ok.gov.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I look up a drilling permit on the OCC website?</div>
+        <p class="faq-answer">Drilling permits (Form 1000) appear in Well Browse as wells with a permit status. To view the actual document, use the Imaging system at imaging.occ.ok.gov &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by API number or legal description.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is the difference between Well Browse and Well Data Finder?</div>
+        <p class="faq-answer">Well Browse is a traditional database search returning tabular results with detailed well data. Well Data Finder is a GIS map application showing wells as points on a map. Both access the same data &mdash; Well Browse is better for detail, Well Data Finder is better for spatial context.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I find completion reports for wells on my section?</div>
+        <p class="faq-answer">In Well Browse, search for the well and click &ldquo;Completions&rdquo; to see the data. For the scanned Form 1002A document, use the Imaging system &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1002A, and search by API number.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is the OCC Electronic Case Filing system?</div>
+        <p class="faq-answer">ECF is the OCC&rsquo;s current case management platform, launched March 21, 2022. It handles all new case filings including spacing, pooling, and increased density applications. The public can search and view case documents without an account.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I check production data for a well in Oklahoma?</div>
+        <p class="faq-answer">The Well Browse Database includes gas production data under the &ldquo;Production&rdquo; tab. For oil production and gross production tax data, the Oklahoma Tax Commission is the primary source. The RBDMS Data Explorer on the OCC site can also generate production reports.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>The OCC website holds an extraordinary amount of public information about every oil and gas well and regulatory filing in Oklahoma. For mineral owners, learning to navigate it effectively is one of the highest-leverage skills you can develop. The tools aren&rsquo;t intuitive, the systems overlap, and the learning curve is real &mdash; but every spacing application, pooling order, drilling permit, and completion report on your sections is in there, waiting to be found.</p>
+
+<p>The practical challenge is that the OCC website is designed for on-demand searching, not proactive monitoring. It can tell you what&rsquo;s happened on your section, but it won&rsquo;t tell you when something new happens. For mineral owners with properties across multiple counties, manually checking each section across multiple OCC databases on a regular basis quickly becomes impractical. That&rsquo;s the gap that automated monitoring fills &mdash; turning the OCC&rsquo;s reactive databases into proactive alerts that reach you when filings appear, rather than when you happen to check.</p>
 `;
