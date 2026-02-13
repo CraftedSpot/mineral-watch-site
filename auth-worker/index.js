@@ -50,7 +50,8 @@ export default {
       console.log(`[Auth] Available routes: /api/auth/send-magic-link, /api/auth/verify, /api/auth/logout, /api/auth/me`);
       return new Response(`Not Found: ${path}`, { status: 404, headers: corsHeaders });
     } catch (err) {
-      console.error("Auth error:", err);
+      console.error(`[Auth] UNHANDLED ERROR on ${path}: ${err.message}`);
+      console.error(`[Auth] Stack: ${err.stack}`);
       return new Response(JSON.stringify({ error: "Internal server error" }), {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders }
@@ -60,60 +61,71 @@ export default {
 };
 
 async function handleSendMagicLink(request, env, corsHeaders) {
-  const { email } = await request.json();
-  
-  if (!email || !email.includes("@")) {
-    return new Response(JSON.stringify({ error: "Valid email required" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...corsHeaders }
+  try {
+    const { email } = await request.json();
+    console.log(`[Auth] send-magic-link called for: ${email}`);
+
+    if (!email || !email.includes("@")) {
+      return new Response(JSON.stringify({ error: "Valid email required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log(`[Auth] Looking up user: ${normalizedEmail}`);
+    const user = await findUserByEmail(env, normalizedEmail);
+
+    if (!user) {
+      console.log(`Login attempt for non-existent user: ${normalizedEmail}`);
+      // Return success to prevent email enumeration
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    console.log(`[Auth] User found: ${user.id}, Status: ${user.fields.Status}`);
+
+    if (user.fields.Status !== "Active") {
+      console.log(`Login attempt for inactive user: ${normalizedEmail}`);
+      // Return success to prevent status enumeration
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
+    // Generate magic link token
+    const tokenExpiry = Date.now() + TOKEN_EXPIRY;
+    const token = await generateToken(env, {
+      email: normalizedEmail,
+      id: user.id,
+      exp: tokenExpiry,
+      iat: Date.now() // Add issued-at time for debugging
     });
-  }
-  
-  const normalizedEmail = email.toLowerCase().trim();
-  const user = await findUserByEmail(env, normalizedEmail);
-  
-  if (!user) {
-    console.log(`Login attempt for non-existent user: ${normalizedEmail}`);
-    // Return success to prevent email enumeration
+
+    console.log(`[Auth] Generated token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
+    console.log(`[Auth] Token expires at: ${new Date(tokenExpiry).toISOString()}`);
+
+    const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
+    console.log(`[Auth] Magic link length: ${magicLink.length}`);
+
+    // Send email
+    console.log(`[Auth] Sending email via Postmark to: ${normalizedEmail}`);
+    await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
+
+    console.log(`Magic link sent to: ${normalizedEmail}`);
+
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders }
     });
+  } catch (err) {
+    console.error(`[Auth] send-magic-link ERROR: ${err.message}`);
+    console.error(`[Auth] send-magic-link STACK: ${err.stack}`);
+    throw err; // Re-throw to hit outer catch
   }
-  
-  if (user.fields.Status !== "Active") {
-    console.log(`Login attempt for inactive user: ${normalizedEmail}`);
-    // Return success to prevent status enumeration
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders }
-    });
-  }
-  
-  // Generate magic link token
-  const tokenExpiry = Date.now() + TOKEN_EXPIRY;
-  const token = await generateToken(env, {
-    email: normalizedEmail,
-    id: user.id,
-    exp: tokenExpiry,
-    iat: Date.now() // Add issued-at time for debugging
-  });
-  
-  console.log(`[Auth] Generated token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
-  console.log(`[Auth] Token expires at: ${new Date(tokenExpiry).toISOString()}`);
-  
-  const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
-  console.log(`[Auth] Magic link length: ${magicLink.length}`);
-  
-  // Send email
-  await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
-  
-  console.log(`Magic link sent to: ${normalizedEmail}`);
-  
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
-    headers: { "Content-Type": "application/json", ...corsHeaders }
-  });
 }
 
 async function handleVerifyToken(request, env, url, corsHeaders) {
