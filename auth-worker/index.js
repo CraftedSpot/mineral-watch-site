@@ -10,8 +10,7 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     
-    console.log(`[Auth] Incoming request: ${request.method} ${path}`);
-    console.log(`[Auth] Full URL: ${url.href}`);
+    console.log(`[Auth] ${request.method} ${path}`);
     
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -32,7 +31,6 @@ export default {
       
       // Verify token and create session
       if (path === "/api/auth/verify" && (request.method === "GET" || request.method === "HEAD")) {
-        console.log(`[Auth] Handling verify request for path: ${path}`);
         return await handleVerifyToken(request, env, url, corsHeaders);
       }
       
@@ -46,8 +44,7 @@ export default {
         return await handleGetCurrentUser(request, env, corsHeaders);
       }
       
-      console.log(`[Auth] No route matched for: ${request.method} ${path}`);
-      console.log(`[Auth] Available routes: /api/auth/send-magic-link, /api/auth/verify, /api/auth/logout, /api/auth/me`);
+      console.log(`[Auth] No route matched: ${request.method} ${path}`);
       return new Response(`Not Found: ${path}`, { status: 404, headers: corsHeaders });
     } catch (err) {
       console.error(`[Auth] UNHANDLED ERROR on ${path}: ${err.message}`);
@@ -61,103 +58,64 @@ export default {
 };
 
 async function handleSendMagicLink(request, env, corsHeaders) {
-  try {
-    const { email } = await request.json();
-    console.log(`[Auth] send-magic-link called for: ${email}`);
+  const { email } = await request.json();
 
-    if (!email || !email.includes("@")) {
-      return new Response(JSON.stringify({ error: "Valid email required" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders }
-      });
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    console.log(`[Auth] Looking up user: ${normalizedEmail}`);
-    const user = await findUserByEmail(env, normalizedEmail);
-
-    if (!user) {
-      console.log(`Login attempt for non-existent user: ${normalizedEmail}`);
-      // Return success to prevent email enumeration
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders }
-      });
-    }
-
-    console.log(`[Auth] User found: ${user.id}, Status: ${user.fields.Status}`);
-
-    if (user.fields.Status !== "Active") {
-      console.log(`Login attempt for inactive user: ${normalizedEmail}`);
-      // Return success to prevent status enumeration
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders }
-      });
-    }
-
-    // Generate magic link token
-    const tokenExpiry = Date.now() + TOKEN_EXPIRY;
-    const token = await generateToken(env, {
-      email: normalizedEmail,
-      id: user.id,
-      exp: tokenExpiry,
-      iat: Date.now() // Add issued-at time for debugging
+  if (!email || !email.includes("@")) {
+    return new Response(JSON.stringify({ error: "Valid email required" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json", ...corsHeaders }
     });
+  }
 
-    console.log(`[Auth] Generated token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
-    console.log(`[Auth] Token expires at: ${new Date(tokenExpiry).toISOString()}`);
+  const normalizedEmail = email.toLowerCase().trim();
+  const user = await findUserByEmail(env, normalizedEmail);
 
-    const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
-    console.log(`[Auth] Magic link length: ${magicLink.length}`);
-
-    // Send email
-    console.log(`[Auth] Sending email via Postmark to: ${normalizedEmail}`);
-    console.log(`[Auth] POSTMARK_API_KEY present: ${!!env.POSTMARK_API_KEY}, length: ${env.POSTMARK_API_KEY ? env.POSTMARK_API_KEY.length : 0}`);
-    await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
-
-    console.log(`Magic link sent to: ${normalizedEmail}`);
-
+  if (!user) {
+    console.log(`[Auth] Login attempt for unknown email: ${normalizedEmail}`);
     return new Response(JSON.stringify({ success: true }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders }
     });
-  } catch (err) {
-    console.error(`[Auth] send-magic-link ERROR: ${err.message}`);
-    console.error(`[Auth] send-magic-link STACK: ${err.stack}`);
-    throw err; // Re-throw to hit outer catch
   }
+
+  if (user.fields.Status !== "Active") {
+    console.log(`[Auth] Login attempt for inactive user: ${normalizedEmail}`);
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...corsHeaders }
+    });
+  }
+
+  // Generate magic link token
+  const tokenExpiry = Date.now() + TOKEN_EXPIRY;
+  const token = await generateToken(env, {
+    email: normalizedEmail,
+    id: user.id,
+    exp: tokenExpiry,
+    iat: Date.now()
+  });
+
+  const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
+
+  await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
+  console.log(`[Auth] Magic link sent to: ${normalizedEmail}`);
+
+  return new Response(JSON.stringify({ success: true }), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...corsHeaders }
+  });
 }
 
 async function handleVerifyToken(request, env, url, corsHeaders) {
   const token = url.searchParams.get("token");
-  console.log(`[Auth] Verify token request, token present: ${!!token}`);
-  
-  if (token) {
-    console.log(`[Auth] Token from URL: length=${token.length}, starts with: ${token.substring(0, 30)}...`);
-    console.log(`[Auth] Full URL: ${url.href}`);
-    console.log(`[Auth] Token dot count: ${(token.match(/\./g) || []).length}`);
-    console.log(`[Auth] Token contains + chars: ${token.includes('+')}`);
-    console.log(`[Auth] Token contains spaces: ${token.includes(' ')}`);
-    console.log(`[Auth] Raw token (first 50 chars): ${token.substring(0, 50)}`);
-    console.log(`[Auth] Request User-Agent: ${request.headers.get('User-Agent')}`);
-    console.log(`[Auth] Request Origin: ${request.headers.get('Origin')}`);
-    
-    // Log if token looks corrupted
-    if (token.includes(' ')) {
-      console.error(`[Auth] WARNING: Token contains spaces - likely + was decoded as space!`);
-      console.error(`[Auth] This often happens with mobile email clients`);
-    }
-  }
-  
+
   // Always return JSON for API requests
   const acceptHeader = request.headers.get("Accept");
   const isApiRequest = url.pathname.includes("/api/");
   const origin = request.headers.get("Origin");
   const wantsJson = (acceptHeader && acceptHeader.includes("application/json")) || isApiRequest || origin;
-  
+
   if (!token) {
-    console.log(`[Auth] No token provided in verify request`);
     if (wantsJson) {
       return new Response(JSON.stringify({ 
         error: "Missing token",
@@ -172,10 +130,9 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   
   let payload;
   try {
-    // If token contains spaces, try converting them to + first
+    // If token contains spaces, convert to + (mobile email client issue)
     let tokenToVerify = token;
     if (token.includes(' ') && !token.includes('+')) {
-      console.log(`[Auth] Attempting to fix token by converting spaces to +`);
       tokenToVerify = token.replace(/ /g, '+');
     }
     
@@ -219,17 +176,8 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   // Update login tracking
   await updateLoginTracking(env, payload.id);
   
-  // Log headers for debugging
-  console.log(`[Auth] Request headers:`, {
-    accept: acceptHeader,
-    origin: origin,
-    referer: request.headers.get("Referer"),
-    wantsJson: wantsJson
-  });
-  
   // For CORS/API requests (from JavaScript), always return JSON
   if (wantsJson) {
-    console.log(`[Auth] Returning JSON response for JavaScript request`);
     const response = new Response(JSON.stringify({ 
       success: true, 
       sessionToken,
