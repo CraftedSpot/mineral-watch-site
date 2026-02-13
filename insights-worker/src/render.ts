@@ -889,6 +889,61 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return AUDITING_ROYALTY_CHECKS_BODY; },
   },
+  'scoop-stack-overview': {
+    slug: 'scoop-stack-overview',
+    title: 'SCOOP & STACK Play Overview for Mineral Owners: Formations, Counties, and What It Means for Your Royalties',
+    description: 'A mineral owner\u2019s guide to Oklahoma\u2019s SCOOP, STACK, and MERGE plays. Understand the formations being drilled, which counties are affected, who the major operators are, and what it means for your mineral rights.',
+    canonical: 'https://mymineralwatch.com/insights/guides/scoop-stack-overview',
+    ogImage: 'https://mymineralwatch.com/assets/insights/scoop-stack-overview-guide.jpg',
+    tag: 'Analysis',
+    tagClass: 'tag-analysis',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '18 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'SCOOP & STACK Overview',
+    featuredImage: {
+      src: '/assets/insights/scoop-stack-overview-guide.jpg',
+      alt: 'Aerial view of Oklahoma oil field with drilling rigs and pumpjacks, representing the SCOOP and STACK horizontal drilling plays in the Anadarko Basin.',
+      width: 1376,
+      height: 774,
+    },
+    toc: [
+      { id: 'quick-reference', label: 'Quick Reference Table' },
+      { id: 'scoop', label: 'The SCOOP Play' },
+      { id: 'stack', label: 'The STACK Play' },
+      { id: 'merge', label: 'The MERGE Play' },
+      { id: 'formations', label: 'Understanding the Formations' },
+      { id: 'operators', label: 'Major Operators' },
+      { id: 'what-it-means', label: 'What It Means for Your Minerals' },
+      { id: 'monitoring', label: 'Monitoring Your Sections' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+      { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
+    ],
+    ctaTitle: 'Your Section Could Be Next',
+    ctaText: 'New permits, spacing applications, and pooling orders are filed every week across the SCOOP, STACK, and MERGE. Monitor your sections automatically \u2014 free for up to 5 sections.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "What is the SCOOP play in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "SCOOP stands for South Central Oklahoma Oil Province. It's a geographic area in the Anadarko Basin that includes parts of Garvin, Grady, Stephens, Carter, and McClain counties. The play primarily targets the Woodford Shale, Springer Shale, and Sycamore formation through horizontal drilling." } },
+        { "@type": "Question", "name": "What is the STACK play in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "STACK stands for Sooner Trend, Anadarko Basin, Canadian and Kingfisher Counties. It's a geographic area in the northern Anadarko Basin targeting multiple stacked formations including the Meramec, Osage, and Woodford through horizontal drilling." } },
+        { "@type": "Question", "name": "What is the MERGE play?", "acceptedAnswer": { "@type": "Answer", "text": "The MERGE is the transitional area between the SCOOP and STACK plays, primarily covering parts of Caddo, Grady, and McClain counties. It contains the same stacked formations found in both neighboring plays and has become an active drilling area in its own right." } },
+        { "@type": "Question", "name": "What formations are drilled in the SCOOP and STACK?", "acceptedAnswer": { "@type": "Answer", "text": "The primary formations include the Woodford Shale (dominant in the SCOOP), the Meramec (key target in the STACK), the Springer Shale (increasingly targeted in the SCOOP), and the Sycamore. Other formations include the Osage, Morrow, Red Fork, and Hunton." } },
+        { "@type": "Question", "name": "Who are the major operators in the SCOOP and STACK?", "acceptedAnswer": { "@type": "Answer", "text": "The most active operators include Continental Resources (largest operator), Devon Energy, Ovintiv, Mewbourne Oil Company, Coterra Energy, and Mach Natural Resources." } },
+        { "@type": "Question", "name": "What does SCOOP and STACK drilling mean for mineral owners?", "acceptedAnswer": { "@type": "Answer", "text": "You may see multiple rounds of development as operators target different formations on the same section. Each round can trigger new spacing, pooling, and drilling — meaning multiple leasing opportunities and potentially multiple royalty streams from the same acreage." } }
+      ]
+    }
+    </script>`,
+    get body() { return SCOOP_STACK_OVERVIEW_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -1172,6 +1227,28 @@ export function renderArticle(slug: string): string | null {
         .checklist-audit li:first-child { border-top: 1px solid var(--border); }
         .checklist-audit li::before { content: '\u2610'; position: absolute; left: 4px; top: 10px; font-size: 16px; color: var(--red-dirt); }
 
+        /* Play cards (SCOOP & STACK guide) */
+        .play-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; margin: 28px 0; overflow: hidden; }
+        .play-card-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--border); }
+        .play-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: white; font-size: 18px; }
+        .play-icon-scoop { background: #2F855A; }
+        .play-icon-stack { background: #2B6CB0; }
+        .play-icon-merge { background: #6B46C1; }
+        .play-icon-formation { background: #B7791F; }
+        .play-icon-operator { background: #00796B; }
+        .play-card-title { font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; color: var(--oil-navy); }
+        .play-card-subtitle { font-size: 13px; color: #718096; margin-top: 2px; }
+        .play-card-body { padding: 20px 24px; }
+        .play-card-body p { font-size: 15px; margin-bottom: 14px; }
+        .play-card-body p:last-child { margin-bottom: 0; }
+        .play-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .play-detail-item h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; font-family: 'Inter', sans-serif; font-weight: 600; margin-bottom: 4px; }
+        .play-detail-item p { font-size: 14px; margin-bottom: 0; color: #2D3748; }
+        .formation-badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 3px; margin: 2px 4px 2px 0; }
+        .badge-primary { background: #EBF5FF; color: #1A56DB; }
+        .badge-secondary { background: var(--success-bg); color: var(--success); }
+        .badge-emerging { background: #FFFAF0; color: #C05621; }
+
         /* Share & Print */
         .article-actions { display: flex; gap: 8px; margin-top: 18px; }
         .share-wrap { position: relative; display: inline-block; }
@@ -1213,6 +1290,7 @@ export function renderArticle(slug: string): string | null {
             .do-field { grid-template-columns: 1fr; }
             .do-field-label { border-right: none; border-bottom: 1px solid var(--border); }
             .check-detail { grid-template-columns: 1fr; }
+            .play-detail { grid-template-columns: 1fr; }
         }
 
         /* Print styles */
@@ -1230,7 +1308,7 @@ export function renderArticle(slug: string): string | null {
             .article-body p { font-size: 10.5pt; margin-bottom: 10px; }
             .article-image { max-height: 280px; margin: 16px 0; }
             .callout { border-left-width: 3px; padding: 12px 16px; margin: 16px 0; page-break-inside: avoid; }
-            .tool-card, .filing-card, .math-example, .do-anatomy, .step-box, .audit-step, .formula-box { page-break-inside: avoid; margin: 16px 0; }
+            .tool-card, .filing-card, .math-example, .do-anatomy, .step-box, .audit-step, .formula-box, .play-card { page-break-inside: avoid; margin: 16px 0; }
             .tool-card-header, .filing-card-header { padding: 12px 16px; }
             .tool-card-body, .filing-card-body { padding: 12px 16px; }
             .quick-ref { font-size: 9pt; }
