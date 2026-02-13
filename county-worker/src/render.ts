@@ -280,20 +280,20 @@ export function renderCountyPage(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${esc(countyName)} County Mineral Rights Monitoring | Mineral Watch</title>
-    <meta name="description" content="Track OCC filings, drilling permits, completions, and production data for ${esc(countyName)} County, Oklahoma mineral rights. Automated alerts for mineral owners.">
+    <title>${esc(countyName)} County Mineral Rights Intelligence | Mineral Watch</title>
+    <meta name="description" content="OCC alerts, production data, document extraction, and interactive mapping for ${esc(countyName)} County, Oklahoma mineral rights owners.">
     <link rel="canonical" href="https://mymineralwatch.com/counties/${slug}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mymineralwatch.com/counties/${slug}">
-    <meta property="og:title" content="${esc(countyName)} County Mineral Rights Monitoring | Mineral Watch">
-    <meta property="og:description" content="Track OCC filings, drilling permits, completions, and production data for ${esc(countyName)} County, Oklahoma mineral rights.">
+    <meta property="og:title" content="${esc(countyName)} County Mineral Rights Intelligence | Mineral Watch">
+    <meta property="og:description" content="OCC alerts, production data, document extraction, and interactive mapping for ${esc(countyName)} County, Oklahoma mineral rights owners.">
     <meta property="og:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="${esc(countyName)} County Mineral Rights Monitoring | Mineral Watch">
-    <meta name="twitter:description" content="Track OCC filings, drilling permits, completions, and production data for ${esc(countyName)} County, Oklahoma mineral rights.">
+    <meta name="twitter:title" content="${esc(countyName)} County Mineral Rights Intelligence | Mineral Watch">
+    <meta name="twitter:description" content="OCC alerts, production data, document extraction, and interactive mapping for ${esc(countyName)} County, Oklahoma mineral rights owners.">
     <meta name="twitter:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
     <script type="application/ld+json">
-    {"@context":"https://schema.org","@type":"WebPage","name":"${esc(countyName)} County Mineral Rights Monitoring","description":"Track OCC filings, drilling permits, completions, and production data for ${esc(countyName)} County, Oklahoma mineral rights.","url":"https://mymineralwatch.com/counties/${slug}","publisher":{"@type":"Organization","name":"Mineral Watch","url":"https://mymineralwatch.com"}${geoJson}}
+    {"@context":"https://schema.org","@type":"WebPage","name":"${esc(countyName)} County Mineral Rights Intelligence","description":"OCC alerts, production data, document extraction, and interactive mapping for ${esc(countyName)} County, Oklahoma mineral rights owners.","url":"https://mymineralwatch.com/counties/${slug}","publisher":{"@type":"Organization","name":"Mineral Watch","url":"https://mymineralwatch.com"}${geoJson}}
     </script>
     <script type="application/ld+json">
     {"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Home","item":"https://mymineralwatch.com/"},{"@type":"ListItem","position":2,"name":"Counties","item":"https://mymineralwatch.com/counties/"},{"@type":"ListItem","position":3,"name":"${esc(countyName)} County","item":"https://mymineralwatch.com/counties/${slug}"}]}
@@ -318,9 +318,9 @@ ${HEADER}
             <div class="county-hero-layout">
                 <div>
                     <div class="county-label">Oklahoma County Profile</div>
-                    <h1>${esc(countyName)} County <em>Mineral Rights</em> Monitoring</h1>
+                    <h1>${esc(countyName)} County <em>Mineral</em> Intelligence</h1>
                     <p class="county-hero-description">${esc(heroDesc)}</p>
-                    <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Monitor Your ${esc(countyName)} County Minerals &rarr;</a>
+                    <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
                 </div>
                 <div class="county-stats-grid">
                     <div class="county-stat-card">
@@ -351,7 +351,7 @@ ${HEADER}
                     <section class="activity-feed">
                         <div class="section-header">
                             <h2>Recent OCC Activity</h2>
-                            <a href="https://portal.mymineralwatch.com/register" class="view-all">Get full alerts &rarr;</a>
+                            <a href="https://portal.mymineralwatch.com/register" class="view-all">See all activity &rarr;</a>
                         </div>
                         ${activityHtml}
                     </section>
@@ -371,9 +371,9 @@ ${HEADER}
 
                 <aside>
                     <div class="sidebar-card sidebar-cta">
-                        <h3>Monitor Your Minerals</h3>
-                        <p>Get instant email alerts when OCC filings, permits, or completions affect your ${esc(countyName)} County sections.</p>
-                        <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free Monitoring &rarr;</a>
+                        <h3>Your Mineral Command Center</h3>
+                        <p>OCC alerts, production data, AI document extraction, and interactive mapping for your ${esc(countyName)} County minerals.</p>
+                        <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
                     </div>
                     ${quickFactsHtml}
                     ${neighborsHtml}
@@ -392,9 +392,9 @@ ${HEADER}
 
     <section class="bottom-cta">
         <div class="container">
-            <h2>Never miss another filing in ${esc(countyName)} County</h2>
-            <p>Join mineral owners across Oklahoma who rely on Mineral Watch to protect their interests.</p>
-            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free Monitoring &rarr;</a>
+            <h2>Your ${esc(countyName)} County Minerals Deserve Better</h2>
+            <p>The complete mineral intelligence platform — OCC alerts, production data, document extraction, and portfolio management. Start with one property free.</p>
+            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
         </div>
     </section>
 
@@ -437,17 +437,17 @@ export function renderCountyIndex(counties: CountyIndexRow[]): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oklahoma County Mineral Rights Monitoring | Mineral Watch</title>
-    <meta name="description" content="Browse all 77 Oklahoma counties for mineral rights monitoring. Track OCC filings, drilling permits, and completions in your county.">
+    <title>Oklahoma County Mineral Rights Intelligence | Mineral Watch</title>
+    <meta name="description" content="Browse all 77 Oklahoma counties. OCC alerts, production data, drilling permits, document extraction, and interactive mapping for mineral rights owners.">
     <link rel="canonical" href="https://mymineralwatch.com/counties/">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mymineralwatch.com/counties/">
-    <meta property="og:title" content="Oklahoma County Mineral Rights Monitoring | Mineral Watch">
-    <meta property="og:description" content="Browse all 77 Oklahoma counties for mineral rights monitoring. Track OCC filings, drilling permits, and completions.">
+    <meta property="og:title" content="Oklahoma County Mineral Rights Intelligence | Mineral Watch">
+    <meta property="og:description" content="Browse all 77 Oklahoma counties. OCC alerts, production data, drilling permits, and interactive mapping for mineral rights owners.">
     <meta property="og:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
     <meta name="twitter:card" content="summary_large_image">
     <script type="application/ld+json">
-    {"@context":"https://schema.org","@type":"CollectionPage","name":"Oklahoma County Mineral Rights Monitoring","description":"Browse all 77 Oklahoma counties for mineral rights monitoring.","url":"https://mymineralwatch.com/counties/","publisher":{"@type":"Organization","name":"Mineral Watch","url":"https://mymineralwatch.com"}}
+    {"@context":"https://schema.org","@type":"CollectionPage","name":"Oklahoma County Mineral Rights Intelligence","description":"Browse all 77 Oklahoma counties for mineral rights intelligence — OCC alerts, production data, and interactive mapping.","url":"https://mymineralwatch.com/counties/","publisher":{"@type":"Organization","name":"Mineral Watch","url":"https://mymineralwatch.com"}}
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -481,9 +481,9 @@ ${HEADER}
 
     <section class="bottom-cta">
         <div class="container">
-            <h2>Monitor Your Oklahoma Mineral Rights</h2>
-            <p>Get instant email alerts when OCC filings, permits, or completions affect your sections.</p>
-            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free Monitoring &rarr;</a>
+            <h2>Your Minerals Deserve Better</h2>
+            <p>The complete mineral intelligence platform — OCC alerts, production data, document extraction, and portfolio management. Start with one property free.</p>
+            <a href="https://portal.mymineralwatch.com/register" class="hero-cta">Start Free &rarr;</a>
         </div>
     </section>
 
