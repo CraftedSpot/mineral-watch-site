@@ -203,6 +203,10 @@ export function renderInsightsHub(): string {
         .county-tile.featured { border-color: var(--red-dirt); border-width: 2px; background: #fff; }
         .view-all-link { display: inline-flex; align-items: center; gap: 6px; color: var(--red-dirt); font-weight: 600; font-size: 14px; text-decoration: none; }
         .view-all-link:hover { text-decoration: underline; }
+        .county-search { width: 100%; padding: 12px 16px 12px 40px; border: 1px solid var(--border); border-radius: 4px; font-size: 15px; font-family: 'Inter', sans-serif; color: var(--oil-navy); margin-bottom: 20px; background: var(--paper) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23718096' stroke-width='1.5' viewBox='0 0 24 24'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M21 21l-4.35-4.35'/%3E%3C/svg%3E") 12px center no-repeat; transition: border-color 0.2s; }
+        .county-search:focus { outline: none; border-color: var(--red-dirt); background-color: #fff; }
+        .county-tile.hidden { display: none; }
+        .county-no-results { display: none; padding: 20px; text-align: center; color: #718096; font-size: 14px; grid-column: 1 / -1; }
 
         /* Topics */
         .topics-section { padding: 50px 0; border-bottom: 1px solid var(--border); }
@@ -345,52 +349,92 @@ export function renderInsightsHub(): string {
                     <h2>Explore by County</h2>
                     <a href="/counties/" class="view-all-link">View all 77 counties &rarr;</a>
                 </div>
-                <p class="county-section-intro">Live drilling activity, OCC filings, and operator data for every Oklahoma county. Click any county to see recent permits, pooling orders, and top operators.</p>
+                <p class="county-section-intro">Live drilling activity, OCC filings, and operator data for every Oklahoma county. Search or click any county to see recent permits, pooling orders, and top operators.</p>
 
-                <div class="county-grid">
-                    <a href="/counties/canadian-county" class="county-tile featured">
-                        <div class="county-tile-name">Canadian</div>
-                        <div class="county-tile-stat"><strong>3,069</strong> active wells</div>
-                    </a>
-                    <a href="/counties/grady-county" class="county-tile featured">
-                        <div class="county-tile-name">Grady</div>
-                        <div class="county-tile-stat"><strong>2,411</strong> active wells</div>
-                    </a>
-                    <a href="/counties/kingfisher-county" class="county-tile featured">
-                        <div class="county-tile-name">Kingfisher</div>
-                        <div class="county-tile-stat"><strong>1,892</strong> active wells</div>
-                    </a>
-                    <a href="/counties/blaine-county" class="county-tile featured">
-                        <div class="county-tile-name">Blaine</div>
-                        <div class="county-tile-stat"><strong>1,654</strong> active wells</div>
-                    </a>
-                    <a href="/counties/stephens-county" class="county-tile featured">
-                        <div class="county-tile-name">Stephens</div>
-                        <div class="county-tile-stat"><strong>1,523</strong> active wells</div>
-                    </a>
-                    <a href="/counties/carter-county" class="county-tile">
-                        <div class="county-tile-name">Carter</div>
-                        <div class="county-tile-stat"><strong>1,412</strong> active wells</div>
-                    </a>
-                    <a href="/counties/garfield-county" class="county-tile">
-                        <div class="county-tile-name">Garfield</div>
-                        <div class="county-tile-stat"><strong>1,380</strong> active wells</div>
-                    </a>
-                    <a href="/counties/mcclain-county" class="county-tile">
-                        <div class="county-tile-name">McClain</div>
-                        <div class="county-tile-stat"><strong>1,245</strong> active wells</div>
-                    </a>
-                    <a href="/counties/caddo-county" class="county-tile">
-                        <div class="county-tile-name">Caddo</div>
-                        <div class="county-tile-stat"><strong>1,187</strong> active wells</div>
-                    </a>
-                    <a href="/counties/custer-county" class="county-tile">
-                        <div class="county-tile-name">Custer</div>
-                        <div class="county-tile-stat"><strong>1,034</strong> active wells</div>
-                    </a>
+                <input type="text" class="county-search" id="countySearch" placeholder="Search counties..." autocomplete="off">
+
+                <div class="county-grid" id="countyGrid">
+                    <a href="/counties/canadian-county" class="county-tile featured" data-county="canadian"><div class="county-tile-name">Canadian</div></a>
+                    <a href="/counties/grady-county" class="county-tile featured" data-county="grady"><div class="county-tile-name">Grady</div></a>
+                    <a href="/counties/kingfisher-county" class="county-tile featured" data-county="kingfisher"><div class="county-tile-name">Kingfisher</div></a>
+                    <a href="/counties/blaine-county" class="county-tile featured" data-county="blaine"><div class="county-tile-name">Blaine</div></a>
+                    <a href="/counties/stephens-county" class="county-tile featured" data-county="stephens"><div class="county-tile-name">Stephens</div></a>
+                    <a href="/counties/carter-county" class="county-tile" data-county="carter"><div class="county-tile-name">Carter</div></a>
+                    <a href="/counties/garfield-county" class="county-tile" data-county="garfield"><div class="county-tile-name">Garfield</div></a>
+                    <a href="/counties/mcclain-county" class="county-tile" data-county="mcclain"><div class="county-tile-name">McClain</div></a>
+                    <a href="/counties/caddo-county" class="county-tile" data-county="caddo"><div class="county-tile-name">Caddo</div></a>
+                    <a href="/counties/custer-county" class="county-tile" data-county="custer"><div class="county-tile-name">Custer</div></a>
+                    <a href="/counties/adair-county" class="county-tile hidden" data-county="adair"><div class="county-tile-name">Adair</div></a>
+                    <a href="/counties/alfalfa-county" class="county-tile hidden" data-county="alfalfa"><div class="county-tile-name">Alfalfa</div></a>
+                    <a href="/counties/atoka-county" class="county-tile hidden" data-county="atoka"><div class="county-tile-name">Atoka</div></a>
+                    <a href="/counties/beaver-county" class="county-tile hidden" data-county="beaver"><div class="county-tile-name">Beaver</div></a>
+                    <a href="/counties/beckham-county" class="county-tile hidden" data-county="beckham"><div class="county-tile-name">Beckham</div></a>
+                    <a href="/counties/bryan-county" class="county-tile hidden" data-county="bryan"><div class="county-tile-name">Bryan</div></a>
+                    <a href="/counties/cherokee-county" class="county-tile hidden" data-county="cherokee"><div class="county-tile-name">Cherokee</div></a>
+                    <a href="/counties/choctaw-county" class="county-tile hidden" data-county="choctaw"><div class="county-tile-name">Choctaw</div></a>
+                    <a href="/counties/cimarron-county" class="county-tile hidden" data-county="cimarron"><div class="county-tile-name">Cimarron</div></a>
+                    <a href="/counties/cleveland-county" class="county-tile hidden" data-county="cleveland"><div class="county-tile-name">Cleveland</div></a>
+                    <a href="/counties/coal-county" class="county-tile hidden" data-county="coal"><div class="county-tile-name">Coal</div></a>
+                    <a href="/counties/comanche-county" class="county-tile hidden" data-county="comanche"><div class="county-tile-name">Comanche</div></a>
+                    <a href="/counties/cotton-county" class="county-tile hidden" data-county="cotton"><div class="county-tile-name">Cotton</div></a>
+                    <a href="/counties/craig-county" class="county-tile hidden" data-county="craig"><div class="county-tile-name">Craig</div></a>
+                    <a href="/counties/creek-county" class="county-tile hidden" data-county="creek"><div class="county-tile-name">Creek</div></a>
+                    <a href="/counties/delaware-county" class="county-tile hidden" data-county="delaware"><div class="county-tile-name">Delaware</div></a>
+                    <a href="/counties/dewey-county" class="county-tile hidden" data-county="dewey"><div class="county-tile-name">Dewey</div></a>
+                    <a href="/counties/ellis-county" class="county-tile hidden" data-county="ellis"><div class="county-tile-name">Ellis</div></a>
+                    <a href="/counties/garvin-county" class="county-tile hidden" data-county="garvin"><div class="county-tile-name">Garvin</div></a>
+                    <a href="/counties/grant-county" class="county-tile hidden" data-county="grant"><div class="county-tile-name">Grant</div></a>
+                    <a href="/counties/greer-county" class="county-tile hidden" data-county="greer"><div class="county-tile-name">Greer</div></a>
+                    <a href="/counties/harmon-county" class="county-tile hidden" data-county="harmon"><div class="county-tile-name">Harmon</div></a>
+                    <a href="/counties/harper-county" class="county-tile hidden" data-county="harper"><div class="county-tile-name">Harper</div></a>
+                    <a href="/counties/haskell-county" class="county-tile hidden" data-county="haskell"><div class="county-tile-name">Haskell</div></a>
+                    <a href="/counties/hughes-county" class="county-tile hidden" data-county="hughes"><div class="county-tile-name">Hughes</div></a>
+                    <a href="/counties/jackson-county" class="county-tile hidden" data-county="jackson"><div class="county-tile-name">Jackson</div></a>
+                    <a href="/counties/jefferson-county" class="county-tile hidden" data-county="jefferson"><div class="county-tile-name">Jefferson</div></a>
+                    <a href="/counties/johnston-county" class="county-tile hidden" data-county="johnston"><div class="county-tile-name">Johnston</div></a>
+                    <a href="/counties/kay-county" class="county-tile hidden" data-county="kay"><div class="county-tile-name">Kay</div></a>
+                    <a href="/counties/kiowa-county" class="county-tile hidden" data-county="kiowa"><div class="county-tile-name">Kiowa</div></a>
+                    <a href="/counties/latimer-county" class="county-tile hidden" data-county="latimer"><div class="county-tile-name">Latimer</div></a>
+                    <a href="/counties/le-flore-county" class="county-tile hidden" data-county="le flore"><div class="county-tile-name">Le Flore</div></a>
+                    <a href="/counties/lincoln-county" class="county-tile hidden" data-county="lincoln"><div class="county-tile-name">Lincoln</div></a>
+                    <a href="/counties/logan-county" class="county-tile hidden" data-county="logan"><div class="county-tile-name">Logan</div></a>
+                    <a href="/counties/love-county" class="county-tile hidden" data-county="love"><div class="county-tile-name">Love</div></a>
+                    <a href="/counties/major-county" class="county-tile hidden" data-county="major"><div class="county-tile-name">Major</div></a>
+                    <a href="/counties/marshall-county" class="county-tile hidden" data-county="marshall"><div class="county-tile-name">Marshall</div></a>
+                    <a href="/counties/mayes-county" class="county-tile hidden" data-county="mayes"><div class="county-tile-name">Mayes</div></a>
+                    <a href="/counties/mccurtain-county" class="county-tile hidden" data-county="mccurtain"><div class="county-tile-name">McCurtain</div></a>
+                    <a href="/counties/mcintosh-county" class="county-tile hidden" data-county="mcintosh"><div class="county-tile-name">McIntosh</div></a>
+                    <a href="/counties/murray-county" class="county-tile hidden" data-county="murray"><div class="county-tile-name">Murray</div></a>
+                    <a href="/counties/muskogee-county" class="county-tile hidden" data-county="muskogee"><div class="county-tile-name">Muskogee</div></a>
+                    <a href="/counties/noble-county" class="county-tile hidden" data-county="noble"><div class="county-tile-name">Noble</div></a>
+                    <a href="/counties/nowata-county" class="county-tile hidden" data-county="nowata"><div class="county-tile-name">Nowata</div></a>
+                    <a href="/counties/okfuskee-county" class="county-tile hidden" data-county="okfuskee"><div class="county-tile-name">Okfuskee</div></a>
+                    <a href="/counties/oklahoma-county" class="county-tile hidden" data-county="oklahoma"><div class="county-tile-name">Oklahoma</div></a>
+                    <a href="/counties/okmulgee-county" class="county-tile hidden" data-county="okmulgee"><div class="county-tile-name">Okmulgee</div></a>
+                    <a href="/counties/osage-county" class="county-tile hidden" data-county="osage"><div class="county-tile-name">Osage</div></a>
+                    <a href="/counties/ottawa-county" class="county-tile hidden" data-county="ottawa"><div class="county-tile-name">Ottawa</div></a>
+                    <a href="/counties/pawnee-county" class="county-tile hidden" data-county="pawnee"><div class="county-tile-name">Pawnee</div></a>
+                    <a href="/counties/payne-county" class="county-tile hidden" data-county="payne"><div class="county-tile-name">Payne</div></a>
+                    <a href="/counties/pittsburg-county" class="county-tile hidden" data-county="pittsburg"><div class="county-tile-name">Pittsburg</div></a>
+                    <a href="/counties/pontotoc-county" class="county-tile hidden" data-county="pontotoc"><div class="county-tile-name">Pontotoc</div></a>
+                    <a href="/counties/pottawatomie-county" class="county-tile hidden" data-county="pottawatomie"><div class="county-tile-name">Pottawatomie</div></a>
+                    <a href="/counties/pushmataha-county" class="county-tile hidden" data-county="pushmataha"><div class="county-tile-name">Pushmataha</div></a>
+                    <a href="/counties/roger-mills-county" class="county-tile hidden" data-county="roger mills"><div class="county-tile-name">Roger Mills</div></a>
+                    <a href="/counties/rogers-county" class="county-tile hidden" data-county="rogers"><div class="county-tile-name">Rogers</div></a>
+                    <a href="/counties/seminole-county" class="county-tile hidden" data-county="seminole"><div class="county-tile-name">Seminole</div></a>
+                    <a href="/counties/sequoyah-county" class="county-tile hidden" data-county="sequoyah"><div class="county-tile-name">Sequoyah</div></a>
+                    <a href="/counties/texas-county" class="county-tile hidden" data-county="texas"><div class="county-tile-name">Texas</div></a>
+                    <a href="/counties/tillman-county" class="county-tile hidden" data-county="tillman"><div class="county-tile-name">Tillman</div></a>
+                    <a href="/counties/tulsa-county" class="county-tile hidden" data-county="tulsa"><div class="county-tile-name">Tulsa</div></a>
+                    <a href="/counties/wagoner-county" class="county-tile hidden" data-county="wagoner"><div class="county-tile-name">Wagoner</div></a>
+                    <a href="/counties/washington-county" class="county-tile hidden" data-county="washington"><div class="county-tile-name">Washington</div></a>
+                    <a href="/counties/washita-county" class="county-tile hidden" data-county="washita"><div class="county-tile-name">Washita</div></a>
+                    <a href="/counties/woods-county" class="county-tile hidden" data-county="woods"><div class="county-tile-name">Woods</div></a>
+                    <a href="/counties/woodward-county" class="county-tile hidden" data-county="woodward"><div class="county-tile-name">Woodward</div></a>
+                    <div class="county-no-results" id="countyNoResults">No counties match your search.</div>
                 </div>
 
-                <a href="/counties/" class="view-all-link">See all 77 Oklahoma counties &rarr;</a>
+                <a href="/counties/" class="view-all-link" id="viewAllLink">See all 77 Oklahoma counties &rarr;</a>
             </div>
         </section>
 
@@ -440,6 +484,32 @@ export function renderInsightsHub(): string {
 
     ${FOOTER}
     ${MENU_SCRIPT}
+    <script>
+    (function() {
+        var input = document.getElementById('countySearch');
+        var grid = document.getElementById('countyGrid');
+        var tiles = grid.querySelectorAll('.county-tile');
+        var noResults = document.getElementById('countyNoResults');
+        var top10 = ['canadian','grady','kingfisher','blaine','stephens','carter','garfield','mcclain','caddo','custer'];
+        input.addEventListener('input', function() {
+            var q = this.value.toLowerCase().trim();
+            var matches = 0;
+            for (var i = 0; i < tiles.length; i++) {
+                var name = tiles[i].getAttribute('data-county');
+                if (!q) {
+                    tiles[i].classList.toggle('hidden', top10.indexOf(name) === -1);
+                    if (top10.indexOf(name) !== -1) matches++;
+                } else if (name.indexOf(q) !== -1) {
+                    tiles[i].classList.remove('hidden');
+                    matches++;
+                } else {
+                    tiles[i].classList.add('hidden');
+                }
+            }
+            noResults.style.display = matches === 0 ? 'block' : 'none';
+        });
+    })();
+    </script>
 
 </body>
 </html>`;
