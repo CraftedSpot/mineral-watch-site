@@ -113,6 +113,7 @@ async function handleSendMagicLink(request, env, corsHeaders) {
 
     // Send email
     console.log(`[Auth] Sending email via Postmark to: ${normalizedEmail}`);
+    console.log(`[Auth] POSTMARK_API_KEY present: ${!!env.POSTMARK_API_KEY}, length: ${env.POSTMARK_API_KEY ? env.POSTMARK_API_KEY.length : 0}`);
     await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
 
     console.log(`Magic link sent to: ${normalizedEmail}`);
@@ -532,10 +533,13 @@ async function sendMagicLinkEmail(env, email, name, magicLink) {
     })
   });
   
+  console.log(`[Auth] Postmark response: status=${response.status}, content-type=${response.headers.get('content-type')}`);
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Postmark error: ${err}`);
+    console.error(`[Auth] Postmark error (first 200 chars): ${err.substring(0, 200)}`);
+    throw new Error(`Postmark error: status ${response.status}`);
   }
+  console.log(`[Auth] Postmark email sent successfully`);
 }
 
 async function updateLoginTracking(env, userId) {
