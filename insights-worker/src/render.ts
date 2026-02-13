@@ -1230,7 +1230,7 @@ export function renderArticle(slug: string): string | null {
             .article-body p { font-size: 10.5pt; margin-bottom: 10px; }
             .article-image { max-height: 280px; margin: 16px 0; }
             .callout { border-left-width: 3px; padding: 12px 16px; margin: 16px 0; page-break-inside: avoid; }
-            .tool-card, .filing-card, .math-example, .do-anatomy, .step-box { page-break-inside: avoid; margin: 16px 0; }
+            .tool-card, .filing-card, .math-example, .do-anatomy, .step-box, .audit-step, .formula-box { page-break-inside: avoid; margin: 16px 0; }
             .tool-card-header, .filing-card-header { padding: 12px 16px; }
             .tool-card-body, .filing-card-body { padding: 12px 16px; }
             .quick-ref { font-size: 9pt; }
@@ -3043,4 +3043,348 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 <p>The OCC website holds an extraordinary amount of public information about every oil and gas well and regulatory filing in Oklahoma. For mineral owners, learning to navigate it effectively is one of the highest-leverage skills you can develop. The tools aren&rsquo;t intuitive, the systems overlap, and the learning curve is real &mdash; but every spacing application, pooling order, drilling permit, and completion report on your sections is in there, waiting to be found.</p>
 
 <p>The practical challenge is that the OCC website is designed for on-demand searching, not proactive monitoring. It can tell you what&rsquo;s happened on your section, but it won&rsquo;t tell you when something new happens. For mineral owners with properties across multiple counties, manually checking each section across multiple OCC databases on a regular basis quickly becomes impractical. That&rsquo;s the gap that automated monitoring fills &mdash; turning the OCC&rsquo;s reactive databases into proactive alerts that reach you when filings appear, rather than when you happen to check.</p>
+`;
+
+const AUDITING_ROYALTY_CHECKS_BODY = `
+<p>Oklahoma&rsquo;s Production Revenue Standards Act (52 O.S. &sect; 570.1 et seq.) requires operators to pay royalties within six months of first production and monthly thereafter, with detailed check stubs that show how your payment was calculated. That stub is your starting point. It contains the production volumes, pricing, deductions, and decimal interest used to calculate your payment &mdash; and each of those numbers can be independently verified.</p>
+
+<p>This guide walks you through a practical, step-by-step audit process. You don&rsquo;t need to hire a professional auditor to catch the most common errors. You need your check stubs, your lease or division order, and access to a few publicly available databases. Let&rsquo;s start with what you&rsquo;re looking at when you open that envelope.</p>
+
+<h2 id="anatomy">Anatomy of a Royalty Check Stub</h2>
+
+<p>Before you can audit your payment, you need to understand what the check stub is telling you. While every operator&rsquo;s format is slightly different, the essential information is the same. Each line on a royalty stub typically represents one product (oil, gas, or natural gas liquids) from one well for one production month. Here&rsquo;s what each field means and where it fits in the payment calculation:</p>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Stub Field</th>
+                <th>What It Tells You</th>
+                <th>How to Verify</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Well Name</strong></td>
+                <td>The specific well producing your revenue</td>
+                <td>Cross-reference with your division order and OCC well records</td>
+            </tr>
+            <tr>
+                <td><strong>Production Month</strong></td>
+                <td>The calendar month the oil or gas was produced</td>
+                <td>Ensure payments aren&rsquo;t skipping months or double-counting</td>
+            </tr>
+            <tr>
+                <td><strong>Product Type</strong></td>
+                <td>Oil (bbls), gas (MCF), or NGLs (gallons)</td>
+                <td>Oklahoma Tax Commission gross production data</td>
+            </tr>
+            <tr>
+                <td><strong>Gross Volume</strong></td>
+                <td>Total production for the well that month</td>
+                <td>OTC production reports; compare to operator&rsquo;s reported volumes</td>
+            </tr>
+            <tr>
+                <td><strong>Price</strong></td>
+                <td>Price per barrel (oil) or per MCF (gas) the production sold for</td>
+                <td>Compare against posted prices or NYMEX benchmarks for the month</td>
+            </tr>
+            <tr>
+                <td><strong>Deductions</strong></td>
+                <td>Post-production costs subtracted from gross revenue</td>
+                <td>Review lease language &mdash; does your lease permit deductions?</td>
+            </tr>
+            <tr>
+                <td><strong>Decimal Interest</strong></td>
+                <td>Your net revenue interest (NRI) &mdash; your share of revenue</td>
+                <td>Calculate from your mineral ownership and royalty rate; compare to division order</td>
+            </tr>
+            <tr>
+                <td><strong>Net Payment</strong></td>
+                <td>Your actual payment for that line item</td>
+                <td>Recalculate: (Volume &times; Price &minus; Deductions) &times; Decimal Interest</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="formula-box">
+    <div class="formula-label">The Royalty Payment Formula</div>
+    <div class="formula">Your Payment = (Gross Volume &times; Price &minus; Deductions) &times; Your NRI</div>
+    <div class="formula-note">Each variable in this equation can be independently verified. If any one of them is wrong, your check is wrong. The audit process below checks each variable one at a time.</div>
+</div>
+
+<h2 id="step-1">Step 1: Verify Your Decimal Interest</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-1">1</div>
+        <div>
+            <div class="audit-step-title">Confirm Your Net Revenue Interest (NRI)</div>
+            <div class="audit-step-subtitle">The most common &mdash; and most costly &mdash; source of royalty errors</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>Your decimal interest is the multiplier that determines your share of every dollar produced. If this number is wrong, every single check is wrong &mdash; not just by a little, but systematically, month after month. This is the first thing to verify because it has the largest cumulative impact.</p>
+
+        <p>Start with what you know: your mineral ownership (how many net mineral acres you own in the section) and your royalty rate (from your lease or the pooling order, if you were force-pooled). Multiply those together to get your NRI. For a horizontal well spanning multiple sections, the calculation includes a proration factor for how much of the lateral falls within your section.</p>
+
+        <p>Compare your calculated NRI to the decimal on your division order. If they don&rsquo;t match, contact the operator&rsquo;s division order department and ask for an explanation. Common causes of NRI errors include incorrect tract descriptions in the title opinion, outdated ownership records that don&rsquo;t reflect recent conveyances or probate proceedings, and mathematical errors in the proration of multi-unit horizontal wells.</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>Your deed or conveyance documents, your lease or pooling order, the division order for each well, and the OCC&rsquo;s spacing and pooling orders for the unit.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>Your NRI changed between wells or between division orders without any corresponding change in your ownership. Or your decimal doesn&rsquo;t match a straightforward calculation from your acreage and royalty rate.</p>
+                <span class="red-flag flag-high">High impact &mdash; affects every check</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="step-2">Step 2: Check Production Volumes</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-2">2</div>
+        <div>
+            <div class="audit-step-title">Compare Reported Volumes Against Public Data</div>
+            <div class="audit-step-subtitle">What the operator says was produced vs. what the state recorded</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>The Oklahoma Tax Commission publishes gross production data for every well in the state. This data is reported independently by the first purchaser of the oil or gas &mdash; not by the operator paying your royalties. That makes it a valuable cross-check. If your operator reports 3,000 barrels of oil on your stub for a given month, and the OTC data shows 3,500 barrels for the same well in the same month, you have a discrepancy that needs explaining.</p>
+
+        <p>Production volumes can diverge from stub volumes for legitimate reasons &mdash; timing differences between when production is measured and when it&rsquo;s sold, adjustment entries for prior months, or allocation differences in multi-well batteries. But large or persistent discrepancies are a sign of trouble. Pay special attention to the first few months of production, when volumes are highest and allocation errors are most common.</p>
+
+        <p>For gas production, watch for the unit of measurement. Some operators report in MCF (thousand cubic feet) while others use MMBTU (million British thermal units). The conversion isn&rsquo;t always 1:1, and a unit mismatch can make production look lower than it actually is.</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>Oklahoma Tax Commission gross production data (available via their website or through the OCC well records system), your royalty check stubs for the corresponding months.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>Reported volumes on your stub are consistently lower than OTC data, missing production months with no explanation, or sudden volume drops that don&rsquo;t align with the well&rsquo;s decline curve.</p>
+                <span class="red-flag flag-high">High impact &mdash; directly reduces your payment</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="step-3">Step 3: Verify Pricing</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-3">3</div>
+        <div>
+            <div class="audit-step-title">Compare Your Price Against Market Benchmarks</div>
+            <div class="audit-step-subtitle">Are you getting a fair price for what&rsquo;s being produced?</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>The price on your royalty stub should reflect the actual sale price of the oil or gas. For Oklahoma crude oil, this is typically tied to WTI (West Texas Intermediate) with a quality or location differential. For natural gas, it&rsquo;s tied to regional benchmarks &mdash; often the ONEOK or Southern Star index, depending on the gathering system.</p>
+
+        <p>Some variation from the NYMEX benchmark is normal. Oklahoma oil usually trades at a slight discount to WTI due to transportation costs and quality differences. Natural gas prices vary more widely depending on the pipeline and the local market. What you&rsquo;re watching for is a price that consistently runs well below the benchmark without a clear explanation, or prices that don&rsquo;t move with the market at all.</p>
+
+        <p>Affiliate sales deserve extra scrutiny. If the operator sells production to a subsidiary or related company rather than on the open market, the sale price may not reflect arm&rsquo;s-length market value. Oklahoma courts have addressed this issue &mdash; the royalty must be calculated on the market value of the product, not on a below-market transfer price between related entities.</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>Historical NYMEX WTI oil prices and Henry Hub gas prices (widely available online), your check stubs with per-unit pricing.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>Oil price consistently more than $5&ndash;$8 below WTI, gas price significantly below regional index, or prices that remain flat when the market moves sharply in either direction.</p>
+                <span class="red-flag flag-medium">Medium impact &mdash; harder to detect, but compounds over time</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="step-4">Step 4: Examine Deductions</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-4">4</div>
+        <div>
+            <div class="audit-step-title">Determine Whether Deductions Are Permitted by Your Lease</div>
+            <div class="audit-step-subtitle">The most contentious area of royalty disputes in Oklahoma</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>Post-production deductions are the expenses operators subtract from your gross revenue before applying your royalty percentage. Common deductions include gathering fees, compression, dehydration, transportation, and processing charges. Whether these deductions are legally permitted depends entirely on the language in your lease or the terms of your pooling order election.</p>
+
+        <p>This is where your lease language becomes critical. Some leases call for royalties on &ldquo;gross proceeds at the well&rdquo; &mdash; which generally permits deductions for costs incurred after the wellhead. Others specify royalties on &ldquo;gross proceeds received&rdquo; or include explicit &ldquo;no deductions&rdquo; clauses. If your lease says the operator pays royalties &ldquo;free of all costs of production,&rdquo; deductions on your stub are a problem.</p>
+
+        <p>If you were pooled by the OCC (force-pooled), your options were set by the pooling order. The standard royalty option typically does not allow post-production deductions, but the specific language varies by order. Review the actual pooling order text &mdash; not just the summary.</p>
+
+        <p>Even where deductions are permitted, they must be reasonable and actually incurred. An operator can&rsquo;t charge you for gathering fees on a well that&rsquo;s directly connected to a sales pipeline. And deductions that increase over time while the underlying service costs remain flat should be questioned.</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>Your oil and gas lease (the actual document, not a summary), or the pooling order if force-pooled, and your check stubs showing deduction line items.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>Deductions appearing on a &ldquo;no deductions&rdquo; lease, deductions exceeding 25&ndash;30% of gross value, new deduction categories appearing without explanation, or deductions on oil (which typically has fewer post-production costs than gas).</p>
+                <span class="red-flag flag-high">High impact &mdash; potentially the largest single source of underpayment</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="callout callout-warning">
+    <div class="callout-title">The deduction trap</div>
+    <p>Many mineral owners unknowingly sign leases with broad deduction clauses because the bonus payment and royalty rate looked competitive. A lease offering 3/16 royalty with deductions may actually pay less than a lease offering 1/6 royalty with no deductions &mdash; depending on the well&rsquo;s gas-to-oil ratio and the gathering infrastructure. Always evaluate deduction language alongside the royalty rate, not separately.</p>
+</div>
+
+<h2 id="step-5">Step 5: Look for Missing Wells and Missing Months</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-5">5</div>
+        <div>
+            <div class="audit-step-title">Ensure You&rsquo;re Being Paid on Every Well That Affects Your Minerals</div>
+            <div class="audit-step-subtitle">The payment gap you won&rsquo;t notice unless you&rsquo;re looking</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>This is the audit step most mineral owners skip, and it&rsquo;s the one that catches the most money. You may have a well producing on your section that you&rsquo;re not being paid on &mdash; because the operator doesn&rsquo;t have you in their title records, because the division order was never completed, or because a new well was drilled under an increased density order and nobody updated the royalty disbursement file.</p>
+
+        <p>Use the OCC&rsquo;s well records system to identify every active well on your section (and adjacent sections for horizontal wells that may cross into your unit). Compare that list against the wells appearing on your royalty stubs. If there&rsquo;s a well producing on your section that doesn&rsquo;t show up on any check stub, that&rsquo;s money you&rsquo;re owed.</p>
+
+        <p>Similarly, watch for gaps in production months. If you receive payments for January, February, April, and May &mdash; what happened to March? A single missing month on a good well can mean hundreds or thousands of dollars. Operators are required to pay monthly after initial production begins, and any interruption should be explained.</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>A list of all active wells on your section(s) from the OCC well records system, your complete set of royalty stubs for the past 12 months.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>Active wells on your section with no corresponding royalty payments, gaps in production months, or new wells appearing on OCC records that you&rsquo;ve received no division order or correspondence about.</p>
+                <span class="red-flag flag-high">High impact &mdash; could mean entire wells you&rsquo;re not being paid on</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="step-6">Step 6: Do the Year-End Reconciliation</h2>
+
+<div class="audit-step">
+    <div class="audit-step-header">
+        <div class="step-number step-6">6</div>
+        <div>
+            <div class="audit-step-title">Cross-Check Your 1099 Against Your Check Stubs</div>
+            <div class="audit-step-subtitle">The annual sanity check that catches everything else</div>
+        </div>
+    </div>
+    <div class="audit-step-body">
+        <p>Every January, your operator sends you a 1099-MISC showing the total royalty income they reported to the IRS for the prior year. This is your annual reconciliation checkpoint. Add up every royalty check you received from that operator during the year. The total should match your 1099. If it doesn&rsquo;t, something is wrong &mdash; either with your records or with theirs.</p>
+
+        <p>A mismatch between your deposit records and the 1099 can indicate checks that were issued but never received (lost mail, wrong address), adjustments the operator made that weren&rsquo;t reflected on a separate stub, or accounting errors on the operator&rsquo;s side. This is also a good time to compare your total annual payment against total annual production for the well &mdash; does the math work out when you apply your NRI, the average price for the year, and any deductions?</p>
+
+        <div class="check-detail">
+            <div class="check-detail-item">
+                <h4>What You Need</h4>
+                <p>Your 1099-MISC from each operator, your bank deposit records or copies of all royalty checks received during the year.</p>
+            </div>
+            <div class="check-detail-item">
+                <h4>Red Flag</h4>
+                <p>1099 total doesn&rsquo;t match your deposit records, 1099 is significantly lower than expected given production levels, or you receive a 1099 from an operator you don&rsquo;t recognize (which may indicate an unreported operator transfer).</p>
+                <span class="red-flag flag-medium">Medium impact &mdash; catches cumulative errors</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="common-issues">Common Underpayment Issues in Oklahoma</h2>
+
+<p>After walking through the steps above, here are the patterns that come up most often in Oklahoma royalty disputes. Knowing what to look for makes the audit process faster and more focused.</p>
+
+<p><strong>Blanchard royalty miscalculations.</strong> Oklahoma has a unique royalty calculation system stemming from the 1963 Blanchard decision, where royalty interests in spacing units are &ldquo;communitized&rdquo; so that every royalty owner receives their proportionate share of production. The Production Revenue Standards Act of 1992 clarified how this works, but errors in applying it &mdash; particularly in units with multiple working interest owners &mdash; still occur.</p>
+
+<p><strong>Incorrect well allocation for multi-unit horizontals.</strong> When a horizontal well crosses two or more sections, production must be allocated between the units &mdash; typically based on the proportion of the lateral that falls within each section. If 60% of the lateral is in Section 15 and 40% is in Section 22, the production should be split accordingly. Errors in this allocation directly affect every mineral owner in both sections.</p>
+
+<p><strong>Stale decimal interests after ownership changes.</strong> When mineral interests are inherited, conveyed, or divided among heirs, the division order needs to be updated. But operators don&rsquo;t always catch these changes promptly, and in the meantime, payments may go to the wrong party, be suspended, or be calculated using outdated ownership fractions.</p>
+
+<p><strong>Improper severance tax handling.</strong> Oklahoma&rsquo;s gross production tax is the responsibility of the working interest owners, not the royalty owners. If you see a severance tax deduction on your royalty stub, that&rsquo;s generally incorrect for royalty interest owners &mdash; though there are narrow exceptions for certain types of interests.</p>
+
+<p><strong>Suspended royalties without notification.</strong> Operators can suspend royalty payments when there&rsquo;s a title dispute, a missing heir, or an unsigned division order. But under Oklahoma law, they&rsquo;re required to notify you and, in many cases, to begin paying once the issues are resolved &mdash; with interest. If you haven&rsquo;t received a payment in months and haven&rsquo;t been notified why, the operator may be sitting on your money.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Statute of limitations</div>
+    <p>Oklahoma&rsquo;s Production Revenue Standards Act provides a two-year statute of limitations for royalty underpayment claims. That means you can recover the past two years of underpayment &mdash; but not beyond that. Don&rsquo;t let errors compound for years before investigating. An annual audit habit protects your right to recover what you&rsquo;re owed.</p>
+</div>
+
+<h2 id="what-to-do">What to Do When You Find a Problem</h2>
+
+<p>If your audit uncovers a discrepancy, don&rsquo;t panic &mdash; but don&rsquo;t ignore it either. Here&rsquo;s the escalation path:</p>
+
+<p><strong>First, document everything.</strong> Write down the specific well, the specific months, the specific numbers, and what you believe the correct calculation should be. Having a clear, factual summary makes every subsequent conversation more productive.</p>
+
+<p><strong>Contact the operator&rsquo;s revenue or division order department.</strong> Most operators have a dedicated department that handles royalty inquiries. Put your question in writing (email or letter) so you have a record. Be specific: &ldquo;My check stub for the Smith 1-15H for March 2026 shows gross oil production of 2,100 barrels, but Oklahoma Tax Commission data shows 2,450 barrels for the same well and month. Can you explain the difference?&rdquo; Operators resolve many issues at this stage, especially mathematical errors and missing months.</p>
+
+<p><strong>File a complaint with the OCC Consumer Services Department.</strong> If the operator doesn&rsquo;t respond or doesn&rsquo;t resolve the issue satisfactorily, the OCC&rsquo;s Consumer Services Department exists specifically to help mineral and surface owners with royalty payment issues. They&rsquo;ll contact the operator on your behalf and work to mediate a resolution.</p>
+
+<p><strong>Consult an oil and gas attorney.</strong> For systematic underpayment, improper deductions on a no-deduction lease, or significant amounts of money, a consultation with an attorney who specializes in Oklahoma oil and gas royalty disputes is worthwhile. Many work on contingency for royalty recovery cases, meaning you don&rsquo;t pay unless they recover money for you.</p>
+
+<h2 id="audit-checklist">Your Annual Audit Checklist</h2>
+
+<p>Use this checklist each year when you receive your 1099. Even a 30-minute review can catch issues worth hundreds or thousands of dollars:</p>
+
+<ul class="checklist-audit">
+    <li>Compare 1099 total to your deposit records &mdash; do they match?</li>
+    <li>Verify your decimal interest against your calculated NRI for each well</li>
+    <li>Check for missing production months on all active wells</li>
+    <li>Compare at least 2&ndash;3 months of production volumes against OTC data</li>
+    <li>Spot-check oil and gas prices against NYMEX benchmarks for the same months</li>
+    <li>Review all deductions against your lease language</li>
+    <li>Confirm you&rsquo;re receiving payments on every active well on your section(s)</li>
+    <li>Look for any new wells drilled that you haven&rsquo;t received a division order for</li>
+    <li>Verify operator name hasn&rsquo;t changed (indicating an unreported transfer)</li>
+    <li>Check Oklahoma unclaimed property database for any suspended royalties in your name</li>
+</ul>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">How do I read an Oklahoma oil and gas royalty check stub?</div>
+        <p class="faq-answer">Each line on a royalty stub represents one product from one well for one month. The stub shows the well name, production month, product type, gross volume, price per unit, deductions, your decimal interest, and net payment. See the Quick Reference table above for a detailed breakdown of each field.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Where can I verify Oklahoma oil and gas production volumes?</div>
+        <p class="faq-answer">The Oklahoma Tax Commission publishes gross production data for every well. You can also find production data through the OCC&rsquo;s well records system. Compare the volumes on your stub against these public records &mdash; discrepancies between operator-reported and state-reported volumes need an explanation.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What are post-production deductions on a royalty check?</div>
+        <p class="faq-answer">Post-production deductions are costs subtracted from your gross royalty for expenses after the wellhead &mdash; gathering, transportation, compression, and processing. Whether these deductions are permitted depends on your specific lease language or pooling order terms. Some leases prohibit all deductions; others allow them.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I calculate my net revenue interest (NRI)?</div>
+        <p class="faq-answer">Multiply your mineral interest (your acreage as a fraction of the section) by your royalty rate. For example, 10 net mineral acres in a 640-acre section with a 3/16 royalty: (10/640) &times; 3/16 = 0.00292969. This decimal should match your division order and check stub.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What should I do if I think my royalty check is wrong?</div>
+        <p class="faq-answer">Document the specific discrepancy, then contact the operator&rsquo;s division order or revenue department in writing. If unresolved, file a complaint with the OCC Consumer Services Department. For significant amounts or systematic issues, consult an oil and gas attorney. Oklahoma has a two-year statute of limitations for royalty underpayment claims.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How often should I audit my royalty checks?</div>
+        <p class="faq-answer">At minimum, do a thorough audit once a year when you receive your 1099. For higher-value properties, a quarterly review is prudent. The key is consistency &mdash; small errors compound into large losses, and the statute of limitations means you can&rsquo;t go back indefinitely to recover underpayments.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>Your royalty check is the end result of a calculation with multiple inputs &mdash; decimal interest, production volumes, pricing, and deductions. Each one of those inputs can be wrong. Most mineral owners never check, and that&rsquo;s exactly how underpayment persists for years. It&rsquo;s not always intentional. Operators manage thousands of royalty disbursements, and errors happen. But it&rsquo;s your money, and no one else is going to audit it for you.</p>
+
+<p>The good news is that most of the data you need is publicly available. You don&rsquo;t need to be a petroleum engineer or an accountant to spot the major red flags. A few hours once a year &mdash; comparing your stubs against public records, recalculating your NRI, and making sure you&rsquo;re being paid on every well &mdash; can be the highest-return investment you make as a mineral owner.</p>
 `;
