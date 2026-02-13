@@ -258,14 +258,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.1667,
     longitude: -98.3667,
     neighbors: ['blaine-county', 'custer-county', 'washita-county', 'kiowa-county', 'comanche-county', 'grady-county', 'canadian-county'],
-    heroDescription: 'Caddo County sits in the heart of the Anadarko Basin with diverse production from multiple formations. Mineral Watch monitors all OCC filings and drilling activity across your Caddo County sections.',
+    heroDescription: 'Mineral Watch gives Caddo County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering Woodford, Hunton, Springer, and every active Anadarko Basin formation.',
     overviewHtml: `
       <p>Caddo County, with Anadarko as its county seat, is one of Oklahoma's largest counties at nearly 1,280 square miles. It sits centrally within the Anadarko Basin, one of the deepest sedimentary basins in North America, with a diverse range of producing formations.</p>
       <p>Production comes from multiple horizons including the Woodford Shale, Hunton Lime, Springer Formation, and various other targets. The county bridges the gap between the STACK play to the north and conventional production areas to the south and west.</p>
       <h3>Diverse Production</h3>
       <p>Caddo County's geology supports both conventional vertical wells and modern horizontal completions. The variety of producing formations means OCC filings can involve many different types of drilling units and spacing configurations.</p>
-      <h3>Why Monitor Your Caddo County Minerals?</h3>
-      <p>The diverse drilling activity in Caddo County generates a steady flow of OCC filings across multiple formations and operators. Mineral Watch tracks every filing and alerts you when your sections are affected.</p>`,
+      <h3>What Mineral Watch Does for Caddo County Owners</h3>
+      <p>With diverse drilling across multiple formations, Caddo County generates a steady flow of OCC activity. Mineral Watch delivers instant filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
   'custer-county': {
     seat: 'Arapaho',
@@ -276,14 +276,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
     latitude: 35.6333,
     longitude: -98.9833,
     neighbors: ['roger-mills-county', 'dewey-county', 'blaine-county', 'caddo-county', 'washita-county', 'beckham-county'],
-    heroDescription: 'Custer County is part of the western STACK play with growing development in the Woodford and Meramec formations. Mineral Watch monitors every filing to keep Custer County mineral owners informed.',
+    heroDescription: 'Mineral Watch gives Custer County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — covering western STACK Woodford, Meramec, and every active formation.',
     overviewHtml: `
       <p>Custer County, with Arapaho as its county seat (Clinton being the largest city), covers approximately 990 square miles in western Oklahoma. The county is part of the western extension of the STACK play, with operators increasingly targeting the Woodford and Meramec formations.</p>
       <p>While traditionally known for conventional production, Custer County has seen growing horizontal drilling activity as operators extend STACK development westward. This expansion brings new opportunities and new OCC filings for mineral owners.</p>
       <h3>Western STACK Expansion</h3>
       <p>As horizontal drilling technology improves and operators delineate the western extent of the STACK play, Custer County has become a growing area of interest. New permits and spacing applications reflect this expanding development frontier.</p>
-      <h3>Why Monitor Your Custer County Minerals?</h3>
-      <p>As the development frontier moves westward, more OCC filings affect Custer County sections. Mineral Watch ensures you're alerted to every pooling order, permit, and spacing application in your area.</p>`,
+      <h3>What Mineral Watch Does for Custer County Owners</h3>
+      <p>As STACK development expands westward into Custer County, filing activity is growing. Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your sections.</p>`,
   },
 };
 
@@ -291,14 +291,14 @@ export const COUNTY_DETAILS: Record<string, CountyDetail> = {
 export function genericOverview(countyName: string): string {
   return `
     <p>${countyName} County is one of Oklahoma's 77 counties with a history of oil and gas production. Mineral rights owners in ${countyName} County should stay informed about OCC filings, drilling permits, and completions that may affect their interests.</p>
-    <p>The Oklahoma Corporation Commission regularly processes filings that affect mineral owners throughout the state, including pooling orders, spacing applications, and increased density applications. When a pooling order is issued for your section, you typically have just 20 days to respond — making timely monitoring essential.</p>
+    <p>The Oklahoma Corporation Commission regularly processes filings that affect mineral owners throughout the state, including pooling orders, spacing applications, and increased density applications. When a pooling order is issued for your section, you typically have just 20 days to respond — making timely awareness essential.</p>
     <h3>Common OCC Filings</h3>
     <p>Mineral owners in ${countyName} County may encounter pooling orders (forcing unleased owners into drilling units), spacing applications (establishing well unit boundaries), and increased density filings (allowing additional wells). Each filing type can affect your mineral rights and may require a timely response.</p>
-    <h3>Why Monitor Your ${countyName} County Minerals?</h3>
-    <p>Whether your county sees heavy drilling or occasional activity, any single OCC filing can significantly impact your mineral interests. Mineral Watch monitors all filings at the Oklahoma Corporation Commission and sends instant email alerts when your sections are affected.</p>`;
+    <h3>What Mineral Watch Does for ${countyName} County Owners</h3>
+    <p>Mineral Watch delivers instant OCC filing alerts, monthly production tracking, AI-powered document extraction from completion reports and drilling permits, and an interactive county map — so you always know what's happening on your ${countyName} County sections.</p>`;
 }
 
 // Generic hero description
 export function genericHero(countyName: string): string {
-  return `Mineral Watch monitors every OCC filing, drilling permit, and completion in ${countyName} County, Oklahoma. Get instant alerts when activity affects your mineral rights.`;
+  return `Mineral Watch gives ${countyName} County owners automated OCC alerts, production intelligence, AI document extraction, and interactive mapping — everything you need to manage your mineral interests.`;
 }
