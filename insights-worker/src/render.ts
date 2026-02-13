@@ -832,6 +832,63 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return NAVIGATING_OCC_WEBSITE_BODY; },
   },
+  'auditing-royalty-checks': {
+    slug: 'auditing-royalty-checks',
+    title: 'How to Audit Your Royalty Checks: A Step-by-Step Guide for Oklahoma Mineral Owners',
+    description: 'A practical guide to auditing your Oklahoma oil and gas royalty checks. Learn how to verify production volumes, pricing, deductions, and net revenue interest \u2014 and what to do when the numbers don\u2019t add up.',
+    canonical: 'https://mymineralwatch.com/insights/guides/auditing-royalty-checks',
+    ogImage: 'https://mymineralwatch.com/assets/insights/auditing-royalty-checks-guide.jpg',
+    tag: 'Analysis',
+    tagClass: 'tag-analysis',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '16 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'Auditing Royalty Checks',
+    featuredImage: {
+      src: '/assets/insights/auditing-royalty-checks-guide.jpg',
+      alt: 'A royalty check stub beside a calculator and lease documents on a desk, representing the process of auditing oil and gas royalty payments in Oklahoma.',
+      width: 1376,
+      height: 768,
+    },
+    toc: [
+      { id: 'anatomy', label: 'Anatomy of a Check Stub' },
+      { id: 'step-1', label: 'Step 1: Verify Decimal Interest' },
+      { id: 'step-2', label: 'Step 2: Check Production Volumes' },
+      { id: 'step-3', label: 'Step 3: Verify Pricing' },
+      { id: 'step-4', label: 'Step 4: Examine Deductions' },
+      { id: 'step-5', label: 'Step 5: Missing Wells & Months' },
+      { id: 'step-6', label: 'Step 6: Year-End Reconciliation' },
+      { id: 'common-issues', label: 'Common Underpayment Issues' },
+      { id: 'what-to-do', label: 'What to Do When You Find a Problem' },
+      { id: 'audit-checklist', label: 'Annual Audit Checklist' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+      { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/scoop-stack-overview', label: 'SCOOP & STACK Play Overview' },
+    ],
+    ctaTitle: 'Your Royalty Check Is Only as Accurate as the Data Behind It',
+    ctaText: 'Monitor your Oklahoma sections for every well, every filing, and every operator change. Know which wells should be paying you \u2014 before you open the envelope.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "How do I read an Oklahoma oil and gas royalty check stub?", "acceptedAnswer": { "@type": "Answer", "text": "A royalty check stub typically shows the well name, production month, product type (oil or gas), gross production volume, price per unit, any deductions (such as transportation, gathering, or processing fees), your decimal interest (net revenue interest), and your net payment. Each line usually represents one product from one well for one month." } },
+        { "@type": "Question", "name": "Where can I verify Oklahoma oil and gas production volumes?", "acceptedAnswer": { "@type": "Answer", "text": "The Oklahoma Tax Commission's Gross Production reports show monthly production volumes by well. You can also find production data through the OCC's well records system. Compare the volumes on your royalty stub against these public records." } },
+        { "@type": "Question", "name": "What are post-production deductions on a royalty check?", "acceptedAnswer": { "@type": "Answer", "text": "Post-production deductions are costs the operator subtracts from your royalty payment for expenses incurred after the oil or gas leaves the wellhead. Common deductions include gathering fees, transportation, and processing or treating fees. Whether these deductions are legal depends on your lease language." } },
+        { "@type": "Question", "name": "How do I calculate my net revenue interest (NRI)?", "acceptedAnswer": { "@type": "Answer", "text": "Your net revenue interest is calculated by multiplying your mineral interest (your ownership as a fraction of the whole section) by your royalty rate (from your lease or pooling order). For example, if you own 10 net mineral acres in a 640-acre section and your royalty rate is 3/16, your NRI would be (10/640) \u00d7 3/16 = 0.00292969." } },
+        { "@type": "Question", "name": "What should I do if I think my royalty check is wrong?", "acceptedAnswer": { "@type": "Answer", "text": "Start by documenting the specific discrepancy. Contact the operator's revenue or division order department in writing. If the operator doesn't resolve the issue, file a complaint with the OCC's Consumer Services Department. For systematic underpayment or large amounts, consulting an oil and gas attorney is advisable." } },
+        { "@type": "Question", "name": "How often should I audit my royalty checks?", "acceptedAnswer": { "@type": "Answer", "text": "At minimum, do a thorough audit once a year when you receive your 1099 from each operator. For higher-value properties, a quarterly review makes sense. Oklahoma has a two-year statute of limitations for royalty underpayment claims." } }
+      ]
+    }
+    </script>`,
+    get body() { return AUDITING_ROYALTY_CHECKS_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -1076,6 +1133,45 @@ export function renderArticle(slug: string): string | null {
         .step-box ol li:last-child { margin-bottom: 0; }
         .step-box ol li::before { content: counter(steps); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; background: var(--oil-navy); color: white; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
+        /* Audit step cards (royalty checks guide) */
+        .audit-step { background: #fff; border: 1px solid var(--border); border-radius: 6px; margin: 28px 0; overflow: hidden; }
+        .audit-step-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--border); }
+        .step-number { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: white; font-size: 16px; font-weight: 700; font-family: 'Inter', sans-serif; }
+        .step-1 { background: #2B6CB0; }
+        .step-2 { background: #6B46C1; }
+        .step-3 { background: #C05621; }
+        .step-4 { background: #2F855A; }
+        .step-5 { background: #B7791F; }
+        .step-6 { background: #00796B; }
+        .audit-step-title { font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; color: var(--oil-navy); }
+        .audit-step-subtitle { font-size: 13px; color: #718096; margin-top: 2px; }
+        .audit-step-body { padding: 20px 24px; }
+        .audit-step-body p { font-size: 15px; margin-bottom: 14px; }
+        .audit-step-body p:last-child { margin-bottom: 0; }
+
+        /* Check detail grid (royalty checks guide) */
+        .check-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .check-detail-item h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; font-family: 'Inter', sans-serif; font-weight: 600; margin-bottom: 4px; }
+        .check-detail-item p { font-size: 14px; margin-bottom: 0; color: #2D3748; }
+
+        /* Red flag badges */
+        .red-flag { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 3px; margin-top: 6px; }
+        .flag-high { background: #FFF5F5; color: #E53E3E; }
+        .flag-medium { background: #FFFAF0; color: #C05621; }
+        .flag-low { background: var(--success-bg); color: var(--success); }
+
+        /* Formula box */
+        .formula-box { background: var(--oil-navy); color: white; padding: 24px 28px; border-radius: 6px; margin: 28px 0; font-family: 'Merriweather', serif; }
+        .formula-box .formula-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: rgba(255,255,255,0.6); margin-bottom: 12px; font-family: 'Inter', sans-serif; font-weight: 600; }
+        .formula-box .formula { font-size: 18px; line-height: 1.6; font-weight: 700; }
+        .formula-box .formula-note { font-size: 13px; color: rgba(255,255,255,0.7); margin-top: 12px; font-family: 'Inter', sans-serif; line-height: 1.5; }
+
+        /* Checklist with checkbox icons */
+        .checklist-audit { margin: 24px 0; padding: 0; list-style: none; }
+        .checklist-audit li { position: relative; padding: 10px 0 10px 32px; font-size: 15px; color: #2D3748; line-height: 1.6; border-bottom: 1px solid var(--border); }
+        .checklist-audit li:first-child { border-top: 1px solid var(--border); }
+        .checklist-audit li::before { content: '\u2610'; position: absolute; left: 4px; top: 10px; font-size: 16px; color: var(--red-dirt); }
+
         /* Share & Print */
         .article-actions { display: flex; gap: 8px; margin-top: 18px; }
         .share-wrap { position: relative; display: inline-block; }
@@ -1116,6 +1212,7 @@ export function renderArticle(slug: string): string | null {
             .math-result { grid-template-columns: 1fr; gap: 2px; }
             .do-field { grid-template-columns: 1fr; }
             .do-field-label { border-right: none; border-bottom: 1px solid var(--border); }
+            .check-detail { grid-template-columns: 1fr; }
         }
 
         /* Print styles */
