@@ -777,6 +777,76 @@ export function renderArticle(slug: string): string | null {
         .step-content h3 { margin-top: 0; font-size: 17px; }
         .step-content p { margin-bottom: 10px; }
 
+        /* Filing type cards (OCC guide) */
+        .filing-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; margin: 28px 0; overflow: hidden; }
+        .filing-card-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--border); }
+        .filing-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: white; }
+        .filing-icon-permit { background: #2B6CB0; }
+        .filing-icon-spacing { background: #6B46C1; }
+        .filing-icon-pooling { background: #C05621; }
+        .filing-icon-density { background: #2F855A; }
+        .filing-icon-location { background: #B7791F; }
+        .filing-icon-completion { background: #00796B; }
+        .filing-icon-transfer { background: #718096; }
+        .filing-icon-plug { background: #9B2C2C; }
+        .filing-card-title { font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; color: var(--oil-navy); }
+        .filing-card-subtitle { font-size: 13px; color: #718096; margin-top: 2px; }
+        .filing-card-body { padding: 20px 24px; }
+        .filing-card-body p { font-size: 15px; margin-bottom: 14px; }
+        .filing-card-body p:last-child { margin-bottom: 0; }
+        .filing-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+        .filing-detail-item h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; font-family: 'Inter', sans-serif; font-weight: 600; margin-bottom: 4px; }
+        .filing-detail-item p { font-size: 14px; margin-bottom: 0; color: #2D3748; }
+        .action-required { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 3px 10px; border-radius: 3px; margin-top: 6px; }
+        .action-yes { background: #FFF5F5; color: #E53E3E; }
+        .action-optional { background: #FFFAF0; color: #C05621; }
+        .action-no { background: var(--success-bg); color: var(--success); }
+
+        /* Quick ref table (OCC guide) */
+        .quick-ref { width: 100%; border-collapse: collapse; font-size: 14px; margin: 24px 0; }
+        .quick-ref th { text-align: left; padding: 10px 14px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #718096; background: var(--paper); border-bottom: 2px solid var(--border); font-weight: 600; }
+        .quick-ref td { padding: 12px 14px; border-bottom: 1px solid var(--border); color: #2D3748; vertical-align: top; line-height: 1.5; }
+        .quick-ref tr:hover { background: var(--paper); }
+
+        /* Timeline (OCC guide) */
+        .timeline { position: relative; margin: 32px 0; padding-left: 32px; }
+        .timeline::before { content: ''; position: absolute; left: 11px; top: 8px; bottom: 8px; width: 2px; background: var(--border); }
+        .timeline-item { position: relative; margin-bottom: 24px; }
+        .timeline-item:last-child { margin-bottom: 0; }
+        .timeline-dot { position: absolute; left: -27px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--oil-navy); border: 2px solid white; box-shadow: 0 0 0 2px var(--border); }
+        .timeline-dot-active { background: var(--red-dirt); box-shadow: 0 0 0 2px var(--red-dirt); }
+        .timeline-title { font-weight: 700; font-size: 15px; color: var(--oil-navy); margin-bottom: 4px; }
+        .timeline-desc { font-size: 14px; color: #4A5568; line-height: 1.6; }
+
+        /* Math examples (Division orders guide) */
+        .math-example { background: var(--paper); border: 1px solid var(--border); border-radius: 6px; padding: 24px; margin: 28px 0; }
+        .math-example-title { font-family: 'Merriweather', serif; font-size: 15px; font-weight: 700; color: var(--oil-navy); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid var(--red-dirt); }
+        .math-row { display: grid; grid-template-columns: 200px 1fr; gap: 12px; padding: 8px 0; font-size: 14px; align-items: baseline; }
+        .math-label { color: #718096; font-weight: 500; }
+        .math-value { color: var(--oil-navy); font-weight: 600; }
+        .math-divider { border-top: 1px solid var(--border); margin: 8px 0; }
+        .math-result { background: white; border: 1px solid var(--border); border-radius: 4px; padding: 12px 16px; margin-top: 12px; display: grid; grid-template-columns: 200px 1fr; gap: 12px; }
+        .math-result .math-label { color: var(--oil-navy); font-weight: 700; }
+        .math-result .math-value { color: var(--red-dirt); font-weight: 700; font-size: 16px; }
+
+        /* Division order anatomy (Division orders guide) */
+        .do-anatomy { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin: 28px 0; }
+        .do-anatomy-header { background: var(--oil-navy); color: white; padding: 14px 20px; font-family: 'Merriweather', serif; font-weight: 700; font-size: 15px; }
+        .do-field { display: grid; grid-template-columns: 180px 1fr; border-bottom: 1px solid var(--border); }
+        .do-field:last-child { border-bottom: none; }
+        .do-field-label { padding: 14px 20px; background: var(--paper); font-weight: 600; font-size: 14px; color: var(--oil-navy); border-right: 1px solid var(--border); }
+        .do-field-value { padding: 14px 20px; font-size: 14px; color: #4A5568; line-height: 1.6; }
+        .do-highlight { background: #FFFFF0; }
+        .do-highlight .do-field-value { color: var(--oil-navy); font-weight: 600; }
+
+        /* Checklist (Division orders guide) */
+        .checklist { margin: 24px 0; }
+        .check-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+        .check-item:last-child { border-bottom: none; }
+        .check-icon { width: 22px; height: 22px; border-radius: 50%; background: var(--success-bg); color: var(--success); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+        .check-icon svg { width: 12px; height: 12px; }
+        .check-text { font-size: 15px; color: #2D3748; line-height: 1.6; }
+
         /* FAQ */
         .faq-section { margin-top: 44px; }
         .faq-item { border-bottom: 1px solid var(--border); padding: 20px 0; }
@@ -814,6 +884,11 @@ export function renderArticle(slug: string): string | null {
             .article-lede { font-size: 16px; }
             .article-meta { flex-direction: column; align-items: flex-start; gap: 6px; }
             .article-sidebar { grid-template-columns: 1fr; }
+            .filing-detail { grid-template-columns: 1fr; }
+            .math-row { grid-template-columns: 1fr; gap: 2px; }
+            .math-result { grid-template-columns: 1fr; gap: 2px; }
+            .do-field { grid-template-columns: 1fr; }
+            .do-field-label { border-right: none; border-bottom: 1px solid var(--border); }
         }
     </style>
 </head>
