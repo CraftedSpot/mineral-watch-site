@@ -2334,7 +2334,7 @@ const DIVISION_ORDERS_BODY = `
 `;
 
 const NAVIGATING_OCC_WEBSITE_BODY = `
-<p>The OCC website &mdash; accessible at <strong>oklahoma.gov/occ</strong> &mdash; is the public-facing hub for everything the Oklahoma Corporation Commission regulates. For mineral owners, the Oil and Gas Conservation Division section is where the action is. But the site isn&rsquo;t built for mineral owners. It&rsquo;s built for operators, regulators, and attorneys. The information you need is all there; the challenge is knowing which of the half-dozen different databases to use, and how to search each one.</p>
+<p>The OCC website &mdash; accessible at <a href="https://oklahoma.gov/occ" target="_blank" rel="noopener"><strong>oklahoma.gov/occ</strong></a> &mdash; is the public-facing hub for everything the Oklahoma Corporation Commission regulates. For mineral owners, the Oil and Gas Conservation Division section is where the action is. But the site isn&rsquo;t built for mineral owners. It&rsquo;s built for operators, regulators, and attorneys. The information you need is all there; the challenge is knowing which of the half-dozen different databases to use, and how to search each one.</p>
 
 <p>This guide walks through each tool that matters for mineral owners, explains what it does, and shows you step by step how to use it to find information about your sections. We&rsquo;ll cover how to look up wells, find drilling permits, search for spacing and pooling orders, access scanned documents, and check production data &mdash; all using free, publicly available OCC databases.</p>
 
@@ -2355,37 +2355,37 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             <tr>
                 <td><strong>Well Browse</strong></td>
                 <td>Looking up well details by legal description, API number, or operator</td>
-                <td>wellbrowse.occ.ok.gov</td>
+                <td><a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">wellbrowse.occ.ok.gov</a></td>
             </tr>
             <tr>
                 <td><strong>Well Data Finder</strong></td>
                 <td>Visual/map-based well search using GIS</td>
-                <td>oklahoma.gov/occ (GIS Data &amp; Maps)</td>
+                <td><a href="https://oklahoma.gov/occ" target="_blank" rel="noopener" class="tool-url">oklahoma.gov/occ</a> (GIS Data &amp; Maps)</td>
             </tr>
             <tr>
                 <td><strong>Electronic Case Filing (ECF)</strong></td>
                 <td>Spacing, pooling, and other CD cases filed after March 2022</td>
-                <td>ecf.public.occ.ok.gov</td>
+                <td><a href="https://ecf.public.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">ecf.public.occ.ok.gov</a></td>
             </tr>
             <tr>
                 <td><strong>Case Processing</strong></td>
                 <td>Spacing, pooling, and other CD cases filed before March 2022</td>
-                <td>case.occ.ok.gov</td>
+                <td><a href="https://case.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a></td>
             </tr>
             <tr>
                 <td><strong>Imaging System</strong></td>
                 <td>Scanned documents: Form 1000s, 1002As, well logs, orders</td>
-                <td>imaging.occ.ok.gov</td>
+                <td><a href="https://imaging.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">imaging.occ.ok.gov</a></td>
             </tr>
             <tr>
                 <td><strong>RBDMS Data Explorer</strong></td>
                 <td>Advanced search, reports, and data export</td>
-                <td>oklahoma.gov/occ (Oil &amp; Gas Division)</td>
+                <td><a href="https://oklahoma.gov/occ" target="_blank" rel="noopener" class="tool-url">oklahoma.gov/occ</a> (Oil &amp; Gas Division)</td>
             </tr>
             <tr>
                 <td><strong>Weekly/Daily Dockets</strong></td>
                 <td>Upcoming hearing schedules for CD cases</td>
-                <td>oklahoma.gov/occ (Court Dockets)</td>
+                <td><a href="https://oklahoma.gov/occ" target="_blank" rel="noopener" class="tool-url">oklahoma.gov/occ</a> (Court Dockets)</td>
             </tr>
         </tbody>
     </table>
@@ -2405,7 +2405,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">Well Browse Database</div>
-            <div class="tool-card-subtitle">wellbrowse.occ.ok.gov</div>
+            <div class="tool-card-subtitle"><a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">wellbrowse.occ.ok.gov</a></div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2415,7 +2415,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Go to <strong>wellbrowse.occ.ok.gov</strong></li>
+                <li>Go to <a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener"><strong>wellbrowse.occ.ok.gov</strong></a></li>
                 <li>Scroll to the bottom of the search form to the <strong>Legal Description</strong> fields</li>
                 <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong> &mdash; for single-digit numbers, enter them as-is (e.g., &ldquo;4&rdquo; not &ldquo;04&rdquo;)</li>
                 <li>If your property is in the panhandle, select the <strong>County</strong> &mdash; otherwise it&rsquo;s optional</li>
@@ -2491,7 +2491,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">Electronic Case Filing (ECF)</div>
-            <div class="tool-card-subtitle">ecf.public.occ.ok.gov &middot; Cases filed after March 21, 2022</div>
+            <div class="tool-card-subtitle"><a href="https://ecf.public.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">ecf.public.occ.ok.gov</a> &middot; Cases filed after March 21, 2022</div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2501,7 +2501,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Go to <strong>ecf.public.occ.ok.gov</strong> and click <strong>Advanced Search</strong></li>
+                <li>Go to <a href="https://ecf.public.occ.ok.gov" target="_blank" rel="noopener"><strong>ecf.public.occ.ok.gov</strong></a> and click <strong>Advanced Search</strong></li>
                 <li>Select <strong>Case</strong> as the Search Type</li>
                 <li>Under Program Area, select <strong>Oil &amp; Gas</strong></li>
                 <li>Under Docket Type, select <strong>Conservation Docket</strong></li>
@@ -2540,7 +2540,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">Case Processing System</div>
-            <div class="tool-card-subtitle">case.occ.ok.gov &middot; Cases filed before March 21, 2022</div>
+            <div class="tool-card-subtitle"><a href="https://case.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a> &middot; Cases filed before March 21, 2022</div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2550,7 +2550,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Go to <strong>case.occ.ok.gov</strong></li>
+                <li>Go to <a href="https://case.occ.ok.gov" target="_blank" rel="noopener"><strong>case.occ.ok.gov</strong></a></li>
                 <li>Select <strong>CD</strong> from the Case Type dropdown</li>
                 <li>Optionally select a <strong>Relief Sought</strong> code &mdash; 50 for Spacing, 41 for Pooling, 29 for Increased Density, 107 for Multiunit Horizontal Well</li>
                 <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong>, or enter a <strong>Party Name</strong> (the operator)</li>
@@ -2582,7 +2582,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">OCC Imaging System</div>
-            <div class="tool-card-subtitle">imaging.occ.ok.gov &middot; Scanned Documents</div>
+            <div class="tool-card-subtitle"><a href="https://imaging.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">imaging.occ.ok.gov</a> &middot; Scanned Documents</div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2592,7 +2592,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Go to <strong>imaging.occ.ok.gov</strong></li>
+                <li>Go to <a href="https://imaging.occ.ok.gov" target="_blank" rel="noopener"><strong>imaging.occ.ok.gov</strong></a></li>
                 <li>Select a document category &mdash; the most useful for mineral owners are <strong>Oil and Gas Well Records Forms</strong> and <strong>Commission Orders and Case Files</strong></li>
                 <li>For well records: choose the <strong>Form #</strong> (e.g., 1000 for permits, 1002A for completions), then search by API number, operator, legal description, or scan date range</li>
                 <li>For orders and case files: search by cause number, case type, or filing date</li>
@@ -2630,7 +2630,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <p>The Data Explorer also has a reporting feature that can generate reports for any chosen timeframe using publicly available OCC data. This is useful for mineral owners who want to see a summary of activity on their sections over a specific period &mdash; new permits, completions, and status changes.</p>
 
-        <p>You&rsquo;ll find the RBDMS Data Explorer linked from the Oil &amp; Gas Conservation Division page at oklahoma.gov/occ.</p>
+        <p>You&rsquo;ll find the RBDMS Data Explorer linked from the Oil &amp; Gas Conservation Division page at <a href="https://oklahoma.gov/occ" target="_blank" rel="noopener">oklahoma.gov/occ</a>.</p>
 
         <div class="tool-detail">
             <div class="tool-detail-item">
@@ -2662,7 +2662,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <p>This is important because a hearing is where decisions get made. If a spacing or pooling application is on the docket and you haven&rsquo;t responded, attending the hearing (or ensuring your attorney does) is your last opportunity to be heard before the order is issued.</p>
 
-        <p>Find the dockets at: oklahoma.gov/occ &rarr; Court Dockets &rarr; select <strong>Weekly Dockets</strong> or <strong>Daily Dockets</strong>. Each PDF is searchable using Ctrl+F, so you can search for your section number or an operator name.</p>
+        <p>Find the dockets at: <a href="https://oklahoma.gov/occ" target="_blank" rel="noopener">oklahoma.gov/occ</a> &rarr; Court Dockets &rarr; select <strong>Weekly Dockets</strong> or <strong>Daily Dockets</strong>. Each PDF is searchable using Ctrl+F, so you can search for your section number or an operator name.</p>
 
         <div class="tool-detail">
             <div class="tool-detail-item">
