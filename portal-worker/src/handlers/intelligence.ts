@@ -5660,38 +5660,40 @@ export async function handleGetShutInResearch(request: Request, env: Env): Promi
         AND (w.operator IS NULL OR w.operator = 'OTC/OCC NOT ASSIGNED')
     `).first() as any;
 
-    // Query 5: Top operators by idle COUNT (min 50 wells)
-    // Uses COUNT(DISTINCT CASE WHEN...) to avoid join multiplication (one well can appear in multiple PUNs)
+    // Query 5: Top operators by idle COUNT (min 50 PUNs)
+    // Uses otc_leases → otc_companies join (matches operator detail module — same name source)
+    // Counts PUNs (production units), not wells — consistent with operator detail idle rate
+    // recently_idle = went idle within 3-6 months (trend indicator)
     const opByCountResult = await env.WELLS_DB!.prepare(`
-      SELECT w.operator,
-        COUNT(DISTINCT w.api_number) as total_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+      SELECT oc.company_name as operator, ol.operator_number,
+        COUNT(DISTINCT p.pun) as total_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
       FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
+      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+      JOIN otc_companies oc ON ol.operator_number = oc.company_id
       WHERE p.months_since_production IS NOT NULL
-        AND w.operator IS NOT NULL
-        AND w.operator != 'OTC/OCC NOT ASSIGNED'
-      GROUP BY w.operator
+        AND ol.operator_number IS NOT NULL
+      GROUP BY ol.operator_number
       HAVING total_wells >= 50
       ORDER BY idle_wells DESC
       LIMIT 20
     `).all();
 
-    // Query 6: Top operators by idle RATE (min 50 wells)
+    // Query 6: Top operators by idle RATE (min 50 PUNs)
     const opByRateResult = await env.WELLS_DB!.prepare(`
-      SELECT w.operator,
-        COUNT(DISTINCT w.api_number) as total_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+      SELECT oc.company_name as operator, ol.operator_number,
+        COUNT(DISTINCT p.pun) as total_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
+        COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
+        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
       FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
+      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+      JOIN otc_companies oc ON ol.operator_number = oc.company_id
       WHERE p.months_since_production IS NOT NULL
-        AND w.operator IS NOT NULL
-        AND w.operator != 'OTC/OCC NOT ASSIGNED'
-      GROUP BY w.operator
+        AND ol.operator_number IS NOT NULL
+      GROUP BY ol.operator_number
       HAVING total_wells >= 50
       ORDER BY idle_rate_pct DESC
       LIMIT 20
@@ -5713,55 +5715,28 @@ export async function handleGetShutInResearch(request: Request, env: Env): Promi
       ORDER BY idle_rate_pct DESC
     `).all();
 
-    // Query 8: Top idle operator per county
+    // Query 8: Top idle operator per county (using otc_leases + otc_companies for operator resolution)
     const countyOpResult = await env.WELLS_DB!.prepare(`
-      SELECT w.county, w.operator,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells
+      SELECT w.county, oc.company_name as operator, ol.operator_number,
+        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_puns
       FROM puns p
+      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+      JOIN otc_companies oc ON ol.operator_number = oc.company_id
       JOIN well_pun_links wpl ON p.pun = wpl.pun
       JOIN wells w ON wpl.api_number = w.api_number
       WHERE p.months_since_production IS NOT NULL
-        AND w.county IS NOT NULL
-        AND w.operator IS NOT NULL
-        AND w.operator != 'OTC/OCC NOT ASSIGNED'
         AND p.months_since_production >= 3
-      GROUP BY w.county, w.operator
-      ORDER BY w.county, idle_wells DESC
+        AND w.county IS NOT NULL
+        AND ol.operator_number IS NOT NULL
+      GROUP BY w.county, ol.operator_number
+      ORDER BY w.county, idle_puns DESC
     `).all();
 
     // Post-process: build top idle operator lookup by county
-    const topOpByCounty = new Map<string, string>();
+    const topOpByCounty = new Map<string, { operator: string; operatorNumber: string }>();
     for (const row of countyOpResult.results as any[]) {
       if (!topOpByCounty.has(row.county)) {
-        topOpByCounty.set(row.county, row.operator);
-      }
-    }
-
-    // Batch lookup: resolve operator names → operator_numbers via otc_leases + wells join
-    // Pick the operator_number with the most wells for each name (canonical resolution)
-    const allOpNames = new Set<string>();
-    for (const r of opByCountResult.results as any[]) allOpNames.add(r.operator);
-    for (const r of opByRateResult.results as any[]) allOpNames.add(r.operator);
-    for (const v of topOpByCounty.values()) allOpNames.add(v);
-
-    const opNameToNumber = new Map<string, string>();
-    if (allOpNames.size > 0) {
-      const placeholders = [...allOpNames].map(() => '?').join(',');
-      const opLookup = await env.WELLS_DB!.prepare(`
-        SELECT w.operator, ol.operator_number, COUNT(DISTINCT w.api_number) as well_count
-        FROM wells w
-        JOIN well_pun_links wpl ON w.api_number = wpl.api_number
-        JOIN otc_leases ol ON wpl.pun = ol.pun
-        WHERE w.operator IN (${placeholders})
-          AND ol.operator_number IS NOT NULL
-        GROUP BY w.operator, ol.operator_number
-        ORDER BY well_count DESC
-      `).bind(...[...allOpNames]).all();
-      for (const r of opLookup.results as any[]) {
-        const key = (r.operator as string).toUpperCase();
-        if (!opNameToNumber.has(key)) {
-          opNameToNumber.set(key, r.operator_number as string);
-        }
+        topOpByCounty.set(row.county, { operator: row.operator, operatorNumber: row.operator_number });
       }
     }
 
@@ -5771,9 +5746,10 @@ export async function handleGetShutInResearch(request: Request, env: Env): Promi
 
     const mapOperator = (r: any) => ({
       operator: r.operator,
-      operatorNumber: opNameToNumber.get(r.operator?.toUpperCase()) || null,
+      operatorNumber: r.operator_number || null,
       totalWells: r.total_wells,
       idleWells: r.idle_wells,
+      recentlyIdle: r.recently_idle || 0,
       idleRatePct: r.idle_rate_pct
     });
 
@@ -5792,14 +5768,17 @@ export async function handleGetShutInResearch(request: Request, env: Env): Promi
       },
       operatorsByCount: (opByCountResult.results as any[]).map(mapOperator),
       operatorsByRate: (opByRateResult.results as any[]).map(mapOperator),
-      counties: (countyResult.results as any[]).map((r: any) => ({
-        county: r.county,
-        totalWells: r.total_wells,
-        idleWells: r.idle_wells,
-        idleRatePct: r.idle_rate_pct,
-        topIdleOperator: topOpByCounty.get(r.county) || null,
-        topIdleOperatorNumber: opNameToNumber.get(topOpByCounty.get(r.county)?.toUpperCase() || '') || null
-      }))
+      counties: (countyResult.results as any[]).map((r: any) => {
+        const topOp = topOpByCounty.get(r.county);
+        return {
+          county: r.county,
+          totalWells: r.total_wells,
+          idleWells: r.idle_wells,
+          idleRatePct: r.idle_rate_pct,
+          topIdleOperator: topOp?.operator || null,
+          topIdleOperatorNumber: topOp?.operatorNumber || null
+        };
+      })
     };
 
     console.log(`[Shut-In Research] ${response.operatorsByCount.length} operators by count, ${response.counties.length} counties`);

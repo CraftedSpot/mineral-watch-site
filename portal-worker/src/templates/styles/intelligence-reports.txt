@@ -19,7 +19,7 @@
         .btn-refresh-small { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 0.2rem 0.5rem; font-size: 0.85rem; color: var(--text-muted); cursor: pointer; margin-left: 0.5rem; transition: all 0.15s; }
         .btn-refresh-small:hover { background: var(--bg-subtle); color: var(--oil-navy); border-color: var(--slate-blue); }
 
-        .report-content { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .report-content { max-width: 1600px; margin: 2rem auto; padding: 0 1rem; }
         .report-loading { text-align: center; padding: 4rem 2rem; color: var(--text-muted); font-size: 0.95rem; }
 
         /* HUD Metrics Bar */
@@ -77,9 +77,10 @@
         .report-data-section { background: white; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
         .report-data-header { padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .report-data-title { font-size: 0.95rem; font-weight: 600; color: var(--oil-navy); }
-        .table-scroll-container { overflow-x: auto; }
+        .table-scroll-container { overflow: auto; max-height: 600px; }
         .report-data-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.85rem; min-width: 900px; }
         .report-data-table thead { background: var(--paper); }
+        .report-data-table thead th { position: sticky; top: 0; background: var(--paper); z-index: 3; }
         .report-data-table th { text-align: left; padding: 0.75rem 0.75rem; font-weight: 600; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
         .report-data-table td { padding: 0.75rem 0.75rem; border-bottom: 1px solid var(--border-light); color: var(--slate-blue); white-space: nowrap; }
         .report-data-table tbody tr:last-child td { border-bottom: none; }
@@ -97,12 +98,15 @@
         .context-badge.expected { background: #e2e8f0; color: #475569; }
         .context-badge.verify { background: #dbeafe; color: #1e40af; }
 
-        /* Sticky columns */
+        /* Sticky columns (left-pinned) */
         .report-data-table th.sticky, .report-data-table td.sticky { position: sticky; background: white; z-index: 1; }
-        .report-data-table thead th.sticky { background: var(--paper); z-index: 2; }
-        .report-data-table th.sticky-well, .report-data-table td.sticky-well { left: 0; width: 200px; min-width: 200px; max-width: 200px; }
-        .report-data-table th.sticky-operator, .report-data-table td.sticky-operator { left: 200px; width: 180px; min-width: 180px; max-width: 180px; border-right: 2px solid var(--border); }
+        .report-data-table thead th.sticky { background: var(--paper); z-index: 4; }
+        .report-data-table th.sticky-well, .report-data-table td.sticky-well { left: 0; width: 240px; min-width: 240px; max-width: 240px; }
+        .report-data-table th.sticky-operator, .report-data-table td.sticky-operator { left: 240px; width: 220px; min-width: 220px; max-width: 220px; border-right: 2px solid var(--border); }
         .report-data-table td.sticky-well, .report-data-table td.sticky-operator { overflow: hidden; text-overflow: ellipsis; }
+        .op-cell { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        .op-cell .op-name-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .op-cell .op-badges { display: flex; gap: 3px; flex-wrap: wrap; }
         .report-data-table .well-row:hover td.sticky { background: var(--accent-blue-light); }
 
         .value-danger { color: var(--danger-red); font-weight: 600; }
@@ -154,7 +158,7 @@
         .third-party-badge { display: inline-block; background: var(--success-bg); color: var(--success); font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 0.5rem; cursor: help; }
         .gas-profile-badge { display: inline-block; font-size: 0.55rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 3px; letter-spacing: 0.2px; margin-left: 0.35rem; cursor: help; vertical-align: middle; text-transform: uppercase; }
         .gas-profile-lean { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
-        .gas-profile-rich { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .gas-profile-rich { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
         .gas-profile-mixed { background: #fefce8; color: #a16207; border: 1px solid #fef08a; }
         .affiliated-note { font-size: 0.8rem; color: var(--slate-blue); margin-top: 0.5rem; line-height: 1.4; }
 
@@ -213,8 +217,10 @@
             /* Decline chart — fit mobile screen width, no scroll needed */
             #declineTrendChart { min-width: 0; }
             /* On mobile, don't use sticky - just scroll */
+            .report-data-table thead th { position: static; }
             .report-data-table th.sticky, .report-data-table td.sticky { position: static; }
             .report-data-table th.sticky-operator, .report-data-table td.sticky-operator { border-right: none; }
+            .table-scroll-container { max-height: none; }
         }
         @media (max-width: 480px) {
             .report-title { font-size: 1.1rem; }
@@ -615,11 +621,11 @@
         .pooling-distance-badge.adjacent { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
         .pooling-distance-badge.within-2 { background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); }
 
-        .pooling-property-content { padding: 0 1.25rem 1.25rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .pooling-property-content { padding: 0 1.25rem 1.25rem; overflow: auto; max-height: 600px; -webkit-overflow-scrolling: touch; }
 
         /* Pooling Orders Table */
-        .pooling-orders-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
-        .pooling-orders-table thead th { text-align: left; padding: 0.6rem 0.75rem; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 2px solid var(--border); cursor: pointer; white-space: nowrap; user-select: none; transition: color 0.15s; position: relative; }
+        .pooling-orders-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.84rem; }
+        .pooling-orders-table thead th { text-align: left; padding: 0.6rem 0.75rem; font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 2px solid var(--border); cursor: pointer; white-space: nowrap; user-select: none; transition: color 0.15s; position: sticky; top: 0; background: white; z-index: 2; }
         .pooling-orders-table thead th:hover { color: var(--slate-blue); }
         .pooling-orders-table thead th.sorted { color: #b45309; }
         .pooling-orders-table thead th .sort-chevron { display: inline-block; margin-left: 0.3rem; font-size: 0.6rem; opacity: 0; transition: opacity 0.15s, transform 0.15s; vertical-align: middle; }

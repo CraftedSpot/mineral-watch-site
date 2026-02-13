@@ -271,14 +271,27 @@
                 contextBadge = ' <span class="context-badge verify" title="Oil-only well with elevated deductions — verify production data">&#8505; Verify</span>';
             }
 
+            // Variance color: red >15pts, orange >8pts
+            const varianceClass = !isContextual && well.variance_points != null
+                ? (well.variance_points > 15 ? 'value-danger' : well.variance_points > 8 ? 'value-warning' : '')
+                : '';
+
+            // Operator cell — two-line layout: name on top, badges below
+            const opNameHtml = well.operator_number
+                ? `<span class="op-name" onclick="event.stopPropagation(); openOperatorDetail('${escapeHtml(well.operator_number)}')" title="${escapeHtml(well.operator || '')}">${escapeHtml(well.operator || '—')}</span>`
+                : escapeHtml(well.operator || '—');
+            const affBadge = well.is_affiliated ? '<span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : '';
+            const gorBadge = gasProfileBadge(well.gas_profile, false);
+            const hasBadges = affBadge || gorBadge;
+
             return `
                 <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
                     <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}${contextBadge}</td>
-                    <td class="sticky sticky-operator">${well.operator_number ? `<span class="op-name" onclick="event.stopPropagation(); openOperatorDetail('${escapeHtml(well.operator_number)}')" title="${escapeHtml(well.operator || '')}">${escapeHtml(well.operator || '—')}</span>` : escapeHtml(well.operator || '—')}${well.is_affiliated ? ' <span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : ''}${gasProfileBadge(well.gas_profile, false)}</td>
+                    <td class="sticky sticky-operator"><div class="op-cell"><div class="op-name-line">${opNameHtml}</div>${hasBadges ? `<div class="op-badges">${affBadge}${gorBadge}</div>` : ''}</div></td>
                     <td class="${pctClass}">${well.agg_deduction_pct}%</td>
                     <td class="${pcrrClass}">${metrics.pcrr != null ? metrics.pcrr + '%' : '—'}</td>
                     <td class="${netReturnClass}">${formatCurrencyFull(metrics.netReturn)}</td>
-                    <td class="${!isContextual && well.variance_points != null && well.variance_points > 15 ? 'value-danger' : ''}">${variance}</td>
+                    <td class="${varianceClass}">${variance}</td>
                     <td>${escapeHtml(cleanCountyName(well.county))}</td>
                     <td>${countyAvg}</td>
                     <td>${formatCurrencyFull(well.total_gross)}</td>
@@ -4940,6 +4953,14 @@
             return html;
         }
 
+        function getIdleTrend(recentlyIdle, totalIdle) {
+            if (!totalIdle || totalIdle === 0) return { label: '—', color: '#6b7280', arrow: '' };
+            const ratio = recentlyIdle / totalIdle;
+            if (ratio >= 0.30) return { label: recentlyIdle + ' new', color: '#dc2626', arrow: '↑' };
+            if (ratio >= 0.15) return { label: recentlyIdle + ' new', color: '#d97706', arrow: '↗' };
+            return { label: 'Stable', color: '#059669', arrow: '→' };
+        }
+
         function renderShutInOperatorTable(operators) {
             if (!operators || operators.length === 0) {
                 return '<div class="pooling-empty">No operator data available</div>';
@@ -4952,6 +4973,8 @@
                             <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy);">Operator</th>
                             <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Total</th>
                             <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Idle</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right;">Recently Idle</th>
+                            <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: center;">Trend</th>
                             <th style="padding: 0.5rem 0.75rem; font-weight: 600; color: var(--oil-navy); text-align: right; min-width: 120px;">Idle Rate</th>
                         </tr>
                     </thead>
@@ -4961,11 +4984,16 @@
             for (const op of operators) {
                 const rateColor = getIdleRateColor(op.idleRatePct);
                 const barWidth = Math.min(op.idleRatePct, 100);
+                const trend = getIdleTrend(op.recentlyIdle || 0, op.idleWells);
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.5rem 0.75rem; font-weight: 500; color: var(--oil-navy); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(op.operator)}">${op.operatorNumber ? `<span class="vt-well-link" onclick="openOperatorDetail('${escapeAttr(op.operatorNumber)}')">${escapeHtml(op.operator)}</span>` : escapeHtml(op.operator)}</td>
+                        <td style="padding: 0.5rem 0.75rem; font-weight: 500; color: var(--oil-navy); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(op.operator)}">${op.operatorNumber ? `<span class="vt-well-link" onclick="openOperatorDetail('${escapeAttr(op.operatorNumber)}')">${escapeHtml(op.operator)}</span>` : escapeHtml(op.operator)}</td>
                         <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${op.totalWells.toLocaleString()}</td>
                         <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${op.idleWells.toLocaleString()}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: right; color: var(--slate-blue);">${(op.recentlyIdle || 0).toLocaleString()}</td>
+                        <td style="padding: 0.5rem 0.75rem; text-align: center;">
+                            <span style="font-weight: 600; color: ${trend.color}; font-size: 0.85rem;" title="${op.recentlyIdle || 0} wells went idle in last 3-6 months (${op.idleWells ? Math.round((op.recentlyIdle || 0) / op.idleWells * 100) : 0}% of total idle)">${trend.arrow} ${trend.label}</span>
+                        </td>
                         <td style="padding: 0.5rem 0.75rem; text-align: right;">
                             <div style="display: flex; align-items: center; justify-content: flex-end; gap: 0.5rem;">
                                 <div style="width: 60px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
@@ -5001,11 +5029,18 @@
             for (const c of sorted) {
                 const rateColor = getIdleRateColor(c.idleRatePct);
                 const countyName = (c.county || '').replace(/^\d{3}-/, '');
+                const activeWells = c.totalWells - c.idleWells;
+                const activePct = c.totalWells > 0 ? Math.round((activeWells / c.totalWells) * 100) : 100;
+                const idlePct = 100 - activePct;
                 html += `
                     <div class="pooling-insight-card" style="padding: 1rem;">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
                             <div class="insight-card-title" style="margin-bottom: 0;">${escapeHtml(countyName)}</div>
                             <span style="font-size: 1.1rem; font-weight: 700; color: ${rateColor};">${c.idleRatePct}%</span>
+                        </div>
+                        <div style="display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 0.5rem;" title="${activeWells.toLocaleString()} active, ${c.idleWells.toLocaleString()} idle">
+                            <div style="width: ${activePct}%; background: #059669; transition: width 0.3s;"></div>
+                            <div style="width: ${idlePct}%; background: ${rateColor}; transition: width 0.3s;"></div>
                         </div>
                         <div style="font-size: 0.8rem; color: var(--slate-blue); margin-bottom: 0.5rem;">
                             ${c.idleWells.toLocaleString()} idle of ${c.totalWells.toLocaleString()} wells
