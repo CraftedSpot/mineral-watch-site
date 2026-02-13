@@ -537,7 +537,7 @@ interface Article {
   related: { href: string; label: string }[];
   ctaTitle: string;
   ctaText: string;
-  featuredImage?: { src: string; alt: string; width: number; height: number };
+  featuredImage?: { src: string; alt: string; width: number; height: number; objectPosition?: string };
   jsonLdExtra?: string;
 }
 
@@ -785,7 +785,7 @@ export function renderArticle(slug: string): string | null {
   ).join('\n');
 
   const imageHtml = article.featuredImage
-    ? `<div class="article-image"><img src="${article.featuredImage.src}" alt="${esc(article.featuredImage.alt)}" width="${article.featuredImage.width}" height="${article.featuredImage.height}" loading="eager"></div>`
+    ? `<div class="article-image"><img src="${article.featuredImage.src}" alt="${esc(article.featuredImage.alt)}" width="${article.featuredImage.width}" height="${article.featuredImage.height}" loading="eager"${article.featuredImage.objectPosition ? ` style="object-position:${article.featuredImage.objectPosition}"` : ''}></div>`
     : '';
 
   return `<!DOCTYPE html>
