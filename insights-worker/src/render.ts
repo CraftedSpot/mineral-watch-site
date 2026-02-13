@@ -655,6 +655,121 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return INHERITED_MINERAL_RIGHTS_BODY; },
   },
+  'occ-filing-types': {
+    slug: 'occ-filing-types',
+    title: 'Every Type of OCC Filing, Explained: A Guide for Oklahoma Mineral Owners',
+    description: 'A complete reference guide to Oklahoma Corporation Commission filing types. Learn what permits, pooling orders, spacing applications, increased density orders, and other OCC filings mean for your mineral rights.',
+    canonical: 'https://mymineralwatch.com/insights/guides/occ-filing-types',
+    ogImage: 'https://mymineralwatch.com/assets/insights/occ-filing-types-guide.jpg',
+    tag: 'Reference Guide',
+    tagClass: 'tag-regulatory',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '14 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'OCC Filing Types',
+    featuredImage: {
+      src: '/assets/insights/occ-filing-types-guide.jpg',
+      alt: 'Official government documents with filing stamps arranged on a desk, representing the various types of Oklahoma Corporation Commission filings that affect mineral rights owners.',
+      width: 1100,
+      height: 620,
+    },
+    toc: [
+      { id: 'quick-reference', label: 'Quick Reference Table' },
+      { id: 'lifecycle', label: 'The Lifecycle of a Well' },
+      { id: 'spacing', label: 'Spacing Applications & Orders' },
+      { id: 'pooling', label: 'Pooling Applications & Orders' },
+      { id: 'permits', label: 'Intent to Drill (Form 1000)' },
+      { id: 'increased-density', label: 'Increased Density' },
+      { id: 'location-exception', label: 'Location Exceptions' },
+      { id: 'completion', label: 'Completion Reports' },
+      { id: 'multi-unit', label: 'Multi-Unit Horizontal Wells' },
+      { id: 'transfers', label: 'Operator Transfers' },
+      { id: 'plug-abandon', label: 'Plugging & Abandonment' },
+      { id: 'other-filings', label: 'Other Filing Types' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
+      { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
+      { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+    ],
+    ctaTitle: "The Filing That Matters Most Is the One You Don\u2019t Know About",
+    ctaText: 'Monitor your Oklahoma sections for every OCC filing type \u2014 permits, pooling orders, completions, and more.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "What is the Oklahoma Corporation Commission?", "acceptedAnswer": { "@type": "Answer", "text": "The Oklahoma Corporation Commission (OCC) is a state agency that regulates the oil and gas industry in Oklahoma. For mineral owners, the OCC is the body that issues drilling permits, establishes spacing and drilling units, approves pooling orders, and oversees well operations." } },
+        { "@type": "Question", "name": "How do I find OCC filings on my property?", "acceptedAnswer": { "@type": "Answer", "text": "You can search OCC filings through the Commission's online docket system and well records database. Search by section, township, and range to find filings related to your property. Mineral Watch provides automated monitoring that alerts you when new filings appear on your sections." } },
+        { "@type": "Question", "name": "What is the difference between a spacing order and a pooling order?", "acceptedAnswer": { "@type": "Answer", "text": "A spacing order establishes the drilling unit — it defines the geographic boundaries. A pooling order comes after spacing and combines all the mineral interests within that unit so the operator can proceed with drilling. Spacing sets the boundaries; pooling addresses the ownership within those boundaries." } },
+        { "@type": "Question", "name": "What does an Intent to Drill (Form 1000) mean for mineral owners?", "acceptedAnswer": { "@type": "Answer", "text": "An Intent to Drill means an operator has received approval to drill a specific well. Drilling is imminent — typically within weeks to months. If you haven't been contacted about leasing, expect a pooling application to follow." } },
+        { "@type": "Question", "name": "What is an increased density order in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "An increased density order allows an operator to drill additional wells in a section beyond what the original spacing order permitted. This is common in active plays where operators drill multiple horizontal wells targeting different formations." } },
+        { "@type": "Question", "name": "Do I need to respond to every OCC filing on my section?", "acceptedAnswer": { "@type": "Answer", "text": "No. The filing that requires action is a pooling order, which gives you a 20-day deadline. Spacing and increased density applications have optional hearings. Other filings like permits and completions are informational." } }
+      ]
+    }
+    </script>`,
+    get body() { return OCC_FILING_TYPES_BODY; },
+  },
+  'division-orders-101': {
+    slug: 'division-orders-101',
+    title: 'Division Orders 101: What Oklahoma Mineral Owners Need to Know',
+    description: 'A complete guide to division orders for Oklahoma mineral owners. Learn what a division order is, how to verify your decimal interest, whether to sign it, and what to do if the numbers look wrong.',
+    canonical: 'https://mymineralwatch.com/insights/guides/division-orders-101',
+    ogImage: 'https://mymineralwatch.com/assets/insights/division-orders-guide.jpg',
+    tag: 'Essential Guide',
+    tagClass: 'tag-guide',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '12 min read',
+    updated: 'Updated February 2026',
+    breadcrumb: 'Division Orders 101',
+    featuredImage: {
+      src: '/assets/insights/division-orders-guide.jpg',
+      alt: 'A desk with a division order document, calculator, pen, and laptop showing production data — representing the process of verifying and signing a division order.',
+      width: 1100,
+      height: 620,
+    },
+    toc: [
+      { id: 'what-is-division-order', label: 'What Is a Division Order?' },
+      { id: 'anatomy', label: 'Anatomy of a Division Order' },
+      { id: 'decimal-interest', label: 'Understanding Your Decimal' },
+      { id: 'should-you-sign', label: 'Should You Sign It?' },
+      { id: 'verification-checklist', label: 'Verification Checklist' },
+      { id: 'common-issues', label: 'Common Issues' },
+      { id: 'division-orders-vs-leases', label: 'DOs vs. Leases vs. Pooling' },
+      { id: 'suspense', label: 'Payments in Suspense' },
+      { id: 'keeping-records', label: 'Keeping Good Records' },
+      { id: 'faq', label: 'FAQ' },
+    ],
+    related: [
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+      { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+    ],
+    ctaTitle: 'Know When New Wells Come Online',
+    ctaText: 'Monitor your Oklahoma sections for drilling permits, completions, and production changes. Division orders follow completions \u2014 stay ahead of the paperwork.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "What is a division order?", "acceptedAnswer": { "@type": "Answer", "text": "A division order is a document sent by an oil and gas operator that states your decimal ownership interest in a specific well and authorizes the operator to distribute royalty payments to you. It is primarily an administrative document." } },
+        { "@type": "Question", "name": "Should I sign a division order?", "acceptedAnswer": { "@type": "Answer", "text": "Generally yes, but only after verifying that the decimal interest is correct. Under Oklahoma law, signing a division order does not change your actual ownership. However, if the decimal is wrong, contact the operator to dispute it before signing." } },
+        { "@type": "Question", "name": "How is my decimal interest calculated on a division order?", "acceptedAnswer": { "@type": "Answer", "text": "Your decimal interest is calculated by dividing your net mineral acres by the total acres in the drilling unit, then multiplying by your royalty rate. For multi-section horizontal wells, the calculation also factors in the percentage of the lateral that crosses each section." } },
+        { "@type": "Question", "name": "What happens if I don't sign a division order?", "acceptedAnswer": { "@type": "Answer", "text": "The operator may hold your royalty payments in suspense until the issue is resolved. Under Oklahoma law, operators are required to pay royalties within certain timeframes regardless, but unsigned division orders often result in delayed payments." } },
+        { "@type": "Question", "name": "Can a division order change my ownership?", "acceptedAnswer": { "@type": "Answer", "text": "No. Under Oklahoma's Division Order Act, a division order is not a transfer of ownership. Your actual ownership is determined by your deeds, probate decrees, and other title documents recorded at the county clerk's office." } },
+        { "@type": "Question", "name": "Why did my decimal interest change on a new division order?", "acceptedAnswer": { "@type": "Answer", "text": "Common reasons include a title correction, a new well with different unit size or lateral allocation, a change in royalty rate, or the addition of new owners that reduced your proportional share. Always ask the operator to explain any changes." } }
+      ]
+    }
+    </script>`,
+    get body() { return DIVISION_ORDERS_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -663,11 +778,11 @@ export function renderArticle(slug: string): string | null {
 
   const tocHtml = article.toc.map(t =>
     `<a href="#${t.id}" class="toc-link">${esc(t.label)}</a>`
-  ).join('\\n');
+  ).join('\n');
 
   const relatedHtml = article.related.map(r =>
     `<a href="${r.href}" class="related-link">${esc(r.label)} &rarr;</a>`
-  ).join('\\n');
+  ).join('\n');
 
   const imageHtml = article.featuredImage
     ? `<div class="article-image"><img src="${article.featuredImage.src}" alt="${esc(article.featuredImage.alt)}" width="${article.featuredImage.width}" height="${article.featuredImage.height}" loading="eager"></div>`
@@ -1428,4 +1543,701 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 <p>Inherited mineral rights are a meaningful asset &mdash; one that families have built wealth on across generations in Oklahoma. The key is treating them with the same attention you&rsquo;d give any other valuable inheritance. Get the ownership documented and recorded. Understand what you have. Don&rsquo;t rush into selling. Monitor what&rsquo;s happening on your sections. And when the situation warrants it, get professional help.</p>
 
 <p>The mineral rights your family member left you are the product of decades of ownership. With some attention and informed decision-making, they can continue producing value for decades more.</p>
+`;
+
+const OCC_FILING_TYPES_BODY = `
+<p>The OCC is the regulatory body that oversees oil and gas operations in Oklahoma. For mineral owners, the OCC is where the action happens &mdash; it&rsquo;s where operators apply for permits, where drilling units are established, where pooling orders are issued, and where wells are officially recorded. Understanding the filings that flow through the OCC is essential to knowing what&rsquo;s happening on your minerals.</p>
+
+<p>This guide covers every major filing type you&rsquo;re likely to encounter as a mineral owner. For each one, we&rsquo;ll explain what it is, what it signals, and whether you need to take action. Bookmark this page &mdash; it&rsquo;s the kind of reference you&rsquo;ll come back to.</p>
+
+<h2 id="quick-reference">Quick Reference</h2>
+
+<p>Before diving into the details, here&rsquo;s a summary of the major filing types and whether they require action from you:</p>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Filing Type</th>
+                <th>What It Signals</th>
+                <th>Action Required?</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td><strong>Spacing Application</strong></td><td>Operator wants to establish a drilling unit</td><td><span class="action-required action-optional">Optional &mdash; can attend hearing</span></td></tr>
+            <tr><td><strong>Pooling Application</strong></td><td>Operator wants to combine unleased interests</td><td><span class="action-required action-optional">Optional &mdash; can attend hearing</span></td></tr>
+            <tr><td><strong>Pooling Order</strong></td><td>OCC has approved pooling; election required</td><td><span class="action-required action-yes">Yes &mdash; 20-day deadline</span></td></tr>
+            <tr><td><strong>Intent to Drill (Form 1000)</strong></td><td>Drilling is imminent</td><td><span class="action-required action-no">No &mdash; informational</span></td></tr>
+            <tr><td><strong>Increased Density</strong></td><td>Operator wants to drill more wells in an existing unit</td><td><span class="action-required action-optional">Optional &mdash; can attend hearing</span></td></tr>
+            <tr><td><strong>Location Exception</strong></td><td>Well location deviates from standard spacing</td><td><span class="action-required action-optional">Optional &mdash; can attend hearing</span></td></tr>
+            <tr><td><strong>Completion Report (Form 1002A)</strong></td><td>Well has been drilled and is ready for production</td><td><span class="action-required action-no">No &mdash; informational</span></td></tr>
+            <tr><td><strong>Multi-Unit Horizontal Well</strong></td><td>Well spans multiple sections</td><td><span class="action-required action-optional">Varies &mdash; may trigger pooling</span></td></tr>
+            <tr><td><strong>Operator Transfer</strong></td><td>Well operation changing hands</td><td><span class="action-required action-no">No &mdash; but verify royalties continue</span></td></tr>
+            <tr><td><strong>Plug &amp; Abandon</strong></td><td>Well being permanently closed</td><td><span class="action-required action-no">No &mdash; informational</span></td></tr>
+        </tbody>
+    </table>
+</div>
+
+<h2 id="lifecycle">The Lifecycle of a Well: How Filings Connect</h2>
+
+<p>Before looking at each filing type individually, it helps to understand how they fit together. OCC filings aren&rsquo;t random &mdash; they follow a predictable sequence that mirrors the lifecycle of a well. Knowing where you are in this sequence tells you what&rsquo;s coming next.</p>
+
+<div class="timeline">
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">1. Spacing Application</div>
+        <div class="timeline-desc">Operator asks OCC to establish the drilling unit boundaries</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">2. Spacing Order</div>
+        <div class="timeline-desc">OCC approves the unit &mdash; typically 640 acres for horizontal wells</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">3. Pooling Application</div>
+        <div class="timeline-desc">Operator asks to pool unleased mineral owners in the unit</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot timeline-dot-active"></div>
+        <div class="timeline-title">4. Pooling Order</div>
+        <div class="timeline-desc">OCC issues the order &mdash; your 20-day election deadline starts</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">5. Intent to Drill (Form 1000)</div>
+        <div class="timeline-desc">Operator files the drilling permit &mdash; rig arrives within weeks</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">6. Drilling &amp; Completion</div>
+        <div class="timeline-desc">Well is drilled, completed, and tested</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">7. Completion Report (Form 1002A)</div>
+        <div class="timeline-desc">Well details and initial production officially recorded</div>
+    </div>
+    <div class="timeline-item">
+        <div class="timeline-dot"></div>
+        <div class="timeline-title">8. Production &amp; Royalties</div>
+        <div class="timeline-desc">Monthly production reported, royalty checks issued</div>
+    </div>
+</div>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Why the sequence matters</div>
+    <p>If you&rsquo;re monitoring your sections, a spacing application is your earliest warning that drilling is coming. It gives you time to research the operator, understand the area&rsquo;s economics, and potentially negotiate a voluntary lease &mdash; all before a pooling order arrives with its 20-day deadline. The earlier in the sequence you become aware, the more options you have.</p>
+</div>
+
+<h2 id="spacing">Spacing Applications and Orders</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-spacing">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Spacing Application / Spacing Order</div>
+            <div class="filing-card-subtitle">Cause CD &mdash; Oil &amp; Gas Conservation Division</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>A spacing application is the operator&rsquo;s request to the OCC to establish (or modify) a drilling unit &mdash; the geographic area within which a well or wells will be drilled. For horizontal wells, the standard unit is a 640-acre section. For older vertical wells, units are often smaller &mdash; 160 acres or even 40 acres.</p>
+
+        <p>The spacing order establishes the legal boundaries of the drilling unit and specifies which formations are included. This is important because it determines which mineral owners are part of the unit and how their interests will be calculated.</p>
+
+        <p>For mineral owners, a new spacing application on your section is the first major signal that an operator is preparing to drill. It&rsquo;s filed before the pooling application and before the drilling permit. If you haven&rsquo;t been approached about leasing, seeing a spacing application is your cue to start paying attention.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>Optional. You can attend the OCC hearing to support or protest the spacing application. Most mineral owners don&rsquo;t attend spacing hearings, but if you believe the proposed unit configuration is unfavorable to your interests, appearing (or having an attorney appear) is your opportunity to object.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>Drilling is in the planning stages. Expect a pooling application and/or lease offers within the coming months. This is the ideal time to research the operator and the area&rsquo;s economics.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="pooling">Pooling Applications and Orders</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-pooling">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Pooling Application / Pooling Order</div>
+            <div class="filing-card-subtitle">Cause CD &mdash; Oil &amp; Gas Conservation Division</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>A pooling application is filed when an operator wants to combine all mineral interests in a drilling unit so they can proceed with a well. This happens when some mineral owners haven&rsquo;t signed voluntary leases &mdash; either because they couldn&rsquo;t be located, didn&rsquo;t respond, or couldn&rsquo;t agree on terms with the operator.</p>
+
+        <p>After the OCC holds a hearing, they may issue a pooling order. This is the filing that directly affects unleased mineral owners: it gives you a set of election options and a 20-day deadline to choose. The pooling order specifies the bonus rates, royalty rates, and participation options available to you.</p>
+
+        <p>This is the single most important filing type for mineral owners. Missing the deadline means you&rsquo;re assigned the default option &mdash; which is almost always the least favorable. For a comprehensive walkthrough of your election options, see our <a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">Understanding Pooling Orders</a> guide.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p><strong>Yes &mdash; critical.</strong> If a pooling order is issued on your section and you&rsquo;re an unleased mineral owner, you must make your election within 20 days of the order date. You can also attend the hearing on the pooling application to protest or negotiate.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>An operator has committed to drilling this unit. Lease negotiations have already occurred (or been attempted). A drilling permit typically follows shortly after the pooling order.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="callout callout-warning">
+    <div class="callout-title">The timing gap</div>
+    <p>There&rsquo;s often a gap between when a pooling <em>application</em> is filed and when the pooling <em>order</em> is issued. The application goes on the OCC docket first, and the hearing may be weeks or months later. If you see a pooling application on your section, that&rsquo;s your window to contact the operator and negotiate a voluntary lease &mdash; which almost always gets you better terms than the pooling order will offer.</p>
+</div>
+
+<h2 id="permits">Intent to Drill (Form 1000)</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-permit">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Intent to Drill &mdash; Form 1000</div>
+            <div class="filing-card-subtitle">Drilling Permit</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>The Intent to Drill, filed on Form 1000, is the operator&rsquo;s official drilling permit application. It specifies the well&rsquo;s name, proposed location (surface and bottomhole coordinates), target formation, proposed depth, and the operator&rsquo;s identity. For horizontal wells, the Form 1000 includes the lateral path &mdash; the planned horizontal trajectory through the target formation.</p>
+
+        <p>A Form 1000 means a rig is coming. Operators don&rsquo;t file drilling permits speculatively &mdash; the paperwork, fees, and regulatory requirements make it a commitment signal. Drilling typically begins within weeks to a few months of the permit being approved.</p>
+
+        <p>The permit also tells you important details about the planned well: which formation is being targeted (Woodford, Meramec, Mississippian, etc.), the lateral length (which affects the well&rsquo;s production potential), and whether the well is a horizontal or vertical well.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>No direct action required &mdash; this is informational. However, if you see a drilling permit on your section and you haven&rsquo;t been contacted about leasing or pooling, you should investigate. A pooling application may have been filed that you missed, or the operator may be attempting to contact you.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>Drilling is imminent. The spacing, pooling, and regulatory approvals are in place (or nearly so). Expect to see a rig on location within weeks.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="increased-density">Increased Density Applications</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-density">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/><line x1="5" y1="5" x2="5" y2="19"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Increased Density Application / Order</div>
+            <div class="filing-card-subtitle">Cause CD &mdash; Oil &amp; Gas Conservation Division</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>An increased density application asks the OCC for permission to drill more wells in a section than the original spacing order allowed. This is extremely common in Oklahoma&rsquo;s active horizontal plays. An operator might drill an initial well in the Woodford formation, then come back and apply for increased density to drill a second Woodford well, or wells targeting different formations like the Meramec or Mississippian within the same section.</p>
+
+        <p>For mineral owners, increased density is generally positive &mdash; more wells typically means more production and more royalty income. However, each new well may trigger a new pooling order if your interest isn&rsquo;t already leased for that specific well or formation. Pay attention to what formations are covered by your existing lease, if you have one.</p>
+
+        <p>Increased density applications are particularly common in the STACK and SCOOP plays, where a single section might eventually have 4, 6, or even 10+ horizontal wells targeting different formations and lateral positions.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>Optional. You can attend the hearing. The main thing to watch for is whether the increased density triggers a new pooling order that affects your unleased formations.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>The operator is expanding development in this section &mdash; a sign that the initial wells were productive enough to justify additional drilling. More wells, more production potential.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="location-exception">Location Exceptions</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-location">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Location Exception</div>
+            <div class="filing-card-subtitle">Cause CD &mdash; Oil &amp; Gas Conservation Division</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>A location exception allows an operator to drill a well at a location that deviates from the standard spacing requirements. Oklahoma&rsquo;s spacing rules generally dictate minimum distances from section lines and from other wells. When geological conditions, surface access issues, or other practical considerations require the well to be drilled at a non-standard location, the operator files a location exception.</p>
+
+        <p>For horizontal wells, location exceptions are very common. The planned surface location (where the rig sits) and the bottomhole location (where the lateral ends) must comply with spacing rules, but the geometry of horizontal drilling frequently requires adjustments. Multi-section horizontal wells, where the lateral crosses section boundaries, almost always involve location exception filings.</p>
+
+        <p>For most mineral owners, location exceptions are routine and don&rsquo;t change the economics of your interest. The exception may matter if the well&rsquo;s location affects which mineral owners are included in the drilling unit or if the well&rsquo;s lateral path comes closer to (or farther from) your specific acreage within the section.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>Optional. You can attend the hearing and protest if you believe the location is unfavorable to your interests, but this is rare for individual mineral owners.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>The operator is actively planning the well and working through the regulatory requirements. It&rsquo;s an indicator that drilling plans are advancing.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="completion">Completion Reports (Form 1002A)</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-completion">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22,4 12,14.01 9,11.01"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Completion Report &mdash; Form 1002A</div>
+            <div class="filing-card-subtitle">Well Completion / Recompletion</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>The completion report is filed after a well has been drilled, cased, perforated, and tested. It&rsquo;s the official record that the well exists and is (or will be) producing. The Form 1002A includes critical details: the well&rsquo;s actual total depth, the formations encountered, the completion technique (hydraulic fracturing stages, lateral length for horizontal wells), and the initial production test results.</p>
+
+        <p>For mineral owners, the completion report is your first concrete look at the well&rsquo;s potential. The initial production (IP) rate &mdash; usually reported as barrels of oil per day (BOPD) and thousand cubic feet of gas per day (MCF/D) &mdash; gives you a rough sense of how productive the well is, though initial rates can be misleading. What matters more is the decline curve over the first 6&ndash;12 months of production.</p>
+
+        <p>After the completion report is filed, the operator will typically send division orders to all mineral owners in the unit. If you&rsquo;re expecting a division order or royalty checks from a well on your section, the completion report filing is your signal that they should be arriving soon.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>No direct action required. However, you should note the well name, API number, and initial production rates for your records. These details are useful when verifying your division order and monitoring your royalty payments.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>The well is drilled and completed. Production has started or will start soon. Division orders and royalty checks should follow within weeks to a few months.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="multi-unit">Multi-Unit Horizontal Well Applications</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-density">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><polyline points="16,7 21,12 16,17"/><rect x="3" y="3" width="7" height="18" rx="1" fill="none"/><rect x="14" y="3" width="7" height="18" rx="1" fill="none"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Multi-Unit Horizontal Well</div>
+            <div class="filing-card-subtitle">Cause CD &mdash; Often combined with spacing/location exception</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>Modern horizontal wells frequently span more than one section. A two-mile lateral, for example, might start in one section and end in an adjacent section &mdash; or even cross through three sections. When this happens, the operator files a multi-unit horizontal well application asking the OCC to approve the well spanning multiple drilling units.</p>
+
+        <p>This is significant for mineral owners because it means your section may be affected by a well whose surface location is in a completely different section. The well&rsquo;s production is allocated among the sections it crosses, typically based on the percentage of the lateral that falls within each section. Your royalty interest in a multi-section well is based on this allocation, not on the total well production.</p>
+
+        <p>Multi-unit wells are now the standard in Oklahoma&rsquo;s active plays. A typical STACK horizontal well has a two-mile lateral, which almost always crosses at least two sections. Understanding this helps you make sense of division orders and production allocations.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>Varies. The multi-unit application itself is informational, but it may come with associated pooling orders for each section the well crosses. If you&rsquo;re an unleased mineral owner in any of the affected sections, you&rsquo;ll need to respond to the pooling order.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>A significant horizontal well is planned that affects multiple sections. This often indicates a major operator with a broader development plan for the area.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="transfers">Operator Transfers (Form 1073)</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-transfer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Operator Transfer &mdash; Form 1073</div>
+            <div class="filing-card-subtitle">Change of Operator / Well Transfer</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>An operator transfer occurs when the responsibility for operating a well changes hands. This can happen because of a sale (one company buying another&rsquo;s wells), a corporate merger, or a transfer of operatorship within a joint venture. The Form 1073 records this change with the OCC.</p>
+
+        <p>For mineral owners, an operator transfer means your royalty checks will start coming from a different company. The new operator should send you an updated division order. Your ownership interest doesn&rsquo;t change &mdash; only who is operating the well and processing your royalty payments.</p>
+
+        <p>Operator transfers happen frequently in Oklahoma, particularly as the industry consolidates. Small operators sell assets to larger ones, companies merge, and private equity-backed operators cycle through portfolios. Keeping track of who operates your wells helps you verify that royalties are being paid correctly through the transition.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>No direct action required. However, verify that the new operator has your correct contact information and watch for a new division order. If royalty checks stop arriving after a transfer, contact the new operator&rsquo;s division order department.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>A change in who operates and pays royalties on your well. Not inherently good or bad &mdash; but worth monitoring to ensure continuity of your royalty payments.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="plug-abandon">Plugging and Abandonment</h2>
+
+<div class="filing-card">
+    <div class="filing-card-header">
+        <div class="filing-icon filing-icon-plug">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        </div>
+        <div>
+            <div class="filing-card-title">Plugging &amp; Abandonment</div>
+            <div class="filing-card-subtitle">Well Plugging Report</div>
+        </div>
+    </div>
+    <div class="filing-card-body">
+        <p>When a well is no longer economic to operate, the operator plugs it &mdash; filling the wellbore with cement to permanently seal it &mdash; and files a plugging report with the OCC. This officially takes the well out of service. The well will no longer produce, and royalty payments from that well will cease.</p>
+
+        <p>A plugged well doesn&rsquo;t necessarily mean your minerals are worthless. The well may have targeted one formation while other formations remain untapped. New drilling technology or higher commodity prices could make the area attractive again in the future. Your mineral rights persist regardless of what happens to any individual well.</p>
+
+        <p>However, if all wells on your section are plugged and no new drilling is planned, your minerals become &ldquo;open&rdquo; &mdash; available for new leasing if an operator becomes interested in the future. Older vertical wells in mature fields are being plugged across Oklahoma at a steady rate, even as new horizontal wells are drilled in the same areas.</p>
+
+        <div class="filing-detail">
+            <div class="filing-detail-item">
+                <h4>Action Required</h4>
+                <p>No. The operator is responsible for plugging and any associated environmental remediation. Your royalty payments from this well will end, but your mineral ownership is not affected.</p>
+            </div>
+            <div class="filing-detail-item">
+                <h4>What It Signals</h4>
+                <p>The well has reached the end of its economic life. This is normal &mdash; all wells eventually deplete. Your minerals remain and may be developed again in the future.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="other-filings">Other Filing Types</h2>
+
+<p>Beyond the major filing types above, you may encounter several other OCC filings in your research:</p>
+
+<p><strong>Temporary Spacing Orders</strong> are issued when the standard spacing hasn&rsquo;t yet been established for an area and an operator needs interim approval to drill. These are common in newer development areas.</p>
+
+<p><strong>Vacuum Orders</strong> allow an operator to produce a well at reduced pressure to extract additional oil and gas. This is a secondary recovery technique used on older wells and doesn&rsquo;t require action from mineral owners.</p>
+
+<p><strong>Unitization Orders</strong> combine multiple drilling units into a single, larger unit for enhanced recovery operations like waterflooding or CO2 injection. These are less common than pooling orders but can affect your interest similarly.</p>
+
+<p><strong>Well Status Changes</strong> are filed when a well&rsquo;s status changes &mdash; from active to temporarily abandoned, from temporarily abandoned back to active, or from one producing formation to another (recompletion). These are informational and help you track the current state of wells on your sections.</p>
+
+<p><strong>Environmental Compliance Filings</strong> relate to disposal wells, produced water management, and other environmental aspects of well operations. These don&rsquo;t directly affect your royalties but can be relevant if you own surface rights in the same area.</p>
+
+<h2 id="how-to-monitor">How to Stay Informed</h2>
+
+<p>The OCC&rsquo;s online docket and well records systems are publicly accessible. You can search by section, township, range, operator name, well name, or cause number. However, the OCC systems are designed for industry professionals, not casual users &mdash; the interface can be confusing, and there&rsquo;s no built-in way to set up alerts when new filings appear on your sections.</p>
+
+<p>For mineral owners who want to stay on top of their properties, the options are: check the OCC website manually on a regular basis (weekly or monthly, depending on how active your area is), hire a landman to monitor for you (expensive, but thorough), or use a monitoring service that automates the process. The key is consistency &mdash; a filing you miss today could have a 20-day deadline attached to it.</p>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">What is the Oklahoma Corporation Commission?</div>
+        <p class="faq-answer">The OCC is a state agency that regulates the oil and gas industry in Oklahoma. For mineral owners, the OCC is the body that issues drilling permits, establishes spacing and drilling units, approves pooling orders, and oversees well operations.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I find OCC filings on my property?</div>
+        <p class="faq-answer">You can search OCC filings through the Commission&rsquo;s online docket system and well records database. Search by section, township, and range to find filings related to your property. You can also search by operator name or cause number.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is the difference between a spacing order and a pooling order?</div>
+        <p class="faq-answer">A spacing order establishes the drilling unit &mdash; it defines the geographic boundaries. A pooling order comes after spacing and combines all the mineral interests within that unit so the operator can proceed with drilling. Spacing sets the boundaries; pooling addresses the ownership within those boundaries.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What does an Intent to Drill (Form 1000) mean for mineral owners?</div>
+        <p class="faq-answer">It means an operator has received approval to drill a specific well. Drilling is imminent &mdash; typically within weeks to months. If you haven&rsquo;t been contacted about leasing, expect a pooling application to follow.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is an increased density order in Oklahoma?</div>
+        <p class="faq-answer">It allows an operator to drill additional wells in a section beyond what the original spacing order permitted. This is common in active plays where operators drill multiple horizontal wells targeting different formations. More wells means more potential production and possibly new pooling orders.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Do I need to respond to every OCC filing on my section?</div>
+        <p class="faq-answer">No. The filing that requires action is a pooling order, which gives you a 20-day deadline. Spacing and increased density applications have optional hearings. Other filings like permits and completions are informational &mdash; they tell you what&rsquo;s happening but don&rsquo;t require you to do anything.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>OCC filings are the public record of everything happening with oil and gas development in Oklahoma. As a mineral owner, you don&rsquo;t need to understand every detail of every filing &mdash; but you do need to know which ones require action (pooling orders), which ones signal upcoming changes (spacing applications, permits), and which ones confirm activity you should track (completions, transfers).</p>
+
+<p>The filing that matters most is the one you don&rsquo;t know about. A spacing application you catch early gives you months to prepare. A pooling order you miss costs you money. Building some kind of regular monitoring habit &mdash; whether it&rsquo;s checking the OCC website yourself, working with a landman, or using an automated service &mdash; is the single best investment you can make in protecting your mineral interests.</p>
+`;
+
+const DIVISION_ORDERS_BODY = `
+<p>A division order is one of the most common documents Oklahoma mineral owners encounter &mdash; and one of the most misunderstood. It looks official. It has legal language. It asks for your signature. And the number on it &mdash; something like 0.00292969 &mdash; doesn&rsquo;t look like any ownership interest you&rsquo;ve ever heard of.</p>
+
+<p>The good news: division orders are generally straightforward, and signing one doesn&rsquo;t transfer your ownership or lock you into anything permanent. The important thing is understanding what the document says, verifying that the decimal interest is correct, and knowing what to do if it isn&rsquo;t.</p>
+
+<h2 id="what-is-division-order">What Is a Division Order?</h2>
+
+<p>A division order is an administrative document sent by an oil or gas well operator that serves two purposes. First, it states the operator&rsquo;s calculation of your decimal ownership interest in a specific well. Second, it provides your payment instructions &mdash; name, address, tax ID &mdash; so the operator knows where to send your royalty checks.</p>
+
+<p>Think of it as a receipt and a routing slip combined. The operator is saying: &ldquo;Based on our title examination, we believe you own this decimal interest in this well. Here&rsquo;s what we&rsquo;ll use to calculate your royalty payments. Please confirm this is correct and tell us where to send the money.&rdquo;</p>
+
+<p>Division orders typically arrive after a new well has been drilled and completed, shortly before the first royalty payments begin. You might also receive a new division order when well ownership changes hands (an operator transfer), when a title correction affects your interest, or when a new well is drilled in a unit where you already have an interest.</p>
+
+<div class="callout">
+    <div class="callout-title">Key Point</div>
+    <p>Under Oklahoma law, <strong>a division order is not a conveyance of your mineral rights</strong>. Signing a division order does not transfer, reduce, or modify your actual ownership. It is a statement of what the operator believes your interest to be, based on their title examination. If the decimal is wrong, your actual ownership &mdash; as established by your deeds and other recorded title documents &mdash; controls.</p>
+</div>
+
+<h2 id="anatomy">Anatomy of a Division Order</h2>
+
+<p>Division orders vary somewhat in format between operators, but they all contain the same core information. Here&rsquo;s what you&rsquo;ll see and what each field means:</p>
+
+<div class="do-anatomy">
+    <div class="do-anatomy-header">Sample Division Order &mdash; Key Fields</div>
+    <div class="do-field">
+        <div class="do-field-label">Well Name</div>
+        <div class="do-field-value">The operator&rsquo;s name for the well, usually combining a lease name and well number (e.g., &ldquo;Price 15-1H&rdquo;). The name may reference the section number and indicate whether it&rsquo;s a horizontal (&ldquo;H&rdquo;) well.</div>
+    </div>
+    <div class="do-field">
+        <div class="do-field-label">API Number</div>
+        <div class="do-field-value">A unique identifier assigned to every well in the United States. Oklahoma API numbers start with &ldquo;35&rdquo; (the state code) followed by the county code and well number. This is the definitive way to identify a specific well.</div>
+    </div>
+    <div class="do-field">
+        <div class="do-field-label">Legal Description</div>
+        <div class="do-field-value">The section, township, range, and county where the well is located. For horizontal wells, this may reference multiple sections if the lateral crosses section boundaries.</div>
+    </div>
+    <div class="do-field">
+        <div class="do-field-label">Owner Name</div>
+        <div class="do-field-value">Your name (or the name of your trust, estate, or entity). Verify this matches exactly how your ownership is recorded at the county clerk&rsquo;s office.</div>
+    </div>
+    <div class="do-field do-highlight">
+        <div class="do-field-label">Decimal Interest</div>
+        <div class="do-field-value">Your ownership interest expressed as a decimal fraction (e.g., 0.00292969). This is the number used to calculate your royalty check each month. This is the single most important number on the document &mdash; verify it carefully.</div>
+    </div>
+    <div class="do-field">
+        <div class="do-field-label">Interest Type</div>
+        <div class="do-field-value">Indicates whether your interest is a royalty interest (RI), overriding royalty interest (ORRI), working interest (WI), or other type. Most mineral owners who have leased or been pooled will see &ldquo;RI&rdquo; &mdash; royalty interest.</div>
+    </div>
+    <div class="do-field">
+        <div class="do-field-label">Payment Info</div>
+        <div class="do-field-value">Your mailing address for royalty checks and your tax identification number (SSN or EIN). The operator needs this to issue your payments and your annual 1099 tax form.</div>
+    </div>
+</div>
+
+<h2 id="decimal-interest">Understanding Your Decimal Interest</h2>
+
+<p>The decimal interest is where most mineral owners&rsquo; eyes glaze over. It&rsquo;s a small number &mdash; often something like 0.002 or 0.0005 &mdash; and it can feel disconnected from any ownership you recognize. But the math is actually straightforward once you understand what goes into it.</p>
+
+<p>Your decimal interest is the product of three factors: your net mineral acres, the unit size, and your royalty rate.</p>
+
+<div class="math-example">
+    <div class="math-example-title">Example 1: Standard Single-Section Well</div>
+    <div class="math-row">
+        <span class="math-label">Your net mineral acres</span>
+        <span class="math-value">10 NMA</span>
+    </div>
+    <div class="math-row">
+        <span class="math-label">Unit size</span>
+        <span class="math-value">640 acres (one section)</span>
+    </div>
+    <div class="math-row">
+        <span class="math-label">Royalty rate</span>
+        <span class="math-value">3/16 (0.1875)</span>
+    </div>
+    <div class="math-divider"></div>
+    <div class="math-row">
+        <span class="math-label">Calculation</span>
+        <span class="math-value">(10 &divide; 640) &times; 0.1875</span>
+    </div>
+    <div class="math-result">
+        <span class="math-label">Your decimal interest</span>
+        <span class="math-value">0.00292969</span>
+    </div>
+</div>
+
+<p>That means for every dollar the well generates in gross revenue, you receive approximately $0.0029 &mdash; or about $2.93 for every $1,000 in production revenue. On a well producing $200,000/month in gross revenue, your monthly royalty check would be about $586.</p>
+
+<div class="math-example">
+    <div class="math-example-title">Example 2: Multi-Section Horizontal Well</div>
+    <div class="math-row">
+        <span class="math-label">Your net mineral acres</span>
+        <span class="math-value">10 NMA in Section 15</span>
+    </div>
+    <div class="math-row">
+        <span class="math-label">Well spans</span>
+        <span class="math-value">Section 15 and Section 22</span>
+    </div>
+    <div class="math-row">
+        <span class="math-label">Lateral allocation</span>
+        <span class="math-value">55% in Section 15, 45% in Section 22</span>
+    </div>
+    <div class="math-row">
+        <span class="math-label">Royalty rate</span>
+        <span class="math-value">1/5 (0.20)</span>
+    </div>
+    <div class="math-divider"></div>
+    <div class="math-row">
+        <span class="math-label">Calculation</span>
+        <span class="math-value">(10 &divide; 640) &times; 0.55 &times; 0.20</span>
+    </div>
+    <div class="math-result">
+        <span class="math-label">Your decimal interest</span>
+        <span class="math-value">0.00171875</span>
+    </div>
+</div>
+
+<p>Multi-section wells make the math more complex because the production is allocated between sections based on the percentage of the lateral in each section. This is why your decimal interest might be different for two wells in the same section &mdash; the lateral allocation can vary.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Checking the math</div>
+    <p>To verify your decimal interest, you need three numbers: your net mineral acres in the section (from your deeds or title opinion), the total acres in the drilling unit (typically 640 for a section), and your royalty rate (from your lease, pooling order, or lease terms). If the well spans multiple sections, you&rsquo;ll also need the lateral allocation percentage. Multiply your NMA &divide; unit acres &times; royalty rate &times; lateral allocation (if applicable). If your calculation doesn&rsquo;t match the division order, contact the operator before signing.</p>
+</div>
+
+<h2 id="should-you-sign">Should You Sign It?</h2>
+
+<p>In most cases, yes &mdash; after you&rsquo;ve verified the decimal interest is correct. Here&rsquo;s the practical reasoning:</p>
+
+<p><strong>Signing gets your royalty checks flowing.</strong> Operators typically begin paying royalties after receiving your signed division order. While Oklahoma law requires operators to pay within certain timeframes regardless, in practice an unsigned division order often means your payments go into suspense until the issue is resolved.</p>
+
+<p><strong>Signing doesn&rsquo;t change your ownership.</strong> Oklahoma&rsquo;s Division Order Act (Title 52, Section 570.10 et seq.) explicitly states that division orders do not amend the terms of an existing lease or constitute a conveyance of any interest. Your actual ownership is determined by your title documents, not by the division order. If the operator later discovers a title error and needs to adjust your decimal, they&rsquo;ll send you a corrected division order.</p>
+
+<p><strong>Signing doesn&rsquo;t prevent you from disputing the decimal later.</strong> If you discover after signing that the decimal was wrong &mdash; maybe you find a deed that shows you own more than the operator calculated &mdash; you can contact the operator and request a correction. The division order is not a final settlement of your ownership.</p>
+
+<div class="callout callout-warning">
+    <div class="callout-title">When not to sign</div>
+    <p><strong>Do not sign if the decimal interest looks wrong.</strong> If you&rsquo;ve done the math and your calculation doesn&rsquo;t match the division order, or if the ownership name or property description is incorrect, contact the operator&rsquo;s division order department before signing. Explain the discrepancy and provide supporting documentation (deeds, probate decree, title opinion). Signing an incorrect division order doesn&rsquo;t change your actual ownership, but it&rsquo;s easier to resolve errors before payments start flowing than after.</p>
+</div>
+
+<h2 id="verification-checklist">Division Order Verification Checklist</h2>
+
+<p>Before signing a division order, walk through this checklist:</p>
+
+<div class="checklist">
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Verify the well location.</strong> Does the section, township, range, and county match a property where you own minerals? If you don&rsquo;t recognize the location, it could be a well on a property you forgot about &mdash; or it could be an error.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Verify your name and address.</strong> Make sure the owner name matches how your interest is recorded. If you inherited and the name still shows the deceased owner, the operator may need your probate or heirship documentation before they can update the division order.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Check the interest type.</strong> If you leased your minerals or were pooled, you should see &ldquo;RI&rdquo; (royalty interest). If you elected to participate as a working interest owner, you should see &ldquo;WI.&rdquo; If the interest type doesn&rsquo;t match your situation, something may be wrong.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Calculate your expected decimal.</strong> Using your net mineral acres, the unit size, and your royalty rate, calculate what your decimal should be. Compare it to what&rsquo;s on the division order. Small rounding differences (in the 6th or 7th decimal place) are normal. Larger discrepancies need investigation.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Check for multi-section allocation.</strong> If the well is a horizontal that crosses multiple sections, make sure the lateral allocation percentage is reasonable. You can compare the division order against the well&rsquo;s completion report to see the lateral path.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Compare against prior division orders.</strong> If you have an existing division order for another well in the same section, compare the decimals. They should be similar unless the royalty rate, unit configuration, or lateral allocation is different.</div>
+    </div>
+    <div class="check-item">
+        <div class="check-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20,6 9,17 4,12"/></svg></div>
+        <div class="check-text"><strong>Read the fine print.</strong> Some division orders include additional clauses &mdash; post-production cost deductions, interest rate terms for late payments, or dispute resolution procedures. These should align with the terms of your lease or pooling order.</div>
+    </div>
+</div>
+
+<h2 id="common-issues">Common Division Order Issues</h2>
+
+<h3>The decimal is wrong</h3>
+
+<p>This is the most common issue. The operator&rsquo;s title examination may have missed a deed, used an incorrect heirship determination, or made a mathematical error. If your calculation doesn&rsquo;t match the division order, contact the operator&rsquo;s division order department in writing. Provide your calculation and the supporting documentation &mdash; deeds, probate decrees, affidavits of heirship &mdash; so they can review and correct.</p>
+
+<h3>You don&rsquo;t recognize the well</h3>
+
+<p>If you receive a division order for a well you&rsquo;ve never heard of, it could mean: a new well was drilled on a section where you own minerals (check the legal description against your properties), a multi-section horizontal well crosses into your section from an adjacent section, or the operator sent it to the wrong person. Don&rsquo;t ignore it &mdash; investigate first.</p>
+
+<h3>The owner name is wrong</h3>
+
+<p>If the division order is addressed to a deceased family member or uses an incorrect name, the operator likely hasn&rsquo;t received documentation of the ownership change. Send them a copy of the probate decree, affidavit of heirship, or other transfer document so they can update their records and reissue the division order in the correct name.</p>
+
+<h3>You receive a corrected division order</h3>
+
+<p>Operators periodically send corrected or updated division orders when title information changes. If your decimal went up, it means additional ownership was attributed to you &mdash; possibly from a title correction or an heir being removed. If your decimal went down, ask the operator to explain the change. You have the right to understand any reduction in your calculated interest.</p>
+
+<h3>You never received a division order</h3>
+
+<p>If there&rsquo;s a producing well on your section and you haven&rsquo;t received a division order, the operator may not have your contact information or may not have identified you as an owner. Contact the operator directly &mdash; you can find the operator&rsquo;s name through the OCC well records. Provide documentation of your ownership so they can include you in the division order.</p>
+
+<h2 id="division-orders-vs-leases">Division Orders vs. Leases vs. Pooling Orders</h2>
+
+<p>Mineral owners sometimes confuse these three documents. Here&rsquo;s how they&rsquo;re different:</p>
+
+<p><strong>A lease</strong> is a contract between you and an operator that grants them the right to drill on your minerals. It establishes your bonus payment, royalty rate, and the terms under which the operator can develop your minerals. A lease is a binding contract that can last for years.</p>
+
+<p><strong>A pooling order</strong> is issued by the OCC when not all mineral owners in a drilling unit have signed leases. It gives you election options &mdash; cash bonus, participation, or nonconsent &mdash; and has a 20-day deadline. See our <a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">pooling orders guide</a> for details.</p>
+
+<p><strong>A division order</strong> comes after leasing or pooling is complete and the well has been drilled. It&rsquo;s the operator&rsquo;s calculation of what you&rsquo;re owed based on the terms of your lease or pooling election. It doesn&rsquo;t establish new rights &mdash; it operationalizes the rights you already have.</p>
+
+<p>The key distinction: leases and pooling orders determine your terms. Division orders calculate your share based on those terms. If your division order decimal doesn&rsquo;t match what you&rsquo;d expect from your lease or pooling election, that&rsquo;s the discrepancy to investigate.</p>
+
+<h2 id="suspense">Payments in Suspense</h2>
+
+<p>If there&rsquo;s an issue with your division order &mdash; you haven&rsquo;t signed it, the operator can&rsquo;t verify your ownership, there&rsquo;s a title dispute, or there&rsquo;s a missing heir &mdash; the operator may place your royalty payments &ldquo;in suspense.&rdquo; This means the money is being held, not lost. It accrues and should be paid to you once the issue is resolved.</p>
+
+<p>Oklahoma law requires operators to pay interest on suspended royalties under certain circumstances. If your payments have been in suspense for an extended period, you may be entitled to statutory interest on top of the royalty amount. An oil and gas attorney can advise you on your specific rights.</p>
+
+<p>Common reasons for suspense: unsigned division order, unresolved title issues (missing probate, unclear heirship), missing tax identification number, or the operator can&rsquo;t locate the mineral owner. If you suspect your royalties are in suspense, contact the operator&rsquo;s division order or owner relations department.</p>
+
+<h2 id="keeping-records">Keeping Good Records</h2>
+
+<p>Every division order you receive should be kept permanently. These documents form a record of your ownership across every well on your properties, and they&rsquo;re invaluable for:</p>
+
+<p><strong>Verifying royalty payments.</strong> When your monthly royalty check arrives, you can use the decimal interest from your division order and the production volumes from the OCC to verify the payment amount. This is how you catch underpayments.</p>
+
+<p><strong>Tax preparation.</strong> Your division orders, combined with your annual 1099s from each operator, provide the documentation your accountant needs to properly report your royalty income and claim your depletion deduction.</p>
+
+<p><strong>Estate planning.</strong> A complete set of division orders gives your heirs a clear picture of what you own, who operates each well, and what income the minerals generate. This makes the inheritance process dramatically easier for the next generation.</p>
+
+<p><strong>Selling or leasing.</strong> If you ever consider selling your minerals or negotiating a new lease, your division orders provide an organized summary of your producing interests. A mineral buyer or landman will ask for this information.</p>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">What is a division order?</div>
+        <p class="faq-answer">A division order is a document from an operator that states your decimal ownership interest in a specific well and authorizes the operator to distribute royalty payments to you. It is primarily an administrative document &mdash; it tells the operator how much to pay you and where to send the check.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Should I sign a division order?</div>
+        <p class="faq-answer">Generally yes, after verifying the decimal interest is correct. Signing does not change your actual ownership under Oklahoma law. However, if the decimal is wrong, contact the operator to dispute it before signing. An unsigned division order can delay your royalty payments.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How is my decimal interest calculated?</div>
+        <p class="faq-answer">Your decimal is your net mineral acres divided by the total acres in the drilling unit, multiplied by your royalty rate. For multi-section wells, the calculation also factors in the lateral allocation percentage. For example: 10 NMA &divide; 640 acres &times; 3/16 royalty = 0.00292969.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What happens if I don&rsquo;t sign a division order?</div>
+        <p class="faq-answer">The operator may hold your royalty payments in suspense until the issue is resolved. Oklahoma law requires payment within certain timeframes regardless, but unsigned orders often cause practical delays. If you&rsquo;re disputing the decimal, communicate that in writing.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Can a division order change my ownership?</div>
+        <p class="faq-answer">No. Under Oklahoma&rsquo;s Division Order Act, a division order is not a transfer of ownership. Your actual ownership is determined by your deeds, probate decrees, and other title documents. If a division order contains an error, it does not change what you actually own.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Why did my decimal interest change on a new division order?</div>
+        <p class="faq-answer">Common reasons include: a title correction, a new well with different unit size or lateral allocation, a royalty rate change from a new lease or pooling, or the addition of new owners (like heirs) that reduced your proportional share. Ask the operator to explain any changes.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>Division orders are routine, not scary. They don&rsquo;t change your ownership, they don&rsquo;t commit you to anything permanent, and in most cases they&rsquo;re correct. But &ldquo;most cases&rdquo; isn&rsquo;t &ldquo;all cases,&rdquo; and the difference between a correct decimal and an incorrect one shows up in every single royalty check for the life of the well.</p>
+
+<p>Take 15 minutes to verify the math before you sign. Know your net mineral acres, your unit size, and your royalty rate. If the numbers check out, sign it and start collecting your royalties. If they don&rsquo;t, make a call. That one phone call could be worth thousands of dollars over the life of the well.</p>
 `;
