@@ -90,6 +90,12 @@
         /* Priority indicators - colored left border */
         .report-data-table .well-row.priority-high td.sticky-well { box-shadow: inset 4px 0 0 var(--danger-red); }
         .report-data-table .well-row.priority-medium td.sticky-well { box-shadow: inset 4px 0 0 var(--warning-amber); }
+        .report-data-table .well-row.priority-info td.sticky-well { box-shadow: inset 4px 0 0 #94a3b8; }
+
+        /* Context badges for lean gas / oil-only wells */
+        .context-badge { display: inline-block; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-left: 0.3rem; font-weight: 600; vertical-align: middle; white-space: nowrap; }
+        .context-badge.expected { background: #e2e8f0; color: #475569; }
+        .context-badge.verify { background: #dbeafe; color: #1e40af; }
 
         /* Sticky columns */
         .report-data-table th.sticky, .report-data-table td.sticky { position: sticky; background: white; z-index: 1; }

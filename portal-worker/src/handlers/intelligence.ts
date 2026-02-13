@@ -143,10 +143,9 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       }
 
       // Deduction flags — aggregate well-level rate across ALL product codes.
-      // Requires 2+ product codes so we have the full financial picture
-      // (avoids the "Residue Gas Trap" where gas-only shows 100% deductions
-      // but the owner is actually paid via Casinghead Gas / NGL).
-      // Summary card uses 40% threshold for "high" wells (notable outliers).
+      // GOR-aware: includes single-product wells (full report provides context).
+      // The < 1.0 filter still avoids pure gas-trap false positives.
+      // Summary card uses 50% threshold for "high" wells (notable outliers).
       // Full report uses 25% threshold for complete picture.
       // Process ALL wells in batches of 50.
       try {
@@ -167,7 +166,6 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
                 AND opf.year_month >= ?
               GROUP BY wpl.api_number
               HAVING SUM(opf.gross_value) > 500
-                AND COUNT(DISTINCT opf.product_code) > 1
                 AND SUM(opf.market_deduction) / SUM(opf.gross_value) > 0.50
                 AND SUM(opf.market_deduction) / SUM(opf.gross_value) < 1.0
             )
@@ -343,99 +341,42 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       return jsonResponse({ insights });
     }
 
-    // Insight 1: High deduction wells — aggregate rate across all product codes.
-    // Requires multi-product data to avoid the "Residue Gas Trap."
-    // Insight card uses 40% threshold (notable outliers only).
-    // Full report uses 25% for complete picture.
-    // Process ALL wells in batches of 50.
-    let wellsAnalyzedCount = 0;
+    // Deductions are covered by the summary card — insights focus on "new" changes only.
+
+    // Insight: Recently idle wells (3-5 months = just went idle)
     try {
-      const allFlaggedWells: Array<{ api_number: string; agg_deduction_pct: number; product_count: number }> = [];
-      const allAnalyzedWells: Array<{ api_number: string }> = [];
-      const sixMonthsAgo = getMonthsAgo(6);
-
-      for (let i = 0; i < api10s.length; i += 50) {
-        const apiBatch = api10s.slice(i, i + 50);
-        const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
-        // Get all wells with analyzable data (multi-product, >$500)
-        const analyzedResult = await env.WELLS_DB.prepare(`
-          SELECT wpl.api_number,
-            ROUND(SUM(opf.market_deduction) / SUM(opf.gross_value) * 100, 1) as agg_deduction_pct,
-            COUNT(DISTINCT opf.product_code) as product_count
-          FROM well_pun_links wpl
-          JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
-          WHERE wpl.api_number IN (${apiPlaceholders})
-            AND opf.gross_value > 0
-            AND opf.year_month >= ?
-          GROUP BY wpl.api_number
-          HAVING SUM(opf.gross_value) > 500
-            AND COUNT(DISTINCT opf.product_code) > 1
-        `).bind(...apiBatch, sixMonthsAgo).all();
-
-        const batchResults = analyzedResult.results as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
-        allAnalyzedWells.push(...batchResults);
-
-        // Filter for flagged wells (>50% for insight card, <100% to exclude anomalies)
-        const flagged = batchResults.filter(r => r.agg_deduction_pct > 50 && r.agg_deduction_pct < 100);
-        allFlaggedWells.push(...flagged);
-      }
-
-      wellsAnalyzedCount = allAnalyzedWells.length;
-
-      // Sort by deduction rate and take top 5 for display
-      const flaggedWells = allFlaggedWells
-        .sort((a, b) => b.agg_deduction_pct - a.agg_deduction_pct)
-        .slice(0, 5);
-
-      if (allFlaggedWells.length > 0) {
-        const wellNames = flaggedWells.map(fw => {
-          const match = wells.find(w => w.api_number.replace(/-/g, '').startsWith(fw.api_number));
-          return match?.well_name || fw.api_number;
-        });
-
-        const nameList = wellNames.length <= 2
-          ? wellNames.join(' and ')
-          : `${wellNames[0]} and ${wellNames.length - 1} other${wellNames.length > 2 ? 's' : ''}`;
-
-        // Neutral language - present data, let user interpret
-        insights.push({
-          severity: 'info',
-          title: `${allFlaggedWells.length} well${allFlaggedWells.length > 1 ? 's' : ''} with high deduction ratios`,
-          description: `${wellsAnalyzedCount} wells analyzed. ${nameList} show${wellNames.length === 1 ? 's' : ''} ${flaggedWells[0].agg_deduction_pct}% aggregate deductions. View details to compare with industry data.`,
-          action: 'View Details',
-          actionId: 'deduction-audit'
-        });
-      }
-    } catch (e) {
-      console.error('[Insights] Deduction check error:', e instanceof Error ? e.message : e);
-    }
-
-    // Insight 2: Shut-in wells — use puns table (months_since_production uses data horizon, not today)
-    try {
-      let idleWellCount = 0;
+      let totalIdle = 0;
+      let recentlyIdle = 0;
 
       for (let i = 0; i < api10s.length; i += 50) {
         const apiBatch = api10s.slice(i, i + 50);
         const apiPlaceholders = apiBatch.map(() => '?').join(',');
 
         const shutInResult = await env.WELLS_DB.prepare(`
-          SELECT COUNT(DISTINCT wpl.api_number) as idle_count
+          SELECT
+            COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN wpl.api_number END) as idle_count,
+            COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 AND p.months_since_production <= 5 THEN wpl.api_number END) as recently_idle
           FROM well_pun_links wpl
           JOIN puns p ON p.pun = wpl.pun
           WHERE wpl.api_number IN (${apiPlaceholders})
-            AND p.months_since_production >= 3
         `).bind(...apiBatch).all();
 
-        const row = shutInResult.results[0] as { idle_count: number } | undefined;
-        if (row) idleWellCount += row.idle_count;
+        const row = shutInResult.results[0] as { idle_count: number; recently_idle: number } | undefined;
+        if (row) {
+          totalIdle += row.idle_count;
+          recentlyIdle += row.recently_idle;
+        }
       }
 
-      if (idleWellCount > 0) {
+      if (recentlyIdle > 0) {
+        const longTermIdle = totalIdle - recentlyIdle;
+        const contextPart = longTermIdle > 0
+          ? ` ${longTermIdle} other well${longTermIdle > 1 ? 's' : ''} remain${longTermIdle === 1 ? 's' : ''} idle long-term.`
+          : '';
         insights.push({
           severity: 'warning',
-          title: `${idleWellCount} well${idleWellCount > 1 ? 's' : ''} may be shut-in`,
-          description: `Production has been zero for 3+ months. If these wells hold your lease by production, the lease may be at risk.`,
+          title: `${recentlyIdle} well${recentlyIdle > 1 ? 's' : ''} recently went idle`,
+          description: `Production dropped to zero in the last few months.${contextPart}`,
           action: 'Review Wells',
           actionId: 'shut-in-review'
         });
@@ -444,9 +385,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       console.error('[Insights] Shut-in check error:', e instanceof Error ? e.message : e);
     }
 
-    // Insight 3: Recent pooling orders near user's properties (exact section match for proactive alert)
+    // Insight 3: New pooling orders (filed in last 30 days) near user's properties
     try {
-      // Get user's properties with TRS data
       const propsQuery = userOrgId
         ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
         : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
@@ -458,18 +398,19 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
 
       if (props.length > 0) {
-        // Build unique TRS combinations for exact section match
         const trsSet = new Set<string>();
         for (const p of props) {
           trsSet.add(`${p.section}|${p.township}|${p.range}`);
         }
 
-        // Query for pooling orders in the last 90 days matching user's exact sections
         const ninetyDaysAgo = new Date();
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().substring(0, 10);
 
-        // Build OR conditions for TRS matches
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().substring(0, 10);
+
         const trsConditions: string[] = [];
         const trsBindings: string[] = [];
         for (const trs of trsSet) {
@@ -480,36 +421,50 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
         if (trsConditions.length > 0 && trsConditions.length <= 100) {
           const poolingResult = await env.WELLS_DB.prepare(`
-            SELECT COUNT(*) as count, MIN(response_deadline) as nearest_deadline
+            SELECT
+              COUNT(*) as count,
+              COUNT(CASE WHEN order_date >= ? THEN 1 END) as new_count,
+              MIN(response_deadline) as nearest_deadline
             FROM pooling_orders
             WHERE order_date >= ?
               AND (${trsConditions.join(' OR ')})
-          `).bind(ninetyDaysAgoStr, ...trsBindings).all();
+          `).bind(thirtyDaysAgoStr, ninetyDaysAgoStr, ...trsBindings).all();
 
-          const poolingData = poolingResult.results[0] as { count: number; nearest_deadline: string | null } | undefined;
+          const poolingData = poolingResult.results[0] as { count: number; new_count: number; nearest_deadline: string | null } | undefined;
 
-          if (poolingData && poolingData.count > 0) {
-            const count = poolingData.count;
-            const nearestDeadline = poolingData.nearest_deadline;
-
-            // Check if deadline is within 30 days
+          if (poolingData && poolingData.new_count > 0) {
             let isUrgent = false;
-            if (nearestDeadline) {
-              const deadlineDate = new Date(nearestDeadline);
+            if (poolingData.nearest_deadline) {
+              const deadlineDate = new Date(poolingData.nearest_deadline);
               const thirtyDaysFromNow = new Date();
               thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
               isUrgent = deadlineDate < thirtyDaysFromNow;
             }
+            const olderCount = poolingData.count - poolingData.new_count;
+            const contextPart = olderCount > 0 ? ` ${olderCount} other${olderCount > 1 ? 's' : ''} filed in the last 90 days.` : '';
 
             insights.push({
               severity: isUrgent ? 'warning' : 'info',
-              title: `${count} pooling order${count > 1 ? 's' : ''} filed on your properties`,
+              title: `${poolingData.new_count} new pooling order${poolingData.new_count > 1 ? 's' : ''} near your properties`,
               description: isUrgent
-                ? 'A response deadline is approaching. View the latest bonus rates and royalty options.'
-                : 'View the latest bonus rates and royalty options in your area.',
+                ? `Filed in the last 30 days. A response deadline is approaching.${contextPart}`
+                : `Filed in the last 30 days.${contextPart}`,
               action: 'View Rates',
               actionId: 'pooling-report'
             });
+          } else if (poolingData && poolingData.count > 0 && poolingData.nearest_deadline) {
+            const deadlineDate = new Date(poolingData.nearest_deadline);
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            if (deadlineDate < thirtyDaysFromNow) {
+              insights.push({
+                severity: 'warning',
+                title: 'Pooling response deadline approaching',
+                description: `${poolingData.count} pooling order${poolingData.count > 1 ? 's' : ''} near your properties. A response deadline is coming up.`,
+                action: 'View Rates',
+                actionId: 'pooling-report'
+              });
+            }
           }
         }
       }
@@ -517,12 +472,12 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       console.error('[Insights] Pooling check error:', e instanceof Error ? e.message : e);
     }
 
-    // If no issues found, show a positive message
+    // No new findings
     if (insights.length === 0) {
       insights.push({
         severity: 'success',
-        title: 'Portfolio looks healthy',
-        description: `All ${wells.length} wells are linked to OTC data with no deduction flags or shut-in alerts. Use the questions below to explore deeper.`
+        title: 'No new findings',
+        description: `Your ${wells.length} wells are being monitored. Nothing has changed recently. Use the reports below to explore deeper.`
       });
     }
 
@@ -686,6 +641,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     }
 
     // Group B: Deductions (full detail — superset of summary count + insights)
+    // GOR-aware: includes single-product wells. The < 100% filter avoids pure gas-trap false positives.
     async function queryDeductions(): Promise<{
       deductionFlags: number;
       wellsAnalyzed: number;
@@ -712,7 +668,6 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
               AND opf.year_month >= ?
             GROUP BY wpl.api_number
             HAVING SUM(opf.gross_value) > 500
-              AND COUNT(DISTINCT opf.product_code) > 1
           `).bind(...apiBatch, sixMonthsAgo).all();
 
           const batchResults = analyzedResult.results as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
@@ -729,8 +684,10 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     }
 
     // Group C: Shut-in (puns table approach — uses data horizon)
-    async function queryShutIn(): Promise<number> {
-      let idleWellCount = 0;
+    // Returns total idle (3+ months) and recently idle (3-5 months = just went idle)
+    async function queryShutIn(): Promise<{ total: number; recentlyIdle: number }> {
+      let totalIdle = 0;
+      let recentlyIdle = 0;
 
       try {
         for (let i = 0; i < api10s.length; i += 50) {
@@ -738,25 +695,30 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
           const apiPlaceholders = apiBatch.map(() => '?').join(',');
 
           const shutInResult = await env.WELLS_DB.prepare(`
-            SELECT COUNT(DISTINCT wpl.api_number) as idle_count
+            SELECT
+              COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN wpl.api_number END) as idle_count,
+              COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 AND p.months_since_production <= 5 THEN wpl.api_number END) as recently_idle
             FROM well_pun_links wpl
             JOIN puns p ON p.pun = wpl.pun
             WHERE wpl.api_number IN (${apiPlaceholders})
-              AND p.months_since_production >= 3
           `).bind(...apiBatch).all();
 
-          const row = shutInResult.results[0] as { idle_count: number } | undefined;
-          if (row) idleWellCount += row.idle_count;
+          const row = shutInResult.results[0] as { idle_count: number; recently_idle: number } | undefined;
+          if (row) {
+            totalIdle += row.idle_count;
+            recentlyIdle += row.recently_idle;
+          }
         }
       } catch (e) {
         console.error('[Intelligence Data] Shut-in error:', e instanceof Error ? e.message : e);
       }
 
-      return idleWellCount;
+      return { total: totalIdle, recentlyIdle };
     }
 
     // Group D: Pooling orders (properties → pooling)
-    async function queryPooling(): Promise<{ count: number; nearestDeadline: string | null; isUrgent: boolean }> {
+    // Returns total (90 days), new (30 days), and deadline info
+    async function queryPooling(): Promise<{ count: number; newCount: number; nearestDeadline: string | null; isUrgent: boolean }> {
       try {
         const propsQuery = userOrgId
           ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
@@ -768,7 +730,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
         const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
 
-        if (props.length === 0) return { count: 0, nearestDeadline: null, isUrgent: false };
+        if (props.length === 0) return { count: 0, newCount: 0, nearestDeadline: null, isUrgent: false };
 
         const trsSet = new Set<string>();
         for (const p of props) {
@@ -779,6 +741,10 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().substring(0, 10);
 
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().substring(0, 10);
+
         const trsConditions: string[] = [];
         const trsBindings: string[] = [];
         for (const trs of trsSet) {
@@ -787,16 +753,19 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
           trsBindings.push(sec, twp, rng);
         }
 
-        if (trsConditions.length === 0 || trsConditions.length > 100) return { count: 0, nearestDeadline: null, isUrgent: false };
+        if (trsConditions.length === 0 || trsConditions.length > 100) return { count: 0, newCount: 0, nearestDeadline: null, isUrgent: false };
 
         const poolingResult = await env.WELLS_DB.prepare(`
-          SELECT COUNT(*) as count, MIN(response_deadline) as nearest_deadline
+          SELECT
+            COUNT(*) as count,
+            COUNT(CASE WHEN order_date >= ? THEN 1 END) as new_count,
+            MIN(response_deadline) as nearest_deadline
           FROM pooling_orders
           WHERE order_date >= ?
             AND (${trsConditions.join(' OR ')})
-        `).bind(ninetyDaysAgoStr, ...trsBindings).all();
+        `).bind(thirtyDaysAgoStr, ninetyDaysAgoStr, ...trsBindings).all();
 
-        const poolingData = poolingResult.results[0] as { count: number; nearest_deadline: string | null } | undefined;
+        const poolingData = poolingResult.results[0] as { count: number; new_count: number; nearest_deadline: string | null } | undefined;
 
         if (poolingData && poolingData.count > 0) {
           let isUrgent = false;
@@ -806,17 +775,17 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
             thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
             isUrgent = deadlineDate < thirtyDaysFromNow;
           }
-          return { count: poolingData.count, nearestDeadline: poolingData.nearest_deadline, isUrgent };
+          return { count: poolingData.count, newCount: poolingData.new_count, nearestDeadline: poolingData.nearest_deadline, isUrgent };
         }
       } catch (e) {
         console.error('[Intelligence Data] Pooling error:', e instanceof Error ? e.message : e);
       }
 
-      return { count: 0, nearestDeadline: null, isUrgent: false };
+      return { count: 0, newCount: 0, nearestDeadline: null, isUrgent: false };
     }
 
     // Run all groups in parallel
-    const [revenueData, deductionData, shutInCount, poolingData] = await Promise.all([
+    const [revenueData, deductionData, shutInData, poolingData] = await Promise.all([
       queryRevenue(),
       queryDeductions(),
       queryShutIn(),
@@ -826,63 +795,56 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     const tQueries = Date.now();
     console.log(`[Intelligence Data] Setup: ${tSetup - t0}ms, Queries (parallel): ${tQueries - tSetup}ms, Total: ${tQueries - t0}ms`);
 
-    // ---- Build insights array ----
+    // ---- Build insights array (focus on NEW/recent changes) ----
     const insights: Array<{ severity: string; title: string; description: string; action?: string; actionId?: string }> = [];
 
-    // Insight 1: High deduction wells
-    if (deductionData.flaggedWells.length > 0) {
-      const topFlagged = deductionData.flaggedWells
-        .sort((a, b) => b.agg_deduction_pct - a.agg_deduction_pct)
-        .slice(0, 5);
-
-      const wellNames = topFlagged.map(fw => {
-        const match = wells.find(w => w.api_number.replace(/-/g, '').startsWith(fw.api_number));
-        return match?.well_name || fw.api_number;
-      });
-
-      const nameList = wellNames.length <= 2
-        ? wellNames.join(' and ')
-        : `${wellNames[0]} and ${wellNames.length - 1} other${wellNames.length > 2 ? 's' : ''}`;
-
-      insights.push({
-        severity: 'info',
-        title: `${deductionData.flaggedWells.length} well${deductionData.flaggedWells.length > 1 ? 's' : ''} with high deduction ratios`,
-        description: `${deductionData.wellsAnalyzed} wells analyzed. ${nameList} show${wellNames.length === 1 ? 's' : ''} ${topFlagged[0].agg_deduction_pct}% aggregate deductions. View details to compare with industry data.`,
-        action: 'View Details',
-        actionId: 'deduction-audit'
-      });
-    }
-
-    // Insight 2: Shut-in wells
-    if (shutInCount > 0) {
+    // Insight: Recently idle wells (went idle in last ~2 months = 3-5 months since production)
+    if (shutInData.recentlyIdle > 0) {
+      const longTermIdle = shutInData.total - shutInData.recentlyIdle;
+      const contextPart = longTermIdle > 0
+        ? ` ${longTermIdle} other well${longTermIdle > 1 ? 's' : ''} remain${longTermIdle === 1 ? 's' : ''} idle long-term.`
+        : '';
       insights.push({
         severity: 'warning',
-        title: `${shutInCount} well${shutInCount > 1 ? 's' : ''} may be shut-in`,
-        description: `Production has been zero for 3+ months. If these wells hold your lease by production, the lease may be at risk.`,
+        title: `${shutInData.recentlyIdle} well${shutInData.recentlyIdle > 1 ? 's' : ''} recently went idle`,
+        description: `Production dropped to zero in the last few months.${contextPart}`,
         action: 'Review Wells',
         actionId: 'shut-in-review'
       });
     }
 
-    // Insight 3: Pooling orders
-    if (poolingData.count > 0) {
+    // Insight: New pooling orders (filed in last 30 days)
+    if (poolingData.newCount > 0) {
+      const olderCount = poolingData.count - poolingData.newCount;
+      const contextPart = olderCount > 0 ? ` ${olderCount} other${olderCount > 1 ? 's' : ''} filed in the last 90 days.` : '';
       insights.push({
         severity: poolingData.isUrgent ? 'warning' : 'info',
-        title: `${poolingData.count} pooling order${poolingData.count > 1 ? 's' : ''} filed on your properties`,
+        title: `${poolingData.newCount} new pooling order${poolingData.newCount > 1 ? 's' : ''} near your properties`,
         description: poolingData.isUrgent
-          ? 'A response deadline is approaching. View the latest bonus rates and royalty options.'
-          : 'View the latest bonus rates and royalty options in your area.',
+          ? `Filed in the last 30 days. A response deadline is approaching.${contextPart}`
+          : `Filed in the last 30 days.${contextPart}`,
+        action: 'View Rates',
+        actionId: 'pooling-report'
+      });
+    } else if (poolingData.count > 0 && poolingData.isUrgent) {
+      // No new orders, but an upcoming deadline on existing ones
+      insights.push({
+        severity: 'warning',
+        title: `Pooling response deadline approaching`,
+        description: `${poolingData.count} pooling order${poolingData.count > 1 ? 's' : ''} near your properties. A response deadline is coming up.`,
         action: 'View Rates',
         actionId: 'pooling-report'
       });
     }
 
-    // No issues found
+    // No new findings
     if (insights.length === 0) {
       insights.push({
         severity: 'success',
-        title: 'Portfolio looks healthy',
-        description: `All ${wells.length} wells are linked to OTC data with no deduction flags or shut-in alerts. Use the questions below to explore deeper.`
+        title: 'No new findings',
+        description: shutInData.total > 0
+          ? `${shutInData.total} well${shutInData.total > 1 ? 's' : ''} remain idle and ${deductionData.flaggedWells.length} have high deductions, but nothing has changed recently. Use the reports below to explore.`
+          : `All ${wells.length} wells are producing with no new alerts. Use the reports below to explore deeper.`
       });
     }
 
@@ -893,7 +855,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       estimatedRevenue: revenueData.estimatedRevenue,
       revenueChange: revenueData.revenueChange !== null ? Math.round(revenueData.revenueChange * 10) / 10 : null,
       deductionFlags: deductionData.deductionFlags,
-      shutInWells: shutInCount,
+      shutInWells: shutInData.total,
       wellsAnalyzed: deductionData.wellsAnalyzed,
       wellsWithLinks: basePuns.length,
       actionItems: insights.length,
@@ -968,8 +930,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     const api10s = [...new Set(wells.map(w => w.api_number).filter(Boolean).map(a => a.replace(/-/g, '').substring(0, 10)))];
     const sixMonthsAgo = getMonthsAgo(6);
 
-    // GOR classification — runs in parallel with financial queries
-    const gorPromise = classifyWellGor(env.WELLS_DB!, api10s);
+    // GOR classification — must complete BEFORE flagging so we can use it for inclusion decisions
+    const gorMap = await classifyWellGor(env.WELLS_DB!, api10s);
 
     // Query 1: Product-level breakdown for ALL wells with financial data
     type ProductRow = { api_number: string; product_code: string; gross_value: number; market_deduction: number; net_value: number };
@@ -1008,24 +970,50 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       entry.productCount = entry.products.length;
     }
 
-    // Portfolio average (all wells with multi-product data and > $500 gross)
+    // Portfolio average and well inclusion — GOR-aware expansion
+    // Multi-product wells: always include (existing behavior)
+    // Single-product wells WITH GOR: include with context flags
+    // Single-product wells WITHOUT GOR: exclude (insufficient context)
     let portfolioTotalGross = 0;
     let portfolioTotalDeductions = 0;
     let portfolioWellCount = 0;
+    let singleProductAdded = 0;
+    let singleProductExcluded = 0;
 
-    for (const [, entry] of wellMap) {
-      if (entry.productCount > 1 && entry.totalGross > 500) {
+    for (const [apiNum, entry] of wellMap) {
+      if (entry.totalGross <= 500) continue;
+
+      if (entry.productCount > 1) {
+        // Multi-product: always include in portfolio avg
         portfolioTotalGross += entry.totalGross;
         portfolioTotalDeductions += entry.totalDeductions;
         portfolioWellCount++;
+      } else {
+        // Single-product: only include if GOR-classified
+        const gorInfo = gorMap.get(apiNum);
+        if (gorInfo) {
+          portfolioTotalGross += entry.totalGross;
+          portfolioTotalDeductions += entry.totalDeductions;
+          portfolioWellCount++;
+          singleProductAdded++;
+        } else {
+          singleProductExcluded++;
+        }
       }
     }
+
+    console.log(`[Deduction Report] Wells analyzed: ${portfolioWellCount} (${portfolioWellCount - singleProductAdded} multi-product, ${singleProductAdded} single-product w/ GOR, ${singleProductExcluded} excluded — no GOR)`);
 
     const portfolioAvgPct = portfolioTotalGross > 0
       ? Math.round((portfolioTotalDeductions / portfolioTotalGross) * 1000) / 10
       : 0;
 
-    // Identify flagged wells (>25% aggregate, 2+ products, <100%, >$500 gross)
+    // Identify flagged wells — GOR-aware inclusion
+    // Multi-product: >25% aggregate, <100%, >$500 gross (existing)
+    // Single-product gas + lean GOR: include but mark lean_gas_expected (suppress warnings)
+    // Single-product gas + rich/mixed GOR: flag normally (high deductions = suspicious)
+    // Single-product oil-only: include but mark oil_only_verify (anomaly, not accusation)
+    // Single-product no GOR: skip
     const flaggedApiNumbers: string[] = [];
     const flaggedWellsData: Array<{
       api_number: string;
@@ -1046,21 +1034,51 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       is_affiliated: boolean;
       gas_profile: string | null;
       gor: number | null;
+      lean_gas_expected: boolean;
+      oil_only_verify: boolean;
     }> = [];
 
     for (const [apiNum, entry] of wellMap) {
-      if (entry.productCount <= 1 || entry.totalGross <= 500) continue;
+      if (entry.totalGross <= 500) continue;
       const aggRate = entry.totalDeductions / entry.totalGross;
       if (aggRate <= 0.25 || aggRate >= 1.0) continue;
+
+      const gorInfo = gorMap.get(apiNum);
+      const isMultiProduct = entry.productCount > 1;
+      let leanGasExpected = false;
+      let oilOnlyVerify = false;
+
+      if (!isMultiProduct) {
+        // Single-product well — needs GOR to be included
+        if (!gorInfo) continue; // No GOR classification → skip
+
+        const productCode = entry.products[0]?.product_code;
+        const isGasOnly = productCode === '5' || productCode === '6';
+        const isOilOnly = productCode === '1';
+
+        if (isGasOnly && gorInfo.gas_profile === 'lean') {
+          // Lean gas with high deductions = expected behavior
+          leanGasExpected = true;
+        } else if (isGasOnly && (gorInfo.gas_profile === 'rich' || gorInfo.gas_profile === 'mixed')) {
+          // Rich/mixed gas with high deductions = suspicious, flag normally
+        } else if (isOilOnly) {
+          // Oil-only with >25% deductions = data anomaly, verify
+          oilOnlyVerify = true;
+        } else {
+          // NGL-only (product 3) or other — include normally
+        }
+      }
 
       flaggedApiNumbers.push(apiNum);
       const well = wells.find(w => w.api_number.replace(/-/g, '').startsWith(apiNum));
 
       // Check for residue gas note: product code 5 with >80% deductions
       const gasProduct = entry.products.find(p => p.product_code === '5');
-      const residueGasNote = gasProduct
+      let residueGasNote = gasProduct
         ? (gasProduct.market_deduction / gasProduct.gross_value) > 0.80
         : false;
+      // Lean gas wells inherently have high residue deductions
+      if (gorInfo?.gas_profile === 'lean') residueGasNote = true;
 
       flaggedWellsData.push({
         api_number: apiNum,
@@ -1085,27 +1103,11 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
         purchaser_id: null, // filled by purchaser query
         purchaser_name: null,
         is_affiliated: false,
-        gas_profile: null, // filled by GOR classification
-        gor: null
+        gas_profile: gorInfo?.gas_profile || null,
+        gor: gorInfo?.gor || null,
+        lean_gas_expected: leanGasExpected,
+        oil_only_verify: oilOnlyVerify
       });
-    }
-
-    // Await GOR classification and attach to flagged wells
-    try {
-      const gorMap = await gorPromise;
-      for (const well of flaggedWellsData) {
-        const gorInfo = gorMap.get(well.api_number);
-        if (gorInfo) {
-          well.gas_profile = gorInfo.gas_profile;
-          well.gor = gorInfo.gor;
-          // Enhance residueGasNote: lean gas wells inherently have high residue deductions
-          if (gorInfo.gas_profile === 'lean') {
-            (well as any).residueGasNote = true;
-          }
-        }
-      }
-    } catch (gorError) {
-      console.error('[Deduction Report] GOR classification error:', gorError);
     }
 
     // Sort flagged wells by deduction rate descending

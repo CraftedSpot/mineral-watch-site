@@ -6,16 +6,16 @@
             // Remove loading animation
             document.getElementById('insightsSection')?.classList.remove('insights-loading');
 
-            // Update action items count in summary card
+            // Update findings count in summary card
             const count = insights ? insights.length : 0;
             document.getElementById('summaryActions').textContent = count;
             const actDetail = document.getElementById('summaryActionsDetail');
             if (count === 0) {
-                actDetail.textContent = 'No pending items';
+                actDetail.textContent = 'Portfolio looks healthy';
                 actDetail.className = 'summary-detail success';
             } else {
-                actDetail.textContent = count === 1 ? '1 insight needs attention' : `${count} insights need attention`;
-                actDetail.className = 'summary-detail alert';
+                actDetail.textContent = count === 1 ? '1 new finding' : `${count} new findings`;
+                actDetail.className = 'summary-detail neutral';
             }
 
             if (!insights || insights.length === 0) {

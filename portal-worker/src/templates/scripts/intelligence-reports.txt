@@ -242,29 +242,43 @@
         }
 
         function renderWellRow(well) {
-            const pctClass = deductionClass(well.agg_deduction_pct);
             const countyAvg = well.county_avg_pct != null ? well.county_avg_pct + '%' : '—';
             const variance = well.variance_points != null ? '+' + well.variance_points + ' pts' : '—';
 
-            // Priority based on deduction rate: > 50% = high, 25-50% = medium
-            const priorityClass = well.agg_deduction_pct > 50 ? 'priority-high' : 'priority-medium';
+            // Context-aware styling:
+            // - lean_gas_expected: suppress warning colors (high deductions are normal)
+            // - oil_only_verify: informational indicator, not a warning
+            const isContextual = well.lean_gas_expected || well.oil_only_verify;
+            const pctClass = isContextual ? '' : deductionClass(well.agg_deduction_pct);
+            const priorityClass = isContextual ? 'priority-info'
+                : well.agg_deduction_pct > 50 ? 'priority-high' : 'priority-medium';
 
             // PCRR metrics
             const metrics = getWellPcrrMetrics(well);
-            const pcrrClass = metrics.pcrr == null ? ''
+            const pcrrClass = isContextual ? ''
+                : metrics.pcrr == null ? ''
                 : metrics.pcrr >= 100 ? 'value-success'
                 : metrics.pcrr >= 30 ? '' : 'value-warning';
-            const netReturnClass = metrics.netReturn >= 0 ? 'value-success'
+            const netReturnClass = isContextual ? ''
+                : metrics.netReturn >= 0 ? 'value-success'
                 : metrics.netReturn > -10000 ? '' : 'value-danger';
+
+            // Context badge for lean gas / oil-only wells
+            let contextBadge = '';
+            if (well.lean_gas_expected) {
+                contextBadge = ' <span class="context-badge expected" title="Lean gas well — high deductions are expected due to gas composition">Expected</span>';
+            } else if (well.oil_only_verify) {
+                contextBadge = ' <span class="context-badge verify" title="Oil-only well with elevated deductions — verify production data">&#8505; Verify</span>';
+            }
 
             return `
                 <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
-                    <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
+                    <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}${contextBadge}</td>
                     <td class="sticky sticky-operator">${well.operator_number ? `<span class="op-name" onclick="event.stopPropagation(); openOperatorDetail('${escapeHtml(well.operator_number)}')" title="${escapeHtml(well.operator || '')}">${escapeHtml(well.operator || '—')}</span>` : escapeHtml(well.operator || '—')}${well.is_affiliated ? ' <span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : ''}${gasProfileBadge(well.gas_profile, false)}</td>
                     <td class="${pctClass}">${well.agg_deduction_pct}%</td>
                     <td class="${pcrrClass}">${metrics.pcrr != null ? metrics.pcrr + '%' : '—'}</td>
                     <td class="${netReturnClass}">${formatCurrencyFull(metrics.netReturn)}</td>
-                    <td class="${well.variance_points != null && well.variance_points > 15 ? 'value-danger' : ''}">${variance}</td>
+                    <td class="${!isContextual && well.variance_points != null && well.variance_points > 15 ? 'value-danger' : ''}">${variance}</td>
                     <td>${escapeHtml(cleanCountyName(well.county))}</td>
                     <td>${countyAvg}</td>
                     <td>${formatCurrencyFull(well.total_gross)}</td>
@@ -482,7 +496,7 @@
                     <div class="report-summary-card">
                         <h2 class="report-summary-title">Summary</h2>
                         <p class="report-summary-text">
-                            <strong>${portfolio.total_wells_analyzed} wells</strong> with multi-product financial data were analyzed
+                            <strong>${portfolio.total_wells_analyzed} wells</strong> with OTC financial data were analyzed
                             over the past ${summary.analysis_period}. No wells exceeded the 25% aggregate deduction threshold.
                             Your portfolio average is <strong>${portfolio.avg_deduction_pct}%</strong> (${emptyStatewideText}).
                         </p>
@@ -502,14 +516,14 @@
                     <h2 class="report-summary-title">Summary</h2>
                     <p class="report-meta-line print-only">Analysis Period: ${summary.analysis_period}${latestDate ? ' (through ' + latestDate + ')' : ''}</p>
                     <p class="report-summary-text">
-                        Based on analysis of <strong>${portfolio.total_wells_analyzed}</strong> wells with complete OTC financial records<sup class="print-only">1</sup><span class="info-icon screen-only" title="Analysis requires wells with multiple product types (oil, gas, NGL) to accurately calculate deduction rates. Single-product wells are excluded to avoid false positives from standard gas processing accounting.">ⓘ</span>,
+                        Based on analysis of <strong>${portfolio.total_wells_analyzed}</strong> wells with OTC financial records<sup class="print-only">1</sup><span class="info-icon screen-only" title="All wells with financial data are analyzed. Each well is classified by its Gas-Oil Ratio (GOR) to provide context — lean gas wells with high deductions are marked as expected, while oil-only wells are flagged for data verification.">ⓘ</span>,
                         <strong>${summary.flagged_count} well${summary.flagged_count !== 1 ? 's' : ''}</strong>
                         ha${summary.flagged_count !== 1 ? 've' : 's'} aggregate deductions above 25%.
                         Of these, <strong>${highDeductionWells.length}</strong> exceed 50%.
                         The highest rate is <strong>${summary.worst_deduction_pct}%</strong> on ${escapeHtml(worstWell.well_name)}.
                         Your portfolio average is <strong>${portfolio.avg_deduction_pct}%</strong>.
                     </p>
-                    <p class="report-footnote print-only"><sup>1</sup> Analysis includes wells with multiple product types (oil, gas, NGL). Single-product wells are excluded to ensure accuracy.</p>
+                    <p class="report-footnote print-only"><sup>1</sup> All wells with OTC financial data are included. Gas-Oil Ratio (GOR) classification provides context for single-product wells.</p>
                 </div>
             `;
 
@@ -1284,6 +1298,11 @@
                 if (hasLowNgl) {
                     html += '<div class="residue-gas-note" style="border-left-color: #ef4444;"><strong>&#9888; Rich Gas Well:</strong> This well produces rich/wet gas (GOR < 3,000 MCF/BBL) where NGL recovery is expected. Low NGL returns with high deductions may warrant review of your lease terms and operator reporting.</div>';
                 }
+            }
+
+            // Oil-only well context note
+            if (well.oil_only_verify) {
+                html += '<div class="residue-gas-note" style="border-left-color: #2563eb;"><strong>&#8505; Oil-Only Well:</strong> This well shows only oil production with elevated deductions. Oil wells typically have minimal processing deductions. This may indicate a data reporting anomaly — verify production data with your operator or check-stub detail.</div>';
             }
 
             // Monthly trend

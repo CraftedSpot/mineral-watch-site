@@ -40,6 +40,16 @@
             }
         }
 
+        // Property click helper (dashboard opens property detail, map zooms to property)
+        function _wdOpenProperty(propertyId) {
+            if (!propertyId) return;
+            if (typeof openPropertyDetails === 'function') {
+                openPropertyDetails(propertyId);
+            } else if (typeof zoomToPropertyFromWell === 'function') {
+                zoomToPropertyFromWell(propertyId);
+            }
+        }
+
         // Title case helper
         function _wdTitleCase(str) {
             if (!str) return '';
@@ -683,11 +693,13 @@
 
             // Linked Properties — only when we have an Airtable well ID
             if (well.clientWellId) {
+                // Strip D1 prefix (cwell_recXXX → recXXX) — API expects bare Airtable ID
+                const lpWellId = well.clientWellId.replace(/^cwell_/, '');
                 const lpSection = document.getElementById('wdLinkedPropsSection');
                 lpSection.style.display = '';
                 (async function() {
                     try {
-                        const lpResp = await fetch('/api/well/' + encodeURIComponent(well.clientWellId) + '/linked-properties', { credentials: 'include' });
+                        const lpResp = await fetch('/api/well/' + encodeURIComponent(lpWellId) + '/linked-properties', { credentials: 'include' });
                         if (lpResp.ok) {
                             const lpData = await lpResp.json();
                             const props = (lpData.properties || []).filter(p => p.linkStatus !== 'Unlinked');
@@ -696,19 +708,25 @@
                             if (props.length === 0) {
                                 lpContainer.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No linked properties</div>';
                             } else {
-                                lpContainer.innerHTML = props.map(p => `
+                                const canClick = typeof openPropertyDetails === 'function' || typeof zoomToPropertyFromWell === 'function';
+                                lpContainer.innerHTML = props.map(p => {
+                                    const clickAttr = canClick
+                                        ? ` style="flex: 1; cursor: pointer;" onclick="_wdOpenProperty('${(p.propertyId || '').replace(/'/g, "\\'")}')"`
+                                        : ' style="flex: 1;"';
+                                    const locColor = canClick ? '#2563eb' : '#1e3a5f';
+                                    return `
                                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
-                                        <div style="flex: 1;">
+                                        <div${clickAttr}>
                                             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                                                <span style="font-weight: 500; color: #1e3a5f;">${p.location || '—'}</span>
+                                                <span style="font-weight: 500; color: ${locColor};">${p.location || '—'}</span>
                                                 ${p.group ? '<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">' + p.group + '</span>' : ''}
                                                 ${p.nma ? '<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">' + parseFloat(p.nma.toFixed(4)) + ' NMA</span>' : ''}
                                             </div>
                                             <div style="font-size: 12px; color: #6b7280;">${p.county || '—'}${p.acres && !p.nma ? ' &bull; ' + p.acres + ' acres' : ''}</div>
                                         </div>
                                         <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${_wdMatchReasonStyle(p.matchReason)}">${_wdMatchReasonLabel(p.matchReason)}</span>
-                                    </div>
-                                `).join('');
+                                    </div>`;
+                                }).join('');
                             }
                         }
                     } catch (e) {
