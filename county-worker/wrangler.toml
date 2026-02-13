@@ -1,0 +1,13 @@
+name = "county-pages"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+
+routes = [
+  { pattern = "mymineralwatch.com/counties/*", zone_name = "mymineralwatch.com" },
+  { pattern = "mymineralwatch.com/counties", zone_name = "mymineralwatch.com" }
+]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oklahoma-wells"
+database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
