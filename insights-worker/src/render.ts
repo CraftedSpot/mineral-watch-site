@@ -454,19 +454,19 @@ export function renderInsightsHub(): string {
                         <div class="topic-icon">${iconMd('banknotes')}</div>
                         <h3>Production &amp; Royalties</h3>
                         <p>Royalty calculations, production reports, audit techniques, and operator payments.</p>
-                        <div class="topic-count">Coming soon</div>
+                        <div class="topic-count">2 guides</div>
                     </a>
                     <a href="/insights/guides/occ-filing-types" class="topic-card">
                         <div class="topic-icon">${iconMd('building')}</div>
                         <h3>OCC &amp; Regulatory</h3>
                         <p>OCC filing types, docket navigation, spacing orders, and regulatory changes.</p>
-                        <div class="topic-count">Coming soon</div>
+                        <div class="topic-count">2 guides</div>
                     </a>
                     <a href="/insights/guides/inherited-mineral-rights" class="topic-card">
                         <div class="topic-icon">${iconMd('bookOpen')}</div>
                         <h3>Getting Started</h3>
                         <p>Inherited minerals, first-time owners, division orders, and understanding your rights.</p>
-                        <div class="topic-count">Coming soon</div>
+                        <div class="topic-count">2 guides</div>
                     </a>
                 </div>
             </div>
