@@ -3466,3 +3466,300 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 
 <p>The good news is that most of the data you need is publicly available. You don&rsquo;t need to be a petroleum engineer or an accountant to spot the major red flags. A few hours once a year &mdash; comparing your stubs against public records, recalculating your NRI, and making sure you&rsquo;re being paid on every well &mdash; can be the highest-return investment you make as a mineral owner.</p>
 `;
+
+const SCOOP_STACK_OVERVIEW_BODY = `
+<p>The Anadarko Basin spans roughly 70,000 square miles across western Oklahoma, the Texas Panhandle, and parts of southwestern Kansas and southeastern Colorado. It&rsquo;s been producing oil and gas for over a century. But the modern story of Oklahoma drilling is dominated by two geographic areas within that basin: the SCOOP and the STACK. Together with the transitional MERGE area between them, these plays account for the majority of horizontal drilling activity in Oklahoma.</p>
+
+<p>For mineral owners, these aren&rsquo;t abstract geological concepts. If your section is in one of the core counties of the SCOOP, STACK, or MERGE, you are likely to see &mdash; or may have already seen &mdash; spacing applications, pooling orders, drilling permits, and increased density filings on your property. Understanding the plays helps you understand why operators are interested in your minerals, what they&rsquo;re drilling for, and how your section fits into the bigger picture.</p>
+
+<h2 id="quick-reference">Quick Reference: The Three Plays at a Glance</h2>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Play</th>
+                <th>Full Name</th>
+                <th>Core Counties</th>
+                <th>Primary Targets</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>SCOOP</strong></td>
+                <td>South Central Oklahoma Oil Province</td>
+                <td>Garvin, Grady, Stephens, Carter</td>
+                <td>Woodford, Springer, Sycamore</td>
+            </tr>
+            <tr>
+                <td><strong>STACK</strong></td>
+                <td>Sooner Trend, Anadarko, Canadian &amp; Kingfisher</td>
+                <td>Canadian, Kingfisher, Blaine</td>
+                <td>Meramec, Osage, Woodford</td>
+            </tr>
+            <tr>
+                <td><strong>MERGE</strong></td>
+                <td>(Transition zone between SCOOP &amp; STACK)</td>
+                <td>Caddo, Grady, McClain</td>
+                <td>Woodford, Meramec, Sycamore</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<h2 id="scoop">The SCOOP Play</h2>
+
+<div class="play-card">
+    <div class="play-card-header">
+        <div class="play-icon play-icon-scoop">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 000 20 14.5 14.5 0 000-20"/><path d="M2 12h20"/></svg>
+        </div>
+        <div>
+            <div class="play-card-title">South Central Oklahoma Oil Province (SCOOP)</div>
+            <div class="play-card-subtitle">Anadarko Basin &middot; Southern Play Area</div>
+        </div>
+    </div>
+    <div class="play-card-body">
+        <p>The SCOOP play covers roughly 3,300 square miles of south-central Oklahoma, centered on the Anadarko Basin. Continental Resources pioneered the play around 2012, when they began targeting oil-rich opportunities in the Woodford Shale adjacent to existing Cana-Woodford gas production. The play quickly proved productive, and other operators followed.</p>
+
+        <p>The geological story of the SCOOP starts with the Woodford Shale &mdash; a silica-rich, highly organic black shale deposited 320 to 370 million years ago. The Woodford is the primary source rock for much of Oklahoma&rsquo;s hydrocarbon production, and in the SCOOP, it&rsquo;s thick enough and productive enough to be drilled directly with horizontal wells. Beyond the Woodford, operators are increasingly targeting the Springer Shale (a slightly shallower formation that produces oil and condensate) and the Sycamore formation.</p>
+
+        <p>The SCOOP is a liquids-rich play, meaning wells produce a mix of crude oil, natural gas, and natural gas liquids. The oil content varies by location &mdash; wells in the northern and western portions of the play tend to be oilier, while those further south and east produce more gas. For mineral owners, this matters because oil royalties are generally more valuable per unit than gas royalties, and the oil-to-gas ratio affects the economics of each well.</p>
+
+        <p>One distinctive advantage of the SCOOP (and the STACK) is that the formations produce very little formation water compared to other major U.S. plays like the Permian Basin. Less water means lower operating costs for operators, which generally supports continued drilling even when commodity prices soften.</p>
+
+        <div class="play-detail">
+            <div class="play-detail-item">
+                <h4>Core Counties</h4>
+                <p>Garvin, Grady, Stephens, Carter, with activity extending into McClain and Murray counties.</p>
+            </div>
+            <div class="play-detail-item">
+                <h4>Target Formations</h4>
+                <p>
+                    <span class="formation-badge badge-primary">Woodford</span>
+                    <span class="formation-badge badge-secondary">Springer</span>
+                    <span class="formation-badge badge-emerging">Sycamore</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="stack">The STACK Play</h2>
+
+<div class="play-card">
+    <div class="play-card-header">
+        <div class="play-icon play-icon-stack">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="4" rx="1"/><rect x="2" y="14" width="20" height="4" rx="1"/><rect x="2" y="2" width="20" height="1"/><rect x="2" y="22" width="20" height="1"/></svg>
+        </div>
+        <div>
+            <div class="play-card-title">Sooner Trend, Anadarko, Canadian &amp; Kingfisher (STACK)</div>
+            <div class="play-card-subtitle">Anadarko Basin &middot; Northern Play Area</div>
+        </div>
+    </div>
+    <div class="play-card-body">
+        <p>The STACK play sits in the northern portion of the Anadarko Basin and gets its name from its geographic location: the Sooner Trend oil field area, in the Anadarko Basin, centered on Canadian and Kingfisher counties. But the name is also a deliberate reference to the play&rsquo;s defining geological feature &mdash; multiple &ldquo;stacked&rdquo; formations that can be targeted from the same surface location.</p>
+
+        <p>Newfield Exploration (later acquired by Ovintiv) is credited with pioneering the STACK play, starting with dry-gas Woodford-shale drilling in the western Arkoma Basin in 2003 and transitioning to the liquids-rich STACK area by 2011. The play&rsquo;s potential became clear as operators discovered that the Meramec formation &mdash; a silty, shale reservoir sitting above the Woodford &mdash; was highly productive when drilled horizontally.</p>
+
+        <p>The stacked formation concept is what makes the STACK particularly valuable for mineral owners. In a single section, operators can drill wells targeting the Meramec, then come back with increased density orders to drill the Osage, the Woodford, and potentially the Morrow, Red Fork, or other formations. Each formation development cycle may trigger new spacing applications, pooling orders, and drilling permits &mdash; meaning your minerals can generate multiple rounds of leasing activity and royalty income over time.</p>
+
+        <p>The STACK includes areas that range from the &ldquo;overpressured oil window&rdquo; (where formation pressures are abnormally high, resulting in higher initial production rates) to more moderately pressured areas. The overpressured core &mdash; particularly in parts of Canadian and Kingfisher counties &mdash; has produced some of Oklahoma&rsquo;s most prolific horizontal wells.</p>
+
+        <div class="play-detail">
+            <div class="play-detail-item">
+                <h4>Core Counties</h4>
+                <p>Canadian, Kingfisher, Blaine, with activity extending into Major, Garfield, and Dewey counties.</p>
+            </div>
+            <div class="play-detail-item">
+                <h4>Target Formations</h4>
+                <p>
+                    <span class="formation-badge badge-primary">Meramec</span>
+                    <span class="formation-badge badge-primary">Osage</span>
+                    <span class="formation-badge badge-secondary">Woodford</span>
+                    <span class="formation-badge badge-emerging">Morrow</span>
+                    <span class="formation-badge badge-emerging">Red Fork</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="merge">The MERGE Play</h2>
+
+<div class="play-card">
+    <div class="play-card-header">
+        <div class="play-icon play-icon-merge">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8L22 12L18 16"/><path d="M6 8L2 12L6 16"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+        </div>
+        <div>
+            <div class="play-card-title">The MERGE</div>
+            <div class="play-card-subtitle">Transition Zone Between SCOOP &amp; STACK</div>
+        </div>
+    </div>
+    <div class="play-card-body">
+        <p>The MERGE is exactly what it sounds like &mdash; the geographic area where the SCOOP and STACK plays converge. Covering parts of Caddo, Grady, and McClain counties, the MERGE benefits from the geological characteristics of both neighboring plays. The productive Mississippian column here sits on top of an actively generating Woodford source rock, creating what geologists describe as a continuous hydrocarbon charge from the Upper Devonian to the Middle Mississippian.</p>
+
+        <p>Citizen Energy was one of the earliest and most active operators in the MERGE, with roughly 140,000 acres of leasehold. The play has attracted attention because it contains the same stacked formation opportunities found in the STACK &mdash; the Woodford, Meramec, and Sycamore are all viable targets &mdash; but at competitive acreage costs compared to the more established core areas of either play.</p>
+
+        <p>For mineral owners in the MERGE counties, the development trajectory typically follows the same pattern as the SCOOP and STACK: spacing applications for the initial formation, followed by pooling, drilling, and then potentially additional rounds of increased density applications as operators target additional formations.</p>
+
+        <div class="play-detail">
+            <div class="play-detail-item">
+                <h4>Core Counties</h4>
+                <p>Caddo, Grady, McClain &mdash; bridging the SCOOP and STACK areas.</p>
+            </div>
+            <div class="play-detail-item">
+                <h4>Target Formations</h4>
+                <p>
+                    <span class="formation-badge badge-primary">Woodford</span>
+                    <span class="formation-badge badge-secondary">Meramec</span>
+                    <span class="formation-badge badge-emerging">Sycamore</span>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 id="formations">Understanding the Formations</h2>
+
+<p>One of the reasons the SCOOP and STACK are so active is that operators aren&rsquo;t limited to a single target formation. The Anadarko Basin contains multiple productive zones stacked on top of each other, and modern horizontal drilling technology allows operators to access each one individually. Here&rsquo;s what you should know about the key formations:</p>
+
+<h3>Woodford Shale</h3>
+
+<p>The Woodford is the foundation of both plays. Deposited during the Late Devonian to Early Mississippian period (roughly 320 to 370 million years ago), it&rsquo;s the primary source rock for most of Oklahoma&rsquo;s oil and gas. In the SCOOP, it&rsquo;s the dominant drilling target. In the STACK, it&rsquo;s an important secondary target after the Meramec. The Woodford is typically encountered at depths of 10,000 to 14,000 feet and ranges from 100 to over 300 feet thick, depending on location. Wells targeting the Woodford tend to be oil-weighted in the SCOOP and more gas-weighted in the STACK.</p>
+
+<h3>Meramec</h3>
+
+<p>The Meramec is the primary target in the STACK. It&rsquo;s a silty limestone and shale reservoir that sits above the Woodford and is found at depths of 6,000 to 12,000 feet, with a gross thickness of 150 to 500 feet. The Meramec&rsquo;s variability &mdash; in thickness, porosity, and hydrocarbon content &mdash; means that well results can differ significantly from one section to the next. Operators have spent years testing spacing patterns, completion designs, and landing zones to optimize Meramec production.</p>
+
+<h3>Springer Shale</h3>
+
+<p>The Springer has become an increasingly important target in the SCOOP, sitting stratigraphically above the Woodford. Continental Resources has been a leading developer of the Springer, particularly through their &ldquo;Project Springboard&rdquo; initiative that employs systematic row development across their contiguous leasehold. Springer wells tend to produce 70&ndash;85% oil, making them economically attractive even at moderate commodity prices.</p>
+
+<h3>Other Formations</h3>
+
+<p>The Osage formation is an emerging target in the STACK, sitting above the Meramec. The Sycamore (or Caney) formation is drilled in both the SCOOP and MERGE. The Hunton Group is a deeper target found across the basin. The Morrow and Red Fork formations are additional STACK targets that some operators are exploring. Each new formation that proves commercially viable in a given area represents another potential round of development for mineral owners in those sections.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Why stacked formations matter for mineral owners</div>
+    <p>When an operator drills the Meramec on your section, your lease may only cover the Meramec. When they come back to drill the Woodford, you may receive a new pooling order with a new set of election options. Each formation is effectively a separate development event &mdash; which means multiple leasing opportunities, multiple bonus payments, and multiple royalty streams from the same acreage. Check your lease carefully to see which formations are covered.</p>
+</div>
+
+<h2 id="operators">Major Operators</h2>
+
+<p>The SCOOP and STACK are controlled by a relatively small number of operators, ranging from large publicly traded companies to significant private operators. Here&rsquo;s who&rsquo;s most active and what it means for mineral owners in their operating areas:</p>
+
+<div style="overflow-x: auto;">
+    <table class="quick-ref">
+        <thead>
+            <tr>
+                <th>Operator</th>
+                <th>Primary Area</th>
+                <th>What to Know</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>Continental Resources</strong></td>
+                <td>SCOOP &amp; STACK (largest position)</td>
+                <td>Oklahoma City&ndash;based, largest operator in the plays. Never stopped drilling the Anadarko through downturns. Pioneer of the SCOOP play.</td>
+            </tr>
+            <tr>
+                <td><strong>Devon Energy</strong></td>
+                <td>STACK (large position)</td>
+                <td>One of the largest STACK acreage holders. Set early production records in the overpressured oil window.</td>
+            </tr>
+            <tr>
+                <td><strong>Ovintiv</strong></td>
+                <td>STACK core (Kingfisher County)</td>
+                <td>Known for large-volume cube development. Anadarko assets have the lowest base decline rate in Ovintiv&rsquo;s portfolio.</td>
+            </tr>
+            <tr>
+                <td><strong>Mewbourne Oil Company</strong></td>
+                <td>SCOOP &amp; STACK</td>
+                <td>Major private operator. Has helped fill the void as some public operators reduced Oklahoma activity.</td>
+            </tr>
+            <tr>
+                <td><strong>Coterra Energy</strong></td>
+                <td>STACK</td>
+                <td>Active in the STACK, adjusting rig count based on gas price economics. Flexible capital allocation.</td>
+            </tr>
+            <tr>
+                <td><strong>Mach Natural Resources</strong></td>
+                <td>Mid-Continent (Anadarko &amp; Ardmore basins)</td>
+                <td>Yield-focused LP concentrated entirely in Oklahoma. Significant production base with disciplined rig count.</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<p>Knowing your operator matters for several reasons. Each company has different approaches to leasing terms, pooling strategies, and communication with mineral owners. Some operators are proactive about reaching out to unleased mineral owners before filing pooling applications; others let the regulatory process handle it. If you see an operator name on a spacing application for your section, researching that company gives you a head start on understanding what&rsquo;s coming.</p>
+
+<div class="callout">
+    <div class="callout-title">Operator transfers</div>
+    <p>The SCOOP and STACK have seen significant consolidation and asset swaps in recent years. If you notice a different operator name on your check stubs than what you expected, an operator transfer may have occurred. Transfers don&rsquo;t change your lease terms or royalty rate, but you should verify that your royalty payments continue uninterrupted through the transition. The OCC records operator transfers in its well records system.</p>
+</div>
+
+<h2 id="what-it-means">What This Means for Your Minerals</h2>
+
+<p>If your mineral rights sit in one of the core SCOOP, STACK, or MERGE counties, here&rsquo;s how the play-level activity translates to your specific property:</p>
+
+<p><strong>You may see multiple rounds of development.</strong> The stacked formation concept means a single section can be developed several times &mdash; once for the Meramec, once for the Woodford, once for the Springer. Each round may involve new spacing, new pooling, and new wells. This is fundamentally different from a single-formation play where one round of development is all you&rsquo;ll see.</p>
+
+<p><strong>Your lease language matters more than ever.</strong> A lease that covers &ldquo;all formations&rdquo; gives the operator the right to drill every target on your section under the same terms. A lease limited to a specific formation preserves your ability to negotiate separately for each additional formation. If you&rsquo;re still in the leasing stage, the breadth of the formation clause is one of the most important terms to negotiate.</p>
+
+<p><strong>Horizontal wells cross section lines.</strong> Multi-unit horizontal wells are common in the SCOOP and STACK, with laterals frequently spanning two or even three sections. If a well&rsquo;s lateral passes through your section, you&rsquo;re entitled to a proportionate share of its production &mdash; even if the well is named after and surface-located in the neighboring section. Make sure you&rsquo;re being paid on every well with a lateral that crosses your property.</p>
+
+<p><strong>Increased density is the norm, not the exception.</strong> In the most active areas, operators are routinely filing increased density applications to drill additional wells beyond the original spacing order. If your section already has one or two horizontal wells, don&rsquo;t assume development is finished &mdash; additional wells targeting different formations or different lateral positions within the same formation may follow.</p>
+
+<p><strong>Well economics vary significantly by location.</strong> Not every section within the SCOOP or STACK is equally productive. The overpressured core areas produce the best wells; fringe areas may have lower initial production rates and faster decline curves. If you receive a lease offer or pooling order, understanding where your section falls within the play&rsquo;s productivity spectrum helps you evaluate the terms being offered.</p>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Infrastructure matters</div>
+    <p>The SCOOP and STACK benefit from Oklahoma&rsquo;s mature oil and gas infrastructure &mdash; including proximity to the Cushing crude oil storage hub, extensive pipeline networks, and established gathering systems. This infrastructure reduces transportation costs and supports better netback prices for operators, which in turn supports your royalty income. However, in some fringe areas where gathering systems are still being built, gas may be flared or production may be delayed until pipeline connections are completed.</p>
+</div>
+
+<h2 id="monitoring">Monitoring Your Sections</h2>
+
+<p>In an active play like the SCOOP or STACK, staying informed about what&rsquo;s happening on your sections is essential. The pace of activity means that filings can appear with relatively short notice &mdash; a spacing application today can become a pooling order with a 20-day deadline within months.</p>
+
+<p>The OCC&rsquo;s online well records system and docket allow you to search by section, township, and range. Check for new spacing applications (the earliest signal that an operator is planning development), pooling applications (which precede the pooling order and its deadline), drilling permits (Form 1000 filings that signal a rig is coming), and completion reports (which confirm what was drilled and how the well performed).</p>
+
+<p>For mineral owners with properties across multiple counties &mdash; which is common in families with generational mineral portfolios &mdash; manually checking the OCC systems on a regular basis becomes impractical. That&rsquo;s where automated monitoring comes in: setting up alerts for each of your sections ensures you&rsquo;re notified when any new filing appears, without having to manually check each one.</p>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">What is the SCOOP play in Oklahoma?</div>
+        <p class="faq-answer">SCOOP stands for South Central Oklahoma Oil Province. It&rsquo;s a geographic area in the Anadarko Basin covering parts of Garvin, Grady, Stephens, Carter, and McClain counties that primarily targets the Woodford Shale, Springer Shale, and Sycamore formation through horizontal drilling.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is the STACK play in Oklahoma?</div>
+        <p class="faq-answer">STACK stands for Sooner Trend, Anadarko Basin, Canadian and Kingfisher Counties. It&rsquo;s a geographic area in the northern Anadarko Basin targeting multiple stacked formations &mdash; primarily the Meramec, Osage, and Woodford &mdash; in Canadian, Kingfisher, and Blaine counties.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is the MERGE play?</div>
+        <p class="faq-answer">The MERGE is the transitional area between the SCOOP and STACK, primarily covering parts of Caddo, Grady, and McClain counties. It contains the same stacked formations found in both plays and has become an active drilling area in its own right.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What formations are drilled in the SCOOP and STACK?</div>
+        <p class="faq-answer">Key formations include the Woodford Shale (dominant in the SCOOP), the Meramec (primary STACK target), the Springer Shale (increasingly targeted in the SCOOP), and the Sycamore. Other formations include the Osage, Morrow, Red Fork, and Hunton.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Who are the major operators in the SCOOP and STACK?</div>
+        <p class="faq-answer">The most active operators include Continental Resources, Devon Energy, Ovintiv, Mewbourne Oil Company, Coterra Energy, and Mach Natural Resources. Continental is the largest operator, with extensive acreage in both plays.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What does SCOOP and STACK drilling mean for mineral owners?</div>
+        <p class="faq-answer">You may see multiple rounds of development as operators target different formations on the same section. Each round can trigger new spacing, pooling, and drilling &mdash; meaning multiple leasing opportunities and potentially multiple royalty streams from the same acreage.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>The SCOOP, STACK, and MERGE plays represent the present and future of Oklahoma&rsquo;s oil and gas industry. For mineral owners with acreage in the core counties of these plays, the stacked formation opportunities mean your minerals may be more valuable than a single well would suggest. Multiple formations mean multiple development cycles, multiple pooling events, and multiple revenue streams &mdash; but only if you&rsquo;re paying attention to what&rsquo;s being filed on your sections.</p>
+
+<p>The operators drilling these plays are sophisticated, well-capitalized companies making long-term development commitments. As a mineral owner, your leverage comes from understanding the activity on your sections, knowing when filings require action (especially pooling orders), and ensuring you&rsquo;re receiving fair treatment in every lease and every royalty check. The geology is doing its part. Make sure you&rsquo;re doing yours.</p>
+`;
