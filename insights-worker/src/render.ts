@@ -24,7 +24,7 @@ const HEADER = `
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights" class="active">Insights</a>
-                <a href="/counties/">Counties</a>
+
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
