@@ -1145,3 +1145,212 @@ const POOLING_ORDERS_BODY = `
 
 <p>The single most important thing you can do as an Oklahoma mineral owner is stay aware of what&rsquo;s happening on your sections. Pooling orders don&rsquo;t come out of nowhere &mdash; they&rsquo;re preceded by permits, spacing applications, and OCC docket filings that signal drilling activity months in advance. If you&rsquo;re monitoring your sections, a pooling order should never be a surprise.</p>
 `;
+
+const INHERITED_MINERAL_RIGHTS_BODY = `
+<p>Mineral rights are one of the most commonly inherited &mdash; and least understood &mdash; assets in Oklahoma. The state has over a century of oil and gas history, and mineral interests have been passed down through families for generations. It&rsquo;s not unusual for someone to discover they own minerals they never knew about, in counties they&rsquo;ve never visited, producing oil from wells they&rsquo;ve never seen.</p>
+
+<p>If this is you, don&rsquo;t worry. You don&rsquo;t need to become an oil and gas expert overnight. But there are some important steps to take, some pitfalls to avoid, and some basic concepts to understand. This guide covers all of it.</p>
+
+<h2 id="what-are-mineral-rights">What Are Mineral Rights, Exactly?</h2>
+
+<p>In Oklahoma, the ownership of land can be split into two separate estates: the surface rights (the right to use the land on top) and the mineral rights (the right to everything underneath &mdash; oil, gas, coal, and other subsurface resources). These two estates can be owned by completely different people, and they often are.</p>
+
+<p>When your family member acquired mineral rights &mdash; whether through a purchase, a reservation in a deed, or their own inheritance &mdash; they acquired the right to the oil and gas beneath a specific piece of land. That right exists independently of whoever owns the surface. The surface could have been sold, developed, or subdivided many times over, and the mineral rights still belong to whoever holds the mineral deed.</p>
+
+<p>Mineral rights in Oklahoma are described using the Public Land Survey System (PLSS): section, township, and range. For example, &ldquo;the NW/4 of Section 15, Township 12 North, Range 8 West, Indian Meridian, Canadian County, Oklahoma&rdquo; describes a specific 160-acre quarter section. Your inherited minerals will be described using this system, and understanding the legal description is the first step to figuring out what you own.</p>
+
+<div class="callout">
+    <div class="callout-title">Key Concept &mdash; Net Mineral Acres</div>
+    <p>Your ownership is measured in <strong>net mineral acres (NMA)</strong>. If your family member owned 100% of the minerals under a 160-acre quarter section, that&rsquo;s 160 NMA. If they owned a 1/4 interest in the minerals under a 640-acre section, that&rsquo;s also 160 NMA. If that interest has been split among four heirs, each heir owns 40 NMA. Understanding your net mineral acres is essential for evaluating lease offers, pooling orders, and royalty payments.</p>
+</div>
+
+<h2 id="first-steps">First Steps After Inheriting</h2>
+
+<p>The process of sorting out inherited mineral rights can feel overwhelming, but it breaks down into a series of manageable steps. Here&rsquo;s where to start:</p>
+
+<div class="step-list">
+    <div class="step-item">
+        <div class="step-number">1</div>
+        <div class="step-content">
+            <h3>Gather the paperwork</h3>
+            <p>Look through the deceased person&rsquo;s files for anything related to oil and gas: lease agreements, division orders, royalty check stubs, correspondence from operators or the Oklahoma Corporation Commission, tax records mentioning royalty income, and deeds or title opinions referencing mineral interests. Even a single royalty check stub can tell you which operator is paying, which well is producing, and give you a starting point for tracing the ownership.</p>
+        </div>
+    </div>
+
+    <div class="step-item">
+        <div class="step-number">2</div>
+        <div class="step-content">
+            <h3>Identify the properties</h3>
+            <p>From the paperwork, identify the specific properties &mdash; section, township, range, and county. If you have a lease or a deed, the legal description will be there. If you only have royalty check stubs, the well name or API number on the stub can be used to look up the well&rsquo;s location through the Oklahoma Corporation Commission&rsquo;s well records.</p>
+        </div>
+    </div>
+
+    <div class="step-item">
+        <div class="step-number">3</div>
+        <div class="step-content">
+            <h3>Don&rsquo;t sign anything yet</h3>
+            <p>After a death, mineral buyers and lease brokers sometimes contact heirs with unsolicited offers. Do not sign anything &mdash; whether it&rsquo;s a purchase offer, a new lease, or even a seemingly routine document &mdash; until you understand what you own and what it&rsquo;s worth. There&rsquo;s no urgency that requires you to act before you&rsquo;re ready, despite what a persistent buyer might tell you.</p>
+        </div>
+    </div>
+
+    <div class="step-item">
+        <div class="step-number">4</div>
+        <div class="step-content">
+            <h3>Understand the estate situation</h3>
+            <p>How the minerals transfer to you depends on how the deceased person held them and whether they had a will. If there&rsquo;s a will, the minerals pass according to its terms. If there&rsquo;s no will, Oklahoma&rsquo;s intestate succession laws determine the heirs. Either way, you&rsquo;ll likely need to take a legal step &mdash; probate, an affidavit of heirship, or a trust distribution &mdash; to establish your ownership in the public record.</p>
+        </div>
+    </div>
+</div>
+
+<h2 id="establishing-ownership">Establishing Your Ownership</h2>
+
+<p>Having a legal right to the minerals and having that right documented in the public record are two different things. Until your ownership is properly recorded at the county clerk&rsquo;s office, operators may not know to pay you, title companies may not recognize your claim, and you may have difficulty leasing or managing the minerals. There are several ways to establish your ownership:</p>
+
+<h3 id="probate">Probate</h3>
+
+<p>Probate is the most common and most legally robust way to transfer mineral rights from a deceased person to their heirs. In Oklahoma, the probate court reviews the will (or applies intestate succession law if there&rsquo;s no will), identifies the heirs, and issues a decree or order that formally transfers the property. That decree gets recorded at the county clerk&rsquo;s office in every county where the minerals are located.</p>
+
+<p>Oklahoma offers two types of probate: regular probate and summary administration. Summary administration is a simplified, faster process available for smaller estates or estates where all heirs agree on the distribution. For many mineral rights situations, summary administration is sufficient and can be completed in a matter of months rather than a year or more.</p>
+
+<p>If minerals have passed through multiple generations without being probated &mdash; which is more common than you&rsquo;d think &mdash; you may need to probate more than one estate to clear the chain of title. This is called &ldquo;stacking&rdquo; probates, and while it&rsquo;s more work, it&rsquo;s the cleanest way to resolve a multi-generational title issue.</p>
+
+<h3 id="affidavit-of-heirship">Affidavit of Heirship</h3>
+
+<p>An affidavit of heirship is a sworn statement, typically signed by someone familiar with the deceased person&rsquo;s family, identifying the legal heirs. It&rsquo;s quicker and cheaper than probate, and it gets recorded at the county clerk&rsquo;s office just like a probate decree.</p>
+
+<p>However, an affidavit of heirship has limitations. It doesn&rsquo;t carry the legal authority of a court order. Some operators, title companies, and mineral buyers may not fully accept it, particularly for larger interests or where there&rsquo;s any dispute among heirs. It works well as a practical tool for smaller interests or as a temporary measure while a full probate is pending.</p>
+
+<h3 id="trust-distribution">Trust Distribution</h3>
+
+<p>If the deceased person held their minerals in a revocable living trust, the transfer to beneficiaries can happen outside of probate entirely. The successor trustee distributes the assets according to the trust terms and records a trustee&rsquo;s deed or distribution deed at the county clerk&rsquo;s office. This is one of the advantages of holding minerals in a trust &mdash; it simplifies the transfer for the next generation.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Recording is essential</div>
+    <p>Whichever method you use, the resulting document &mdash; probate decree, affidavit of heirship, or trust distribution deed &mdash; must be <strong>recorded at the county clerk&rsquo;s office in every county where you own minerals</strong>. This is how the world knows you&rsquo;re the owner. It&rsquo;s how operators know to put your name on division orders. It&rsquo;s how title examiners will find your ownership when a new well is drilled. Don&rsquo;t skip this step.</p>
+</div>
+
+<h2 id="figuring-out-what-you-own">Figuring Out What You Actually Own</h2>
+
+<p>Once you&rsquo;ve established your ownership, the next step is understanding exactly what you have. This means answering several questions:</p>
+
+<p><strong>Where are the minerals?</strong> Identify every county, section, township, and range where you hold an interest. If your family member owned minerals in multiple counties &mdash; which is common in Oklahoma families that have held minerals for generations &mdash; you need to track each property separately.</p>
+
+<p><strong>How much do you own?</strong> Determine your net mineral acres in each property. This requires tracing the chain of title from the original acquisition through each subsequent transfer, inheritance, and division among heirs. If your grandfather owned 160 NMA, your father inherited 1/4 of that (40 NMA), and you&rsquo;re one of three children, you may own approximately 13.3 NMA in that property. The actual calculation depends on the specific terms of each will or probate decree.</p>
+
+<p><strong>Are the minerals currently leased?</strong> If there&rsquo;s an active lease on your minerals, an operator holds the right to drill and produce. You&rsquo;d be receiving royalties on any production. If the minerals are unleased, they&rsquo;re available for leasing &mdash; or could be subject to pooling if an operator wants to drill in the area.</p>
+
+<p><strong>Are there producing wells?</strong> Check whether there are active wells on your sections. Oklahoma Tax Commission production data is public, and operators are required to report monthly production figures. If there are producing wells and you&rsquo;re not receiving royalty checks, that&rsquo;s a problem worth investigating &mdash; it may mean the operator doesn&rsquo;t have your current information, or the ownership records haven&rsquo;t been updated.</p>
+
+<div class="callout">
+    <div class="callout-title">Where to look</div>
+    <p>The <strong>county clerk&rsquo;s records</strong> in the county where the minerals are located contain the deeds, leases, and other recorded documents that establish the chain of title. Many Oklahoma counties now have online search portals. The <strong>Oklahoma Corporation Commission</strong> maintains well records, permits, and production data. The <strong>Oklahoma Tax Commission</strong> publishes gross production data by operator and well. Mineral Watch aggregates OCC filing data, production reports, and well information across all 77 Oklahoma counties, which can help you see the full picture of activity on your properties without searching each source individually.</p>
+</div>
+
+<h2 id="royalty-checks">Understanding Royalty Checks</h2>
+
+<p>If the minerals you inherited have producing wells, you should be receiving royalty checks. Here&rsquo;s how they work:</p>
+
+<p>When an operator produces oil or gas from a well on your section, they sell the production and distribute a share of the revenue to each mineral owner based on their decimal interest. Your decimal interest is your net mineral acres divided by the total acres in the drilling unit, multiplied by your royalty rate. For example, if you own 10 NMA in a 640-acre unit with a 3/16 royalty, your decimal interest would be 10/640 &times; 3/16 = 0.00292969 &mdash; meaning you receive about 0.29% of the well&rsquo;s gross revenue.</p>
+
+<p>Royalty checks typically arrive monthly, though some operators pay quarterly or hold payment until a minimum threshold is reached. The check will include a detail statement showing the well name, production volumes, prices, and any deductions. Review these statements carefully &mdash; errors happen, and they tend to favor the operator, not you.</p>
+
+<p><strong>If the checks were going to the deceased person,</strong> you&rsquo;ll need to notify the operator of the ownership change. The operator will send you a new division order reflecting your inherited interest. Once you sign and return it, they&rsquo;ll begin issuing checks in your name. If there&rsquo;s unclaimed revenue that accumulated during the transition, it should be paid to you once the ownership update is processed.</p>
+
+<p><strong>If no one has been cashing the checks,</strong> the funds may have been turned over to the Oklahoma State Treasurer&rsquo;s Unclaimed Property Division. You can search their database online using the deceased person&rsquo;s name. Tens of millions of dollars in mineral royalties sit in Oklahoma&rsquo;s unclaimed property fund.</p>
+
+<h2 id="taxes">Tax Implications</h2>
+
+<p>There are several tax considerations when you inherit mineral rights. This is not tax advice &mdash; consult a professional for your specific situation &mdash; but here are the concepts you should be aware of:</p>
+
+<p><strong>The inheritance itself is generally not taxable.</strong> When you inherit mineral rights, you receive what&rsquo;s called a &ldquo;stepped-up basis&rdquo; &mdash; your cost basis for the minerals is the fair market value at the date of death, not what the original owner paid. This can significantly reduce capital gains taxes if you ever sell.</p>
+
+<p><strong>Royalty income is taxable.</strong> Any royalty payments you receive are taxed as ordinary income on both your federal and Oklahoma state tax returns. The operator will send you a 1099-MISC each year reporting the gross royalties paid.</p>
+
+<p><strong>Oklahoma gross production tax is withheld.</strong> Oklahoma levies a gross production tax on oil and gas production. This tax is typically withheld by the operator before your royalty check is calculated, so the amount you receive is already net of this tax. You may be able to claim a credit for this on your state tax return.</p>
+
+<p><strong>Depletion deduction.</strong> As a mineral owner receiving royalty income, you&rsquo;re entitled to a depletion deduction on your federal tax return. For most individual mineral owners, the percentage depletion method allows you to deduct 15% of your gross royalty income (subject to certain limitations). This is one of the more valuable tax benefits of mineral ownership, and many mineral owners &mdash; especially new ones &mdash; miss it.</p>
+
+<p><strong>Estate tax considerations.</strong> For large mineral portfolios, the value of the minerals may affect estate tax calculations. Federal estate tax only applies to estates exceeding the exemption threshold (which changes periodically), but this is worth discussing with an estate attorney if the mineral interests are substantial.</p>
+
+<h2 id="protecting-your-inheritance">Protecting Your Inheritance</h2>
+
+<p>Mineral rights are a long-term asset. The wells producing today may decline, but new wells can be drilled, new formations can be developed, and the value of your minerals can grow over decades. Here&rsquo;s how to protect what you&rsquo;ve inherited:</p>
+
+<p><strong>Monitor your sections.</strong> The most important thing you can do is know what&rsquo;s happening on your properties. New drilling permits, pooling orders, spacing applications, and completion reports all directly affect your minerals. A pooling order gives you just 20 days to respond, and missing that deadline means you&rsquo;re assigned the worst option by default. Monitoring doesn&rsquo;t have to be complicated &mdash; but it does have to be consistent.</p>
+
+<p><strong>Be skeptical of unsolicited offers to buy.</strong> Mineral buyers actively seek out heirs of deceased mineral owners. Their business model depends on buying minerals for less than they&rsquo;re worth. A typical offer might be 3&ndash;5 years&rsquo; worth of current royalty income for an asset that could produce for 30 years or more. Some offers are fair; many are not. If you&rsquo;re considering selling, get multiple offers, understand the production trajectory of the wells on your properties, and have an oil and gas attorney review any purchase agreement before signing.</p>
+
+<p><strong>Keep your contact information current.</strong> Make sure operators have your current mailing address so royalty checks and division orders reach you. If you move, notify every operator that pays you royalties. Undeliverable royalty checks eventually get turned over to the state&rsquo;s unclaimed property fund.</p>
+
+<p><strong>Understand what you&rsquo;re signing.</strong> If you receive a lease offer, a pooling order, a division order, or any other document related to your minerals, read it carefully before signing. Division orders are generally straightforward and safe to sign, but lease agreements and other contracts can have long-term consequences. When in doubt, consult an oil and gas attorney &mdash; a one-time consultation fee is a small price to pay for protecting a generational asset.</p>
+
+<p><strong>Plan for the next generation.</strong> Your family member left these minerals to you. At some point, you&rsquo;ll pass them to someone else. Having your ownership properly documented, your properties organized, and a plan in place &mdash; whether through a will, a trust, or a family entity &mdash; makes the transition easier for whoever comes next. Families that manage their minerals proactively tend to preserve them; families that don&rsquo;t tend to lose track of them.</p>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Watch out for scams</div>
+    <p>After a death, mineral owners may receive official-looking letters offering to &ldquo;update your mineral records&rdquo; or &ldquo;process your inheritance claim&rdquo; for a fee. Legitimate title work and probate should be done through a licensed attorney, not through unsolicited mail services. Similarly, be cautious of lease offers or purchase offers that arrive with high-pressure deadlines. Legitimate operators and buyers understand that estate situations take time.</p>
+</div>
+
+<h2 id="common-mistakes">Common Mistakes New Mineral Owners Make</h2>
+
+<p><strong>Not recording the ownership transfer.</strong> Inheriting the minerals is step one. Recording the probate decree or affidavit of heirship at the county clerk&rsquo;s office is step two. Without recording, the public record doesn&rsquo;t reflect your ownership, and you&rsquo;ll have problems down the line with operators, title companies, and future transactions.</p>
+
+<p><strong>Selling too quickly.</strong> The emotional weight of dealing with an estate, combined with persuasive mineral buyers, leads many heirs to sell their minerals within the first year of inheriting them. In most cases, they sell for significantly less than the long-term value. Unless you have an urgent financial need, take your time before making any decisions about selling.</p>
+
+<p><strong>Ignoring the minerals entirely.</strong> Some heirs, especially those who live out of state or have no oil and gas background, simply ignore their inherited minerals. They don&rsquo;t respond to lease offers, miss pooling deadlines, don&rsquo;t cash royalty checks, and eventually lose track of the properties altogether. The minerals don&rsquo;t go away &mdash; but the value can erode through inaction.</p>
+
+<p><strong>Not claiming unclaimed royalties.</strong> If the previous owner wasn&rsquo;t cashing their royalty checks, those funds were turned over to the state. Search Oklahoma&rsquo;s unclaimed property database. You might be surprised at what&rsquo;s there.</p>
+
+<p><strong>Failing to account for all properties.</strong> Many Oklahoma mineral owners held interests in multiple sections across multiple counties. It&rsquo;s easy to focus on the properties where you find paperwork and miss others that weren&rsquo;t well documented. A thorough search of county clerk records and OCC well data can reveal properties you didn&rsquo;t know existed.</p>
+
+<p><strong>Not understanding the difference between mineral rights and royalty interests.</strong> A mineral interest gives you the right to lease, the right to receive bonus payments, the right to receive royalties, and the right to develop the minerals yourself. A royalty interest only entitles you to a share of production revenue &mdash; you can&rsquo;t lease, you can&rsquo;t receive a bonus, and you have no say in development decisions. Make sure you understand which type of interest you&rsquo;ve inherited, as it affects your rights and options.</p>
+
+<h2 id="when-to-get-help">When to Get Professional Help</h2>
+
+<p><strong>An oil and gas attorney</strong> is worth consulting if the estate involves significant mineral acreage, multiple properties, disputed heirship, title problems, or if you&rsquo;ve received a pooling order or lease offer you&rsquo;re not sure about. Many Oklahoma attorneys specialize in mineral rights and offer initial consultations. Look for someone in Oklahoma City, Tulsa, or one of the oil patch towns who works regularly with individual mineral owners.</p>
+
+<p><strong>A CPA or tax advisor</strong> with oil and gas experience can help you handle the depletion deduction, understand your royalty income reporting, and plan for the tax implications of owning (or potentially selling) mineral rights.</p>
+
+<p><strong>A title company or landman</strong> can help you research your chain of title and identify all the properties you&rsquo;ve inherited. This is particularly useful if the mineral interests span multiple counties or have a complicated ownership history.</p>
+
+<p>For smaller interests &mdash; a few net mineral acres producing modest royalties &mdash; you may be able to handle everything yourself with the guidance from this article and related resources. For larger interests, professional help pays for itself many times over.</p>
+
+<h2 id="faq">Frequently Asked Questions</h2>
+
+<div class="faq-section">
+    <div class="faq-item">
+        <div class="faq-question">How do I find out if I inherited mineral rights in Oklahoma?</div>
+        <p class="faq-answer">Start by reviewing the deceased person&rsquo;s estate documents, including their will, trust, and any prior deeds. Check for royalty check stubs, lease agreements, or division orders in their records. You can also search the county clerk&rsquo;s records in the county where the minerals are located by looking up deeds and mineral conveyances under their name.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Do I need to go through probate to inherit mineral rights in Oklahoma?</div>
+        <p class="faq-answer">In most cases, yes. If the mineral rights were held in the deceased person&rsquo;s individual name and not in a trust or joint tenancy, probate is typically required to legally transfer ownership. Oklahoma allows both formal probate and a simplified summary probate process for smaller estates.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">How do I transfer mineral rights after someone dies in Oklahoma?</div>
+        <p class="faq-answer">The most common methods are probate, an affidavit of heirship, or a trust distribution. Once you have the legal document transferring ownership, it should be recorded with the county clerk in every county where the minerals are located. You should also notify any operators currently paying royalties so they can update their division orders.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Do I have to pay taxes on inherited mineral rights in Oklahoma?</div>
+        <p class="faq-answer">Inheriting mineral rights is generally not a taxable event &mdash; you receive a stepped-up cost basis. However, any royalty income you receive is taxable as ordinary income. Oklahoma also has a gross production tax that is typically withheld by the operator. Consult a tax professional for your specific situation.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What is a division order and should I sign it?</div>
+        <p class="faq-answer">A division order states your decimal ownership interest in a well and authorizes the operator to pay you royalties. Verify that the decimal interest is correct before signing. Signing a division order does not change your actual ownership &mdash; it&rsquo;s primarily an administrative document that tells the operator where to send your check.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">Can I sell inherited mineral rights?</div>
+        <p class="faq-answer">Yes, but most professionals recommend caution. Mineral rights are an appreciating, income-producing asset that can generate royalties for decades. Buyers typically offer a fraction of the long-term value. If you consider selling, get multiple offers, have an attorney review any purchase agreement, and understand the tax implications.</p>
+    </div>
+    <div class="faq-item">
+        <div class="faq-question">What happens to my mineral rights if there is no will?</div>
+        <p class="faq-answer">Oklahoma&rsquo;s intestate succession laws determine who inherits. Generally, the surviving spouse and children inherit in specific proportions defined by state law. An intestate probate proceeding or determination of heirship is typically required to establish the legal heirs and transfer title.</p>
+    </div>
+</div>
+
+<h2 id="bottom-line">The Bottom Line</h2>
+
+<p>Inherited mineral rights are a meaningful asset &mdash; one that families have built wealth on across generations in Oklahoma. The key is treating them with the same attention you&rsquo;d give any other valuable inheritance. Get the ownership documented and recorded. Understand what you have. Don&rsquo;t rush into selling. Monitor what&rsquo;s happening on your sections. And when the situation warrants it, get professional help.</p>
+
+<p>The mineral rights your family member left you are the product of decades of ownership. With some attention and informed decision-making, they can continue producing value for decades more.</p>
+`;
