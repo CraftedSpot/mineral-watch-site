@@ -16,7 +16,7 @@ const HEADER = `
 <header>
     <div class="container">
         <div class="header-inner">
-            <a href="/" class="logo">${icon('pickaxe', 20)} Mineral Watch</a>
+            <a href="/" class="logo">Mineral Watch</a>
             <button class="mobile-menu-btn" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">
                 <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
