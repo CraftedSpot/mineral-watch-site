@@ -126,10 +126,20 @@ main { padding: 60px 0; }
 .bottom-cta { background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); padding: 60px 0; text-align: center; color: white; }
 .bottom-cta h2 { font-size: 30px; margin-bottom: 12px; font-weight: 900; }
 .bottom-cta p { font-size: 17px; color: rgba(255,255,255,0.8); margin-bottom: 28px; max-width: 550px; margin-left: auto; margin-right: auto; }
-footer { background: var(--oil-navy); color: rgba(255,255,255,0.6); padding: 40px 0; font-size: 14px; }
-footer strong { color: rgba(255,255,255,0.8); }
-footer a { color: rgba(255,255,255,0.6); text-decoration: none; }
-footer a:hover { color: white; }
+.site-footer { background: var(--oil-navy); color: #b0bec9; padding: 40px 0; font-size: 14px; }
+.site-footer a { color: #b0bec9; text-decoration: none; }
+.site-footer a:hover { color: white; }
+.footer-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: start; gap: 48px; flex-wrap: wrap; }
+.footer-brand { max-width: 300px; }
+.footer-brand .logo { color: white; display: inline-block; margin-bottom: 12px; }
+.footer-brand p { font-size: 14px; line-height: 1.6; }
+.footer-links { display: flex; gap: 48px; }
+.footer-col h4 { color: white; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+.footer-col a { display: block; font-size: 14px; color: #b0bec9; margin-bottom: 10px; transition: color 0.2s; }
+.footer-col a:hover { color: white; }
+.footer-bottom { max-width: 1100px; margin: 20px auto 0; padding: 20px 20px 0; border-top: 1px solid #2D3748; font-size: 13px; color: #94a3b8; }
+.footer-bottom .copyright { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.disclaimer { font-size: 11px; color: #94a3b8; line-height: 1.6; }
 @media (max-width: 768px) {
     .menu-toggle { display: block; }
     .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; flex-direction: column; padding: 20px; gap: 0; border-bottom: 1px solid var(--border); box-shadow: 0 4px 12px rgba(0,0,0,0.08); z-index: 1000; }
@@ -146,6 +156,8 @@ footer a:hover { color: white; }
     .county-stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
     .county-stat-card { padding: 16px; }
     .county-stat-number { font-size: 24px; }
+    .footer-inner { flex-direction: column; }
+    .footer-links { gap: 32px; }
 }
 `;
 
@@ -171,13 +183,41 @@ const HEADER = `
 </header>`;
 
 const FOOTER = `
-<footer>
-    <div class="container" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-        <p>&copy; ${new Date().getFullYear()} <strong>Mineral Watch LLC</strong> &middot; Oklahoma City, OK</p>
-        <div>
-            <a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a> &middot; <a href="/contact">Contact</a>
-        </div>
+<footer class="site-footer">
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <span class="logo">Mineral Watch</span>
+      <p>Professional mineral rights monitoring and intelligence for Oklahoma mineral owners and operators.</p>
     </div>
+    <div class="footer-links">
+      <div class="footer-col">
+        <h4>Platform</h4>
+        <a href="https://mymineralwatch.com/features">Features</a>
+        <a href="https://mymineralwatch.com/pricing">Pricing</a>
+        <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://portal.mymineralwatch.com">Sign In</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a href="https://mymineralwatch.com/about">About</a>
+        <a href="https://mymineralwatch.com/contact">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a href="https://mymineralwatch.com/terms">Terms of Service</a>
+        <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="copyright">
+      <span>&copy; ${new Date().getFullYear()} Mineral Watch. Built by owners, for owners.</span>
+      <span>Oklahoma City, OK</span>
+    </div>
+    <div class="disclaimer">
+      <p><strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, or timeliness of this data. Government databases frequently contain errors, delays, or omissions. This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always verify official records directly with the OCC or a qualified attorney before making decisions.</p>
+    </div>
+  </div>
 </footer>`;
 
 const MENU_SCRIPT = `
