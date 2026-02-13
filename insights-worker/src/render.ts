@@ -1076,13 +1076,25 @@ export function renderArticle(slug: string): string | null {
         .step-box ol li:last-child { margin-bottom: 0; }
         .step-box ol li::before { content: counter(steps); position: absolute; left: 0; top: 1px; width: 24px; height: 24px; background: var(--oil-navy); color: white; border-radius: 50%; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
-        /* Share buttons */
-        .share-row { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
-        .share-label { font-size: 13px; font-weight: 600; color: #718096; text-transform: uppercase; letter-spacing: 0.5px; }
-        .share-btn { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: #fff; color: var(--slate-blue); cursor: pointer; transition: all 0.2s; text-decoration: none; }
-        .share-btn:hover { border-color: var(--red-dirt); color: var(--red-dirt); background: #FFF8F5; }
-        .share-btn svg { width: 16px; height: 16px; }
-        .share-btn-copied { border-color: var(--success); color: var(--success); background: var(--success-bg); }
+        /* Share & Print */
+        .article-actions { display: flex; gap: 8px; margin-top: 18px; }
+        .share-wrap { position: relative; display: inline-block; }
+        .share-trigger, .print-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--slate-blue); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .share-trigger:hover, .print-trigger:hover { border-color: var(--red-dirt); color: var(--red-dirt); }
+        .share-trigger svg, .print-trigger svg { width: 15px; height: 15px; }
+        .print-header { display: none; }
+        .share-modal { display: none; position: absolute; top: calc(100% + 8px); left: 0; width: 340px; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 200; padding: 20px; }
+        .share-modal.open { display: block; }
+        .share-modal-title { font-size: 14px; font-weight: 700; color: var(--oil-navy); margin-bottom: 12px; }
+        .share-link-box { display: flex; gap: 8px; margin-bottom: 16px; }
+        .share-link-input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: 'Courier New', monospace; color: var(--slate-blue); background: var(--paper); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .share-copy-btn { padding: 8px 14px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--slate-blue); font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .share-copy-btn:hover { border-color: var(--oil-navy); color: var(--oil-navy); }
+        .share-copy-btn.copied { border-color: var(--success); color: var(--success); background: var(--success-bg); }
+        .share-options { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .share-opt { display: flex; align-items: center; gap: 8px; flex: 1; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; background: #fff; color: var(--slate-blue); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; text-decoration: none; justify-content: center; }
+        .share-opt:hover { border-color: var(--red-dirt); color: var(--red-dirt); background: #FFF8F5; }
+        .share-opt svg { width: 14px; height: 14px; flex-shrink: 0; }
 
         .bottom-cta { background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); padding: 60px 0; text-align: center; color: white; }
         .bottom-cta h2 { font-size: 28px; margin-bottom: 12px; font-weight: 900; }
@@ -1131,27 +1143,40 @@ export function renderArticle(slug: string): string | null {
                     <h1>${esc(article.title)}</h1>
                     <p class="article-lede">${esc(article.description).replace(/Here's/g, 'Here&rsquo;s')}</p>
                     <div class="article-meta">
-                        <span>By <span class="author-name">${esc(article.author)}</span>, ${esc(article.authorTitle)}</span>
+                        <span>By <span class="author-name">${esc(article.author)}</span>, Founder of <a href="/" style="color:inherit;text-decoration:underline;text-underline-offset:2px;">Mineral Watch</a></span>
                         <span>${esc(article.readTime)}</span>
                         <span>${esc(article.updated)}</span>
                     </div>
-                    <div class="share-row">
-                        <span class="share-label">Share</span>
-                        <a class="share-btn" title="Share on X" onclick="window.open('https://x.com/intent/tweet?url='+encodeURIComponent('${article.canonical}')+'&text='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}'),'_blank','width=550,height=420');return false;" href="#">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-                        </a>
-                        <a class="share-btn" title="Share on Facebook" onclick="window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent('${article.canonical}'),'_blank','width=550,height=420');return false;" href="#">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
-                        </a>
-                        <a class="share-btn" title="Share on LinkedIn" onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent('${article.canonical}'),'_blank','width=550,height=420');return false;" href="#">
-                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-                        </a>
-                        <a class="share-btn" title="Share via Email" onclick="window.location.href='mailto:?subject='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}')+'&body='+encodeURIComponent('I thought you might find this useful:\\n\\n${article.canonical}');return false;" href="#">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>
-                        </a>
-                        <button class="share-btn" title="Copy link" onclick="navigator.clipboard.writeText('${article.canonical}').then(()=>{this.classList.add('share-btn-copied');this.title='Copied!';setTimeout(()=>{this.classList.remove('share-btn-copied');this.title='Copy link'},2000)})">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+                    <div class="share-wrap">
+                        <button class="share-trigger" onclick="this.nextElementSibling.classList.toggle('open')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                            Share
                         </button>
+                        <div class="share-modal">
+                            <div class="share-modal-title">Share this article</div>
+                            <div class="share-link-box">
+                                <input class="share-link-input" type="text" value="${article.canonical}" readonly onclick="this.select()">
+                                <button class="share-copy-btn" onclick="navigator.clipboard.writeText(this.previousElementSibling.value);this.textContent='Copied!';this.classList.add('copied');setTimeout(()=>{this.textContent='Copy';this.classList.remove('copied')},2000)">Copy</button>
+                            </div>
+                            <div class="share-options">
+                                <a class="share-opt" onclick="window.open('https://x.com/intent/tweet?url='+encodeURIComponent('${article.canonical}')+'&text='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                                    X
+                                </a>
+                                <a class="share-opt" onclick="window.open('https://www.facebook.com/sharer/sharer.php?u='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                                    Facebook
+                                </a>
+                                <a class="share-opt" onclick="window.open('https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent('${article.canonical}'),'share','width=550,height=420,left='+((screen.width-550)/2)+',top='+((screen.height-420)/2));return false;" href="#">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+                                    LinkedIn
+                                </a>
+                                <a class="share-opt" onclick="window.location.href='mailto:?subject='+encodeURIComponent('${esc(article.title).replace(/'/g, "\\'")}')+'&body='+encodeURIComponent('I thought you might find this useful:\\n\\n${article.canonical}');return false;" href="#">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 7l-10 7L2 7"/></svg>
+                                    Email
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1191,6 +1216,7 @@ export function renderArticle(slug: string): string | null {
 
     ${FOOTER}
     ${MENU_SCRIPT}
+    <script>document.addEventListener('click',function(e){var m=document.querySelector('.share-modal.open');if(m&&!m.parentElement.contains(e.target))m.classList.remove('open')})</script>
 
 </body>
 </html>`;
