@@ -418,6 +418,24 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
     interestSource = 'property';
   }
 
+  // Build all interest types
+  const interests: any[] = [];
+  if (well.ri_nri) {
+    interests.push({ type: 'RI', label: 'Royalty Interest', decimal: well.ri_nri,
+      source: well.interest_source || 'well_override', sourceDocId: well.interest_source_doc_id, sourceDate: well.interest_source_date });
+  } else if (linkedProperty?.ri_decimal) {
+    interests.push({ type: 'RI', label: 'Royalty Interest', decimal: linkedProperty.ri_decimal,
+      source: 'property', sourceDocId: null, sourceDate: null });
+  }
+  if (well.wi_nri) {
+    interests.push({ type: 'WI', label: 'Working Interest', decimal: well.wi_nri,
+      source: well.wi_nri_source || 'well_override', sourceDocId: well.wi_nri_source_doc_id, sourceDate: well.wi_nri_source_date });
+  }
+  if (well.orri_nri) {
+    interests.push({ type: 'ORRI', label: 'Overriding Royalty', decimal: well.orri_nri,
+      source: well.orri_nri_source || 'well_override', sourceDocId: well.orri_nri_source_doc_id, sourceDate: well.orri_nri_source_date });
+  }
+
   // 4. Resolve base_puns
   if (!well.apiNumber) {
     return jsonResponse({
