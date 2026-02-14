@@ -439,6 +439,19 @@
   font-size: 11px; color: #A0AEC0; margin-top: 12px; line-height: 1.5;
 }
 
+/* Section allocation row on well cards */
+.well-alloc-row {
+  display: flex; align-items: center; gap: 6px; padding: 4px 12px;
+  font-size: 12px; color: #64748B; border-bottom: 1px solid #f1f5f9;
+}
+.alloc-input {
+  width: 60px; padding: 2px 4px; border: 1px solid #CBD5E1; border-radius: 4px;
+  font-size: 12px; text-align: right; background: #fff;
+}
+.alloc-input:focus { outline: none; border-color: var(--red-dirt); }
+.alloc-pct { font-size: 11px; color: #94A3B8; }
+.alloc-source { font-size: 11px; color: #059669; font-style: italic; }
+
 /* Mobile */
 @media (max-width: 768px) {
   .tools-header, .tools-selector, .tools-disclaimer { padding-left: 16px; padding-right: 16px; }

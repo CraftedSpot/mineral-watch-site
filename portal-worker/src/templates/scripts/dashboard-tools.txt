@@ -695,6 +695,7 @@
         async function onToolsPropertyChange(propertyId) {
             toolsPropertyData = null;
             toolsManualDecimal = null;
+            toolsAllocOverrides = {};
             var cardsEl = document.getElementById('toolsWellCards');
             var totalEl = document.getElementById('toolsPropertyTotal');
             var disclaimerEl = document.getElementById('toolsDisclaimer');
@@ -720,6 +721,7 @@
         async function onToolsWellChange(wellId) {
             toolsWellData = null;
             toolsManualDecimal = null;
+            toolsAllocOverrides = {};
             var cardsEl = document.getElementById('toolsWellCards');
             var totalEl = document.getElementById('toolsPropertyTotal');
             var disclaimerEl = document.getElementById('toolsDisclaimer');
@@ -856,8 +858,13 @@
             return null;
         }
 
+        function getWellIdForAlloc(well) {
+            return well.wellId || well.id || '';
+        }
+
         function getEffectiveAlloc(well) {
-            if (toolsAllocOverrides[well.wellId] != null) return toolsAllocOverrides[well.wellId];
+            var wid = getWellIdForAlloc(well);
+            if (wid && toolsAllocOverrides[wid] != null) return toolsAllocOverrides[wid];
             if (well.allocationPct != null) return well.allocationPct;
             return null;
         }
@@ -882,16 +889,17 @@
         }
 
         function buildAllocRowHtml(well) {
+            var wid = getWellIdForAlloc(well);
             var alloc = getEffectiveAlloc(well);
             var pctVal = alloc != null ? (alloc * 100).toFixed(2) : '100';
             // Clean up trailing zeros: 65.00 → 65, 65.40 → 65.4
             pctVal = pctVal.replace(/\.?0+$/, '') || '100';
             var srcLabel = well.allocationSource ? allocSourceLabel(well.allocationSource) : '';
-            if (toolsAllocOverrides[well.wellId] != null) srcLabel = '';
+            if (wid && toolsAllocOverrides[wid] != null) srcLabel = '';
             return '<div class="well-alloc-row">' +
                 '<label>Section Alloc:</label>' +
                 '<input type="number" class="alloc-input" value="' + pctVal + '" min="0" max="100" step="0.01" ' +
-                    'onchange="onAllocChange(\'' + well.wellId + '\', this.value)">' +
+                    'onchange="onAllocChange(\'' + wid + '\', this.value)">' +
                 '<span class="alloc-pct">%</span>' +
                 (srcLabel ? '<span class="alloc-source">' + srcLabel + '</span>' : '') +
                 '</div>';
@@ -1267,8 +1275,9 @@
             // Well card (single, not in grid)
             var shutIn = isShutIn(well.wellStatus);
             var latest = production.length > 0 ? production[0] : null;
-            var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-            var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+            var wmAlloc = getEffectiveAlloc(well);
+            var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal, wmAlloc) : { gross: null, net: null };
+            var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, wmAlloc);
 
             // Build interest badges for well mode
             var wmInterests = well.interests || [];
@@ -1292,7 +1301,8 @@
                         (well.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(well.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</a></div>' : '') +
                     '</div>' +
                     '<div class="well-card-badges">' + wmBadgesHtml + '</div>' +
-                '</div>';
+                '</div>' +
+                buildAllocRowHtml(well);
 
             if (shutIn && !latest) {
                 html += '<div class="well-production">No recent production</div>';
@@ -1305,7 +1315,7 @@
                     html += '<div class="well-interest-breakdown">';
                     for (var ir2 = 0; ir2 < wmInterests.length; ir2++) {
                         var wir2 = wmInterests[ir2];
-                        var wir2Rev = calcWellRevenue(latest.oilBbl, latest.gasMcf, wir2.decimal);
+                        var wir2Rev = calcWellRevenue(latest.oilBbl, latest.gasMcf, wir2.decimal, wmAlloc);
                         if (wir2Rev.gross != null) {
                             html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wir2.type + ':</span> ' +
                                 '<span class="gross">' + fmtMoney(wir2Rev.gross) + '</span> <span class="arrow">\u2192</span> ' +
@@ -1325,7 +1335,7 @@
                         // Show combined avg for multi-interest
                         var combinedAvgNet = 0;
                         for (var ia = 0; ia < wmInterests.length; ia++) {
-                            var aRev = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wmInterests[ia].decimal);
+                            var aRev = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wmInterests[ia].decimal, wmAlloc);
                             if (aRev.net != null) combinedAvgNet += aRev.net;
                         }
                         html += '<span class="net">Combined Net ' + fmtMoney(combinedAvgNet) + '/mo</span>';
@@ -1393,13 +1403,15 @@
         var rmId = null;
         var rmDeduction = 25;
         var rmManualDecimal = null;
+        var rmAllocOverrides = {};
         var rmLabel = '';
 
-        function rmCalcRevenue(oilBbl, gasMcf, decimal) {
+        function rmCalcRevenue(oilBbl, gasMcf, decimal, allocationPct) {
             if (!decimal) return { gross: null, net: null };
             var oilPrice = toolsPrices.oil;
             var gasPrice = toolsPrices.gas;
-            var grossWell = oilBbl * oilPrice + gasMcf * gasPrice;
+            var alloc = (allocationPct != null && allocationPct > 0) ? allocationPct : 1;
+            var grossWell = (oilBbl * oilPrice + gasMcf * gasPrice) * alloc;
             var gross = grossWell * decimal;
             var net = gross * (1 - rmDeduction / 100);
             return { gross: gross, net: net };
@@ -1411,6 +1423,41 @@
             return null;
         }
 
+        function rmGetEffectiveAlloc(well) {
+            var wid = well.wellId || well.id || '';
+            if (wid && rmAllocOverrides[wid] != null) return rmAllocOverrides[wid];
+            if (well.allocationPct != null) return well.allocationPct;
+            return null;
+        }
+
+        function rmOnAllocChange(wellId, val) {
+            var pct = parseFloat(val);
+            if (isNaN(pct) || pct <= 0) {
+                delete rmAllocOverrides[wellId];
+            } else if (pct >= 100) {
+                delete rmAllocOverrides[wellId];
+            } else {
+                rmAllocOverrides[wellId] = pct / 100;
+            }
+            if (rmData) renderRevModalContent(rmType, rmData);
+        }
+
+        function rmBuildAllocRowHtml(well) {
+            var wid = well.wellId || well.id || '';
+            var alloc = rmGetEffectiveAlloc(well);
+            var pctVal = alloc != null ? (alloc * 100).toFixed(2) : '100';
+            pctVal = pctVal.replace(/\.?0+$/, '') || '100';
+            var srcLabel = well.allocationSource ? allocSourceLabel(well.allocationSource) : '';
+            if (wid && rmAllocOverrides[wid] != null) srcLabel = '';
+            return '<div class="well-alloc-row">' +
+                '<label>Section Alloc:</label>' +
+                '<input type="number" class="alloc-input" value="' + pctVal + '" min="0" max="100" step="0.01" ' +
+                    'onchange="rmOnAllocChange(\'' + wid + '\', this.value)">' +
+                '<span class="alloc-pct">%</span>' +
+                (srcLabel ? '<span class="alloc-source">' + srcLabel + '</span>' : '') +
+                '</div>';
+        }
+
         async function openRevenueModal(type) {
             if (modalStack.length >= MAX_MODAL_DEPTH) {
                 alert('Maximum modal depth reached. Please close some modals first.');
@@ -1420,6 +1467,7 @@
             // Reset state
             rmData = null;
             rmManualDecimal = null;
+            rmAllocOverrides = {};
             rmDeduction = 25;
 
             // Get ID and label from the open detail modal
@@ -1577,7 +1625,7 @@
                 resultEl.style.display = 'none';
                 return;
             }
-            var rev = rmCalcRevenue(oilBbl, gasMcf, decimal);
+            var rev = rmCalcRevenue(oilBbl, gasMcf, decimal, null);
             if (rev.gross != null) {
                 resultEl.style.display = 'block';
                 resultEl.innerHTML = 'Gross: ' + fmtMoney(rev.gross) + '/mo \u2192 Net: ' + fmtMoney(rev.net) + '/mo <span style="font-weight:400;font-size:12px;color:#666">(' + rmDeduction + '% deductions)</span>';
@@ -1709,8 +1757,8 @@
                 var gLatest = gProd.length > 0 ? gProd[0] : null;
                 var gDecimal = rmManualDecimal || prop.ri_decimal || null;
                 var gTrail = group.trailing3mo || {};
-                var gRevLatest = gLatest ? rmCalcRevenue(gLatest.oilBbl, gLatest.gasMcf, gDecimal) : { gross: null, net: null };
-                var gRevAvg = rmCalcRevenue(gTrail.avgOilBbl || 0, gTrail.avgGasMcf || 0, gDecimal);
+                var gRevLatest = gLatest ? rmCalcRevenue(gLatest.oilBbl, gLatest.gasMcf, gDecimal, null) : { gross: null, net: null };
+                var gRevAvg = rmCalcRevenue(gTrail.avgOilBbl || 0, gTrail.avgGasMcf || 0, gDecimal, null);
                 if (gRevLatest.gross != null) { totalGrossLatest += gRevLatest.gross; totalNetLatest += gRevLatest.net; hasAnyRevenue = true; }
                 if (gRevAvg.gross != null) { totalGrossAvg += gRevAvg.gross; totalNetAvg += gRevAvg.net; }
             }
@@ -1722,18 +1770,19 @@
                 var trail = well.trailing3mo || {};
                 var hasOwnProd = !well.sharedPun && latest;
                 var wInterests = well.interests || [];
+                var wAlloc = rmGetEffectiveAlloc(well);
 
                 if (wInterests.length > 1 && hasOwnProd) {
                     for (var wi2 = 0; wi2 < wInterests.length; wi2++) {
-                        var wiRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wInterests[wi2].decimal);
-                        var wiRevAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wInterests[wi2].decimal);
+                        var wiRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wInterests[wi2].decimal, wAlloc);
+                        var wiRevAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wInterests[wi2].decimal, wAlloc);
                         if (wiRev.gross != null) { totalGrossLatest += wiRev.gross; totalNetLatest += wiRev.net; hasAnyRevenue = true; }
                         if (wiRevAvg.gross != null) { totalGrossAvg += wiRevAvg.gross; totalNetAvg += wiRevAvg.net; }
                     }
                 } else {
                     var decimal = rmGetEffectiveDecimal(well);
-                    var revL = hasOwnProd ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-                    var revA = !well.sharedPun ? rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal) : { gross: null, net: null };
+                    var revL = hasOwnProd ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal, wAlloc) : { gross: null, net: null };
+                    var revA = !well.sharedPun ? rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, wAlloc) : { gross: null, net: null };
                     if (revL.gross != null && !well.sharedPun) { totalGrossLatest += revL.gross; totalNetLatest += revL.net; hasAnyRevenue = true; }
                     if (revA.gross != null && !well.sharedPun) { totalGrossAvg += revA.gross; totalNetAvg += revA.net; }
                 }
@@ -1754,7 +1803,7 @@
                 var sgProd = sg.production || [];
                 var sgLatest = sgProd.length > 0 ? sgProd[0] : null;
                 var sgDecimal = rmManualDecimal || prop.ri_decimal || null;
-                var sgRevLatest = sgLatest ? rmCalcRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal) : { gross: null, net: null };
+                var sgRevLatest = sgLatest ? rmCalcRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal, null) : { gross: null, net: null };
 
                 html += '<div class="pun-card">' +
                     '<div class="pun-card-label">Shared Unit</div>' +
@@ -1777,7 +1826,8 @@
                 var wProd = wl.production || [];
                 var wLatest = wProd.length > 0 ? wProd[0] : null;
                 var wHasOwnProd = !wl.sharedPun && wLatest;
-                var wRevLatest = wHasOwnProd ? rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal) : { gross: null, net: null };
+                var wlAlloc = rmGetEffectiveAlloc(wl);
+                var wRevLatest = wHasOwnProd ? rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal, wlAlloc) : { gross: null, net: null };
 
                 var wInts = wl.interests || [];
                 var badgesHtml = statusBadgeHtml(wl.wellStatus);
@@ -1797,7 +1847,8 @@
                             (wl.operator ? '<div class="well-card-operator">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</div>' : '') +
                         '</div>' +
                         '<div class="well-card-badges">' + badgesHtml + '</div>' +
-                    '</div>';
+                    '</div>' +
+                    rmBuildAllocRowHtml(wl);
 
                 if (shutIn && !wLatest) {
                     html += '<div class="well-production">No recent production</div>';
@@ -1809,7 +1860,7 @@
                     if (wInts.length > 1 && wHasOwnProd) {
                         html += '<div class="well-interest-breakdown">';
                         for (var ir = 0; ir < wInts.length; ir++) {
-                            var wirRev = rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wInts[ir].decimal);
+                            var wirRev = rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wInts[ir].decimal, wlAlloc);
                             if (wirRev.gross != null) {
                                 html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wInts[ir].type + ':</span> <span class="net">' + fmtMoney(wirRev.net) + '/mo</span>' +
                                     (wInts[ir].type === 'WI' ? ' <span class="wi-note">before OpEx</span>' : '') + '</div>';
@@ -1899,8 +1950,9 @@
 
             var html = '';
             var latest = production.length > 0 ? production[0] : null;
-            var revLatest = latest ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-            var revAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+            var wmAlloc = rmGetEffectiveAlloc(well);
+            var revLatest = latest ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal, wmAlloc) : { gross: null, net: null };
+            var revAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, wmAlloc);
 
             // Linked property badge
             if (linkedProp) {
@@ -1934,7 +1986,8 @@
                         (well.operator ? '<div class="well-card-operator">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</div>' : '') +
                     '</div>' +
                     '<div class="well-card-badges">' + badgesHtml + '</div>' +
-                '</div>';
+                '</div>' +
+                rmBuildAllocRowHtml(well);
 
             if (shutIn && !latest) {
                 html += '<div class="well-production">No recent production</div>';
@@ -1944,7 +1997,7 @@
                 if (wmInterests.length > 1) {
                     html += '<div class="well-interest-breakdown">';
                     for (var ir = 0; ir < wmInterests.length; ir++) {
-                        var wirRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wmInterests[ir].decimal);
+                        var wirRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wmInterests[ir].decimal, wmAlloc);
                         if (wirRev.gross != null) {
                             html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wmInterests[ir].type + ':</span> <span class="gross">' + fmtMoney(wirRev.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net: ' + fmtMoney(wirRev.net) + '</span>' +
                                 (wmInterests[ir].type === 'WI' ? ' <span class="wi-note">before OpEx</span>' : '') + '</div>';
