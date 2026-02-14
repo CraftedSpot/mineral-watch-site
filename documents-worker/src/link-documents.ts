@@ -619,6 +619,43 @@ export async function linkDocumentToEntities(
     }
   }
   
+  // Priority 1b: Base API suffix match (for short/base API numbers from check stubs)
+  // When a check stub shows a partial API like "25432" (5-digit well serial) instead of full "35-017-25432",
+  // normalizeApiNumber returns null. Try matching wells whose api_number ends with these digits.
+  if (!wellId && rawApiNumber && !apiNumber) {
+    const rawDigits = rawApiNumber.replace(/[\s\-\.]/g, '').replace(/[^0-9]/g, '');
+    if (rawDigits.length >= 4 && rawDigits.length < 8) {
+      try {
+        console.log(`[LinkDocuments] Trying base API suffix match: ${rawDigits}`);
+        // Try user's client_wells first (scoped to their wells)
+        if (documentUserId || documentOrgId) {
+          const clientWell = await db.prepare(`
+            SELECT airtable_id as id FROM client_wells
+            WHERE (user_id = ? OR organization_id = ?)
+            AND api_number LIKE '%' || ?
+            LIMIT 1
+          `).bind(documentUserId || '', documentOrgId || '', rawDigits).first();
+          if (clientWell) {
+            wellId = clientWell.id as string;
+            console.log(`[LinkDocuments] Found well by base API suffix in client_wells: ${wellId}`);
+          }
+        }
+        // Fall back to statewide wells table
+        if (!wellId) {
+          const well = await db.prepare(
+            `SELECT airtable_record_id as id FROM wells WHERE api_number LIKE '%' || ? LIMIT 1`
+          ).bind(rawDigits).first();
+          if (well) {
+            wellId = well.id as string;
+            console.log(`[LinkDocuments] Found well by base API suffix in wells: ${wellId}`);
+          }
+        }
+      } catch (error) {
+        console.error(`[LinkDocuments] Error matching well by base API suffix:`, error);
+      }
+    }
+  }
+
   // Priority 2: Smart matching (name + location)
   if (!wellId && rawWellName) {
     try {
@@ -844,6 +881,31 @@ export async function linkDocumentToEntities(
           }
         } catch (err) {
           console.error(`[LinkDocuments] Error matching check stub well[${i}] by API:`, err);
+        }
+      }
+
+      // Fall back: base API suffix match for short API numbers
+      const wRawApi = wApi;
+      if (!wRawApi || wApiNorm) { /* skip — either no API or already tried exact match */ }
+      else {
+        const wDigits = wRawApi.replace(/[\s\-\.]/g, '').replace(/[^0-9]/g, '');
+        if (wDigits.length >= 4 && wDigits.length < 8) {
+          try {
+            const found = await db.prepare(
+              `SELECT airtable_record_id as id FROM wells WHERE api_number LIKE '%' || ? LIMIT 1`
+            ).bind(wDigits).first();
+            if (found) {
+              const extraId = found.id as string;
+              if (extraId !== wellId) {
+                console.log(`[LinkDocuments] Check stub well[${i}] matched by base API suffix: ${extraId}`);
+                if (!wellId) { wellId = extraId; }
+                else { (wellsList as any).__extraWellIds = (wellsList as any).__extraWellIds || []; (wellsList as any).__extraWellIds.push(extraId); }
+              }
+              continue;
+            }
+          } catch (err) {
+            console.error(`[LinkDocuments] Error matching check stub well[${i}] by base API suffix:`, err);
+          }
         }
       }
 

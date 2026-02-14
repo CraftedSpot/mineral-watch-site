@@ -8392,11 +8392,24 @@ OPERATOR ADDRESS:
 - Do NOT extract owner/payee addresses
 
 TOP-LEVEL LINKING FIELDS - CRITICAL:
-- You MUST populate these top-level fields from the FIRST well in the wells array for property/well linking:
+- You MUST populate these top-level fields for property/well linking:
   "section", "township", "range", "county", "state"
-- Example: if wells[0] has county "Canadian" and state "OK", set top-level county: "Canadian", state: "OK"
+- Copy these from the FIRST well in the wells array: if wells[0] has county "Canadian" and state "OK", set top-level county: "Canadian", state: "OK"
 - If the document shows section/township/range (from well description or legal), extract those too
 - These fields enable the document to link to the user's tracked properties and wells
+
+COUNTY EXTRACTION - CRITICAL:
+- ALWAYS extract the county name when it appears ANYWHERE on the document
+- Check ALL of these locations: column headers, well description rows, operator info section, page headers/footers, property description area, legal description
+- Common formats: "County: Canadian", "COUNTY Canadian", a column labeled "CTY" or "CNTY", or just the county name next to the well info
+- Also extract per-well county into each wells[] entry
+- If no section/township/range is available, county alone is still valuable — always extract it
+
+OPERATOR NUMBER vs OWNER NUMBER - CRITICAL:
+- "operator_number" is the OPERATOR's or COMPANY's internal ID assigned to themselves (e.g., "1234", "OP-4521"). This is rare on check stubs — set to null if not clearly present.
+- "owner_number" is the PAYEE's account/owner number assigned by the operator (e.g., "PRI230", "OWN-8842", "2442-001"). This is almost always present near the owner name.
+- Common labels for owner_number: "Owner No.", "Owner Number", "Payee No.", "Account No.", "Interest Owner No.", "Owner ID"
+- Do NOT put the owner/payee account number into operator_number. If you only see one ID number and it's near the owner name or labeled with "owner/payee/account", it goes in owner_number.
 
 DO NOT EXTRACT:
 - Owner/payee addresses
@@ -8408,7 +8421,7 @@ CHECK STUB EXAMPLE (multi-purchaser supplemental voucher with deduction/tax deta
   "statement_type": "supplemental_voucher",
 
   "operator": "Derby Exploration LLC",
-  "operator_number": "OP4521",
+  "operator_number": null,
   "operator_address": "P.O. Box 990, Tulsa, OK 74101",
 
   "owner_name": "Price Oil & Gas Company Ltd",
