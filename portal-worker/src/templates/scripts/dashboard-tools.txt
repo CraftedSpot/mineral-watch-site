@@ -16,6 +16,20 @@
         var toolsHighlightIndex = -1;
         var toolsDropdownItems = [];
 
+        function interestSourceLabel(w) {
+            if (w.interestSource === 'extracted_division_order') {
+                var dateStr = '';
+                if (w.interestSourceDate) {
+                    var d = new Date(w.interestSourceDate + 'Z');
+                    if (!isNaN(d)) dateStr = ' (' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ')';
+                }
+                return 'from Division Order' + dateStr;
+            }
+            if (w.interestSource === 'well_override') return 'from well';
+            if (w.interestSource === 'property') return 'from property';
+            return '';
+        }
+
         async function loadTools() {
             if (toolsLoaded) return;
             toolsLoaded = true;
@@ -1065,9 +1079,7 @@
                 var wHasOwnProd = !wl.sharedPun && wLatest;
                 var wRevLatest = wHasOwnProd ? calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal) : { gross: null, net: null };
 
-                var wSourceLabel = '';
-                if (wl.interestSource === 'well_override') wSourceLabel = 'from well';
-                else if (wl.interestSource === 'property') wSourceLabel = 'from property';
+                var wSourceLabel = interestSourceLabel(wl);
 
                 html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
                     '<div class="well-card-header">' +
@@ -1176,9 +1188,7 @@
             var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
             var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
 
-            var sourceLabel = '';
-            if (well.interestSource === 'well_override') sourceLabel = 'from well';
-            else if (well.interestSource === 'property') sourceLabel = 'from property';
+            var sourceLabel = interestSourceLabel(well);
 
             html += '<div class="well-card well-card-single' + (shutIn ? ' shut-in' : '') + '">' +
                 '<div class="well-card-header">' +

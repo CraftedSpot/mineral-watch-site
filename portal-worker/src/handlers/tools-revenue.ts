@@ -41,6 +41,9 @@ interface WellRow {
   ri_nri: number | null;
   wi_nri: number | null;
   orri_nri: number | null;
+  interest_source: string | null;
+  interest_source_doc_id: string | null;
+  interest_source_date: string | null;
 }
 
 interface PunLink {
@@ -94,7 +97,8 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   // 2. Get linked wells
   const wellsResult = await env.WELLS_DB!.prepare(`
     SELECT cw.airtable_id, cw.well_name, cw.api_number, cw.operator,
-           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri
+           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri,
+           cw.interest_source, cw.interest_source_doc_id, cw.interest_source_date
     FROM property_well_links pwl
     JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
     WHERE pwl.property_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
@@ -198,9 +202,13 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     // Determine interest decimal and source
     let interestDecimal: number | null = null;
     let interestSource: string = 'none';
+    let interestSourceDocId: string | null = null;
+    let interestSourceDate: string | null = null;
     if (well.ri_nri) {
       interestDecimal = well.ri_nri;
-      interestSource = 'well_override';
+      interestSource = well.interest_source || 'well_override';
+      interestSourceDocId = well.interest_source_doc_id || null;
+      interestSourceDate = well.interest_source_date || null;
     } else if (property.ri_decimal) {
       interestDecimal = property.ri_decimal;
       interestSource = 'property';
@@ -267,6 +275,8 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
       wellStatus: well.well_status || null,
       interestDecimal,
       interestSource,
+      interestSourceDocId,
+      interestSourceDate,
       basePuns,
       sharedPun: wellSharedPuns.length > 0,
       production,
@@ -320,6 +330,9 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
     ri_nri: wellResult.ri_nri || null,
     wi_nri: wellResult.wi_nri || null,
     orri_nri: wellResult.orri_nri || null,
+    interest_source: wellResult.interest_source || null,
+    interest_source_doc_id: wellResult.interest_source_doc_id || null,
+    interest_source_date: wellResult.interest_source_date || null,
   };
 
   // 2. Get linked property for ri_decimal fallback
@@ -360,9 +373,13 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   // 3. Determine interest decimal and source
   let interestDecimal: number | null = null;
   let interestSource = 'none';
+  let interestSourceDocId: string | null = null;
+  let interestSourceDate: string | null = null;
   if (well.ri_nri) {
     interestDecimal = well.ri_nri;
-    interestSource = 'well_override';
+    interestSource = well.interest_source || 'well_override';
+    interestSourceDocId = well.interest_source_doc_id || null;
+    interestSourceDate = well.interest_source_date || null;
   } else if (linkedProperty?.ri_decimal) {
     interestDecimal = linkedProperty.ri_decimal;
     interestSource = 'property';
@@ -371,7 +388,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   // 4. Resolve base_puns
   if (!well.apiNumber) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate },
       linkedProperty,
       dataHorizon: null,
       production: [],
@@ -388,7 +405,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
 
   if (basePuns.length === 0) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource, basePuns: [] },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, basePuns: [] },
       linkedProperty,
       dataHorizon: null,
       production: [],
@@ -437,7 +454,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   const avgGas = trail3.length > 0 ? trail3.reduce((s, p) => s + p.gasMcf, 0) / trail3.length : 0;
 
   return jsonResponse({
-    well: { ...well, interestDecimal, interestSource, basePuns },
+    well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, basePuns },
     linkedProperty,
     dataHorizon,
     production,

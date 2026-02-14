@@ -1954,6 +1954,83 @@ export default {
                 );
                 console.log('[Documents] Link result:', linkResult);
                 console.log('[Documents] Successfully linked - Property:', linkResult.propertyId, 'Well:', linkResult.wellId);
+
+                // Write-back decimal interest from division orders to client_wells
+                if (doc_type === 'division_order' && extracted_data?.decimal_interest && linkResult.wellId) {
+                  try {
+                    const rawDecimal = String(extracted_data.decimal_interest).replace(/[^0-9.]/g, '');
+                    const decimalInterest = parseFloat(rawDecimal);
+
+                    if (decimalInterest > 0 && decimalInterest < 1) {
+                      const primaryWellId = linkResult.wellId.split(',')[0].trim();
+
+                      // Ensure interest_source columns exist on client_wells
+                      for (const col of [
+                        { name: 'interest_source', type: 'TEXT' },
+                        { name: 'interest_source_doc_id', type: 'TEXT' },
+                        { name: 'interest_source_date', type: 'TEXT' },
+                      ]) {
+                        try {
+                          await env.WELLS_DB.prepare(`SELECT ${col.name} FROM client_wells LIMIT 1`).first();
+                        } catch {
+                          try {
+                            await env.WELLS_DB.prepare(`ALTER TABLE client_wells ADD COLUMN ${col.name} ${col.type}`).run();
+                            console.log(`[DO Write-Back] Added column client_wells.${col.name}`);
+                          } catch (addErr) {
+                            // Column may already exist from a concurrent request
+                          }
+                        }
+                      }
+
+                      // Try to find the client_well: first by direct airtable_id, then by API number
+                      let clientWell = await env.WELLS_DB.prepare(
+                        `SELECT id, airtable_id, ri_nri FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                      ).bind(primaryWellId).first() as any;
+
+                      if (!clientWell && extracted_data.api_number) {
+                        // Get document owner info for scoped lookup
+                        const docOwner = await env.WELLS_DB.prepare(
+                          `SELECT user_id, organization_id FROM documents WHERE id = ?`
+                        ).bind(docId).first() as any;
+                        if (docOwner) {
+                          clientWell = await env.WELLS_DB.prepare(
+                            `SELECT id, airtable_id, ri_nri FROM client_wells
+                             WHERE api_number = ? AND (user_id = ? OR organization_id = ?) LIMIT 1`
+                          ).bind(
+                            extracted_data.api_number,
+                            docOwner.user_id || '',
+                            docOwner.organization_id || ''
+                          ).first() as any;
+                        }
+                      }
+
+                      if (clientWell) {
+                        const existingRiNri = clientWell.ri_nri as number | null;
+
+                        if (existingRiNri && Math.abs(existingRiNri - decimalInterest) > 0.000001) {
+                          console.log(`[DO Write-Back] VALUE CHANGE: Well ${clientWell.airtable_id} existing ri_nri=${existingRiNri}, extracted=${decimalInterest} from doc ${docId}`);
+                        }
+
+                        await env.WELLS_DB.prepare(
+                          `UPDATE client_wells
+                           SET ri_nri = ?,
+                               interest_source = 'extracted_division_order',
+                               interest_source_doc_id = ?,
+                               interest_source_date = datetime('now', '-6 hours')
+                           WHERE id = ?`
+                        ).bind(decimalInterest, docId, clientWell.id).run();
+
+                        console.log(`[DO Write-Back] Updated well ${clientWell.airtable_id} ri_nri=${decimalInterest} from document ${docId}`);
+                      } else {
+                        console.log(`[DO Write-Back] No client_well found for well_id ${primaryWellId} — decimal interest not written back`);
+                      }
+                    } else {
+                      console.log(`[DO Write-Back] Skipping — decimal_interest ${extracted_data.decimal_interest} out of range`);
+                    }
+                  } catch (writeBackError) {
+                    console.error('[DO Write-Back] Error:', writeBackError);
+                  }
+                }
               } catch (linkError) {
                 console.error('[Documents] Error during auto-link:', linkError);
                 console.error('[Documents] Error stack:', linkError.stack);
