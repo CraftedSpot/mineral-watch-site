@@ -951,10 +951,8 @@
                 html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
                     '<div class="well-card-header">' +
                         '<div>' +
-                            '<div class="well-card-name">' + escapeHtml(wl.wellName) +
-                                ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\'' + wl.wellId + '\');return false" title="View well details">' + modalLinkSvg + '</a>' +
-                            '</div>' +
-                            (wl.operator ? '<div class="well-card-operator">' + escapeHtml(wl.operator.length > 30 ? wl.operator.substring(0, 30) + '...' : wl.operator) + '</div>' : '') +
+                            '<div class="well-card-name"><a href="#" class="well-name-link" onclick="openWellDetailsModal(\'' + wl.wellId + '\');return false">' + escapeHtml(wl.wellName) + '</a></div>' +
+                            (wl.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(wl.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</a></div>' : '') +
                         '</div>' +
                         '<div class="well-card-badges">' +
                             statusBadgeHtml(wl.wellStatus) +
@@ -1063,10 +1061,8 @@
             html += '<div class="well-card well-card-single' + (shutIn ? ' shut-in' : '') + '">' +
                 '<div class="well-card-header">' +
                     '<div>' +
-                        '<div class="well-card-name">' + escapeHtml(well.wellName || 'Unknown Well') +
-                            ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false" title="View well details">' + modalLinkSvg + '</a>' +
-                        '</div>' +
-                        (well.operator ? '<div class="well-card-operator">' + escapeHtml(well.operator.length > 30 ? well.operator.substring(0, 30) + '...' : well.operator) + '</div>' : '') +
+                        '<div class="well-card-name"><a href="#" class="well-name-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false">' + escapeHtml(well.wellName || 'Unknown Well') + '</a></div>' +
+                        (well.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(well.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</a></div>' : '') +
                     '</div>' +
                     '<div class="well-card-badges">' +
                         statusBadgeHtml(well.wellStatus) +

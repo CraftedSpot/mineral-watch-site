@@ -165,7 +165,11 @@
 .well-card-single { margin: 0 0 12px; padding: 14px 16px; }
 .well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .well-card-name { font-size: 13px; font-weight: 700; color: var(--oil-navy); }
+.well-name-link { color: inherit; text-decoration: none; }
+.well-name-link:hover { text-decoration: underline; }
 .well-card-operator { font-size: 11px; color: var(--slate-blue); margin-top: 1px; }
+.well-op-link { color: inherit; text-decoration: none; }
+.well-op-link:hover { text-decoration: underline; color: var(--oil-navy); }
 .well-card-badges { display: flex; gap: 6px; align-items: center; }
 
 /* Status badges */
