@@ -196,6 +196,7 @@ const FOOTER = `
         <a href="https://mymineralwatch.com/features">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
         <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
         <a href="https://portal.mymineralwatch.com">Sign In</a>
       </div>
       <div class="footer-col">
@@ -324,6 +325,9 @@ export function renderCountyPage(
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>${esc(countyName)} County Mineral Rights Intelligence | Mineral Watch</title>
     <meta name="description" content="OCC alerts, production data, document extraction, and interactive mapping for ${esc(countyName)} County, Oklahoma mineral rights owners.">
     <link rel="canonical" href="https://mymineralwatch.com/counties/${slug}">
@@ -480,6 +484,9 @@ export function renderCountyIndex(counties: CountyIndexRow[]): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Oklahoma County Mineral Rights Intelligence | Mineral Watch</title>
     <meta name="description" content="Browse all 77 Oklahoma counties. OCC alerts, production data, drilling permits, document extraction, and interactive mapping for mineral rights owners.">
     <link rel="canonical" href="https://mymineralwatch.com/counties/">
@@ -544,6 +551,9 @@ export function render404(): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>County Not Found | Mineral Watch</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

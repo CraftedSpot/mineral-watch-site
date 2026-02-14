@@ -47,6 +47,7 @@ const FOOTER = `
         <a href="https://mymineralwatch.com/features">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
         <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
         <a href="https://portal.mymineralwatch.com">Sign In</a>
       </div>
       <div class="footer-col">
@@ -170,6 +171,9 @@ export function renderInsightsHub(): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Mineral Rights Insights — Guides, Analysis & County Data | Mineral Watch</title>
     <meta name="description" content="Educational guides, OCC filing explainers, county drilling activity, and mineral rights resources for Oklahoma mineral owners. From pooling orders to production analysis.">
     <link rel="canonical" href="https://mymineralwatch.com/insights">
@@ -286,7 +290,7 @@ export function renderInsightsHub(): string {
     <section class="insights-hero">
         <div class="container">
             <div class="hero-label">Mineral Watch Insights</div>
-            <h1>Knowledge That Protects<br>Your Mineral Interests</h1>
+            <h1>Knowledge That Protects <br>Your Mineral Interests</h1>
             <p>Guides, explainers, and live county data to help Oklahoma mineral owners understand OCC filings, protect their rights, and make informed decisions.</p>
         </div>
     </section>
@@ -1008,6 +1012,9 @@ export function renderArticle(slug: string): string | null {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>${esc(article.title)} | Mineral Watch</title>
     <meta name="description" content="${esc(article.description)}">
     <link rel="canonical" href="${article.canonical}">
@@ -1524,6 +1531,9 @@ export function render404(): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Page Not Found | Mineral Watch</title>
     ${FONT_LINK}
     <style>

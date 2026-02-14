@@ -4,6 +4,9 @@ export function renderCalculator(): string {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Oklahoma Mineral Calculator — NRI, Royalties, Pooling &amp; Valuation | Mineral Watch</title>
     <meta name="description" content="Free mineral rights calculator for Oklahoma. Calculate your decimal interest (NRI), verify division orders, estimate royalties, compare pooling elections, and value your minerals.">
     <link rel="canonical" href="https://mymineralwatch.com/tools/mineral-calculator">
@@ -1005,6 +1008,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
         <a href="https://mymineralwatch.com/features">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
         <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
         <a href="https://portal.mymineralwatch.com">Sign In</a>
       </div>
       <div class="footer-col">
