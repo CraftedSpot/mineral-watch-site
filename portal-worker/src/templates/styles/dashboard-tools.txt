@@ -21,13 +21,7 @@
 .tools-selector { padding: 12px 24px 16px; }
 .tools-selector label { font-size: 13px; font-weight: 600; color: var(--oil-navy); display: block; margin-bottom: 6px; }
 
-/* County filter */
-.tools-county-filter { margin-bottom: 8px; }
-.tools-county-filter select {
-  padding: 6px 10px; font-size: 12px; border: 1px solid var(--border);
-  border-radius: 4px; background: #fff; color: var(--slate-blue); cursor: pointer;
-}
-.tools-county-filter select:focus { outline: none; border-color: var(--slate-blue); }
+
 
 /* Search input & dropdown */
 .tools-search-wrapper { position: relative; }
