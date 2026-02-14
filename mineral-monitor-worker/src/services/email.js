@@ -190,7 +190,7 @@ export async function sendAlertEmail(env, data) {
   
   // Generate auto-login MW map link if we have apiNumber and userId
   if (apiNumber && userId) {
-    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, `/map?well=${apiNumber}`);
+    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, `/portal/map?well=${apiNumber}`);
   }
 
   const subject = buildSubject(alertLevel, activityType, county, statusChange);
