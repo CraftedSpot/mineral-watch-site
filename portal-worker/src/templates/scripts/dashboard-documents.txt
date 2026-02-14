@@ -892,7 +892,7 @@
                           'from', 'sender', 'to'],  // Correspondence parties
                 'Letter Details': ['subject', 're_line'],  // Correspondence letter details (date handled separately)
                 // Check Stub / Revenue Statement sections
-                'Payment Information': ['check_number', 'check_date', 'check_amount', 'statement_type', 'operator_number', 'operator_address', 'owner_number'],
+                'Payment Information': ['check_number', 'check_date', 'check_amount', 'statement_type', 'interest_type', 'operator_number', 'operator_address', 'owner_number'],
                 'Well Revenue': ['wells'],
                 'Check Summary': ['summary'],
                 'Operating Expenses': ['operating_expenses'],

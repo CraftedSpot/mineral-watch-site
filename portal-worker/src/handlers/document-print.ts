@@ -2536,6 +2536,7 @@ function generateCheckStubFields(data: any): string {
   const checkDate = data.check_date || '';
   const checkAmount = data.check_amount;
   const statementType = data.statement_type || 'royalty_check';
+  const interestType = data.interest_type || '';
   const wells: any[] = data.wells || [];
   const summary = data.summary || {};
 
@@ -2660,6 +2661,7 @@ function generateCheckStubFields(data: any): string {
         <div class="field-label">Statement Type</div>
         <div class="field-value">${escapeHtml(stmtLabel)}</div>
       </div>
+      ${interestType ? `<div class="field-item"><div class="field-label">Interest Type</div><div class="field-value">${escapeHtml(interestType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))}</div></div>` : ''}
       ${checkNumber ? `<div class="field-item"><div class="field-label">Check Number</div><div class="field-value mono">${escapeHtml(checkNumber)}</div></div>` : ''}
       ${checkDate ? `<div class="field-item"><div class="field-label">Check Date</div><div class="field-value">${escapeHtml(formatDate(checkDate))}</div></div>` : ''}
       <div class="field-item">

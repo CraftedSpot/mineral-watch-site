@@ -568,7 +568,7 @@ CHECK_STUB_SCHEMA = {
         # Core check stub fields
         "doc_type", "operator", "operator_name", "operator_number",
         "operator_address",
-        "owner_name", "owner_number",
+        "owner_name", "owner_number", "interest_type",
         "check_number", "check_date", "check_amount",
         "statement_type",
         # Wells array (validated separately)
@@ -8296,7 +8296,9 @@ IMPORTANT: Structure your response as follows:
 
      Audit Flags:
      [Flag unusual deduction percentages (>25% of gross), decimal mismatches between products, late payments (>3 months lag), negative adjustments, prior-period corrections.
-      IMPORTANT: If total_deductions has a value, deductions ARE present even if not itemized. Say "deductions not itemized by category" rather than "no deductions shown". Only say "no deductions" if total_deductions is truly 0 or null.]
+      INTEREST TYPE AND DEDUCTIONS: If the interest type is "royalty", note that post-production deductions (gathering, compression, transportation, marketing, processing) on royalty interest are legally contentious in Oklahoma. Oklahoma case law provides significant protections for royalty owners against excessive post-production cost deductions. Flag any such deductions on royalty interest as worth reviewing. For working interest, deductions are expected and normal.
+      IMPORTANT: If total_deductions has a value, deductions ARE present even if not itemized. Say "deductions not itemized by category" rather than "no deductions shown". Only say "no deductions" if total_deductions is truly 0 or null.
+      DO NOT cite county average deductions, industry benchmarks, or any statistics not found on THIS document. You do not have access to external deduction data. Only compare values within the document itself (e.g., deduction % of gross, decimal consistency across products).]
 
    - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
    - Keep each section concise (2-4 sentences each)
@@ -8320,7 +8322,17 @@ CHECK STUB FORMAT HANDLING:
 - Extract volumes and prices from GROSS rows, decimal from NET rows
 - Product codes: O=Oil, G=Gas, C=Condensate, P=Plant Products, K=Other
 - Revenue type: RO=Royalty Oil, RG=Royalty Gas, RP=Royalty Plant, RE=Royalty Excise
+- Revenue type: WO=Working Interest Oil, WG=Working Interest Gas, etc.
 - "SEE ATTACHED VOUCHER" on check face means real data is on supplemental pages
+
+INTEREST TYPE - IMPORTANT:
+- Extract the owner's interest type as "interest_type" at the top level
+- Determine from revenue type codes, column headers, or document labels:
+  "royalty" — RO, RG, RP, RE codes; "Royalty" in header; most common for mineral owners
+  "working_interest" — WO, WG codes; "Working Interest" label; owner pays share of costs
+  "overriding_royalty" — ORRI, Override; carved from working interest, no cost burden
+- If multiple interest types appear on the same check, use the primary/dominant one
+- Default to "royalty" if the document doesn't clearly indicate (most check stubs are royalty)
 
 SIGN PRESERVATION - CRITICAL:
 - Preserve negative signs on ALL monetary amounts (deductions, taxes, adjustments, owner_amount)
@@ -8426,6 +8438,7 @@ CHECK STUB EXAMPLE (multi-purchaser supplemental voucher with deduction/tax deta
 
   "owner_name": "Price Oil & Gas Company Ltd",
   "owner_number": "OWN-8842",
+  "interest_type": "royalty",
 
   "check_number": "V-29881",
   "check_date": "2025-12-15",
