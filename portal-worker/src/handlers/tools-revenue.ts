@@ -103,10 +103,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   // 2. Get linked wells
   const wellsResult = await env.WELLS_DB!.prepare(`
     SELECT cw.airtable_id, cw.well_name, cw.api_number, cw.operator,
-           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri,
-           cw.interest_source, cw.interest_source_doc_id, cw.interest_source_date,
-           cw.wi_nri_source, cw.wi_nri_source_doc_id, cw.wi_nri_source_date,
-           cw.orri_nri_source, cw.orri_nri_source_doc_id, cw.orri_nri_source_date
+           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri
     FROM property_well_links pwl
     JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
     WHERE pwl.property_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
