@@ -488,14 +488,28 @@ export async function handleListWellsV2(request: Request, env: Env) {
       const placeholders = batch.map(() => '?').join(',');
       try {
         const cwResults = await env.WELLS_DB.prepare(`
-          SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri
+          SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri,
+                 interest_source, interest_source_doc_id, interest_source_date,
+                 wi_nri_source, wi_nri_source_doc_id, wi_nri_source_date,
+                 orri_nri_source, orri_nri_source_doc_id, orri_nri_source_date
           FROM client_wells WHERE airtable_id IN (${placeholders})
         `).bind(...batch).all();
         for (const row of cwResults.results as any[]) {
           clientWellsMap[row.airtable_id] = row;
         }
       } catch (e) {
-        console.error('[WellsV2] client_wells batch query failed:', e);
+        // Fallback: source columns may not exist yet
+        try {
+          const cwResults = await env.WELLS_DB.prepare(`
+            SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri
+            FROM client_wells WHERE airtable_id IN (${placeholders})
+          `).bind(...batch).all();
+          for (const row of cwResults.results as any[]) {
+            clientWellsMap[row.airtable_id] = row;
+          }
+        } catch (e2) {
+          console.error('[WellsV2] client_wells batch query failed:', e2);
+        }
       }
     }
   }
@@ -582,6 +596,15 @@ export async function handleListWellsV2(request: Request, env: Env) {
       wi_nri: cw.wi_nri || null,
       ri_nri: cw.ri_nri || null,
       orri_nri: cw.orri_nri || null,
+      ri_nri_source: cw.interest_source || null,
+      ri_nri_source_doc_id: cw.interest_source_doc_id || null,
+      ri_nri_source_date: cw.interest_source_date || null,
+      wi_nri_source: cw.wi_nri_source || null,
+      wi_nri_source_doc_id: cw.wi_nri_source_doc_id || null,
+      wi_nri_source_date: cw.wi_nri_source_date || null,
+      orri_nri_source: cw.orri_nri_source || null,
+      orri_nri_source_doc_id: cw.orri_nri_source_doc_id || null,
+      orri_nri_source_date: cw.orri_nri_source_date || null,
 
       // Flag indicating if D1 had data for this well
       hasD1Data: !!d1.api_number

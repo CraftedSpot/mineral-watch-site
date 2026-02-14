@@ -1061,7 +1061,13 @@
                 wi_nri: well.wi_nri || null,
                 ri_nri: well.ri_nri || null,
                 orri_nri: well.orri_nri || null,
-                user_well_code: well.user_well_code || null
+                user_well_code: well.user_well_code || null,
+                ri_nri_source: well.ri_nri_source || null,
+                ri_nri_source_date: well.ri_nri_source_date || null,
+                wi_nri_source: well.wi_nri_source || null,
+                wi_nri_source_date: well.wi_nri_source_date || null,
+                orri_nri_source: well.orri_nri_source || null,
+                orri_nri_source_date: well.orri_nri_source_date || null
             };
 
             // Store well ID
