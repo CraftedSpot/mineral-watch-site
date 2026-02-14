@@ -186,6 +186,31 @@
             recalcTools();
         }
 
+        function calcNriFromInputs() {
+            var acres = parseFloat(document.getElementById('toolsNriAcres').value) || 0;
+            var unit = parseFloat(document.getElementById('toolsNriUnit').value) || 640;
+            var royaltyEl = document.getElementById('toolsNriRoyalty');
+            var royalty = 0;
+            if (royaltyEl) {
+                var val = royaltyEl.value;
+                if (val.indexOf('/') > -1) {
+                    var parts = val.split('/');
+                    royalty = parseFloat(parts[0]) / parseFloat(parts[1]);
+                } else {
+                    royalty = parseFloat(val) || 0;
+                }
+            }
+            if (acres > 0 && unit > 0 && royalty > 0) {
+                var decimal = (acres * royalty) / unit;
+                toolsManualDecimal = decimal;
+                var resultEl = document.getElementById('toolsNriResult');
+                if (resultEl) resultEl.textContent = decimal.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+                var resultRow = document.getElementById('toolsNriResultRow');
+                if (resultRow) resultRow.style.display = 'flex';
+                recalcTools();
+            }
+        }
+
         function recalcTools() {
             if (!toolsPropertyData) return;
             renderToolsResults();
@@ -263,20 +288,61 @@
             var prop = data.property;
             var wells = data.wells || [];
             var sharedGroups = data.sharedPunGroups || [];
-            var noDecimal = !prop.ri_decimal && !toolsManualDecimal;
+
+            // Auto-calc decimal from property acres if no decimal is set and acres are known
+            // This runs before rendering so revenue figures are immediately populated
+            var anyWellHasDecimal = wells.some(function(w) { return !!w.interestDecimal; });
+            if (!prop.ri_decimal && !toolsManualDecimal && !anyWellHasDecimal) {
+                var autoAcres = prop.ri_acres || prop.total_acres || prop.acres || 0;
+                if (autoAcres > 0) {
+                    // Default: 640-acre unit, 3/16 royalty
+                    toolsManualDecimal = (autoAcres * (3/16)) / 640;
+                }
+            }
+
+            var noDecimal = !prop.ri_decimal && !anyWellHasDecimal;
 
             var html = '';
 
-            // No-decimal prompt
+            // Inline NRI calculator when no decimal is set
             if (noDecimal) {
-                var anyWellHasDecimal = wells.some(function(w) { return !!w.interestDecimal; });
-                if (!anyWellHasDecimal) {
-                    html += '<div class="no-decimal-prompt" style="margin: 0 24px 12px">' +
-                        '<label>Enter your decimal interest to see revenue estimates:</label>' +
+                    // Pre-fill acres from property data if available
+                    var prefillAcres = prop.ri_acres || prop.total_acres || prop.acres || '';
+
+                    html += '<div class="nri-calc-inline" id="toolsNriCalcBox">' +
+                        '<div class="nri-calc-title">Calculate Your Decimal Interest</div>' +
+                        '<div class="nri-calc-subtitle">Enter your mineral interest details to see revenue estimates below.</div>' +
+                        '<div class="nri-calc-row">' +
+                            '<div class="nri-calc-field">' +
+                                '<label>Net Mineral Acres</label>' +
+                                '<input type="number" id="toolsNriAcres" value="' + prefillAcres + '" step="any" min="0" placeholder="e.g. 10" oninput="calcNriFromInputs()">' +
+                            '</div>' +
+                            '<div class="nri-calc-field">' +
+                                '<label>Unit Size (acres)</label>' +
+                                '<input type="number" id="toolsNriUnit" value="640" step="any" min="1" oninput="calcNriFromInputs()">' +
+                            '</div>' +
+                            '<div class="nri-calc-field">' +
+                                '<label>Royalty Rate</label>' +
+                                '<select id="toolsNriRoyalty" onchange="calcNriFromInputs()">' +
+                                    '<option value="3/16" selected>3/16 (18.75%)</option>' +
+                                    '<option value="1/8">1/8 (12.5%)</option>' +
+                                    '<option value="1/5">1/5 (20%)</option>' +
+                                    '<option value="1/4">1/4 (25%)</option>' +
+                                '</select>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="nri-calc-result-row" id="toolsNriResultRow" style="display:none">' +
+                            '<span class="nri-calc-result-label">Your Decimal:</span>' +
+                            '<span class="nri-calc-result-value" id="toolsNriResult"></span>' +
+                        '</div>' +
+                        '<div class="nri-calc-or">or <a href="#" onclick="document.getElementById(\\\'toolsNriCalcBox\\\').style.display=\\\'none\\\';document.getElementById(\\\'toolsManualDecBox\\\').style.display=\\\'flex\\\';return false">enter a known decimal directly</a></div>' +
+                    '</div>' +
+                    '<div class="no-decimal-prompt" id="toolsManualDecBox" style="display:none; margin: 0 24px 12px">' +
+                        '<label>Decimal interest:</label>' +
                         '<input type="text" id="toolsManualDecInput" placeholder="e.g. 0.00293" oninput="onManualDecimalChange(this.value)"' +
                         (toolsManualDecimal ? ' value="' + toolsManualDecimal + '"' : '') + '>' +
-                        '</div>';
-                }
+                        ' <a href="#" onclick="document.getElementById(\\\'toolsManualDecBox\\\').style.display=\\\'none\\\';document.getElementById(\\\'toolsNriCalcBox\\\').style.display=\\\'block\\\';return false" style="font-size:12px;color:var(--slate-blue)">use calculator</a>' +
+                    '</div>';
             }
 
             // No wells
@@ -404,6 +470,25 @@
             }
 
             cardsEl.innerHTML = html;
+
+            // Auto-calculate NRI if acres were pre-filled (one-time, not recursive)
+            if (noDecimal && !toolsManualDecimal && document.getElementById('toolsNriAcres')) {
+                var acresVal = document.getElementById('toolsNriAcres').value;
+                if (acresVal && parseFloat(acresVal) > 0) {
+                    // Calculate decimal but don't re-render (avoid recursion)
+                    var a = parseFloat(acresVal) || 0;
+                    var u = parseFloat(document.getElementById('toolsNriUnit').value) || 640;
+                    var rSel = document.getElementById('toolsNriRoyalty');
+                    var r = rSel ? (rSel.value === '3/16' ? 3/16 : rSel.value === '1/8' ? 1/8 : rSel.value === '1/5' ? 1/5 : 1/4) : 3/16;
+                    if (a > 0 && u > 0 && r > 0) {
+                        toolsManualDecimal = (a * r) / u;
+                        var resEl = document.getElementById('toolsNriResult');
+                        if (resEl) resEl.textContent = toolsManualDecimal.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+                        var resRow = document.getElementById('toolsNriResultRow');
+                        if (resRow) resRow.style.display = 'flex';
+                    }
+                }
+            }
 
             // Property total
             if (hasAnyRevenue) {

@@ -127,7 +127,34 @@
 }
 .tools-empty .btn-cta:hover { opacity: 0.9; }
 
-/* No decimal prompt */
+/* Inline NRI calculator */
+.nri-calc-inline {
+  margin: 0 24px 16px; padding: 18px 20px;
+  background: linear-gradient(135deg, #F7FAFC 0%, #EDF2F7 100%);
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.nri-calc-title { font-size: 15px; font-weight: 700; color: var(--oil-navy); margin-bottom: 4px; }
+.nri-calc-subtitle { font-size: 13px; color: var(--slate-blue); margin-bottom: 14px; }
+.nri-calc-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.nri-calc-field { flex: 1; min-width: 140px; }
+.nri-calc-field label { display: block; font-size: 12px; font-weight: 600; color: var(--slate-blue); margin-bottom: 4px; }
+.nri-calc-field input, .nri-calc-field select {
+  width: 100%; padding: 8px 10px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: 5px; background: #fff;
+  font-family: 'DM Mono', monospace;
+}
+.nri-calc-field input:focus, .nri-calc-field select:focus { outline: none; border-color: var(--slate-blue); box-shadow: 0 0 0 3px rgba(51,78,104,0.1); }
+.nri-calc-field select { font-family: 'Inter', sans-serif; cursor: pointer; }
+.nri-calc-result-row {
+  display: flex; align-items: center; gap: 10px; margin-top: 14px;
+  padding: 10px 14px; background: #F0FFF4; border: 1px solid #C6F6D5; border-radius: 6px;
+}
+.nri-calc-result-label { font-size: 13px; font-weight: 600; color: #276749; }
+.nri-calc-result-value { font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace; color: #276749; }
+.nri-calc-or { margin-top: 10px; font-size: 12px; color: var(--slate-blue); }
+.nri-calc-or a { color: var(--slate-blue); text-decoration: underline; }
+
+/* No decimal prompt (manual entry fallback) */
 .no-decimal-prompt {
   background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 6px;
   padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;

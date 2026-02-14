@@ -85,6 +85,9 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     ri_decimal: propResult.ri_decimal || null,
     wi_decimal: propResult.wi_decimal || null,
     orri_decimal: propResult.orri_decimal || null,
+    ri_acres: propResult.ri_acres || null,
+    total_acres: propResult.total_acres || null,
+    acres: propResult.acres || null,
   };
 
   // 2. Get linked wells
