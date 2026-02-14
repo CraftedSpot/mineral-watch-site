@@ -123,10 +123,7 @@
             const container = document.getElementById('decimal-interest-container');
             container.innerHTML = `
                 <div style="color: #6b7280; font-size: 14px; padding: 12px 0;">
-                    No OTC decimal data found for this well.
-                    <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
-                        This may mean no production has been reported yet, or PUN data hasn't been linked.
-                    </div>
+                    No interest data on file for this well.
                 </div>
             `;
         }
