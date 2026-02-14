@@ -566,9 +566,10 @@ CHECK_STUB_SCHEMA = {
     },
     "known": {
         # Core check stub fields
-        "doc_type", "operator", "operator_name",
+        "doc_type", "operator", "operator_name", "operator_number",
         "owner_name", "owner_number",
         "check_number", "check_date", "check_amount",
+        "statement_type",
         # Wells array (validated separately)
         "wells",
         # Well-level fields (inside wells array)
@@ -576,9 +577,20 @@ CHECK_STUB_SCHEMA = {
         "production_months",
         # Product-level fields (inside wells.products array)
         "products", "product_type", "volume", "volume_unit",
-        "price_per_unit", "decimal_interest",
+        "price_per_unit", "decimal_interest", "mmbtu_factor",
+        "purchaser",
         "gross_sales", "total_taxes", "total_deductions",
         "net_sales", "owner_amount", "well_owner_total",
+        # Deduction detail fields (inside products.deductions array)
+        "deductions", "raw_label", "normalized_category", "amount",
+        # Tax detail fields (inside products.taxes array)
+        "taxes", "normalized_type",
+        # Summary section
+        "summary", "gas_net_revenue", "oil_net_revenue",
+        "liquids_net_revenue", "total_net_revenue",
+        # Operating expenses (hybrid operating statements)
+        "operating_expenses", "description", "vendor", "category",
+        "gross_amount",
         # Linking fields
         "api_number", "property_name", "property_number",
         "section", "township", "range",
@@ -1613,6 +1625,8 @@ TITLE_PATTERNS = [
     (r"SUPPLEMENTAL\s+CHECK\s+VOUCHER", "check"),
     (r"CHECK\s+DETAIL", "check"),
     (r"OPERATING\s+STATEMENT", "check"),
+    (r"1099.*MISC", "check"),
+    (r"STATEMENT\s+FOR\s+RECIPIENTS", "check"),
     # JIBs (operating expense invoices)
     (r"JOINT\s+OWNER\s+INVOICE", "check"),
     (r"JOINT\s+INTEREST\s+BILLING", "check"),
@@ -8249,8 +8263,8 @@ In the detailed_analysis "Action Required & Contact Information" section:
 # CHECK STUB / ROYALTY STATEMENT FOCUSED EXTRACTION PROMPT
 # ============================================================================
 
-CHECK_STUB_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners verify their royalty payments and revenue checks.
-Your task is to extract payment details accurately so owners can reconcile deposits and verify decimals match their division orders.
+CHECK_STUB_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced oil and gas revenue auditor and CPA specializing in royalty payment verification and deduction analysis for Oklahoma mineral owners.
+Your task is to extract payment details with full deduction and tax granularity so owners can audit their revenue, reconcile 1099s, and detect underpayments.
 
 CURRENT DATE: {current_date}
 
@@ -8270,20 +8284,26 @@ IMPORTANT: Structure your response as follows:
    - Flag if deductions exceed 25% of gross or if payments are >3 months behind production
 
    DETAILED ANALYSIS:
-   - Write as an experienced mineral rights advisor
+   - Write as an experienced oil and gas revenue auditor
    - Use this EXACT format with plain text section headings (NO markdown):
 
      Payment Summary:
-     [Total payment amount, check date, production months covered]
+     [Who paid, check amount, check date, production months covered, statement type]
 
      Per-Well Breakdown:
-     [List each well with decimal interest and owner amount]
+     [List each well with decimal interest, volumes, deductions by category, taxes by type, and owner amount]
 
-     Items to Verify:
-     [Compare decimals to division orders, flag unusual deductions, note missing wells]
+     Audit Flags:
+     [Flag unusual deduction percentages (>25% of gross), decimal mismatches between products, late payments (>3 months lag), negative adjustments, prior-period corrections]
 
    - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
    - Keep each section concise (2-4 sentences each)
+
+STATEMENT TYPE CLASSIFICATION:
+- "royalty_check" — standard royalty payment with production detail
+- "supplemental_voucher" — supplemental/detailed voucher (often multi-purchaser, accompanies a check)
+- "operating_statement" — hybrid document showing BOTH revenue AND operating expenses (JIB-like charges mixed with revenue)
+- Default to "royalty_check" if unclear
 
 DECIMAL INTEREST - CRITICAL:
 - Extract the decimal interest EXACTLY as shown (e.g., 0.00781763)
@@ -8300,66 +8320,216 @@ CHECK STUB FORMAT HANDLING:
 - Revenue type: RO=Royalty Oil, RG=Royalty Gas, RP=Royalty Plant, RE=Royalty Excise
 - "SEE ATTACHED VOUCHER" on check face means real data is on supplemental pages
 
-AGGREGATION RULES:
-- If multiple purchasers for same well/product/month: SUM amounts, use the SAME decimal
-- Taxes: sum all tax types (severance, marginal, excise, resource) into total_taxes
-- Deductions: sum all post-production deductions (gathering, compression, transport, marketing, processing) into total_deductions
-- Do NOT extract purchaser-level detail (Plains Marketing, Ancova Energy, etc.)
+SIGN PRESERVATION - CRITICAL:
+- Preserve negative signs on ALL monetary amounts (deductions, taxes, adjustments, owner_amount)
+- Parenthesized amounts like (180.00) are NEGATIVE — extract as -180.00
+- Prior-period corrections and recoupments are commonly negative — do NOT drop them
+- A well may show both positive (current production) and negative (prior-period correction) product lines
+- Include adjustment/correction lines in the correct well's products array
+
+PRODUCTION MONTHS - ARRAY:
+- Extract ALL production months listed for each well, not just the first
+- Format as ["2025-08", "2025-09", "2025-10"]
+- Prior-period corrections should include the original production month
+- A single check frequently covers multiple months (back-payments, catch-ups)
+
+PURCHASER TRACKING:
+- Extract the purchaser name for each product line (e.g., "Plains Marketing", "Ancova Energy", "Enable Midstream")
+- If multiple purchasers for same well/product/month, create SEPARATE product entries (do NOT aggregate)
+- Set purchaser to null if not shown on the document
+
+DEDUCTION EXTRACTION (TWO-LAYER):
+For each product line, extract individual deductions into a deductions[] array:
+- raw_label: The EXACT text from the document (e.g., "Gathering & Compression", "Gas Deduct 01 Thru 05")
+- normalized_category: Map to one of these enums:
+  "gathering" — Gathering, Gas Deduct, Gathering Charge
+  "compression" — Compression
+  "marketing" — Marketing, Mktg & Trans, Gas Purchase Fee
+  "transportation" — Transportation, Pipeline Transport, Trucking
+  "processing" — Processing, Plant Products Deduction, Preplant
+  "treating" — Treating, Oil Treating
+  "fuel" — Fuel, Fuel Deduction
+  "other" — anything not matching above
+- amount: The owner's share deduction amount (preserve sign — deductions are typically negative or shown as positive amounts subtracted)
+- COMBINED LABEL RULE: When an operator combines categories (e.g., "Gathering & Compression"), map to the FIRST category mentioned. "Gathering & Compression" → "gathering". "Marketing & Transportation" → "marketing". The full combined label is preserved in raw_label.
+- Also set total_deductions as the sum of all deduction amounts for that product line
+
+TAX EXTRACTION (TWO-LAYER):
+For each product line, extract individual taxes into a taxes[] array:
+- raw_label: The EXACT text from the document (e.g., "Severance Tax", "Con Excise", tax code [01])
+- normalized_type: Map to one of these enums:
+  "severance" — Severance, Gross Production Tax, tax code [01]
+  "marginal" — OK Marginal, tax code [02]
+  "conservation_excise" — Con Excise, Conservation Tax, tax code [04]
+  "ok_resource" — OK Resource, Resource Tax, tax code [05]
+  "other" — anything else
+- amount: The tax amount (preserve sign)
+- Also set total_taxes as the sum of all tax amounts for that product line
+
+MMBTU FACTOR:
+- If the document shows an MMBTU or BTU factor for gas products, extract it as mmbtu_factor (e.g., 1.032)
+- Set to null if not shown
+
+OPERATING EXPENSES (for hybrid operating statements only):
+- If the document includes operating expense charges alongside revenue, extract them into operating_expenses[] at the top level
+- Each expense: {{ "description": "Admin Charge to Wells", "vendor": "Lone Star Pumping", "gross_amount": -800.00, "owner_amount": -18.75, "category": "admin" }}
+- Categories: "admin", "pumper", "repairs", "utilities", "other"
+- Only populate for statement_type "operating_statement" — leave out entirely for standard checks
+
+SUMMARY SECTION:
+- Include a summary object with net revenue totals across all wells:
+  {{ "gas_net_revenue": 1234.56, "oil_net_revenue": 789.00, "liquids_net_revenue": 0, "total_net_revenue": 2023.56 }}
+- These should be the sum of owner_amount across all wells, grouped by product type
 
 SOURCE OF TRUTH RULES:
 - The DOCUMENT is the source of truth. Extract what the document says, period.
 - IGNORE filenames, captions, or any external metadata.
 
-CHECK STUB EXAMPLE:
-{{
-  "doc_type": "check_stub",
-
-  "operator": "Fossil Creek Energy Corporation",
-
-  "owner_name": "Price Oil & Gas Company Ltd",
-  "owner_number": "PRI230",
-
-  "check_number": "066105",
-  "check_date": "2025-12-05",
-  "check_amount": 40.96,
-
-  "wells": [
-    {{
-      "well_name": "G.W. CECIL 1-9",
-      "well_number": "173250",
-      "county": null,
-      "state": null,
-      "production_months": ["2025-08", "2025-09", "2025-10"],
-      "products": [
-        {{
-          "product_type": "gas",
-          "volume": 2414,
-          "volume_unit": "MCF",
-          "price_per_unit": null,
-          "decimal_interest": 0.00781763,
-          "gross_sales": 5376.69,
-          "total_taxes": 227.08,
-          "total_deductions": 1196.62,
-          "net_sales": 3452.68,
-          "owner_amount": 40.96
-        }}
-      ],
-      "well_owner_total": 40.96
-    }}
-  ],
-
-  "key_takeaway": "Revenue check from Fossil Creek Energy for $40.96 covering Aug-Oct 2025 gas production from G.W. CECIL 1-9. Gas decimal 0.00781763. Deductions are 22% of gross.",
-
-  "detailed_analysis": "Payment Summary:\\nFossil Creek Energy issued check #066105 dated 12/05/2025 for $40.96 to Price Oil & Gas Company Ltd (owner PRI230). Covers gas production from August through October 2025.\\n\\nPer-Well Breakdown:\\n- G.W. CECIL 1-9 (#173250): $40.96 owner share. Gas decimal 0.00781763 applied to 2,414 MCF gross production ($5,376.69 gross sales). Taxes $227.08, deductions $1,196.62.\\n\\nItems to Verify:\\n1. Compare gas decimal 0.00781763 to your division order for this well.\\n2. Deductions are 22% of gross - within normal range for gas wells with gathering/compression charges.\\n3. Three months of production on one check suggests possible payment catch-up."
-}}
-
 DO NOT EXTRACT:
 - Operator/owner addresses
 - Tax ID numbers or EINs
-- Per-purchaser breakdowns (aggregate to well level)
-- Individual tax type breakdowns (just total_taxes)
-- MMBTU factors or BTU conversion details
-- Lump sum or preplant marketing detail
+
+CHECK STUB EXAMPLE (multi-purchaser supplemental voucher with deduction/tax detail):
+{{
+  "doc_type": "check_stub",
+  "statement_type": "supplemental_voucher",
+
+  "operator": "Derby Exploration LLC",
+  "operator_number": "OP4521",
+
+  "owner_name": "Price Oil & Gas Company Ltd",
+  "owner_number": "OWN-8842",
+
+  "check_number": "V-29881",
+  "check_date": "2025-12-15",
+  "check_amount": 5887.42,
+
+  "wells": [
+    {{
+      "well_name": "RAUH 28-33 1MH",
+      "well_number": "W-4410",
+      "api_number": "35-017-25432",
+      "county": "Blaine",
+      "state": "OK",
+      "production_months": ["2025-10"],
+      "products": [
+        {{
+          "product_type": "gas",
+          "volume": 18420,
+          "volume_unit": "MCF",
+          "price_per_unit": 2.45,
+          "mmbtu_factor": 1.032,
+          "decimal_interest": 0.00312500,
+          "purchaser": "Enable Midstream",
+          "deductions": [
+            {{ "raw_label": "Gathering & Compression", "normalized_category": "gathering", "amount": -4.21 }},
+            {{ "raw_label": "Transportation", "normalized_category": "transportation", "amount": -1.87 }}
+          ],
+          "taxes": [
+            {{ "raw_label": "Severance Tax [01]", "normalized_type": "severance", "amount": -3.52 }},
+            {{ "raw_label": "Con Excise [04]", "normalized_type": "conservation_excise", "amount": -0.28 }}
+          ],
+          "total_deductions": -6.08,
+          "total_taxes": -3.80,
+          "gross_sales": 141.09,
+          "net_sales": 131.21,
+          "owner_amount": 131.21
+        }},
+        {{
+          "product_type": "oil",
+          "volume": 4200,
+          "volume_unit": "BBL",
+          "price_per_unit": 68.50,
+          "mmbtu_factor": null,
+          "decimal_interest": 0.00312500,
+          "purchaser": "Plains Marketing",
+          "deductions": [
+            {{ "raw_label": "Marketing Fee", "normalized_category": "marketing", "amount": -2.81 }}
+          ],
+          "taxes": [
+            {{ "raw_label": "Gross Production Tax", "normalized_type": "severance", "amount": -6.29 }}
+          ],
+          "total_deductions": -2.81,
+          "total_taxes": -6.29,
+          "gross_sales": 898.69,
+          "net_sales": 889.59,
+          "owner_amount": 889.59
+        }}
+      ],
+      "well_owner_total": 1020.80
+    }},
+    {{
+      "well_name": "RAUH 28-33 2MH",
+      "well_number": "W-4411",
+      "api_number": "35-017-25433",
+      "county": "Blaine",
+      "state": "OK",
+      "production_months": ["2025-10"],
+      "products": [
+        {{
+          "product_type": "gas",
+          "volume": 22100,
+          "volume_unit": "MCF",
+          "price_per_unit": 2.45,
+          "mmbtu_factor": 1.032,
+          "decimal_interest": 0.00312500,
+          "purchaser": "Enable Midstream",
+          "deductions": [
+            {{ "raw_label": "Gathering & Compression", "normalized_category": "gathering", "amount": -5.05 }},
+            {{ "raw_label": "Transportation", "normalized_category": "transportation", "amount": -2.24 }}
+          ],
+          "taxes": [
+            {{ "raw_label": "Severance Tax [01]", "normalized_type": "severance", "amount": -4.22 }},
+            {{ "raw_label": "Con Excise [04]", "normalized_type": "conservation_excise", "amount": -0.34 }}
+          ],
+          "total_deductions": -7.29,
+          "total_taxes": -4.56,
+          "gross_sales": 169.13,
+          "net_sales": 157.28,
+          "owner_amount": 157.28
+        }},
+        {{
+          "product_type": "oil",
+          "volume": 5800,
+          "volume_unit": "BBL",
+          "price_per_unit": 68.50,
+          "mmbtu_factor": null,
+          "decimal_interest": 0.00312500,
+          "purchaser": "Plains Marketing",
+          "deductions": [
+            {{ "raw_label": "Marketing Fee", "normalized_category": "marketing", "amount": -3.88 }}
+          ],
+          "taxes": [
+            {{ "raw_label": "Gross Production Tax", "normalized_type": "severance", "amount": -8.69 }}
+          ],
+          "total_deductions": -3.88,
+          "total_taxes": -8.69,
+          "gross_sales": 1241.56,
+          "net_sales": 1228.99,
+          "owner_amount": 1228.99
+        }}
+      ],
+      "well_owner_total": 1386.27
+    }}
+  ],
+
+  "summary": {{
+    "gas_net_revenue": 288.49,
+    "oil_net_revenue": 2118.58,
+    "liquids_net_revenue": 0,
+    "total_net_revenue": 2407.07
+  }},
+
+  "section": "28",
+  "township": "17N",
+  "range": "11W",
+  "county": "Blaine",
+  "state": "OK",
+
+  "key_takeaway": "Supplemental voucher from Derby Exploration for $5,887.42 covering Oct 2025 production from 2 Blaine County wells (RAUH 28-33 1MH and 2MH). Oil and gas decimal 0.00312500. Deductions 4-5% of gross — well within normal range.",
+
+  "detailed_analysis": "Payment Summary:\\nDerby Exploration LLC issued supplemental voucher V-29881 dated 12/15/2025 for $5,887.42 to Price Oil & Gas Company Ltd (owner OWN-8842). Covers October 2025 oil and gas production from two horizontal wells in Blaine County.\\n\\nPer-Well Breakdown:\\n- RAUH 28-33 1MH (API 35-017-25432): Gas 18,420 MCF at $2.45/MCF via Enable Midstream, decimal 0.00312500, owner $131.21. Oil 4,200 BBL at $68.50/BBL via Plains Marketing, decimal 0.00312500, owner $889.59. Well total $1,020.80. Deductions: gathering/compression $4.21, transportation $1.87, marketing $2.81. Taxes: severance $3.52, conservation excise $0.28, gross production $6.29.\\n- RAUH 28-33 2MH (API 35-017-25433): Gas 22,100 MCF, owner $157.28. Oil 5,800 BBL, owner $1,228.99. Well total $1,386.27. Similar deduction and tax structure.\\n\\nAudit Flags:\\n1. Decimals consistent at 0.00312500 across both wells and all products — matches expected interest.\\n2. Total deductions are 4-5% of gross across both wells — below the 25% threshold, no concerns.\\n3. Payment lag is approximately 2 months (Oct production, Dec check date) — normal range."
+}}
 """
 
 # ============================================================================

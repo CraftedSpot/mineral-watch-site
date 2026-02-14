@@ -694,6 +694,171 @@
         
         // formatFieldName is in shared-doc-helpers.txt
 
+        // ===== Check Stub Custom Renderers =====
+        function fmtCurrency(val) {
+            if (val == null) return '-';
+            const n = parseFloat(val);
+            if (isNaN(n)) return escapeHtml(String(val));
+            const neg = n < 0;
+            const formatted = '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            return neg ? '<span style="color:#DC2626;">-' + formatted + '</span>' : formatted;
+        }
+
+        function renderCheckStubWellRevenue(wells) {
+            let html = '<div class="section-group" style="margin-bottom: 20px;">';
+            html += '<h4 class="section-title" style="font-size: 13px; font-weight: 600; color: #1D6F5C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #D1FAE5;">Well Revenue</h4>';
+
+            wells.forEach((well, wIdx) => {
+                const wellName = well.well_name || 'Unknown Well';
+                const wellNum = well.well_number ? ' (#' + escapeHtml(well.well_number) + ')' : '';
+                const api = well.api_number ? ' <span style="font-family:monospace;font-size:11px;color:#6B7280;">' + escapeHtml(well.api_number) + '</span>' : '';
+                const months = Array.isArray(well.production_months) ? well.production_months.join(', ') : (well.production_months || '');
+                const loc = [well.county, well.state].filter(Boolean).join(', ');
+
+                html += '<div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;padding:12px;margin-bottom:12px;">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px;">';
+                html += '<div><span style="font-weight:600;color:#111827;">' + escapeHtml(wellName) + '</span>' + wellNum + api + '</div>';
+                html += '<div style="font-size:12px;color:#6B7280;">' + (loc ? escapeHtml(loc) + ' | ' : '') + (months ? 'Prod: ' + escapeHtml(months) : '') + '</div>';
+                html += '</div>';
+
+                if (Array.isArray(well.products) && well.products.length > 0) {
+                    html += '<div style="overflow-x:auto;">';
+                    html += '<table style="width:100%;border-collapse:collapse;font-size:12px;background:white;border:1px solid #E5E7EB;border-radius:6px;overflow:hidden;min-width:600px;">';
+                    html += '<thead style="background:#F3F4F6;"><tr>';
+                    html += '<th style="padding:8px 6px;text-align:left;font-weight:600;color:#374151;">Product</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Volume</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Price</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Decimal</th>';
+                    html += '<th style="padding:8px 6px;text-align:left;font-weight:600;color:#374151;">Purchaser</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Gross</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Deductions</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Taxes</th>';
+                    html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#374151;">Owner Amt</th>';
+                    html += '</tr></thead><tbody>';
+
+                    well.products.forEach((p, pIdx) => {
+                        const prodLabel = (p.product_type || 'Unknown').charAt(0).toUpperCase() + (p.product_type || '').slice(1);
+                        const vol = p.volume != null ? parseFloat(p.volume).toLocaleString('en-US') + (p.volume_unit ? ' ' + p.volume_unit : '') : '-';
+                        const price = p.price_per_unit != null ? '$' + parseFloat(p.price_per_unit).toFixed(2) : '-';
+                        const dec = p.decimal_interest != null ? String(p.decimal_interest) : '-';
+                        const purchaser = p.purchaser ? escapeHtml(p.purchaser) : '-';
+                        const hasDetail = (Array.isArray(p.deductions) && p.deductions.length > 0) || (Array.isArray(p.taxes) && p.taxes.length > 0);
+                        const detailId = 'cs-detail-' + wIdx + '-' + pIdx;
+
+                        html += '<tr style="border-bottom:1px solid #E5E7EB;' + (hasDetail ? 'cursor:pointer;' : '') + '"' + (hasDetail ? ' onclick="document.getElementById(\'' + detailId + '\').style.display=document.getElementById(\'' + detailId + '\').style.display===\'none\'?\'table-row\':\'none\'"' : '') + '>';
+                        html += '<td style="padding:8px 6px;font-weight:500;">' + (hasDetail ? '<span style="font-size:10px;color:#9CA3AF;margin-right:4px;">&#9654;</span>' : '') + escapeHtml(prodLabel) + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;">' + vol + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;">' + price + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;font-family:monospace;font-size:11px;">' + escapeHtml(dec) + '</td>';
+                        html += '<td style="padding:8px 6px;">' + purchaser + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;">' + fmtCurrency(p.gross_sales) + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;">' + fmtCurrency(p.total_deductions) + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;">' + fmtCurrency(p.total_taxes) + '</td>';
+                        html += '<td style="padding:8px 6px;text-align:right;font-weight:600;">' + fmtCurrency(p.owner_amount) + '</td>';
+                        html += '</tr>';
+
+                        // Expandable deduction/tax detail row
+                        if (hasDetail) {
+                            html += '<tr id="' + detailId + '" style="display:none;"><td colspan="9" style="padding:0;">';
+                            html += '<div style="background:#FEFCE8;padding:8px 12px;border-top:1px dashed #E5E7EB;">';
+
+                            if (Array.isArray(p.deductions) && p.deductions.length > 0) {
+                                html += '<div style="font-size:11px;font-weight:600;color:#92400E;margin-bottom:4px;">Deductions</div>';
+                                html += '<table style="width:100%;font-size:11px;margin-bottom:6px;">';
+                                p.deductions.forEach(d => {
+                                    const catBadge = d.normalized_category ? '<span style="background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:3px;font-size:10px;margin-left:6px;">' + escapeHtml(d.normalized_category) + '</span>' : '';
+                                    html += '<tr><td style="padding:2px 0;color:#6B7280;">' + escapeHtml(d.raw_label || '') + catBadge + '</td>';
+                                    html += '<td style="padding:2px 0;text-align:right;">' + fmtCurrency(d.amount) + '</td></tr>';
+                                });
+                                html += '</table>';
+                            }
+
+                            if (Array.isArray(p.taxes) && p.taxes.length > 0) {
+                                html += '<div style="font-size:11px;font-weight:600;color:#1E40AF;margin-bottom:4px;">Taxes</div>';
+                                html += '<table style="width:100%;font-size:11px;">';
+                                p.taxes.forEach(t => {
+                                    const typeBadge = t.normalized_type ? '<span style="background:#DBEAFE;color:#1E40AF;padding:1px 6px;border-radius:3px;font-size:10px;margin-left:6px;">' + escapeHtml(t.normalized_type) + '</span>' : '';
+                                    html += '<tr><td style="padding:2px 0;color:#6B7280;">' + escapeHtml(t.raw_label || '') + typeBadge + '</td>';
+                                    html += '<td style="padding:2px 0;text-align:right;">' + fmtCurrency(t.amount) + '</td></tr>';
+                                });
+                                html += '</table>';
+                            }
+
+                            html += '</div></td></tr>';
+                        }
+                    });
+
+                    html += '</tbody></table></div>';
+                }
+
+                if (well.well_owner_total != null) {
+                    html += '<div style="text-align:right;margin-top:8px;font-weight:600;font-size:13px;color:#111827;">Well Total: ' + fmtCurrency(well.well_owner_total) + '</div>';
+                }
+                html += '</div>';
+            });
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderCheckStubSummary(summary) {
+            let html = '<div class="section-group" style="margin-bottom: 20px;">';
+            html += '<h4 class="section-title" style="font-size: 13px; font-weight: 600; color: #1D6F5C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #D1FAE5;">Check Summary</h4>';
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;">';
+
+            const items = [
+                { label: 'Gas Net Revenue', val: summary.gas_net_revenue },
+                { label: 'Oil Net Revenue', val: summary.oil_net_revenue },
+                { label: 'Liquids Net Revenue', val: summary.liquids_net_revenue },
+                { label: 'Total Net Revenue', val: summary.total_net_revenue }
+            ];
+            items.forEach(item => {
+                if (item.val == null && item.label !== 'Total Net Revenue') return;
+                const isBold = item.label === 'Total Net Revenue';
+                html += '<div style="background:' + (isBold ? '#ECFDF5' : '#F9FAFB') + ';border:1px solid ' + (isBold ? '#10B981' : '#E5E7EB') + ';border-radius:6px;padding:10px;">';
+                html += '<div style="font-size:11px;color:#6B7280;margin-bottom:4px;">' + item.label + '</div>';
+                html += '<div style="font-size:' + (isBold ? '16px' : '14px') + ';font-weight:' + (isBold ? '700' : '500') + ';color:#111827;">' + fmtCurrency(item.val) + '</div>';
+                html += '</div>';
+            });
+
+            html += '</div></div>';
+            return html;
+        }
+
+        function renderCheckStubOperatingExpenses(expenses) {
+            let html = '<div class="section-group" style="margin-bottom: 20px;">';
+            html += '<h4 class="section-title" style="font-size: 13px; font-weight: 600; color: #1D6F5C; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #D1FAE5;">Operating Expenses</h4>';
+            html += '<div style="overflow-x:auto;">';
+            html += '<table style="width:100%;border-collapse:collapse;font-size:12px;background:white;border:1px solid #E5E7EB;border-radius:6px;overflow:hidden;">';
+            html += '<thead style="background:#FEF3C7;"><tr>';
+            html += '<th style="padding:8px 6px;text-align:left;font-weight:600;color:#92400E;">Description</th>';
+            html += '<th style="padding:8px 6px;text-align:left;font-weight:600;color:#92400E;">Vendor</th>';
+            html += '<th style="padding:8px 6px;text-align:left;font-weight:600;color:#92400E;">Category</th>';
+            html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#92400E;">Gross</th>';
+            html += '<th style="padding:8px 6px;text-align:right;font-weight:600;color:#92400E;">Owner Amt</th>';
+            html += '</tr></thead><tbody>';
+
+            let totalOwner = 0;
+            expenses.forEach(exp => {
+                const ownerAmt = exp.owner_amount != null ? parseFloat(exp.owner_amount) : 0;
+                totalOwner += ownerAmt;
+                const catBadge = exp.category ? '<span style="background:#FEF3C7;color:#92400E;padding:1px 6px;border-radius:3px;font-size:10px;">' + escapeHtml(exp.category) + '</span>' : '-';
+                html += '<tr style="border-bottom:1px solid #E5E7EB;">';
+                html += '<td style="padding:8px 6px;">' + escapeHtml(exp.description || '') + '</td>';
+                html += '<td style="padding:8px 6px;">' + escapeHtml(exp.vendor || '-') + '</td>';
+                html += '<td style="padding:8px 6px;">' + catBadge + '</td>';
+                html += '<td style="padding:8px 6px;text-align:right;">' + fmtCurrency(exp.gross_amount) + '</td>';
+                html += '<td style="padding:8px 6px;text-align:right;font-weight:600;">' + fmtCurrency(exp.owner_amount) + '</td>';
+                html += '</tr>';
+            });
+
+            html += '</tbody><tfoot><tr style="background:#FEF3C7;font-weight:600;">';
+            html += '<td colspan="4" style="padding:8px 6px;text-align:right;">Total Operating Expenses:</td>';
+            html += '<td style="padding:8px 6px;text-align:right;">' + fmtCurrency(totalOwner) + '</td>';
+            html += '</tr></tfoot></table></div></div>';
+            return html;
+        }
+
         // Helper to group fields into logical sections
         function groupFieldsBySection(data) {
             const groups = {
@@ -726,6 +891,11 @@
                           'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer',
                           'from', 'sender', 'to'],  // Correspondence parties
                 'Letter Details': ['subject', 're_line'],  // Correspondence letter details (date handled separately)
+                // Check Stub / Revenue Statement sections
+                'Payment Information': ['check_number', 'check_date', 'check_amount', 'statement_type', 'operator_number', 'owner_number'],
+                'Well Revenue': ['wells'],
+                'Check Summary': ['summary'],
+                'Operating Expenses': ['operating_expenses'],
                 'Tracts & Interest': ['tracts', 'interest_conveyed', 'interest_assigned', 'consideration',
                                            'consideration_amount', 'consideration_description', 'bonus_amount',
                                            'net_mineral_acres', 'minerals_covered', 'mineral_types_conveyed',
@@ -1176,6 +1346,11 @@
                 // 'Parties' - already in Mineral Deed sections above
                 // 'Interest & Consideration' - already in Mineral Deed sections above
                 // 'Recording & Execution' - already in Mineral Deed sections above
+                // Check Stub / Revenue Statement sections
+                'Payment Information',
+                'Well Revenue',
+                'Check Summary',
+                'Operating Expenses',
                 'Title & Warranties',
                 'Restrictions & Provisions',
                 // 'Lease Terms' - consolidated into Terms & Unit for division orders
@@ -1306,6 +1481,22 @@
 
                 // Note: When applicant is the operator, the applicant field is skipped individually
                 // (not the whole section) so attorney_information still renders.
+
+                // Custom check_stub section rendering
+                if (data.doc_type === 'check_stub') {
+                    if (sectionName === 'Well Revenue' && Array.isArray(data.wells) && data.wells.length > 0) {
+                        content += renderCheckStubWellRevenue(data.wells);
+                        continue;
+                    }
+                    if (sectionName === 'Check Summary' && data.summary && typeof data.summary === 'object') {
+                        content += renderCheckStubSummary(data.summary);
+                        continue;
+                    }
+                    if (sectionName === 'Operating Expenses' && Array.isArray(data.operating_expenses) && data.operating_expenses.length > 0) {
+                        content += renderCheckStubOperatingExpenses(data.operating_expenses);
+                        continue;
+                    }
+                }
 
                 // Build section content first to check if it's empty
                 let sectionContent = '';

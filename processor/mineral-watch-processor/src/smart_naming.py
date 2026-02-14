@@ -1323,17 +1323,41 @@ def name_title_opinion(data: Dict[str, Any]) -> str:
 
 
 def name_check_stub(data: Dict[str, Any]) -> str:
-    """Check Stub - {Operator} - {Well Name} - {Period}"""
-    parts = ["Check Stub"]
-    
+    """Check Stub - {Operator} - {Well Name or N Wells} - {Period} - ${Amount}"""
+    # Prefix based on statement_type
+    stmt_type = data.get('statement_type', '')
+    if stmt_type == 'operating_statement':
+        prefix = "Operating Statement"
+    elif stmt_type == 'supplemental_voucher':
+        prefix = "Revenue Statement"
+    else:
+        prefix = "Check Stub"
+    parts = [prefix]
+
     operator = data.get('operator') or data.get('payor') or data.get('company')
     if operator:
         parts.append(extract_last_name(operator))
-    
-    well_name = data.get('well_name') or data.get('property_name')
-    if well_name:
+
+    # Try nested wells[0].well_name first, fall back to flat well_name
+    wells = data.get('wells')
+    well_name = None
+    well_count = 0
+    if isinstance(wells, list) and len(wells) > 0:
+        well_count = len(wells)
+        if well_count == 1:
+            well_name = wells[0].get('well_name') if isinstance(wells[0], dict) else None
+        else:
+            well_name = None  # Multi-well: show count instead
+
+    if not well_name:
+        # Backward compat: flat field
+        well_name = data.get('well_name') or data.get('property_name')
+
+    if well_count > 1:
+        parts.append(f"{well_count} Wells")
+    elif well_name:
         parts.append(truncate_name(str(well_name), 30))
-    
+
     period = format_period(
         data.get('date') or data.get('check_date') or data.get('production_date'),
         data.get('month') or data.get('production_month'),
@@ -1341,7 +1365,19 @@ def name_check_stub(data: Dict[str, Any]) -> str:
     )
     if period:
         parts.append(period)
-    
+
+    # Add check amount
+    check_amount = data.get('check_amount')
+    if check_amount is not None:
+        try:
+            amt = float(check_amount)
+            if amt < 0:
+                parts.append(f"-${abs(amt):,.0f}")
+            else:
+                parts.append(f"${amt:,.0f}")
+        except (ValueError, TypeError):
+            pass
+
     return " - ".join(parts)
 
 

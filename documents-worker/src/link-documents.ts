@@ -815,12 +815,83 @@ export async function linkDocumentToEntities(
     }
   }
   
-  // Build combined well ID list: primary + offset wells + unit name matches
+  // Multi-well matching for check stubs: iterate ALL wells in the array, not just wells[0]
+  const docType = getValue(extractedFields.doc_type);
+  if (docType === 'check_stub' && Array.isArray(wellsList) && wellsList.length > 1) {
+    console.log(`[LinkDocuments] Check stub multi-well matching: ${wellsList.length} wells`);
+    // wells[0] was already matched above as the primary well. Now match wells[1..N].
+    for (let i = 1; i < wellsList.length; i++) {
+      const w = wellsList[i];
+      if (!w || typeof w !== 'object') continue;
+
+      // Try API match first
+      const wApi = getValue(w.api_number) || getValue(w.api);
+      const wApiNorm = wApi ? normalizeApiNumber(wApi) : null;
+      if (wApiNorm) {
+        try {
+          const found = await db.prepare(
+            `SELECT airtable_record_id as id FROM wells WHERE api_number = ? LIMIT 1`
+          ).bind(wApiNorm).first();
+          if (found) {
+            const extraId = found.id as string;
+            if (extraId !== wellId) {
+              console.log(`[LinkDocuments] Check stub well[${i}] matched by API: ${extraId}`);
+              // Store for aggregation below
+              if (!wellId) { wellId = extraId; } // promote if primary was null
+              else { (wellsList as any).__extraWellIds = (wellsList as any).__extraWellIds || []; (wellsList as any).__extraWellIds.push(extraId); }
+            }
+            continue;
+          }
+        } catch (err) {
+          console.error(`[LinkDocuments] Error matching check stub well[${i}] by API:`, err);
+        }
+      }
+
+      // Fall back to name match (simple — name + user ownership)
+      const wName = getValue(w.well_name) || getValue(w.name);
+      if (wName && (documentUserId || documentOrgId)) {
+        try {
+          const normName = normalizeWellName(wName);
+          const baseName = normName ? extractBaseName(normName) : null;
+          const found = await db.prepare(`
+            SELECT airtable_id as id FROM client_wells
+            WHERE (user_id = ? OR organization_id = ?)
+            AND (UPPER(well_name) = UPPER(?) OR UPPER(well_name) LIKE UPPER(?))
+            LIMIT 1
+          `).bind(
+            documentUserId || '', documentOrgId || '',
+            normName || wName, `%${baseName || normName || wName}%`
+          ).first();
+          if (found) {
+            const extraId = found.id as string;
+            if (extraId !== wellId) {
+              console.log(`[LinkDocuments] Check stub well[${i}] matched by name in client_wells: ${extraId}`);
+              if (!wellId) { wellId = extraId; }
+              else { (wellsList as any).__extraWellIds = (wellsList as any).__extraWellIds || []; (wellsList as any).__extraWellIds.push(extraId); }
+            }
+          }
+        } catch (err) {
+          console.error(`[LinkDocuments] Error matching check stub well[${i}] by name:`, err);
+        }
+      }
+    }
+  }
+
+  // Build combined well ID list: primary + check stub extra wells + offset wells + unit name matches
   const allWellIds: string[] = [];
 
   // Primary well first (highest confidence — from existing cascade)
   if (wellId) {
     allWellIds.push(wellId);
+  }
+
+  // Additional wells from check stub multi-well matching
+  if (Array.isArray((wellsList as any)?.__extraWellIds)) {
+    for (const id of (wellsList as any).__extraWellIds) {
+      if (!allWellIds.includes(id)) {
+        allWellIds.push(id);
+      }
+    }
   }
 
   // Offset wells matching (API-based, high confidence)

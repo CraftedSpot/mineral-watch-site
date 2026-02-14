@@ -14,7 +14,7 @@ const PROPERTY_DOC_TYPES = [
   'mineral_deed', 'royalty_deed', 'assignment_of_interest', 'warranty_deed', 'quitclaim_deed',
   'oil_gas_lease', 'extension_agreement', 'amendment', 'ratification', 'release',
   'affidavit', 'probate', 'power_of_attorney', 'judgment',
-  'division_order', 'transfer_order', 'revenue_statement',
+  'division_order', 'transfer_order', 'revenue_statement', 'check_stub',
   // OCC Orders
   'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order',
   'unitization_order', 'multi_unit_horizontal_order', 'change_of_operator_order', 'well_transfer'
@@ -23,7 +23,7 @@ const PROPERTY_DOC_TYPES = [
 // Document types that show on well modals (snake_case format)
 const WELL_DOC_TYPES = [
   'drilling_permit', 'completion_report', 'well_log', 'plugging_report',
-  'division_order', 'transfer_order', 'revenue_statement'
+  'division_order', 'transfer_order', 'revenue_statement', 'check_stub'
 ];
 
 /**

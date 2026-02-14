@@ -867,7 +867,10 @@
                     : pcrr >= 30 ? '' : 'value-danger';
                 html += `
                     <tr>
-                        <td class="sticky sticky-well" style="${sideIndicator}"><span class="op-name" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="${escapeHtml(op.operator_name)}">${escapeHtml(op.operator_name)}</span>${badge}${gasProfileBadge(op.gas_profile, true)}</td>
+                        <td class="sticky sticky-well" style="${sideIndicator}">
+                            <div class="op-name" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="${escapeHtml(op.operator_name)}">${escapeHtml(op.operator_name)}${badge}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)}${gasProfileBadge(op.gas_profile, true)}</div>
+                        </td>
                         <td>${affiliatedBadge}</td>
                         <td class="text-right">${op.your_wells}</td>
                         <td class="text-right">${op.total_wells.toLocaleString()}</td>

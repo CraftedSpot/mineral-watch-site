@@ -109,6 +109,15 @@ const DISPLAY_CONFIG = {
       'officials',
       'legal_description'
     ]
+  },
+
+  check_stub: {
+    hide: [
+      'wells',             // Rendered by custom Well Revenue section handler
+      'summary',           // Rendered by custom Check Summary section handler
+      'operating_expenses', // Rendered by custom Operating Expenses section handler
+      'section', 'township', 'range', 'county', 'state'  // Linking fields, not display
+    ]
   }
 };
 
