@@ -850,10 +850,11 @@
             }
 
             // ── NRI calculator (left column, below price bar) ──
+            // Only rebuild if not already showing (preserves user's unit/royalty selections)
             if (nriArea) {
-                if (noDecimal) {
+                if (noDecimal && !document.getElementById('toolsNriCalcBox')) {
                     nriArea.innerHTML = buildNriCalcHtml(prop.ri_acres || prop.total_acres || prop.acres || '');
-                } else {
+                } else if (!noDecimal) {
                     nriArea.innerHTML = '';
                 }
             }
@@ -1017,14 +1018,15 @@
             }
 
             // NRI calculator in the shared NRI area
+            // Only rebuild if not already showing (preserves user's unit/royalty selections)
             if (nriArea) {
-                if (noDecimal) {
+                if (noDecimal && !document.getElementById('toolsNriCalcBox')) {
                     var prefillAcres = '';
                     if (linkedProp) {
                         prefillAcres = linkedProp.ri_acres || linkedProp.total_acres || linkedProp.acres || '';
                     }
                     nriArea.innerHTML = buildNriCalcHtml(prefillAcres);
-                } else {
+                } else if (!noDecimal) {
                     nriArea.innerHTML = '';
                 }
             }
