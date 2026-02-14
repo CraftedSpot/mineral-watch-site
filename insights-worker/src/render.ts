@@ -2734,7 +2734,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             <tr>
                 <td><strong>RBDMS Data Explorer</strong></td>
                 <td>Advanced search, reports, and data export</td>
-                <td><a href="https://oklahoma.gov/occ" target="_blank" rel="noopener" class="tool-url">oklahoma.gov/occ</a> (Oil &amp; Gas Division)</td>
+                <td><a href="https://oklahoma.gov/occ/divisions/oil-gas.html" target="_blank" rel="noopener" class="tool-url">Oil &amp; Gas Division page</a></td>
             </tr>
             <tr>
                 <td><strong>Weekly/Daily Dockets</strong></td>
@@ -2750,7 +2750,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     <p>The OCC launched its Electronic Case Filing (ECF) system on March 21, 2022. This is the critical date to remember. Cases filed <strong>after</strong> that date live in ECF. Cases filed <strong>before</strong> that date live in the older Case Processing system and the Imaging system. If you&rsquo;re searching for a case and can&rsquo;t find it, make sure you&rsquo;re looking in the right system based on when it was filed.</p>
 </div>
 
-<h2 id="well-browse">Well Browse Database</h2>
+<h2 id="well-browse">Oil &amp; Gas Well Records Search</h2>
 
 <div class="tool-card">
     <div class="tool-card-header">
@@ -2758,23 +2758,26 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
         </div>
         <div>
-            <div class="tool-card-title">Well Browse Database</div>
-            <div class="tool-card-subtitle"><a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">wellbrowse.occ.ok.gov</a></div>
+            <div class="tool-card-title">Oil &amp; Gas Well Records Search</div>
+            <div class="tool-card-subtitle"><a href="https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&amp;dbid=0&amp;repo=OCC" target="_blank" rel="noopener" class="tool-url">OCC Well Records Search</a></div>
         </div>
     </div>
     <div class="tool-card-body">
-        <p>The Well Browse Database is the workhorse tool for mineral owners. It contains records for every well under OCC jurisdiction &mdash; active producers, plugged and abandoned wells, permitted-but-not-yet-drilled wells, and injection wells. This is where you go to answer the basic question: what wells are on (or have ever been on) my section?</p>
+        <div class="callout callout-warning" style="margin-bottom: 16px;">
+            <div class="callout-title">Note: The legacy Well Browse interface has been retired</div>
+            <p>The OCC&rsquo;s original Well Browse Database at wellbrowse.occ.ok.gov has been decommissioned. The replacement is the Oil &amp; Gas Well Records Search through the OCC Imaging portal, plus the Well Data Finder for map-based searching. The instructions below use the current system.</p>
+        </div>
 
-        <p>The database lets you search by well name, API number, county, operator name or number, and &mdash; most usefully for mineral owners &mdash; by legal description (section, township, and range). Each well record includes permit data, completion data, bottom hole location, and production information.</p>
+        <p>The Oil &amp; Gas Well Records Search is the workhorse tool for mineral owners. It accesses records for every well under OCC jurisdiction &mdash; active producers, plugged and abandoned wells, permitted-but-not-yet-drilled wells, and injection wells. This is where you go to answer the basic question: what wells are on (or have ever been on) my section?</p>
+
+        <p>The search lets you filter by well name, API number, county, operator name or number, and &mdash; most usefully for mineral owners &mdash; by legal description (section, township, and range). Each well record includes permit data, completion data, bottom hole location, and production information.</p>
 
         <div class="step-box">
             <ol>
-                <li>Go to <a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener"><strong>wellbrowse.occ.ok.gov</strong></a></li>
-                <li>Scroll to the bottom of the search form to the <strong>Legal Description</strong> fields</li>
-                <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong> &mdash; for single-digit numbers, enter them as-is (e.g., &ldquo;4&rdquo; not &ldquo;04&rdquo;)</li>
-                <li>If your property is in the panhandle, select the <strong>County</strong> &mdash; otherwise it&rsquo;s optional</li>
+                <li>Go to the <a href="https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&amp;dbid=0&amp;repo=OCC" target="_blank" rel="noopener"><strong>OCC Well Records Search</strong></a></li>
+                <li>Use the search fields to enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong>, or search by <strong>API number</strong> or <strong>operator name</strong></li>
                 <li>Click <strong>Search</strong></li>
-                <li>Browse the results list &mdash; click any well to see its full record, then use the <strong>Permits</strong>, <strong>Completions</strong>, <strong>Production</strong>, and <strong>All Images</strong> buttons to access detailed data</li>
+                <li>Browse the results list &mdash; click any well to see its full record, including permits, completions, production data, and scanned documents</li>
             </ol>
         </div>
 
@@ -2805,7 +2808,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">Well Data Finder</div>
-            <div class="tool-card-subtitle">GIS-Based Map Application</div>
+            <div class="tool-card-subtitle"><a href="https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b" target="_blank" rel="noopener" class="tool-url">OCC Well Data Finder</a> &middot; GIS Map Application</div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2815,8 +2818,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Navigate to the OCC website &rarr; Oil &amp; Gas Division &rarr; <strong>GIS Data and Maps</strong></li>
-                <li>Click <strong>OCC Well Data Finder</strong> to launch the map application</li>
+                <li>Go to the <a href="https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b" target="_blank" rel="noopener"><strong>OCC Well Data Finder</strong></a> (or navigate to OCC website &rarr; Oil &amp; Gas Division &rarr; GIS Data and Maps)</li>
                 <li>Use the <strong>search bar</strong> or zoom/pan to navigate to your area</li>
                 <li>Turn on the <strong>section grid layer</strong> to see section boundaries</li>
                 <li>Click individual well points to view details and follow links to full records</li>
@@ -2894,7 +2896,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">Case Processing System</div>
-            <div class="tool-card-subtitle"><a href="https://case.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a> &middot; Cases filed before March 21, 2022</div>
+            <div class="tool-card-subtitle"><a href="https://case.occ.ok.gov/ords/f?p=1003:202" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a> &middot; Cases filed before March 21, 2022</div>
         </div>
     </div>
     <div class="tool-card-body">
@@ -2904,7 +2906,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <div class="step-box">
             <ol>
-                <li>Go to <a href="https://case.occ.ok.gov" target="_blank" rel="noopener"><strong>case.occ.ok.gov</strong></a></li>
+                <li>Go to the <a href="https://case.occ.ok.gov/ords/f?p=1003:202" target="_blank" rel="noopener"><strong>Case Processing search</strong></a></li>
                 <li>Select <strong>CD</strong> from the Case Type dropdown</li>
                 <li>Optionally select a <strong>Relief Sought</strong> code &mdash; 50 for Spacing, 41 for Pooling, 29 for Increased Density, 107 for Multiunit Horizontal Well</li>
                 <li>Enter your <strong>Section</strong>, <strong>Township</strong>, and <strong>Range</strong>, or enter a <strong>Party Name</strong> (the operator)</li>
@@ -2936,7 +2938,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
         <div>
             <div class="tool-card-title">OCC Imaging System</div>
-            <div class="tool-card-subtitle"><a href="https://imaging.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">imaging.occ.ok.gov</a> &middot; Scanned Documents</div>
+            <div class="tool-card-subtitle"><a href="https://imaging.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">imaging.occ.ok.gov</a> &middot; <a href="https://oklahoma.gov/occ/court-dockets/imaging/occ-imaged-documents.html" target="_blank" rel="noopener" class="tool-url">Document Directory</a></div>
         </div>
     </div>
     <div class="tool-card-body">
