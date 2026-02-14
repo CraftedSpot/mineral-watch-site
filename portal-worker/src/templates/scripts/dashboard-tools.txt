@@ -595,7 +595,7 @@
                     '</div>';
                 for (var i = 0; i < production.length; i++) {
                     var p = production[i];
-                    var rev = calcWellRevenue(p.oilBbl, p.gasMcf, decimal);
+                    var rev = calcWellRevenue(p.oilBbl, p.gasMcf, decimal, null);
                     html += '<div class="unit-detail-row">' +
                         '<span class="month-label">' + formatYearMonth(p.yearMonth) + '</span>' +
                         '<span class="vol">' + fmtVol(p.oilBbl) + '</span>' +
@@ -608,7 +608,7 @@
 
             // 3-month average
             if (trail.avgOilBbl || trail.avgGasMcf) {
-                var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+                var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, null);
                 html += '<div class="unit-detail-avg">' +
                     '<strong>3-Month Avg:</strong> ' +
                     '<span class="vol">' + fmtVol(trail.avgOilBbl) + ' BBL</span> + ' +
@@ -620,8 +620,8 @@
             cardsEl.innerHTML = html;
 
             // Right column total
-            var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-            var revAvg2 = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+            var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal, null) : { gross: null, net: null };
+            var revAvg2 = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, null);
 
             if (totalEl && revLatest.gross != null) {
                 var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
@@ -1003,8 +1003,8 @@
                 var gLatest = gProd.length > 0 ? gProd[0] : null;
                 var gTrail = group.trailing3mo || {};
                 var gDecimal = toolsManualDecimal || prop.ri_decimal || null;
-                var gRevLatest = gLatest ? calcWellRevenue(gLatest.oilBbl, gLatest.gasMcf, gDecimal) : { gross: null, net: null };
-                var gRevAvg = calcWellRevenue(gTrail.avgOilBbl || 0, gTrail.avgGasMcf || 0, gDecimal);
+                var gRevLatest = gLatest ? calcWellRevenue(gLatest.oilBbl, gLatest.gasMcf, gDecimal, null) : { gross: null, net: null };
+                var gRevAvg = calcWellRevenue(gTrail.avgOilBbl || 0, gTrail.avgGasMcf || 0, gDecimal, null);
                 if (gRevLatest.gross != null) { totalGrossLatest += gRevLatest.gross; totalNetLatest += gRevLatest.net; hasAnyRevenue = true; }
                 if (gRevAvg.gross != null) { totalGrossAvg += gRevAvg.gross; totalNetAvg += gRevAvg.net; }
             }
@@ -1016,21 +1016,22 @@
                 var latest = prod.length > 0 ? prod[0] : null;
                 var trail = well.trailing3mo || {};
                 var hasOwnProd = !well.sharedPun && latest;
+                var wAlloc = getEffectiveAlloc(well);
 
                 var wellInterests = well.interests || [];
                 if (wellInterests.length > 1 && hasOwnProd) {
                     // Sum revenue across all interest types
                     for (var wi2 = 0; wi2 < wellInterests.length; wi2++) {
-                        var wiRev = calcWellRevenue(latest.oilBbl, latest.gasMcf, wellInterests[wi2].decimal);
-                        var wiRevAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wellInterests[wi2].decimal);
+                        var wiRev = calcWellRevenue(latest.oilBbl, latest.gasMcf, wellInterests[wi2].decimal, wAlloc);
+                        var wiRevAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wellInterests[wi2].decimal, wAlloc);
                         if (wiRev.gross != null) { totalGrossLatest += wiRev.gross; totalNetLatest += wiRev.net; hasAnyRevenue = true; }
                         if (wiRevAvg.gross != null) { totalGrossAvg += wiRevAvg.gross; totalNetAvg += wiRevAvg.net; }
                     }
                 } else {
                     // Single interest type — use primary decimal
                     var decimal = getEffectiveDecimal(well);
-                    var revLatest = hasOwnProd ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-                    var revAvg = !well.sharedPun ? calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal) : { gross: null, net: null };
+                    var revLatest = hasOwnProd ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal, wAlloc) : { gross: null, net: null };
+                    var revAvg = !well.sharedPun ? calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal, wAlloc) : { gross: null, net: null };
                     if (revLatest.gross != null && !well.sharedPun) { totalGrossLatest += revLatest.gross; totalNetLatest += revLatest.net; hasAnyRevenue = true; }
                     if (revAvg.gross != null && !well.sharedPun) { totalGrossAvg += revAvg.gross; totalNetAvg += revAvg.net; }
                 }
@@ -1104,7 +1105,7 @@
                 var sgProd = sg.production || [];
                 var sgLatest = sgProd.length > 0 ? sgProd[0] : null;
                 var sgDecimal = toolsManualDecimal || prop.ri_decimal || null;
-                var sgRevLatest = sgLatest ? calcWellRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal) : { gross: null, net: null };
+                var sgRevLatest = sgLatest ? calcWellRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal, null) : { gross: null, net: null };
 
                 html += '<div class="pun-card">' +
                     '<div class="pun-card-label">Shared Unit</div>' +
@@ -1133,7 +1134,8 @@
                 var wTrail = wl.trailing3mo || {};
 
                 var wHasOwnProd = !wl.sharedPun && wLatest;
-                var wRevLatest = wHasOwnProd ? calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal) : { gross: null, net: null };
+                var wlAlloc = getEffectiveAlloc(wl);
+                var wRevLatest = wHasOwnProd ? calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal, wlAlloc) : { gross: null, net: null };
 
                 // Build interest badges for all types
                 var wInterests = wl.interests || [];
@@ -1157,7 +1159,8 @@
                             (wl.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(wl.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</a></div>' : '') +
                         '</div>' +
                         '<div class="well-card-badges">' + wBadgesHtml + '</div>' +
-                    '</div>';
+                    '</div>' +
+                    buildAllocRowHtml(wl);
 
                 if (shutIn && !wLatest) {
                     html += '<div class="well-production">No recent production</div>';
@@ -1172,7 +1175,7 @@
                         html += '<div class="well-interest-breakdown">';
                         for (var ir = 0; ir < wInterests.length; ir++) {
                             var wir = wInterests[ir];
-                            var wirRev = calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wir.decimal);
+                            var wirRev = calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wir.decimal, wlAlloc);
                             if (wirRev.gross != null) {
                                 html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wir.type + ':</span> ' +
                                     '<span class="net">' + fmtMoney(wirRev.net) + '/mo</span>' +
