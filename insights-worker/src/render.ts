@@ -3115,7 +3115,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <p>For mineral owners, the key implication is that the way operators submit certain filings is changing. The underlying data &mdash; permits, completions, well records &mdash; will continue to be publicly accessible, but the systems through which you access them may look different over time.</p>
 
-<p>In the meantime, the existing tools described in this guide remain active. Well Browse, ECF, the Imaging system, and the other databases continue to function. If you can&rsquo;t find a recent filing in one system, it&rsquo;s worth checking whether it has moved to OKIES.</p>
+<p>In the meantime, the existing tools described in this guide remain active. The Well Records Search, ECF, the Imaging system, and the other databases continue to function. If you can&rsquo;t find a recent filing in one system, it&rsquo;s worth checking whether it has moved to OKIES.</p>
 
 <h2 id="limitations">Limitations of the OCC Website</h2>
 
@@ -3123,7 +3123,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <p><strong>It&rsquo;s not designed for monitoring.</strong> The OCC databases are designed for searching &mdash; you look up something specific. They don&rsquo;t have a built-in way to set alerts or notifications when a new filing appears on your section. If you want to know when a new spacing application or drilling permit is filed, you have to manually check on a regular basis.</p>
 
-<p><strong>Multiple overlapping systems create confusion.</strong> The split between ECF (post-March 2022) and Case Processing (pre-March 2022), combined with the separate Imaging system, Well Browse, Well Data Finder, and RBDMS Data Explorer, means you often need to check multiple places to get the full picture.</p>
+<p><strong>Multiple overlapping systems create confusion.</strong> The split between ECF (post-March 2022) and Case Processing (pre-March 2022), combined with the separate Imaging system, Well Records Search, Well Data Finder, and RBDMS Data Explorer, means you often need to check multiple places to get the full picture.</p>
 
 <p><strong>Production data is incomplete.</strong> The OCC&rsquo;s production data focuses on gas volumes. For comprehensive production reporting including oil volumes, you often need to go to the Oklahoma Tax Commission, which is a separate system with its own search interface.</p>
 
@@ -3141,7 +3141,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 <div class="faq-section">
     <div class="faq-item">
         <div class="faq-question">How do I search for wells on my section at the OCC?</div>
-        <p class="faq-answer">Use the Well Browse Database at wellbrowse.occ.ok.gov. Enter your section, township, and range in the legal description fields and click Search. The results show every well on record for that section. You can also use the Well Data Finder map tool to visually locate wells.</p>
+        <p class="faq-answer">Use the Oil &amp; Gas Well Records Search on the OCC Imaging portal. Enter your section, township, and range in the legal description fields and click Search. The results show every well on record for that section. You can also use the Well Data Finder map tool to visually locate wells.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">Where do I find spacing and pooling orders for my section?</div>
@@ -3149,7 +3149,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I look up a drilling permit on the OCC website?</div>
-        <p class="faq-answer">Drilling permits (Form 1000) appear in Well Browse as wells with a permit status. To view the actual document, use the Imaging system at imaging.occ.ok.gov &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by API number or legal description.</p>
+        <p class="faq-answer">Drilling permits (Form 1000) appear in the Well Records Search as wells with a permit status. To view the actual document, use the Imaging system at imaging.occ.ok.gov &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by API number or legal description.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">What is the difference between Well Browse and Well Data Finder?</div>
