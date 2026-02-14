@@ -37,6 +37,8 @@ import productionJs from './scripts/dashboard-production.txt';
 import documentsJsRaw from './scripts/dashboard-documents.txt';
 import occJs from './scripts/dashboard-occ.txt';
 import initJs from './scripts/dashboard-init.txt';
+import toolsJs from './scripts/dashboard-tools.txt';
+import toolsCss from './styles/dashboard-tools.txt';
 import bulkJsRaw from './scripts/dashboard-bulk.txt';
 
 // HTML partials
@@ -86,6 +88,7 @@ let html = shell;
 html = html.replace('/* __BASE_CSS__ */\n', () => baseCss);
 html = html.replace('/* __DOCUMENTS_CSS_A__ */\n', () => documentsCssA);
 html = html.replace('/* __DOCUMENTS_CSS_B__ */\n', () => documentsCssB);
+html = html.replace('/* __TOOLS_CSS__ */\n', () => toolsCss);
 
 // HTML partials
 html = html.replace('<!-- __ADD_PROPERTY_MODAL__ -->\n', () => addPropertyModal);
@@ -120,6 +123,7 @@ html = html.replace('/* __DOCS_B__ */\n', () => docsB);
 html = html.replace('/* __DOCS_C__ */\n', () => docsC);
 html = html.replace('/* __INIT_JS__ */\n', () => initJs);
 html = html.replace('/* __ACTIVITY_JS__ */\n', () => activityJs);
+html = html.replace('/* __TOOLS_JS__ */\n', () => toolsJs);
 html = html.replace('/* __SHARED_OTC_PRODUCTION__ */\n', () => sharedOtcProduction);
 html = html.replace('/* __SHARED_OTC_CSS__ */\n', () => sharedOtcCss);
 html = html.replace('/* __SHARED_OCC_FILINGS__ */\n', () => sharedOccFilings);

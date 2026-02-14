@@ -86,6 +86,8 @@ import {
   handleDeleteProperty,
   // Property link counts
   handleGetPropertyLinkCounts,
+  // Tools revenue estimator
+  handlePropertyProduction,
   // Wells handlers
   handleListWells,
   handleListWellsV2,
@@ -968,6 +970,11 @@ var index_default = {
             error: 'OCC service temporarily unavailable. Please try again later.'
           }, 503);
         }
+      }
+
+      // Tools revenue estimator
+      if (path === "/api/tools/property-production" && request.method === "GET") {
+        return handlePropertyProduction(request, env);
       }
 
       // Properties endpoints

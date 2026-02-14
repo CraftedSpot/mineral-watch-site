@@ -233,6 +233,11 @@ export {
   handleGetPlssSectionsBatch
 } from './plss-sections.js';
 
+// Tools revenue estimator handler
+export {
+  handlePropertyProduction
+} from './tools-revenue.js';
+
 // County records handlers (OKCountyRecords integration)
 export {
   handleCountyRecordsCounties,

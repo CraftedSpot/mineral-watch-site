@@ -1,0 +1,152 @@
+/* ══════════════════════════════════════
+   Revenue Estimator — Tools Tab CSS
+   ══════════════════════════════════════ */
+
+.tools-header { padding: 20px 24px 0; }
+.tools-header h2 { font-size: 18px; font-weight: 700; color: var(--oil-navy); margin: 0 0 4px; }
+.tools-header p { font-size: 13px; color: var(--slate-blue); margin: 0; }
+
+/* Property selector */
+.tools-selector { padding: 12px 24px 16px; }
+.tools-selector label { font-size: 13px; font-weight: 600; color: var(--oil-navy); display: block; margin-bottom: 6px; }
+.tools-selector select {
+  width: 100%; padding: 10px 12px; font-size: 14px;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: #fff; color: var(--oil-navy); cursor: pointer;
+}
+.tools-selector select:focus { outline: none; border-color: var(--slate-blue); box-shadow: 0 0 0 3px rgba(51,78,104,0.1); }
+
+/* Price bar */
+.tools-price-bar {
+  margin: 0 24px 16px; padding: 14px 18px;
+  background: #F7FAFC; border: 1px solid var(--border); border-radius: 8px;
+}
+.price-row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.price-field { flex: 1; min-width: 140px; }
+.price-field label { font-size: 12px; font-weight: 600; color: var(--slate-blue); display: block; margin-bottom: 4px; }
+.price-field input {
+  width: 100%; padding: 8px 10px; font-size: 14px; font-family: 'DM Mono', monospace;
+  border: 1px solid var(--border); border-radius: 4px; background: #fff;
+}
+.price-field input:focus { outline: none; border-color: var(--slate-blue); }
+.price-field .live-badge {
+  display: inline-block; font-size: 10px; font-weight: 700; color: #38A169;
+  background: #F0FFF4; padding: 1px 6px; border-radius: 3px; margin-left: 6px;
+  vertical-align: middle;
+}
+.price-timestamp { font-size: 11px; color: #A0AEC0; margin-top: 8px; }
+
+/* Deduction slider */
+.deduction-row { margin-top: 12px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.deduction-row label { font-size: 12px; font-weight: 600; color: var(--slate-blue); white-space: nowrap; }
+.deduction-slider { flex: 1; min-width: 120px; -webkit-appearance: none; height: 6px; border-radius: 3px; background: #E2E8F0; outline: none; }
+.deduction-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: var(--oil-navy); cursor: pointer; }
+.deduction-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--oil-navy); cursor: pointer; border: none; }
+.deduction-val { font-size: 14px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--oil-navy); min-width: 36px; text-align: right; }
+
+/* Well cards */
+.well-card {
+  margin: 0 24px 12px; padding: 16px 18px;
+  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  transition: box-shadow 0.15s;
+}
+.well-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.well-card-name { font-size: 14px; font-weight: 700; color: var(--oil-navy); }
+.well-card-operator { font-size: 12px; color: var(--slate-blue); margin-top: 2px; }
+.well-card-badges { display: flex; gap: 6px; align-items: center; }
+
+/* Status badges */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+}
+.status-active { color: #276749; background: #F0FFF4; }
+.status-shutin { color: #975A16; background: #FFFFF0; }
+.status-plugged { color: #9B2C2C; background: #FFF5F5; }
+.status-unknown { color: var(--slate-blue); background: #F7FAFC; }
+
+.interest-badge { font-size: 11px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--slate-blue); padding: 3px 8px; border-radius: 4px; background: #EDF2F7; }
+.interest-source { font-size: 10px; color: #A0AEC0; font-weight: 400; }
+
+/* Production line */
+.well-production { font-size: 13px; color: var(--oil-navy); margin-bottom: 6px; }
+.well-production .month-label { font-weight: 600; }
+.well-production .vol { font-family: 'DM Mono', monospace; }
+
+/* Revenue line */
+.well-revenue { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.well-revenue .gross { color: var(--oil-navy); font-weight: 600; }
+.well-revenue .arrow { color: #A0AEC0; }
+.well-revenue .net { color: #276749; font-weight: 700; }
+.well-revenue-avg { margin-top: 4px; font-size: 12px; color: var(--slate-blue); }
+.well-revenue-avg .gross { font-weight: 500; }
+.well-revenue-avg .net { color: #276749; font-weight: 600; }
+
+/* Shut-in well */
+.well-card.shut-in { opacity: 0.7; }
+.well-card.shut-in .well-production { color: var(--slate-blue); font-style: italic; }
+
+/* Shared PUN production unit card */
+.pun-card {
+  margin: 0 24px 12px; padding: 16px 18px;
+  background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 8px;
+}
+.pun-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.pun-card-label { font-size: 13px; font-weight: 700; color: #975A16; }
+.pun-card-wells { font-size: 12px; color: var(--slate-blue); margin-bottom: 10px; }
+
+/* Property total */
+.property-total {
+  margin: 16px 24px 8px; padding: 18px 20px;
+  background: var(--oil-navy); border-radius: 8px; color: #fff;
+}
+.property-total h3 { font-size: 14px; font-weight: 700; margin: 0 0 12px; opacity: 0.85; }
+.total-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; flex-wrap: wrap; gap: 4px; }
+.total-label { font-size: 13px; opacity: 0.75; }
+.total-values { font-size: 14px; font-family: 'DM Mono', monospace; }
+.total-gross { opacity: 0.7; }
+.total-arrow { opacity: 0.5; margin: 0 4px; }
+.total-net { font-weight: 700; color: #68D391; }
+.total-basis { font-size: 11px; opacity: 0.6; margin-top: 4px; }
+
+/* Disclaimer */
+.tools-disclaimer { padding: 8px 24px 20px; font-size: 11px; color: #A0AEC0; line-height: 1.5; }
+
+/* Empty states */
+.tools-empty {
+  text-align: center; padding: 60px 24px;
+}
+.tools-empty svg { color: var(--border); margin-bottom: 16px; }
+.tools-empty h3 { font-size: 16px; font-weight: 600; color: var(--oil-navy); margin: 0 0 8px; }
+.tools-empty p { font-size: 14px; color: var(--slate-blue); margin: 0 0 20px; max-width: 400px; margin-left: auto; margin-right: auto; }
+.tools-empty .btn-cta {
+  display: inline-block; padding: 10px 24px; font-size: 14px; font-weight: 600;
+  color: #fff; background: var(--oil-navy); border-radius: 6px; cursor: pointer;
+  border: none; text-decoration: none;
+}
+.tools-empty .btn-cta:hover { opacity: 0.9; }
+
+/* No decimal prompt */
+.no-decimal-prompt {
+  background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 6px;
+  padding: 10px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.no-decimal-prompt label { font-size: 12px; font-weight: 600; color: #975A16; white-space: nowrap; }
+.no-decimal-prompt input {
+  width: 140px; padding: 6px 10px; font-size: 14px; font-family: 'DM Mono', monospace;
+  border: 1px solid #FEFCBF; border-radius: 4px; background: #fff;
+}
+.no-decimal-prompt input:focus { outline: none; border-color: #975A16; }
+
+/* Loading spinner */
+.tools-loading { text-align: center; padding: 40px; color: var(--slate-blue); font-size: 14px; }
+
+/* Mobile */
+@media (max-width: 768px) {
+  .tools-header, .tools-selector, .tools-price-bar, .tools-disclaimer { padding-left: 16px; padding-right: 16px; }
+  .well-card, .pun-card, .property-total { margin-left: 16px; margin-right: 16px; }
+  .price-row { flex-direction: column; gap: 10px; }
+  .price-field { min-width: 100%; }
+  .well-card-header { flex-direction: column; }
+}

@@ -112,6 +112,10 @@
                     if (currentTab === 'activity') {
                         loadActivity();
                     }
+                    // Load tools data when tab is selected (lazy load)
+                    if (currentTab === 'tools') {
+                        loadTools();
+                    }
                     // Load documents data when tab is selected (lazy load)
                     if (currentTab === 'documents') {
                         loadDocuments();
