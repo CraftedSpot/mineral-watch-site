@@ -781,21 +781,24 @@
 
             var noDecimal = !prop.ri_decimal && !anyWellHasDecimal;
 
+            var nriArea = document.getElementById('toolsNriArea');
+
             // No wells
             if (wells.length === 0) {
-                var emptyHtml = '';
-                if (noDecimal) {
-                    var prefillAcres = prop.ri_acres || prop.total_acres || prop.acres || '';
-                    emptyHtml += buildNriCalcHtml(prefillAcres);
+                if (nriArea) {
+                    if (noDecimal) {
+                        nriArea.innerHTML = buildNriCalcHtml(prop.ri_acres || prop.total_acres || prop.acres || '');
+                    } else {
+                        nriArea.innerHTML = '';
+                    }
                 }
-                emptyHtml += '<div class="tools-empty"><p>No linked wells found for this property.</p></div>';
-                totalEl.innerHTML = emptyHtml;
-                cardsEl.innerHTML = '';
+                totalEl.innerHTML = '';
+                cardsEl.innerHTML = '<div class="tools-empty"><p>No linked wells found for this property.</p></div>';
                 if (disclaimerEl) disclaimerEl.style.display = 'none';
                 return;
             }
 
-            // ── Calculate totals first (need them for the summary above wells) ──
+            // ── Calculate totals first ──
             var totalGrossLatest = 0;
             var totalNetLatest = 0;
             var totalGrossAvg = 0;
@@ -829,35 +832,42 @@
                 if (revAvg.gross != null && !well.sharedPun) { totalGrossAvg += revAvg.gross; totalNetAvg += revAvg.net; }
             }
 
-            // ── Render summary area (above wells) ──
-            var topHtml = '';
-
-            // NRI calculator when no decimal is set
-            if (noDecimal) {
-                var prefillAcres = prop.ri_acres || prop.total_acres || prop.acres || '';
-                topHtml += buildNriCalcHtml(prefillAcres);
+            // ── NRI calculator (left column, below price bar) ──
+            if (nriArea) {
+                if (noDecimal) {
+                    nriArea.innerHTML = buildNriCalcHtml(prop.ri_acres || prop.total_acres || prop.acres || '');
+                } else {
+                    nriArea.innerHTML = '';
+                }
             }
 
-            // Property total summary
+            // ── Property total (right column, vertical layout) ──
             if (hasAnyRevenue) {
-                var basisText = data.dataHorizon ? 'Based on ' + formatYearMonth(data.dataHorizon) + ' production (latest OTC data)' : '';
-                topHtml +=
-                    '<div class="property-total">' +
-                        '<h3>Property Total</h3>' +
-                        '<div class="total-row">' +
-                            '<span class="total-label">Latest Month</span>' +
-                            '<span class="total-values"><span class="total-gross">Gross ' + fmtMoney(totalGrossLatest) + '</span><span class="total-arrow">\u2192</span><span class="total-net">Net ' + fmtMoney(totalNetLatest) + '</span></span>' +
+                var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
+                totalEl.innerHTML =
+                    '<div class="property-total-v">' +
+                        '<div class="ptv-header">Property Total</div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">Latest Month</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(totalGrossLatest) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(totalNetLatest) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
-                        '<div class="total-row">' +
-                            '<span class="total-label">3-Month Average</span>' +
-                            '<span class="total-values"><span class="total-gross">Gross ' + fmtMoney(totalGrossAvg) + '</span><span class="total-arrow">\u2192</span><span class="total-net">Net ' + fmtMoney(totalNetAvg) + '</span></span>' +
+                        '<div class="ptv-divider"></div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">3-Month Average</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(totalGrossAvg) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(totalNetAvg) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
-                        (basisText ? '<div class="total-basis">' + basisText + '</div>' : '') +
-                        '<a href="#" class="tools-modal-link-light" onclick="openPropertyDetails(\'' + prop.id + '\');return false">View property details \u2192</a>' +
+                        (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
+                        '<a href="#" class="ptv-link" onclick="openPropertyDetails(\'' + prop.id + '\');return false">View property details \u2192</a>' +
                     '</div>';
+            } else {
+                totalEl.innerHTML = '';
             }
-
-            totalEl.innerHTML = topHtml;
 
             // Show NRI result if decimal was auto-calculated from property acres
             if (noDecimal && toolsManualDecimal) {
