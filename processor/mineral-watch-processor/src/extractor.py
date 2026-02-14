@@ -567,6 +567,7 @@ CHECK_STUB_SCHEMA = {
     "known": {
         # Core check stub fields
         "doc_type", "operator", "operator_name", "operator_number",
+        "operator_address",
         "owner_name", "owner_number",
         "check_number", "check_date", "check_amount",
         "statement_type",
@@ -8294,7 +8295,8 @@ IMPORTANT: Structure your response as follows:
      [List each well with decimal interest, volumes, deductions by category, taxes by type, and owner amount]
 
      Audit Flags:
-     [Flag unusual deduction percentages (>25% of gross), decimal mismatches between products, late payments (>3 months lag), negative adjustments, prior-period corrections]
+     [Flag unusual deduction percentages (>25% of gross), decimal mismatches between products, late payments (>3 months lag), negative adjustments, prior-period corrections.
+      IMPORTANT: If total_deductions has a value, deductions ARE present even if not itemized. Say "deductions not itemized by category" rather than "no deductions shown". Only say "no deductions" if total_deductions is truly 0 or null.]
 
    - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
    - Keep each section concise (2-4 sentences each)
@@ -8385,8 +8387,19 @@ SOURCE OF TRUTH RULES:
 - The DOCUMENT is the source of truth. Extract what the document says, period.
 - IGNORE filenames, captions, or any external metadata.
 
+OPERATOR ADDRESS:
+- Extract the operator's mailing address as "operator_address" (single string, e.g., "P.O. Box 1234, Oklahoma City, OK 73101")
+- Do NOT extract owner/payee addresses
+
+TOP-LEVEL LINKING FIELDS - CRITICAL:
+- You MUST populate these top-level fields from the FIRST well in the wells array for property/well linking:
+  "section", "township", "range", "county", "state"
+- Example: if wells[0] has county "Canadian" and state "OK", set top-level county: "Canadian", state: "OK"
+- If the document shows section/township/range (from well description or legal), extract those too
+- These fields enable the document to link to the user's tracked properties and wells
+
 DO NOT EXTRACT:
-- Operator/owner addresses
+- Owner/payee addresses
 - Tax ID numbers or EINs
 
 CHECK STUB EXAMPLE (multi-purchaser supplemental voucher with deduction/tax detail):
@@ -8396,6 +8409,7 @@ CHECK STUB EXAMPLE (multi-purchaser supplemental voucher with deduction/tax deta
 
   "operator": "Derby Exploration LLC",
   "operator_number": "OP4521",
+  "operator_address": "P.O. Box 990, Tulsa, OK 74101",
 
   "owner_name": "Price Oil & Gas Company Ltd",
   "owner_number": "OWN-8842",

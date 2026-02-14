@@ -892,7 +892,7 @@
                           'from', 'sender', 'to'],  // Correspondence parties
                 'Letter Details': ['subject', 're_line'],  // Correspondence letter details (date handled separately)
                 // Check Stub / Revenue Statement sections
-                'Payment Information': ['check_number', 'check_date', 'check_amount', 'statement_type', 'operator_number', 'owner_number'],
+                'Payment Information': ['check_number', 'check_date', 'check_amount', 'statement_type', 'operator_number', 'operator_address', 'owner_number'],
                 'Well Revenue': ['wells'],
                 'Check Summary': ['summary'],
                 'Operating Expenses': ['operating_expenses'],
@@ -5943,6 +5943,16 @@
                         if (fieldName === 'key_takeaway' || fieldName === 'ai_observations' || fieldName === 'detailed_analysis') {
                             // Already rendered at top of content
                             hasVisibleFields = false; // Don't count these as visible in sections
+                        } else if (fieldName === 'check_amount' && typeof value === 'number') {
+                            // Format monetary amounts with $ and commas
+                            const neg = value < 0;
+                            const formatted = '$' + Math.abs(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            const display = neg ? '-' + formatted : formatted;
+                            sectionContent += `
+                                <div class="doc-field">
+                                    <label>${formatFieldName(fieldName)}</label>
+                                    <div class="doc-value" style="font-weight:600;font-size:15px;">${escapeHtml(display)}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                                </div>`;
                         } else {
                             // Clean any markdown artifacts from field values
                             const cleanedValue = cleanFieldValue(String(value));
