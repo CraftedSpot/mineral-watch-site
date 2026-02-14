@@ -542,6 +542,7 @@ DIVISION_ORDER_SCHEMA = {
         "product_type", "unit_size_acres",
         "county", "state", "section", "township", "range", "meridian",
         "is_multi_section_unit", "unit_sections",
+        "section_allocation_percentage", "lateral_allocation_percentage",
         "legal_description", "interest_owners", "total_decimal_interest", "extraction_notes",
         # Analysis fields
         "key_takeaway", "detailed_analysis", "ai_observations",

@@ -9,6 +9,7 @@
         var toolsWellData = null;      // response from /api/tools/well-production
         var toolsDeduction = 25;
         var toolsManualDecimal = null;
+        var toolsAllocOverrides = {};  // wellId → decimal (0-1) for local "what if" allocation editing
         var toolsSelectedPropertyId = null;
         var toolsSelectedWellId = null;
         var toolsDrilldownFrom = null;  // { id, label } — set when drilling from property mode
@@ -838,11 +839,12 @@
             return s === 'SI' || s === 'SHUT-IN' || s === 'SHUTIN' || s === 'PG' || s === 'PLUGGED' || s === 'P&A' || s === 'PA' || s === 'TA';
         }
 
-        function calcWellRevenue(oilBbl, gasMcf, decimal) {
+        function calcWellRevenue(oilBbl, gasMcf, decimal, allocationPct) {
             if (!decimal) return { gross: null, net: null };
             var oilPrice = getOilPrice();
             var gasPrice = getGasPrice();
-            var grossWell = oilBbl * oilPrice + gasMcf * gasPrice;
+            var alloc = (allocationPct != null && allocationPct > 0) ? allocationPct : 1;
+            var grossWell = (oilBbl * oilPrice + gasMcf * gasPrice) * alloc;
             var gross = grossWell * decimal;
             var net = gross * (1 - toolsDeduction / 100);
             return { gross: gross, net: net };
@@ -852,6 +854,47 @@
             if (well.interestDecimal) return well.interestDecimal;
             if (toolsManualDecimal) return toolsManualDecimal;
             return null;
+        }
+
+        function getEffectiveAlloc(well) {
+            if (toolsAllocOverrides[well.wellId] != null) return toolsAllocOverrides[well.wellId];
+            if (well.allocationPct != null) return well.allocationPct;
+            return null;
+        }
+
+        function onAllocChange(wellId, val) {
+            var pct = parseFloat(val);
+            if (isNaN(pct) || pct <= 0) {
+                delete toolsAllocOverrides[wellId];
+            } else if (pct >= 100) {
+                delete toolsAllocOverrides[wellId];
+            } else {
+                toolsAllocOverrides[wellId] = pct / 100;
+            }
+            recalcTools();
+        }
+
+        function allocSourceLabel(source) {
+            if (source === 'division_order') return 'from Division Order';
+            if (source === 'multi_unit_horizontal_order') return 'from Multi-Unit Order';
+            if (source === 'user') return 'manual';
+            return '';
+        }
+
+        function buildAllocRowHtml(well) {
+            var alloc = getEffectiveAlloc(well);
+            var pctVal = alloc != null ? (alloc * 100).toFixed(2) : '100';
+            // Clean up trailing zeros: 65.00 → 65, 65.40 → 65.4
+            pctVal = pctVal.replace(/\.?0+$/, '') || '100';
+            var srcLabel = well.allocationSource ? allocSourceLabel(well.allocationSource) : '';
+            if (toolsAllocOverrides[well.wellId] != null) srcLabel = '';
+            return '<div class="well-alloc-row">' +
+                '<label>Section Alloc:</label>' +
+                '<input type="number" class="alloc-input" value="' + pctVal + '" min="0" max="100" step="0.01" ' +
+                    'onchange="onAllocChange(\'' + well.wellId + '\', this.value)">' +
+                '<span class="alloc-pct">%</span>' +
+                (srcLabel ? '<span class="alloc-source">' + srcLabel + '</span>' : '') +
+                '</div>';
         }
 
         function fmtDecimal(d) {

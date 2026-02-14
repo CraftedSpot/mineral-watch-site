@@ -2058,6 +2058,93 @@ export default {
                     console.error('[DO Write-Back] Error:', writeBackError);
                   }
                 }
+
+                // Write-back section allocation percentage from division orders to property_well_links
+                // Matches unit_sections[].allocation_factor to the correct property via TRS normalization
+                if (doc_type === 'division_order' && linkResult.wellId) {
+                  try {
+                    const unitSections = extracted_data?.unit_sections;
+                    const topLevelAlloc = extracted_data?.section_allocation_percentage ?? extracted_data?.lateral_allocation_percentage;
+                    const primaryWellId = linkResult.wellId.split(',')[0].trim();
+
+                    // TRS normalization: strip leading zeros, collapse whitespace, uppercase
+                    const normTrs = (sec: any, twn: any, rng: any) => ({
+                      sec: sec ? String(parseInt(String(sec), 10)) : null,
+                      twn: twn ? String(twn).replace(/^0+/, '').replace(/\s+/g, '').toUpperCase() : null,
+                      rng: rng ? String(rng).replace(/^0+/, '').replace(/\s+/g, '').toUpperCase() : null,
+                    });
+
+                    // Ensure allocation columns exist (defensive — migration should have run)
+                    const allocCols = [
+                      { name: 'section_allocation_pct', type: 'REAL' },
+                      { name: 'allocation_source', type: 'TEXT' },
+                      { name: 'allocation_source_doc_id', type: 'TEXT' },
+                    ];
+                    for (const col of allocCols) {
+                      try {
+                        await env.WELLS_DB.prepare(`SELECT ${col.name} FROM property_well_links LIMIT 1`).first();
+                      } catch {
+                        try {
+                          await env.WELLS_DB.prepare(`ALTER TABLE property_well_links ADD COLUMN ${col.name} ${col.type}`).run();
+                          console.log(`[Alloc Write-Back] Added column property_well_links.${col.name}`);
+                        } catch (addErr) {
+                          // Column may already exist
+                        }
+                      }
+                    }
+
+                    if (Array.isArray(unitSections) && unitSections.length > 0) {
+                      // Get all property_well_links for this well with property TRS data
+                      const links = await env.WELLS_DB.prepare(`
+                        SELECT pwl.id, p.section, p.township, p.range
+                        FROM property_well_links pwl
+                        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+                        WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
+                      `).bind(primaryWellId).all();
+
+                      for (const us of unitSections) {
+                        const allocFactor = us.allocation_factor ?? us.allocation_percentage;
+                        if (allocFactor == null || allocFactor <= 0) continue;
+
+                        // Normalize the allocation to 0-1 range
+                        const allocDecimal = allocFactor > 1 ? allocFactor / 100 : allocFactor;
+                        const usNorm = normTrs(us.section, us.township, us.range);
+
+                        // Find matching property_well_links record by TRS
+                        for (const link of (links.results || []) as any[]) {
+                          const linkNorm = normTrs(link.section, link.township, link.range);
+                          if (usNorm.sec === linkNorm.sec && usNorm.twn === linkNorm.twn && usNorm.rng === linkNorm.rng) {
+                            await env.WELLS_DB.prepare(`
+                              UPDATE property_well_links
+                              SET section_allocation_pct = ?,
+                                  allocation_source = 'division_order',
+                                  allocation_source_doc_id = ?
+                              WHERE id = ?
+                            `).bind(allocDecimal, docId, link.id).run();
+                            console.log(`[Alloc Write-Back] Set ${(allocDecimal * 100).toFixed(2)}% on link ${link.id} (S${usNorm.sec}-T${usNorm.twn}-R${usNorm.rng}) from doc ${docId}`);
+                            break;
+                          }
+                        }
+                      }
+                    } else if (topLevelAlloc != null && topLevelAlloc > 0 && linkResult.propertyId) {
+                      // Single top-level allocation — write to the specific property-well link
+                      const allocDecimal = topLevelAlloc > 1 ? topLevelAlloc / 100 : topLevelAlloc;
+                      const primaryPropId = linkResult.propertyId.split(',')[0].trim();
+
+                      await env.WELLS_DB.prepare(`
+                        UPDATE property_well_links
+                        SET section_allocation_pct = ?,
+                            allocation_source = 'division_order',
+                            allocation_source_doc_id = ?
+                        WHERE well_airtable_id = ? AND property_airtable_id = ?
+                          AND status IN ('Active', 'Linked')
+                      `).bind(allocDecimal, docId, primaryWellId, primaryPropId).run();
+                      console.log(`[Alloc Write-Back] Set top-level ${(allocDecimal * 100).toFixed(2)}% for well ${primaryWellId} → property ${primaryPropId} from doc ${docId}`);
+                    }
+                  } catch (allocError) {
+                    console.error('[Alloc Write-Back] Error:', allocError);
+                  }
+                }
               } catch (linkError) {
                 console.error('[Documents] Error during auto-link:', linkError);
                 console.error('[Documents] Error stack:', linkError.stack);

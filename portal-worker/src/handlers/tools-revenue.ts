@@ -50,6 +50,9 @@ interface WellRow {
   orri_nri_source: string | null;
   orri_nri_source_doc_id: string | null;
   orri_nri_source_date: string | null;
+  section_allocation_pct: number | null;
+  allocation_source: string | null;
+  allocation_source_doc_id: string | null;
 }
 
 interface PunLink {
@@ -103,7 +106,8 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   // 2. Get linked wells
   const wellsResult = await env.WELLS_DB!.prepare(`
     SELECT cw.airtable_id, cw.well_name, cw.api_number, cw.operator,
-           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri
+           cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri,
+           pwl.section_allocation_pct, pwl.allocation_source, pwl.allocation_source_doc_id
     FROM property_well_links pwl
     JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
     WHERE pwl.property_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
@@ -303,6 +307,9 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
       interests,
       basePuns,
       sharedPun: wellSharedPuns.length > 0,
+      allocationPct: well.section_allocation_pct || null,
+      allocationSource: well.allocation_source || null,
+      allocationSourceDocId: well.allocation_source_doc_id || null,
       production,
       trailing3mo: { avgOilBbl: Math.round(avgOil), avgGasMcf: Math.round(avgGas) },
     });
@@ -369,14 +376,16 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   let linkedProperty: any = null;
   const linkQuery = orgId
     ? `SELECT p.airtable_record_id, p.county, p.section, p.township, p.range, p.meridian,
-              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres
+              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres,
+              pwl.section_allocation_pct, pwl.allocation_source
        FROM property_well_links pwl
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
        AND (p.organization_id = ? OR p.user_id = ?)
        ORDER BY p.ri_decimal DESC NULLS LAST, COALESCE(p.ri_acres, p.total_acres, p.acres, 0) DESC LIMIT 1`
     : `SELECT p.airtable_record_id, p.county, p.section, p.township, p.range, p.meridian,
-              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres
+              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres,
+              pwl.section_allocation_pct, pwl.allocation_source
        FROM property_well_links pwl
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
@@ -385,6 +394,8 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   const linkBinds = orgId ? [wellId, orgId, userId] : [wellId, userId];
 
   const linkResult = await env.WELLS_DB!.prepare(linkQuery).bind(...linkBinds).first() as any;
+  let wellAllocationPct: number | null = null;
+  let wellAllocationSource: string | null = null;
   if (linkResult) {
     linkedProperty = {
       id: linkResult.airtable_record_id,
@@ -398,6 +409,8 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
       total_acres: linkResult.total_acres || null,
       acres: linkResult.acres || null,
     };
+    wellAllocationPct = linkResult.section_allocation_pct || null;
+    wellAllocationSource = linkResult.allocation_source || null;
   }
 
   // 3. Determine interest decimal and source
@@ -436,7 +449,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   // 4. Resolve base_puns
   if (!well.apiNumber) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, allocationPct: wellAllocationPct, allocationSource: wellAllocationSource },
       linkedProperty,
       dataHorizon: null,
       production: [],
@@ -453,7 +466,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
 
   if (basePuns.length === 0) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns: [] },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns: [], allocationPct: wellAllocationPct, allocationSource: wellAllocationSource },
       linkedProperty,
       dataHorizon: null,
       production: [],
@@ -502,7 +515,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   const avgGas = trail3.length > 0 ? trail3.reduce((s, p) => s + p.gasMcf, 0) / trail3.length : 0;
 
   return jsonResponse({
-    well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns },
+    well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns, allocationPct: wellAllocationPct, allocationSource: wellAllocationSource },
     linkedProperty,
     dataHorizon,
     production,
