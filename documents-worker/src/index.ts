@@ -1956,6 +1956,7 @@ export default {
                 console.log('[Documents] Successfully linked - Property:', linkResult.propertyId, 'Well:', linkResult.wellId);
 
                 // Write-back decimal interest from division orders to client_wells
+                // Routes to ri_nri, wi_nri, or orri_nri based on extracted interest_type
                 if (doc_type === 'division_order' && extracted_data?.decimal_interest && linkResult.wellId) {
                   try {
                     const rawDecimal = String(extracted_data.decimal_interest).replace(/[^0-9.]/g, '');
@@ -1964,12 +1965,34 @@ export default {
                     if (decimalInterest > 0 && decimalInterest < 1) {
                       const primaryWellId = linkResult.wellId.split(',')[0].trim();
 
+                      // Determine which column to write based on interest_type
+                      const rawType = String(extracted_data.interest_type || extracted_data.type_of_interest || '').toLowerCase();
+                      let targetColumn = 'ri_nri'; // default to royalty interest
+                      let interestLabel = 'RI';
+                      if (rawType.includes('working')) {
+                        targetColumn = 'wi_nri';
+                        interestLabel = 'WI';
+                      } else if (rawType.includes('overrid') || rawType === 'orri') {
+                        targetColumn = 'orri_nri';
+                        interestLabel = 'ORRI';
+                      }
+
+                      console.log(`[DO Write-Back] Interest type "${rawType}" → column ${targetColumn} (${interestLabel})`);
+
                       // Ensure interest_source columns exist on client_wells
-                      for (const col of [
+                      // These track the source per-interest-type: {column}_source, {column}_source_doc_id, {column}_source_date
+                      const sourceColumns = [
                         { name: 'interest_source', type: 'TEXT' },
                         { name: 'interest_source_doc_id', type: 'TEXT' },
                         { name: 'interest_source_date', type: 'TEXT' },
-                      ]) {
+                        { name: 'wi_nri_source', type: 'TEXT' },
+                        { name: 'wi_nri_source_doc_id', type: 'TEXT' },
+                        { name: 'wi_nri_source_date', type: 'TEXT' },
+                        { name: 'orri_nri_source', type: 'TEXT' },
+                        { name: 'orri_nri_source_doc_id', type: 'TEXT' },
+                        { name: 'orri_nri_source_date', type: 'TEXT' },
+                      ];
+                      for (const col of sourceColumns) {
                         try {
                           await env.WELLS_DB.prepare(`SELECT ${col.name} FROM client_wells LIMIT 1`).first();
                         } catch {
@@ -1984,17 +2007,16 @@ export default {
 
                       // Try to find the client_well: first by direct airtable_id, then by API number
                       let clientWell = await env.WELLS_DB.prepare(
-                        `SELECT id, airtable_id, ri_nri FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                        `SELECT id, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE airtable_id = ? LIMIT 1`
                       ).bind(primaryWellId).first() as any;
 
                       if (!clientWell && extracted_data.api_number) {
-                        // Get document owner info for scoped lookup
                         const docOwner = await env.WELLS_DB.prepare(
                           `SELECT user_id, organization_id FROM documents WHERE id = ?`
                         ).bind(docId).first() as any;
                         if (docOwner) {
                           clientWell = await env.WELLS_DB.prepare(
-                            `SELECT id, airtable_id, ri_nri FROM client_wells
+                            `SELECT id, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells
                              WHERE api_number = ? AND (user_id = ? OR organization_id = ?) LIMIT 1`
                           ).bind(
                             extracted_data.api_number,
@@ -2005,22 +2027,27 @@ export default {
                       }
 
                       if (clientWell) {
-                        const existingRiNri = clientWell.ri_nri as number | null;
+                        const existingValue = clientWell[targetColumn] as number | null;
 
-                        if (existingRiNri && Math.abs(existingRiNri - decimalInterest) > 0.000001) {
-                          console.log(`[DO Write-Back] VALUE CHANGE: Well ${clientWell.airtable_id} existing ri_nri=${existingRiNri}, extracted=${decimalInterest} from doc ${docId}`);
+                        if (existingValue && Math.abs(existingValue - decimalInterest) > 0.000001) {
+                          console.log(`[DO Write-Back] VALUE CHANGE: Well ${clientWell.airtable_id} existing ${targetColumn}=${existingValue}, extracted=${decimalInterest} (${interestLabel}) from doc ${docId}`);
                         }
+
+                        // Build source column names based on interest type
+                        const srcCol = targetColumn === 'ri_nri' ? 'interest_source' : `${targetColumn}_source`;
+                        const srcDocCol = targetColumn === 'ri_nri' ? 'interest_source_doc_id' : `${targetColumn}_source_doc_id`;
+                        const srcDateCol = targetColumn === 'ri_nri' ? 'interest_source_date' : `${targetColumn}_source_date`;
 
                         await env.WELLS_DB.prepare(
                           `UPDATE client_wells
-                           SET ri_nri = ?,
-                               interest_source = 'extracted_division_order',
-                               interest_source_doc_id = ?,
-                               interest_source_date = datetime('now', '-6 hours')
+                           SET ${targetColumn} = ?,
+                               ${srcCol} = 'extracted_division_order',
+                               ${srcDocCol} = ?,
+                               ${srcDateCol} = datetime('now', '-6 hours')
                            WHERE id = ?`
                         ).bind(decimalInterest, docId, clientWell.id).run();
 
-                        console.log(`[DO Write-Back] Updated well ${clientWell.airtable_id} ri_nri=${decimalInterest} from document ${docId}`);
+                        console.log(`[DO Write-Back] Updated well ${clientWell.airtable_id} ${targetColumn}=${decimalInterest} (${interestLabel}) from document ${docId}`);
                       } else {
                         console.log(`[DO Write-Back] No client_well found for well_id ${primaryWellId} — decimal interest not written back`);
                       }
