@@ -1225,6 +1225,8 @@
                 if (resEl) resEl.textContent = fmtDecimal(toolsManualDecimal);
                 var resRow = document.getElementById('toolsNriResultRow');
                 if (resRow) resRow.style.display = 'flex';
+                var noteEl = document.getElementById('toolsNriDefaultNote');
+                if (noteEl) noteEl.textContent = 'Pre-filled from property acres using default unit size and royalty rate';
             }
 
             // Show total for single well using vertical card
