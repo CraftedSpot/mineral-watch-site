@@ -1003,7 +1003,7 @@
                 html += buildNriCalcHtml(prefillAcres);
             }
 
-            // Well card
+            // Well card (single, not in grid)
             var shutIn = isShutIn(well.wellStatus);
             var latest = production.length > 0 ? production[0] : null;
             var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
@@ -1013,7 +1013,7 @@
             if (well.interestSource === 'well_override') sourceLabel = 'from well';
             else if (well.interestSource === 'property') sourceLabel = 'from property';
 
-            html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
+            html += '<div class="well-card well-card-single' + (shutIn ? ' shut-in' : '') + '">' +
                 '<div class="well-card-header">' +
                     '<div>' +
                         '<div class="well-card-name">' + escapeHtml(well.wellName || 'Unknown Well') +
