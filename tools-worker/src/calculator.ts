@@ -582,6 +582,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights">Insights</a>
+                <a href="/tools" class="active">Tools</a>
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>

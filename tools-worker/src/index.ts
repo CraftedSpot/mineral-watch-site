@@ -78,6 +78,7 @@ function render404(): string {
                     <a href="/features">Features</a>
                     <a href="/pricing">Pricing</a>
                     <a href="/insights">Insights</a>
+                    <a href="/tools">Tools</a>
                     <a href="/about">About</a>
                     <a href="/contact">Contact</a>
                     <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>

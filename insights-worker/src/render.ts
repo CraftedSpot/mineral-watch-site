@@ -24,6 +24,7 @@ const HEADER = `
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights" class="active">Insights</a>
+                <a href="/tools">Tools</a>
 
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
