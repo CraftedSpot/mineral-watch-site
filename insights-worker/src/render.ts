@@ -3152,8 +3152,8 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         <p class="faq-answer">Drilling permits (Form 1000) appear in the Well Records Search as wells with a permit status. To view the actual document, use the Imaging system at imaging.occ.ok.gov &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by API number or legal description.</p>
     </div>
     <div class="faq-item">
-        <div class="faq-question">What is the difference between Well Browse and Well Data Finder?</div>
-        <p class="faq-answer">Well Browse is a traditional database search returning tabular results with detailed well data. Well Data Finder is a GIS map application showing wells as points on a map. Both access the same data &mdash; Well Browse is better for detail, Well Data Finder is better for spatial context.</p>
+        <div class="faq-question">What is the difference between the Well Records Search and Well Data Finder?</div>
+        <p class="faq-answer">The Well Records Search is a traditional database search returning tabular results with detailed well data. Well Data Finder is a GIS map application showing wells as points on a map. Both access the same data &mdash; the Well Records Search is better for detail, Well Data Finder is better for spatial context.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I find completion reports for wells on my section?</div>
