@@ -2724,7 +2724,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             <tr>
                 <td><strong>Case Processing</strong></td>
                 <td>Spacing, pooling, and other CD cases filed before March 2022</td>
-                <td><a href="https://case.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a></td>
+                <td><a href="https://case.occ.ok.gov/ords/f?p=1003:202" target="_blank" rel="noopener" class="tool-url">case.occ.ok.gov</a></td>
             </tr>
             <tr>
                 <td><strong>Imaging System</strong></td>
