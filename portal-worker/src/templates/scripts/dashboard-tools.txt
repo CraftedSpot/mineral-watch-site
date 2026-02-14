@@ -1079,7 +1079,20 @@
                 var wHasOwnProd = !wl.sharedPun && wLatest;
                 var wRevLatest = wHasOwnProd ? calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal) : { gross: null, net: null };
 
-                var wSourceLabel = interestSourceLabel(wl);
+                // Build interest badges for all types
+                var wInterests = wl.interests || [];
+                var wBadgesHtml = statusBadgeHtml(wl.wellStatus);
+                if (wInterests.length > 0) {
+                    for (var ib = 0; ib < wInterests.length; ib++) {
+                        var wi = wInterests[ib];
+                        var wiLabel = interestSourceLabel({ interestSource: wi.source, interestSourceDate: wi.sourceDate });
+                        wBadgesHtml += '<span class="interest-badge interest-badge-' + wi.type.toLowerCase() + '">' + wi.type + ' ' + fmtDecimal(wi.decimal) +
+                            (wiLabel ? ' <span class="interest-source">' + wiLabel + '</span>' : '') + '</span>';
+                    }
+                } else if (wDecimal) {
+                    var wSourceLabel = interestSourceLabel(wl);
+                    wBadgesHtml += '<span class="interest-badge">' + fmtDecimal(wDecimal) + (wSourceLabel ? ' <span class="interest-source">' + wSourceLabel + '</span>' : '') + '</span>';
+                }
 
                 html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
                     '<div class="well-card-header">' +
@@ -1087,10 +1100,7 @@
                             '<div class="well-card-name"><a href="#" class="well-name-link" onclick="openWellDetailsModal(\'' + wl.wellId + '\');return false">' + escapeHtml(wl.wellName) + '</a></div>' +
                             (wl.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(wl.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</a></div>' : '') +
                         '</div>' +
-                        '<div class="well-card-badges">' +
-                            statusBadgeHtml(wl.wellStatus) +
-                            (wDecimal ? '<span class="interest-badge">' + fmtDecimal(wDecimal) + (wSourceLabel ? ' <span class="interest-source">' + wSourceLabel + '</span>' : '') + '</span>' : '') +
-                        '</div>' +
+                        '<div class="well-card-badges">' + wBadgesHtml + '</div>' +
                     '</div>';
 
                 if (shutIn && !wLatest) {
@@ -1101,7 +1111,20 @@
                     html += '<div class="well-production"><span class="month-label">' + formatYearMonth(wLatest.yearMonth) + ':</span> ' +
                         '<span class="vol">' + fmtVol(wLatest.oilBbl) + ' BBL</span> + <span class="vol">' + fmtVol(wLatest.gasMcf) + ' MCF</span></div>';
 
-                    if (wRevLatest.gross != null) {
+                    // Show per-interest-type revenue breakdown if multiple types
+                    if (wInterests.length > 1 && wHasOwnProd) {
+                        html += '<div class="well-interest-breakdown">';
+                        for (var ir = 0; ir < wInterests.length; ir++) {
+                            var wir = wInterests[ir];
+                            var wirRev = calcWellRevenue(wLatest.oilBbl, wLatest.gasMcf, wir.decimal);
+                            if (wirRev.gross != null) {
+                                html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wir.type + ':</span> ' +
+                                    '<span class="net">' + fmtMoney(wirRev.net) + '/mo</span>' +
+                                    (wir.type === 'WI' ? ' <span class="wi-note">before OpEx</span>' : '') + '</div>';
+                            }
+                        }
+                        html += '</div>';
+                    } else if (wRevLatest.gross != null) {
                         html += '<div class="well-revenue"><span class="gross">Gross: ' + fmtMoney(wRevLatest.gross) + '</span> ' +
                             '<span class="arrow">\u2192</span> <span class="net">Net: ' + fmtMoney(wRevLatest.net) + '</span></div>';
                     }
