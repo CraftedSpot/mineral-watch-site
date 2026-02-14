@@ -471,23 +471,12 @@
 
             cardsEl.innerHTML = html;
 
-            // Auto-calculate NRI if acres were pre-filled (one-time, not recursive)
-            if (noDecimal && !toolsManualDecimal && document.getElementById('toolsNriAcres')) {
-                var acresVal = document.getElementById('toolsNriAcres').value;
-                if (acresVal && parseFloat(acresVal) > 0) {
-                    // Calculate decimal but don't re-render (avoid recursion)
-                    var a = parseFloat(acresVal) || 0;
-                    var u = parseFloat(document.getElementById('toolsNriUnit').value) || 640;
-                    var rSel = document.getElementById('toolsNriRoyalty');
-                    var r = rSel ? (rSel.value === '3/16' ? 3/16 : rSel.value === '1/8' ? 1/8 : rSel.value === '1/5' ? 1/5 : 1/4) : 3/16;
-                    if (a > 0 && u > 0 && r > 0) {
-                        toolsManualDecimal = (a * r) / u;
-                        var resEl = document.getElementById('toolsNriResult');
-                        if (resEl) resEl.textContent = toolsManualDecimal.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
-                        var resRow = document.getElementById('toolsNriResultRow');
-                        if (resRow) resRow.style.display = 'flex';
-                    }
-                }
+            // Show NRI result if decimal was auto-calculated from property acres
+            if (noDecimal && toolsManualDecimal) {
+                var resEl = document.getElementById('toolsNriResult');
+                if (resEl) resEl.textContent = toolsManualDecimal.toFixed(8).replace(/0+$/, '').replace(/\.$/, '');
+                var resRow = document.getElementById('toolsNriResultRow');
+                if (resRow) resRow.style.display = 'flex';
             }
 
             // Property total
