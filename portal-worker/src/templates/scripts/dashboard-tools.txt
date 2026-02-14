@@ -115,8 +115,8 @@
                         '<span class="deduction-val" id="toolsDeductionVal">' + toolsDeduction + '%</span>' +
                     '</div>' +
                 '</div>' +
-                '<div id="toolsWellCards"></div>' +
                 '<div id="toolsPropertyTotal"></div>' +
+                '<div id="toolsWellCards"></div>' +
                 '<div class="tools-disclaimer" id="toolsDisclaimer" style="display:none">' +
                     'Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ due to posted wellhead prices, operator deductions, production allocation, and payment timing.' +
                 '</div>';
