@@ -2986,7 +2986,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <p>The Data Explorer also has a reporting feature that can generate reports for any chosen timeframe using publicly available OCC data. This is useful for mineral owners who want to see a summary of activity on their sections over a specific period &mdash; new permits, completions, and status changes.</p>
 
-        <p>You&rsquo;ll find the RBDMS Data Explorer linked from the Oil &amp; Gas Conservation Division page at <a href="https://oklahoma.gov/occ" target="_blank" rel="noopener">oklahoma.gov/occ</a>.</p>
+        <p>You&rsquo;ll find the RBDMS Data Explorer linked from the <a href="https://oklahoma.gov/occ/divisions/oil-gas.html" target="_blank" rel="noopener">Oil &amp; Gas Conservation Division page</a>.</p>
 
         <div class="tool-detail">
             <div class="tool-detail-item">
@@ -3039,11 +3039,11 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h3>Finding all wells on your section</h3>
 
-<p>Start with the <strong>Well Browse Database</strong>. Enter your section, township, and range, and search. The results will include every well on record for that section &mdash; active producers, plugged wells, and permitted-but-not-yet-drilled wells. Pay attention to the well status field: &ldquo;A&rdquo; means active, &ldquo;P&rdquo; means plugged, &ldquo;N&rdquo; means new (permitted but not yet drilled). Check the completion data to see what formation each well targets and who the operator is.</p>
+<p>Start with the <strong>Oil &amp; Gas Well Records Search</strong>. Enter your section, township, and range, and search. The results will include every well on record for that section &mdash; active producers, plugged wells, and permitted-but-not-yet-drilled wells. Pay attention to the well status field: &ldquo;A&rdquo; means active, &ldquo;P&rdquo; means plugged, &ldquo;N&rdquo; means new (permitted but not yet drilled). Check the completion data to see what formation each well targets and who the operator is.</p>
 
 <h3>Checking if a new drilling permit has been filed</h3>
 
-<p>Drilling permits are Form 1000 filings. New permits will show up in the <strong>Well Browse Database</strong> as wells with a permit status but no completion date. For the actual Form 1000 document &mdash; which shows the proposed well location, target depth, and operator details &mdash; use the <strong>Imaging system</strong>, select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by your legal description or a scan date range.</p>
+<p>Drilling permits are Form 1000 filings. New permits will show up in the <strong>Well Records Search</strong> as wells with a permit status but no completion date. For the actual Form 1000 document &mdash; which shows the proposed well location, target depth, and operator details &mdash; use the <strong>Imaging system</strong>, select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1000, and search by your legal description or a scan date range.</p>
 
 <h3>Finding a spacing or pooling order</h3>
 
@@ -3055,7 +3055,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h3>Verifying who operates a well</h3>
 
-<p>The <strong>Well Browse Database</strong> shows the current operator for each well. If you need the operator&rsquo;s contact information or operator number, use the <strong>Operator Directory</strong> &mdash; accessible from the Oil &amp; Gas Division page under &ldquo;Database Search and Imaged Documents.&rdquo;</p>
+<p>The <strong>Well Records Search</strong> shows the current operator for each well. If you need the operator&rsquo;s contact information or operator number, use the <strong>Operator Directory</strong> &mdash; accessible from the <a href="https://oklahoma.gov/occ/divisions/oil-gas.html" target="_blank" rel="noopener">Oil &amp; Gas Division page</a> under &ldquo;Database Search and Imaged Documents.&rdquo;</p>
 
 <h3>Checking production data</h3>
 
