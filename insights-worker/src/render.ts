@@ -3157,7 +3157,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I find completion reports for wells on my section?</div>
-        <p class="faq-answer">In Well Browse, search for the well and click &ldquo;Completions&rdquo; to see the data. For the scanned Form 1002A document, use the Imaging system &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1002A, and search by API number.</p>
+        <p class="faq-answer">In the Well Records Search, search for the well and click &ldquo;Completions&rdquo; to see the data. For the scanned Form 1002A document, use the Imaging system &mdash; select &ldquo;Oil and Gas Well Records Forms,&rdquo; choose Form 1002A, and search by API number.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">What is the OCC Electronic Case Filing system?</div>
@@ -3165,7 +3165,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I check production data for a well in Oklahoma?</div>
-        <p class="faq-answer">The Well Browse Database includes gas production data under the &ldquo;Production&rdquo; tab. For oil production and gross production tax data, the Oklahoma Tax Commission is the primary source. The RBDMS Data Explorer on the OCC site can also generate production reports.</p>
+        <p class="faq-answer">The Well Records Search includes gas production data under the &ldquo;Production&rdquo; tab. For oil production and gross production tax data, the Oklahoma Tax Commission is the primary source. The RBDMS Data Explorer on the OCC site can also generate production reports.</p>
     </div>
 </div>
 
