@@ -72,9 +72,9 @@
 .tools-modal-link:hover { opacity: 1; color: var(--oil-navy); }
 .tools-modal-link svg { width: 14px; height: 14px; }
 .tools-drilldown-btn {
-  display: block; text-align: center; font-size: 12px; font-weight: 600;
-  color: var(--oil-navy); text-decoration: none; margin-top: auto; padding: 7px 0;
-  border: 1px solid var(--border); border-radius: 5px;
+  display: block; text-align: center; font-size: 11px; font-weight: 600;
+  color: var(--oil-navy); text-decoration: none; margin-top: auto; padding: 5px 0;
+  border: 1px solid var(--border); border-radius: 4px;
   background: #F7FAFC; transition: all 0.15s;
 }
 .tools-drilldown-btn:hover { background: var(--oil-navy); color: #fff; border-color: var(--oil-navy); }
@@ -143,9 +143,9 @@
   margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
 }
 
-/* Well card grid (single column inside center column) */
+/* Well card grid (2-col inside center column) */
 .tools-well-grid {
-  display: flex; flex-direction: column; gap: 10px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
 }
 
 /* Back link */
@@ -157,15 +157,15 @@
 
 /* Well cards */
 .well-card {
-  padding: 16px 18px;
-  background: #fff; border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff; border: 1px solid var(--border); border-radius: 6px;
   transition: box-shadow 0.15s; display: flex; flex-direction: column;
 }
 .well-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.well-card-single { margin: 0 0 12px; }
-.well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-.well-card-name { font-size: 14px; font-weight: 700; color: var(--oil-navy); }
-.well-card-operator { font-size: 12px; color: var(--slate-blue); margin-top: 2px; }
+.well-card-single { margin: 0 0 12px; padding: 14px 16px; }
+.well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.well-card-name { font-size: 13px; font-weight: 700; color: var(--oil-navy); }
+.well-card-operator { font-size: 11px; color: var(--slate-blue); margin-top: 1px; }
 .well-card-badges { display: flex; gap: 6px; align-items: center; }
 
 /* Status badges */
@@ -182,12 +182,12 @@
 .interest-source { font-size: 10px; color: #A0AEC0; font-weight: 400; }
 
 /* Production line */
-.well-production { font-size: 13px; color: var(--oil-navy); margin-bottom: 6px; }
+.well-production { font-size: 12px; color: var(--oil-navy); margin-bottom: 4px; }
 .well-production .month-label { font-weight: 600; }
 .well-production .vol { font-family: 'DM Mono', monospace; }
 
 /* Revenue line */
-.well-revenue { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
+.well-revenue { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 12px; }
 .well-revenue .gross { color: var(--oil-navy); font-weight: 600; }
 .well-revenue .arrow { color: #A0AEC0; }
 .well-revenue .net { color: #276749; font-weight: 700; }
@@ -199,14 +199,14 @@
 .well-card.shut-in { opacity: 0.7; }
 .well-card.shut-in .well-production { color: var(--slate-blue); font-style: italic; }
 
-/* Shared PUN production unit card */
+/* Shared PUN production unit card (inside grid, same size as well cards) */
 .pun-card {
-  margin: 12px 0 0; padding: 16px 18px;
-  background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 8px;
+  padding: 10px 12px;
+  background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 6px;
+  display: flex; flex-direction: column;
 }
-.pun-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
-.pun-card-label { font-size: 13px; font-weight: 700; color: #975A16; }
-.pun-card-wells { font-size: 12px; color: var(--slate-blue); margin-bottom: 10px; }
+.pun-card-label { font-size: 11px; font-weight: 700; color: #975A16; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+.pun-card-wells { font-size: 11px; color: var(--slate-blue); margin-bottom: 6px; line-height: 1.4; }
 
 /* Property total — vertical card (right column) */
 .property-total-v {
@@ -294,6 +294,7 @@
   .tools-summary-center { max-height: 400px; }
   .tools-summary-right { flex: 0 0 auto; width: 100%; }
   .tools-mode-toggle { margin-left: 16px; margin-right: 16px; }
+  .tools-well-grid { grid-template-columns: 1fr; }
   .price-row { flex-direction: column; gap: 10px; }
   .price-field { min-width: 100%; }
   .well-card-header { flex-direction: column; }

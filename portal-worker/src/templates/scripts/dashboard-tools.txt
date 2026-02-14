@@ -905,21 +905,20 @@
                 (sharedGroups.length > 0 ? ' + ' + sharedGroups.length + ' Shared Unit' + (sharedGroups.length !== 1 ? 's' : '') : '') +
                 '</span></div>';
 
-            // Shared PUN groups
+            // Well cards grid (PUN groups + individual wells)
+            html += '<div class="tools-well-grid">';
+
+            // Shared PUN groups (compact, inside grid)
             for (var g2 = 0; g2 < sharedGroups.length; g2++) {
                 var sg = sharedGroups[g2];
                 var sgProd = sg.production || [];
                 var sgLatest = sgProd.length > 0 ? sgProd[0] : null;
-                var sgTrail = sg.trailing3mo || {};
                 var sgDecimal = toolsManualDecimal || prop.ri_decimal || null;
                 var sgRevLatest = sgLatest ? calcWellRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal) : { gross: null, net: null };
-                var sgRevAvg = calcWellRevenue(sgTrail.avgOilBbl || 0, sgTrail.avgGasMcf || 0, sgDecimal);
 
                 html += '<div class="pun-card">' +
-                    '<div class="pun-card-header">' +
-                        '<span class="pun-card-label">Shared Production Unit</span>' +
-                    '</div>' +
-                    '<div class="pun-card-wells">Wells: ' + (sg.wellNames || []).map(escapeHtml).join(', ') + '</div>';
+                    '<div class="pun-card-label">Shared Unit</div>' +
+                    '<div class="pun-card-wells">' + (sg.wellNames || []).map(escapeHtml).join(', ') + '</div>';
 
                 if (sgLatest) {
                     html += '<div class="well-production"><span class="month-label">' + formatYearMonth(sgLatest.yearMonth) + ':</span> ' +
@@ -927,27 +926,12 @@
                 }
 
                 if (sgRevLatest.gross != null) {
-                    html += '<div class="well-revenue"><span class="gross">Gross: ' + fmtMoney(sgRevLatest.gross) + '</span> ' +
-                        '<span class="arrow">\u2192</span> <span class="net">Net (' + toolsDeduction + '%): ' + fmtMoney(sgRevLatest.net) + '</span></div>';
-                } else {
-                    html += '<div class="well-revenue"><span style="color:#A0AEC0">Enter decimal interest to see revenue</span></div>';
-                }
-
-                if (sgTrail.avgOilBbl || sgTrail.avgGasMcf) {
-                    html += '<div class="well-revenue-avg">3-Mo Avg: ';
-                    if (sgRevAvg.gross != null) {
-                        html += '<span class="gross">Gross ' + fmtMoney(sgRevAvg.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevAvg.net) + '</span>';
-                    } else {
-                        html += '<span class="vol">' + fmtVol(sgTrail.avgOilBbl) + ' BBL + ' + fmtVol(sgTrail.avgGasMcf) + ' MCF</span>';
-                    }
-                    html += '</div>';
+                    html += '<div class="well-revenue"><span class="gross">' + fmtMoney(sgRevLatest.gross) + '</span> ' +
+                        '<span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
                 }
 
                 html += '</div>';
             }
-
-            // Well cards grid
-            html += '<div class="tools-well-grid">';
             for (var w2 = 0; w2 < wells.length; w2++) {
                 var wl = wells[w2];
                 var shutIn = isShutIn(wl.wellStatus);
