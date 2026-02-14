@@ -374,14 +374,14 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
        AND (p.organization_id = ? OR p.user_id = ?)
-       ORDER BY p.ri_decimal DESC NULLS LAST LIMIT 1`
+       ORDER BY p.ri_decimal DESC NULLS LAST, COALESCE(p.ri_acres, p.total_acres, p.acres, 0) DESC LIMIT 1`
     : `SELECT p.airtable_record_id, p.county, p.section, p.township, p.range, p.meridian,
               p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres
        FROM property_well_links pwl
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
        AND p.user_id = ?
-       ORDER BY p.ri_decimal DESC NULLS LAST LIMIT 1`;
+       ORDER BY p.ri_decimal DESC NULLS LAST, COALESCE(p.ri_acres, p.total_acres, p.acres, 0) DESC LIMIT 1`;
   const linkBinds = orgId ? [wellId, orgId, userId] : [wellId, userId];
 
   const linkResult = await env.WELLS_DB!.prepare(linkQuery).bind(...linkBinds).first() as any;
