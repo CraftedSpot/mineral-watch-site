@@ -86,7 +86,7 @@
 
 /* Linked property badge in well mode */
 .tools-linked-property {
-  margin: 0 24px 12px; padding: 10px 14px;
+  margin: 0 0 12px; padding: 10px 14px;
   background: #F7FAFC; border: 1px solid var(--border); border-radius: 6px;
   font-size: 12px; color: var(--slate-blue); display: flex; align-items: center; gap: 8px;
 }
@@ -98,7 +98,7 @@
   display: flex; gap: 16px; margin: 0 24px 16px; align-items: flex-start;
 }
 .tools-summary-left { flex: 1; min-width: 0; }
-.tools-summary-right { flex-shrink: 0; width: 220px; }
+.tools-summary-right { flex-shrink: 0; width: 220px; position: sticky; top: 20px; align-self: flex-start; }
 
 /* NRI area resets (inside left column, no outer margins) */
 #toolsNriArea .nri-calc-inline { margin: 0; margin-top: 12px; }
@@ -135,24 +135,24 @@
 /* Wells section */
 .tools-wells-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin: 0 24px 8px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
+  margin: 10px 0 6px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
 }
 .tools-wells-scroll {
-  max-height: 480px; overflow-y: auto; padding-bottom: 4px;
+  max-height: 380px; overflow-y: auto; padding-bottom: 4px;
   border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-  margin: 0 0 8px;
+  margin: 0;
 }
 
 /* Well card grid */
 .tools-well-grid {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-  padding: 12px 24px 0;
+  padding: 12px 0 0;
 }
 
 /* Back link */
 .tools-back-link {
   display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600;
-  color: var(--slate-blue); text-decoration: none; margin: 0 24px 12px; padding: 6px 0;
+  color: var(--slate-blue); text-decoration: none; margin: 8px 0 12px; padding: 6px 0;
 }
 .tools-back-link:hover { color: var(--oil-navy); text-decoration: underline; }
 
@@ -163,7 +163,7 @@
   transition: box-shadow 0.15s; display: flex; flex-direction: column;
 }
 .well-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.well-card-single { margin: 0 24px 12px; }
+.well-card-single { margin: 0 0 12px; }
 .well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .well-card-name { font-size: 14px; font-weight: 700; color: var(--oil-navy); }
 .well-card-operator { font-size: 12px; color: var(--slate-blue); margin-top: 2px; }
@@ -202,7 +202,7 @@
 
 /* Shared PUN production unit card */
 .pun-card {
-  margin: 12px 24px 0; padding: 16px 18px;
+  margin: 12px 0 0; padding: 16px 18px;
   background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 8px;
 }
 .pun-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -225,6 +225,8 @@
 .ptv-basis { font-size: 10px; opacity: 0.5; margin-top: 10px; }
 .ptv-link { display: block; font-size: 12px; color: rgba(255,255,255,0.7); text-decoration: none; margin-top: 10px; }
 .ptv-link:hover { color: #fff; text-decoration: underline; }
+.ptv-placeholder { opacity: 0.35; }
+.tools-wells-placeholder { text-align: center; padding: 32px 12px; font-size: 13px; color: #CBD5E0; }
 
 /* Disclaimer */
 .tools-disclaimer { padding: 8px 24px 20px; font-size: 11px; color: #A0AEC0; line-height: 1.5; }
@@ -290,10 +292,8 @@
   .tools-header, .tools-selector, .tools-disclaimer { padding-left: 16px; padding-right: 16px; }
   .tools-summary-row { flex-direction: column; margin-left: 16px; margin-right: 16px; }
   .tools-summary-right { width: 100%; }
-  .tools-mode-toggle, .tools-wells-header { margin-left: 16px; margin-right: 16px; }
-  .tools-well-grid { padding-left: 16px; padding-right: 16px; grid-template-columns: 1fr; }
-  .pun-card { margin-left: 16px; margin-right: 16px; }
-  .tools-linked-property, .tools-back-link, .well-card-single { margin-left: 16px; margin-right: 16px; }
+  .tools-mode-toggle { margin-left: 16px; margin-right: 16px; }
+  .tools-well-grid { grid-template-columns: 1fr; }
   .price-row { flex-direction: column; gap: 10px; }
   .price-field { min-width: 100%; }
   .well-card-header { flex-direction: column; }

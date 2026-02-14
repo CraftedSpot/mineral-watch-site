@@ -73,12 +73,42 @@
             // Swap selector
             renderToolsSelector();
 
-            // Clear results
+            // Reset to placeholders
+            resetToolsPlaceholders();
+        }
+
+        // ── Placeholder Helpers ─────────────────────
+
+        function buildTotalPlaceholder() {
+            return '<div class="property-total-v ptv-placeholder">' +
+                '<div class="ptv-header">Revenue Summary</div>' +
+                '<div class="ptv-block">' +
+                    '<div class="ptv-label">Latest Month</div>' +
+                    '<div class="ptv-gross">--</div>' +
+                    '<div class="ptv-gross-label">Gross Revenue</div>' +
+                    '<div class="ptv-net">--</div>' +
+                    '<div class="ptv-net-label">Net</div>' +
+                '</div>' +
+                '<div class="ptv-divider"></div>' +
+                '<div class="ptv-block">' +
+                    '<div class="ptv-label">3-Month Average</div>' +
+                    '<div class="ptv-gross">--</div>' +
+                    '<div class="ptv-gross-label">Gross Revenue</div>' +
+                    '<div class="ptv-net">--</div>' +
+                    '<div class="ptv-net-label">Net</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function resetToolsPlaceholders() {
             var cardsEl = document.getElementById('toolsWellCards');
             var totalEl = document.getElementById('toolsPropertyTotal');
+            var nriArea = document.getElementById('toolsNriArea');
             var disclaimerEl = document.getElementById('toolsDisclaimer');
-            if (cardsEl) cardsEl.innerHTML = '';
-            if (totalEl) totalEl.innerHTML = '';
+            var msg = toolsMode === 'well' ? 'Search for a well above' : 'Select a property to see wells';
+            if (cardsEl) cardsEl.innerHTML = '<div class="tools-wells-placeholder">' + msg + '</div>';
+            if (totalEl) totalEl.innerHTML = buildTotalPlaceholder();
+            if (nriArea) nriArea.innerHTML = '';
             if (disclaimerEl) disclaimerEl.style.display = 'none';
         }
 
@@ -118,10 +148,10 @@
                             '</div>' +
                         '</div>' +
                         '<div id="toolsNriArea"></div>' +
+                        '<div id="toolsWellCards"><div class="tools-wells-placeholder">Select a property to see wells</div></div>' +
                     '</div>' +
-                    '<div class="tools-summary-right" id="toolsPropertyTotal"></div>' +
+                    '<div class="tools-summary-right" id="toolsPropertyTotal">' + buildTotalPlaceholder() + '</div>' +
                 '</div>' +
-                '<div id="toolsWellCards"></div>' +
                 '<div class="tools-disclaimer" id="toolsDisclaimer" style="display:none">' +
                     'Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ due to posted wellhead prices, operator deductions, production allocation, and payment timing.' +
                 '</div>';
@@ -293,12 +323,7 @@
             toolsSelectedPropertyId = null;
             toolsPropertyData = null;
             toolsManualDecimal = null;
-            var cardsEl = document.getElementById('toolsWellCards');
-            var totalEl = document.getElementById('toolsPropertyTotal');
-            var disclaimerEl = document.getElementById('toolsDisclaimer');
-            if (cardsEl) cardsEl.innerHTML = '';
-            if (totalEl) totalEl.innerHTML = '';
-            if (disclaimerEl) disclaimerEl.style.display = 'none';
+            resetToolsPlaceholders();
             onToolsPropertySearchInput('');
         }
 
@@ -377,12 +402,7 @@
             toolsSelectedWellId = null;
             toolsWellData = null;
             toolsManualDecimal = null;
-            var cardsEl = document.getElementById('toolsWellCards');
-            var totalEl = document.getElementById('toolsPropertyTotal');
-            var disclaimerEl = document.getElementById('toolsDisclaimer');
-            if (cardsEl) cardsEl.innerHTML = '';
-            if (totalEl) totalEl.innerHTML = '';
-            if (disclaimerEl) disclaimerEl.style.display = 'none';
+            resetToolsPlaceholders();
             onToolsWellSearchInput('');
         }
 
@@ -553,14 +573,11 @@
             var disclaimerEl = document.getElementById('toolsDisclaimer');
 
             if (!propertyId) {
-                if (cardsEl) cardsEl.innerHTML = '';
-                if (totalEl) totalEl.innerHTML = '';
-                if (disclaimerEl) disclaimerEl.style.display = 'none';
+                resetToolsPlaceholders();
                 return;
             }
 
             if (cardsEl) cardsEl.innerHTML = '<div class="tools-loading">Loading production data...</div>';
-            if (totalEl) totalEl.innerHTML = '';
 
             try {
                 var res = await fetch('/api/tools/property-production?property_id=' + encodeURIComponent(propertyId));
@@ -581,14 +598,11 @@
             var disclaimerEl = document.getElementById('toolsDisclaimer');
 
             if (!wellId) {
-                if (cardsEl) cardsEl.innerHTML = '';
-                if (totalEl) totalEl.innerHTML = '';
-                if (disclaimerEl) disclaimerEl.style.display = 'none';
+                resetToolsPlaceholders();
                 return;
             }
 
             if (cardsEl) cardsEl.innerHTML = '<div class="tools-loading">Loading production data...</div>';
-            if (totalEl) totalEl.innerHTML = '';
 
             try {
                 var res = await fetch('/api/tools/well-production?well_id=' + encodeURIComponent(wellId));
@@ -792,8 +806,8 @@
                         nriArea.innerHTML = '';
                     }
                 }
-                totalEl.innerHTML = '';
-                cardsEl.innerHTML = '<div class="tools-empty"><p>No linked wells found for this property.</p></div>';
+                totalEl.innerHTML = buildTotalPlaceholder();
+                cardsEl.innerHTML = '<div class="tools-wells-placeholder">No linked wells found for this property</div>';
                 if (disclaimerEl) disclaimerEl.style.display = 'none';
                 return;
             }
@@ -866,7 +880,7 @@
                         '<a href="#" class="ptv-link" onclick="openPropertyDetails(\'' + prop.id + '\');return false">View property details \u2192</a>' +
                     '</div>';
             } else {
-                totalEl.innerHTML = '';
+                totalEl.innerHTML = buildTotalPlaceholder();
             }
 
             // Show NRI result if decimal was auto-calculated from property acres
@@ -1006,6 +1020,7 @@
             var linkedProp = data.linkedProperty;
             var production = data.production || [];
             var trail = data.trailing3mo || {};
+            var nriArea = document.getElementById('toolsNriArea');
 
             // Determine decimal
             var decimal = well.interestDecimal || toolsManualDecimal || null;
@@ -1017,6 +1032,19 @@
                 if (autoAcres > 0) {
                     toolsManualDecimal = (autoAcres * (3/16)) / 640;
                     decimal = toolsManualDecimal;
+                }
+            }
+
+            // NRI calculator in the shared NRI area
+            if (nriArea) {
+                if (noDecimal) {
+                    var prefillAcres = '';
+                    if (linkedProp) {
+                        prefillAcres = linkedProp.ri_acres || linkedProp.total_acres || linkedProp.acres || '';
+                    }
+                    nriArea.innerHTML = buildNriCalcHtml(prefillAcres);
+                } else {
+                    nriArea.innerHTML = '';
                 }
             }
 
@@ -1037,15 +1065,6 @@
                     'Linked to property: <a href="#" onclick="openPropertyDetails(\'' + linkedProp.id + '\');return false">' + escapeHtml(propLabel) + '</a>' +
                     (linkedProp.ri_decimal ? ' &middot; Decimal: ' + linkedProp.ri_decimal : '') +
                 '</div>';
-            }
-
-            // NRI calculator if no decimal
-            if (noDecimal) {
-                var prefillAcres = '';
-                if (linkedProp) {
-                    prefillAcres = linkedProp.ri_acres || linkedProp.total_acres || linkedProp.acres || '';
-                }
-                html += buildNriCalcHtml(prefillAcres);
             }
 
             // Well card (single, not in grid)
@@ -1107,25 +1126,33 @@
                 if (resRow) resRow.style.display = 'flex';
             }
 
-            // Show total for single well (simpler than property mode)
+            // Show total for single well using vertical card
             if (totalEl && revLatest.gross != null) {
-                var basisText = data.dataHorizon ? 'Based on ' + formatYearMonth(data.dataHorizon) + ' production (latest OTC data)' : '';
+                var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
                 totalEl.innerHTML =
-                    '<div class="property-total">' +
-                        '<h3>Well Revenue Summary</h3>' +
-                        '<div class="total-row">' +
-                            '<span class="total-label">Latest Month</span>' +
-                            '<span class="total-values"><span class="total-gross">Gross ' + fmtMoney(revLatest.gross) + '</span><span class="total-arrow">\u2192</span><span class="total-net">Net ' + fmtMoney(revLatest.net) + '</span></span>' +
+                    '<div class="property-total-v">' +
+                        '<div class="ptv-header">Well Revenue</div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">Latest Month</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(revLatest.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(revLatest.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
-                        '<div class="total-row">' +
-                            '<span class="total-label">3-Month Average</span>' +
-                            '<span class="total-values"><span class="total-gross">Gross ' + fmtMoney(revAvg.gross) + '</span><span class="total-arrow">\u2192</span><span class="total-net">Net ' + fmtMoney(revAvg.net) + '</span></span>' +
+                        '<div class="ptv-divider"></div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">3-Month Average</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(revAvg.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(revAvg.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
-                        (basisText ? '<div class="total-basis">' + basisText + '</div>' : '') +
+                        (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
+                        '<a href="#" class="ptv-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false">View well details \u2192</a>' +
                     '</div>';
                 if (disclaimerEl) disclaimerEl.style.display = 'block';
             } else {
-                if (totalEl) totalEl.innerHTML = '';
+                if (totalEl) totalEl.innerHTML = buildTotalPlaceholder();
                 if (disclaimerEl) disclaimerEl.style.display = 'none';
             }
         }
