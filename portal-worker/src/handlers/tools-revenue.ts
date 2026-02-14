@@ -456,7 +456,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
 
   if (basePuns.length === 0) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, basePuns: [] },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns: [] },
       linkedProperty,
       dataHorizon: null,
       production: [],
@@ -505,7 +505,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   const avgGas = trail3.length > 0 ? trail3.reduce((s, p) => s + p.gasMcf, 0) / trail3.length : 0;
 
   return jsonResponse({
-    well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, basePuns },
+    well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests, basePuns },
     linkedProperty,
     dataHorizon,
     production,
