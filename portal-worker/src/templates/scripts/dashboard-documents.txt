@@ -1461,6 +1461,23 @@
             // Render sections in defined order
             const docType = data.doc_type;
             for (const sectionName of sectionOrder) {
+                // Custom check_stub section rendering — must run BEFORE visibility filter
+                // because wells/summary/operating_expenses are in the hide list (they use custom renderers)
+                if (data.doc_type === 'check_stub') {
+                    if (sectionName === 'Well Revenue' && Array.isArray(data.wells) && data.wells.length > 0) {
+                        content += renderCheckStubWellRevenue(data.wells);
+                        continue;
+                    }
+                    if (sectionName === 'Check Summary' && data.summary && typeof data.summary === 'object') {
+                        content += renderCheckStubSummary(data.summary);
+                        continue;
+                    }
+                    if (sectionName === 'Operating Expenses' && Array.isArray(data.operating_expenses) && data.operating_expenses.length > 0) {
+                        content += renderCheckStubOperatingExpenses(data.operating_expenses);
+                        continue;
+                    }
+                }
+
                 const fields = groupedFields[sectionName];
                 if (!fields) continue;
 
@@ -1477,25 +1494,6 @@
                 // Skip Legal Description for death certificates (no TRS - county/state are domicile, not property)
                 if (sectionName === 'Legal Description' && data.doc_type === 'death_certificate') {
                     continue;
-                }
-
-                // Note: When applicant is the operator, the applicant field is skipped individually
-                // (not the whole section) so attorney_information still renders.
-
-                // Custom check_stub section rendering
-                if (data.doc_type === 'check_stub') {
-                    if (sectionName === 'Well Revenue' && Array.isArray(data.wells) && data.wells.length > 0) {
-                        content += renderCheckStubWellRevenue(data.wells);
-                        continue;
-                    }
-                    if (sectionName === 'Check Summary' && data.summary && typeof data.summary === 'object') {
-                        content += renderCheckStubSummary(data.summary);
-                        continue;
-                    }
-                    if (sectionName === 'Operating Expenses' && Array.isArray(data.operating_expenses) && data.operating_expenses.length > 0) {
-                        content += renderCheckStubOperatingExpenses(data.operating_expenses);
-                        continue;
-                    }
                 }
 
                 // Build section content first to check if it's empty
