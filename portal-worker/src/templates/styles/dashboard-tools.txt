@@ -71,11 +71,13 @@
 }
 .tools-modal-link:hover { opacity: 1; color: var(--oil-navy); }
 .tools-modal-link svg { width: 14px; height: 14px; }
-.tools-drilldown-link {
-  display: inline-block; font-size: 11px; color: var(--slate-blue);
-  text-decoration: none; margin-top: 6px; opacity: 0.7;
+.tools-drilldown-btn {
+  display: block; text-align: center; font-size: 12px; font-weight: 600;
+  color: var(--oil-navy); text-decoration: none; margin-top: auto; padding-top: 10px;
+  padding: 7px 0; border: 1px solid var(--border); border-radius: 5px;
+  background: #F7FAFC; transition: all 0.15s;
 }
-.tools-drilldown-link:hover { opacity: 1; text-decoration: underline; }
+.tools-drilldown-btn:hover { background: var(--oil-navy); color: #fff; border-color: var(--oil-navy); }
 .tools-modal-link-light {
   display: block; font-size: 12px; color: rgba(255,255,255,0.7);
   text-decoration: none; margin-top: 8px;
@@ -119,11 +121,24 @@
 .deduction-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--oil-navy); cursor: pointer; border: none; }
 .deduction-val { font-size: 14px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--oil-navy); min-width: 36px; text-align: right; }
 
+/* Well card grid */
+.tools-well-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+  margin: 0 24px 12px;
+}
+
+/* Back link */
+.tools-back-link {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600;
+  color: var(--slate-blue); text-decoration: none; margin: 0 24px 12px; padding: 6px 0;
+}
+.tools-back-link:hover { color: var(--oil-navy); text-decoration: underline; }
+
 /* Well cards */
 .well-card {
-  margin: 0 24px 12px; padding: 16px 18px;
+  padding: 16px 18px;
   background: #fff; border: 1px solid var(--border); border-radius: 8px;
-  transition: box-shadow 0.15s;
+  transition: box-shadow 0.15s; display: flex; flex-direction: column;
 }
 .well-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 .well-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }

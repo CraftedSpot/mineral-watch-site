@@ -11,6 +11,7 @@
         var toolsManualDecimal = null;
         var toolsSelectedPropertyId = null;
         var toolsSelectedWellId = null;
+        var toolsDrilldownFrom = null;  // { id, label } — set when drilling from property mode
         var toolsHighlightIndex = -1;
         var toolsDropdownItems = [];
 
@@ -60,6 +61,7 @@
             toolsManualDecimal = null;
             toolsSelectedPropertyId = null;
             toolsSelectedWellId = null;
+            toolsDrilldownFrom = null;
             toolsHighlightIndex = -1;
 
             // Update toggle buttons
@@ -437,6 +439,12 @@
                 }
             }
 
+            // Save current property context for back navigation
+            if (toolsSelectedPropertyId && toolsPropertyData) {
+                var pf = toolsPropertyData.property || {};
+                toolsDrilldownFrom = { id: toolsSelectedPropertyId, label: formatPropertyLabel(pf) };
+            }
+
             // Switch to well mode
             toolsMode = 'well';
             toolsPropertyData = null;
@@ -460,6 +468,36 @@
             // Fetch and display
             toolsSelectedWellId = wellId;
             onToolsWellChange(wellId);
+        }
+
+        function backToProperty() {
+            if (!toolsDrilldownFrom) return;
+            var propId = toolsDrilldownFrom.id;
+            var propLabel = toolsDrilldownFrom.label;
+            toolsDrilldownFrom = null;
+
+            // Switch back to property mode
+            toolsMode = 'property';
+            toolsWellData = null;
+            toolsManualDecimal = null;
+            toolsSelectedWellId = null;
+
+            // Update toggle buttons
+            var propBtn = document.getElementById('toolsModeProperty');
+            var wellBtn = document.getElementById('toolsModeWell');
+            if (propBtn) propBtn.className = 'mode-btn active';
+            if (wellBtn) wellBtn.className = 'mode-btn';
+
+            // Render property selector and pre-fill
+            renderToolsSelector();
+            var input = document.getElementById('toolsPropertySearch');
+            if (input) input.value = propLabel;
+            var clearBtn = document.getElementById('toolsPropertySearchClear');
+            if (clearBtn) clearBtn.style.display = 'block';
+
+            // Re-fetch property data
+            toolsSelectedPropertyId = propId;
+            onToolsPropertyChange(propId);
         }
 
         // ── Prices ───────────────────────────────────
@@ -805,7 +843,8 @@
                 html += '</div>';
             }
 
-            // Render individual well cards
+            // Render individual well cards in grid
+            html += '<div class="tools-well-grid">';
             for (var w = 0; w < wells.length; w++) {
                 var well = wells[w];
                 var shutIn = isShutIn(well.wellStatus);
@@ -866,11 +905,12 @@
                     html += '<div class="well-production" style="color:#A0AEC0">No production data available</div>';
                 }
 
-                // Drill-down link
-                html += '<a href="#" class="tools-drilldown-link" onclick="drillDownToWell(\'' + well.wellId + '\');return false">View well revenue \u2192</a>';
+                // Drill-down button
+                html += '<a href="#" class="tools-drilldown-btn" onclick="drillDownToWell(\'' + well.wellId + '\');return false">Well Revenue Detail \u2192</a>';
 
                 html += '</div>';
             }
+            html += '</div>';
 
             cardsEl.innerHTML = html;
 
@@ -936,6 +976,11 @@
             }
 
             var html = '';
+
+            // Back-to-property link when drilled down from property mode
+            if (toolsDrilldownFrom) {
+                html += '<a href="#" class="tools-back-link" onclick="backToProperty();return false">\u2190 Back to ' + escapeHtml(toolsDrilldownFrom.label) + '</a>';
+            }
 
             // Linked property badge
             if (linkedProp) {
