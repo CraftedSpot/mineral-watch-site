@@ -121,10 +121,21 @@
 .deduction-slider::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: var(--oil-navy); cursor: pointer; border: none; }
 .deduction-val { font-size: 14px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--oil-navy); min-width: 36px; text-align: right; }
 
+/* Wells section */
+.tools-wells-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 0 24px 8px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
+}
+.tools-wells-scroll {
+  max-height: 480px; overflow-y: auto; padding-bottom: 4px;
+  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  margin: 0 0 8px;
+}
+
 /* Well card grid */
 .tools-well-grid {
   display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-  margin: 0 24px 12px;
+  padding: 12px 24px 0;
 }
 
 /* Back link */
@@ -180,7 +191,7 @@
 
 /* Shared PUN production unit card */
 .pun-card {
-  margin: 0 24px 12px; padding: 16px 18px;
+  margin: 12px 24px 0; padding: 16px 18px;
   background: #FFFFF0; border: 1px solid #FEFCBF; border-radius: 8px;
 }
 .pun-card-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
@@ -263,9 +274,10 @@
 /* Mobile */
 @media (max-width: 768px) {
   .tools-header, .tools-selector, .tools-price-bar, .tools-disclaimer { padding-left: 16px; padding-right: 16px; }
-  .tools-mode-toggle { margin-left: 16px; margin-right: 16px; }
-  .tools-well-grid { margin-left: 16px; margin-right: 16px; grid-template-columns: 1fr; }
-  .pun-card, .property-total, .tools-linked-property, .tools-back-link, .well-card-single { margin-left: 16px; margin-right: 16px; }
+  .tools-mode-toggle, .tools-wells-header { margin-left: 16px; margin-right: 16px; }
+  .tools-well-grid { padding-left: 16px; padding-right: 16px; grid-template-columns: 1fr; }
+  .pun-card { margin-left: 16px; margin-right: 16px; }
+  .property-total, .tools-linked-property, .tools-back-link, .well-card-single { margin-left: 16px; margin-right: 16px; }
   .nri-calc-inline { margin-left: 16px; margin-right: 16px; }
   .price-row { flex-direction: column; gap: 10px; }
   .price-field { min-width: 100%; }
