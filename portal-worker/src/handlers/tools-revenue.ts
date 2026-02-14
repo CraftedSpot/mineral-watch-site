@@ -207,7 +207,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     const api10 = well.api_number ? well.api_number.replace(/-/g, '').substring(0, 10) : null;
     const basePuns = api10 ? (api10ToPuns.get(api10) || []) : [];
 
-    // Determine interest decimal and source
+    // Determine interest decimal and source (primary RI for backward compat)
     let interestDecimal: number | null = null;
     let interestSource: string = 'none';
     let interestSourceDocId: string | null = null;
@@ -220,6 +220,24 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     } else if (property.ri_decimal) {
       interestDecimal = property.ri_decimal;
       interestSource = 'property';
+    }
+
+    // Build all interest types for multi-interest display
+    const interests: any[] = [];
+    if (well.ri_nri) {
+      interests.push({ type: 'RI', label: 'Royalty Interest', decimal: well.ri_nri,
+        source: well.interest_source || 'well_override', sourceDocId: well.interest_source_doc_id, sourceDate: well.interest_source_date });
+    } else if (property.ri_decimal) {
+      interests.push({ type: 'RI', label: 'Royalty Interest', decimal: property.ri_decimal,
+        source: 'property', sourceDocId: null, sourceDate: null });
+    }
+    if (well.wi_nri) {
+      interests.push({ type: 'WI', label: 'Working Interest', decimal: well.wi_nri,
+        source: well.wi_nri_source || 'well_override', sourceDocId: well.wi_nri_source_doc_id, sourceDate: well.wi_nri_source_date });
+    }
+    if (well.orri_nri) {
+      interests.push({ type: 'ORRI', label: 'Overriding Royalty', decimal: well.orri_nri,
+        source: well.orri_nri_source || 'well_override', sourceDocId: well.orri_nri_source_doc_id, sourceDate: well.orri_nri_source_date });
     }
 
     // Check if any of this well's PUNs are shared
@@ -285,6 +303,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
       interestSource,
       interestSourceDocId,
       interestSourceDate,
+      interests,
       basePuns,
       sharedPun: wellSharedPuns.length > 0,
       production,
@@ -341,6 +360,12 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
     interest_source: wellResult.interest_source || null,
     interest_source_doc_id: wellResult.interest_source_doc_id || null,
     interest_source_date: wellResult.interest_source_date || null,
+    wi_nri_source: wellResult.wi_nri_source || null,
+    wi_nri_source_doc_id: wellResult.wi_nri_source_doc_id || null,
+    wi_nri_source_date: wellResult.wi_nri_source_date || null,
+    orri_nri_source: wellResult.orri_nri_source || null,
+    orri_nri_source_doc_id: wellResult.orri_nri_source_doc_id || null,
+    orri_nri_source_date: wellResult.orri_nri_source_date || null,
   };
 
   // 2. Get linked property for ri_decimal fallback
