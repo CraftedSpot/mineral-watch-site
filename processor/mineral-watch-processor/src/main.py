@@ -11,6 +11,7 @@ A background service that processes uploaded documents:
 """
 
 import asyncio
+import io
 import json
 import logging
 import os
@@ -78,6 +79,52 @@ def convert_tiff_to_png(tiff_path: str) -> str:
     except Exception as e:
         logger.error(f"Failed to convert TIFF to PNG: {e}")
         raise
+
+
+MAX_IMAGE_BYTES = 3_750_000  # ~3.75MB file → ~5MB base64 (Claude's limit)
+
+
+def ensure_image_under_limit(image_path: str) -> str:
+    """
+    Downscale and compress a JPEG if its file size would exceed Claude's
+    5 MB base64 limit (~3.75 MB on disk).  Returns the original path
+    unchanged if the image is already small enough.
+    """
+    file_size = os.path.getsize(image_path)
+    if file_size <= MAX_IMAGE_BYTES:
+        return image_path
+
+    logger.info(f"Image too large ({file_size:,} bytes), resizing to fit API limit")
+    with Image.open(image_path) as img:
+        # Progressively reduce quality, then dimensions if needed
+        for quality in (85, 75, 65):
+            buf = io.BytesIO()
+            img.save(buf, format='JPEG', quality=quality, optimize=True)
+            if buf.tell() <= MAX_IMAGE_BYTES:
+                out_path = str(Path(image_path).with_suffix('.resized.jpg'))
+                with open(out_path, 'wb') as f:
+                    f.write(buf.getvalue())
+                logger.info(f"Compressed to {buf.tell():,} bytes at quality={quality}")
+                return out_path
+
+        # Still too big — scale down
+        scale = 0.8
+        while scale >= 0.3:
+            new_w = int(img.width * scale)
+            new_h = int(img.height * scale)
+            resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            resized.save(buf, format='JPEG', quality=75, optimize=True)
+            if buf.tell() <= MAX_IMAGE_BYTES:
+                out_path = str(Path(image_path).with_suffix('.resized.jpg'))
+                with open(out_path, 'wb') as f:
+                    f.write(buf.getvalue())
+                logger.info(f"Resized to {new_w}x{new_h} ({buf.tell():,} bytes)")
+                return out_path
+            scale -= 0.1
+
+    logger.warning(f"Could not reduce image below limit, using as-is")
+    return image_path
 
 
 def apply_exif_orientation(image_path: str) -> tuple[str, bool]:
@@ -223,10 +270,10 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             # JPEG/PNG: Apply EXIF orientation if present
             is_direct_image = True
             corrected_path, was_corrected = apply_exif_orientation(file_path)
-            if was_corrected:
-                image_paths = [corrected_path]
-            else:
-                image_paths = [file_path]
+            final_path = corrected_path if was_corrected else file_path
+            # Ensure image is under Claude's 5MB base64 limit
+            final_path = ensure_image_under_limit(final_path)
+            image_paths = [final_path]
             page_count = 1
             logger.info(f"Using image directly: {content_type} (EXIF corrected: {was_corrected})")
         elif content_type == 'image/tiff':
