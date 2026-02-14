@@ -12,6 +12,7 @@
         var toolsSelectedPropertyId = null;
         var toolsSelectedWellId = null;
         var toolsDrilldownFrom = null;  // { id, label } — set when drilling from property mode
+        var toolsUnitDetailIdx = null;  // index into sharedPunGroups when viewing unit detail
         var toolsHighlightIndex = -1;
         var toolsDropdownItems = [];
 
@@ -62,6 +63,7 @@
             toolsSelectedPropertyId = null;
             toolsSelectedWellId = null;
             toolsDrilldownFrom = null;
+            toolsUnitDetailIdx = null;
             toolsHighlightIndex = -1;
 
             // Update toggle buttons
@@ -142,7 +144,7 @@
                             '</div>' +
                             '<div class="price-timestamp" id="toolsPriceTimestamp"></div>' +
                             '<div class="deduction-row">' +
-                                '<label>Post-Production Deductions</label>' +
+                                '<label>Post-Production Deductions <span class="tools-default-hint">(default 25% \u2014 varies by operator)</span></label>' +
                                 '<input type="range" class="deduction-slider" id="toolsDeductionSlider" min="0" max="50" value="' + toolsDeduction + '" oninput="onDeductionChange(this.value)">' +
                                 '<span class="deduction-val" id="toolsDeductionVal">' + toolsDeduction + '%</span>' +
                             '</div>' +
@@ -323,6 +325,7 @@
             toolsSelectedPropertyId = null;
             toolsPropertyData = null;
             toolsManualDecimal = null;
+            toolsUnitDetailIdx = null;
             resetToolsPlaceholders();
             onToolsPropertySearchInput('');
         }
@@ -455,6 +458,7 @@
         // ── Drill-Down Navigation ────────────────────
 
         function drillDownToWell(wellId) {
+            toolsUnitDetailIdx = null;
             // Find the well in loadedWells to get its name
             var wellName = '';
             for (var i = 0; i < loadedWells.length; i++) {
@@ -523,6 +527,114 @@
             // Re-fetch property data
             toolsSelectedPropertyId = propId;
             onToolsPropertyChange(propId);
+        }
+
+        // ── Unit Detail Drill-Down ─────────────────
+
+        function drillDownToUnit(idx) {
+            toolsUnitDetailIdx = idx;
+            renderUnitDetail(idx);
+        }
+
+        function backFromUnitDetail() {
+            toolsUnitDetailIdx = null;
+            renderToolsResults();
+        }
+
+        function renderUnitDetail(idx) {
+            var data = toolsPropertyData;
+            if (!data || !data.sharedPunGroups || !data.sharedPunGroups[idx]) return;
+
+            var cardsEl = document.getElementById('toolsWellCards');
+            var totalEl = document.getElementById('toolsPropertyTotal');
+            var disclaimerEl = document.getElementById('toolsDisclaimer');
+            if (!cardsEl) return;
+
+            var group = data.sharedPunGroups[idx];
+            var prop = data.property || {};
+            var decimal = toolsManualDecimal || prop.ri_decimal || null;
+            var production = group.production || [];
+            var trail = group.trailing3mo || {};
+            var latest = production.length > 0 ? production[0] : null;
+            var propLabel = formatPropertyLabel(prop);
+
+            var html = '';
+
+            // Back link
+            html += '<a href="#" class="tools-back-link" onclick="backFromUnitDetail();return false">\u2190 Back to ' + escapeHtml(propLabel) + '</a>';
+
+            // Unit header
+            html += '<div class="unit-detail-header">' +
+                '<div class="pun-card-label">Shared Production Unit</div>' +
+                '<div class="unit-detail-wells">' + (group.wellNames || []).map(function(n) {
+                    return '<span class="unit-well-tag">' + escapeHtml(n) + '</span>';
+                }).join(' ') + '</div>' +
+            '</div>';
+
+            // Production history
+            if (production.length > 0) {
+                html += '<div class="unit-detail-table">' +
+                    '<div class="unit-detail-row unit-detail-th">' +
+                        '<span>Month</span><span>Oil (BBL)</span><span>Gas (MCF)</span>' +
+                        (decimal ? '<span>Net Revenue</span>' : '') +
+                    '</div>';
+                for (var i = 0; i < production.length; i++) {
+                    var p = production[i];
+                    var rev = calcWellRevenue(p.oilBbl, p.gasMcf, decimal);
+                    html += '<div class="unit-detail-row">' +
+                        '<span class="month-label">' + formatYearMonth(p.yearMonth) + '</span>' +
+                        '<span class="vol">' + fmtVol(p.oilBbl) + '</span>' +
+                        '<span class="vol">' + fmtVol(p.gasMcf) + '</span>' +
+                        (decimal ? '<span class="net">' + fmtMoney(rev.net) + '</span>' : '') +
+                    '</div>';
+                }
+                html += '</div>';
+            }
+
+            // 3-month average
+            if (trail.avgOilBbl || trail.avgGasMcf) {
+                var revAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+                html += '<div class="unit-detail-avg">' +
+                    '<strong>3-Month Avg:</strong> ' +
+                    '<span class="vol">' + fmtVol(trail.avgOilBbl) + ' BBL</span> + ' +
+                    '<span class="vol">' + fmtVol(trail.avgGasMcf) + ' MCF</span>' +
+                    (revAvg.net != null ? ' \u2192 <span class="net">' + fmtMoney(revAvg.net) + '/mo net</span>' : '') +
+                '</div>';
+            }
+
+            cardsEl.innerHTML = html;
+
+            // Right column total
+            var revLatest = latest ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
+            var revAvg2 = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+
+            if (totalEl && revLatest.gross != null) {
+                var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
+                totalEl.innerHTML =
+                    '<div class="property-total-v">' +
+                        '<div class="ptv-header">Unit Revenue</div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">Latest Month</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(revLatest.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(revLatest.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
+                        '</div>' +
+                        '<div class="ptv-divider"></div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">3-Month Average</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(revAvg2.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(revAvg2.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
+                        '</div>' +
+                        (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
+                    '</div>';
+            } else {
+                if (totalEl) totalEl.innerHTML = buildTotalPlaceholder();
+            }
+
+            if (disclaimerEl) disclaimerEl.style.display = revLatest.gross != null ? 'block' : 'none';
         }
 
         // ── Prices ───────────────────────────────────
@@ -656,7 +768,11 @@
 
         function recalcTools() {
             if (toolsMode === 'property' && toolsPropertyData) {
-                renderToolsResults();
+                if (toolsUnitDetailIdx !== null) {
+                    renderUnitDetail(toolsUnitDetailIdx);
+                } else {
+                    renderToolsResults();
+                }
             } else if (toolsMode === 'well' && toolsWellData) {
                 renderToolsWellResults();
             }
@@ -761,6 +877,7 @@
                 '<div class="nri-calc-result-row" id="toolsNriResultRow" style="display:none">' +
                     '<span class="nri-calc-result-label">Your Decimal:</span>' +
                     '<span class="nri-calc-result-value" id="toolsNriResult"></span>' +
+                    '<span class="nri-calc-default-note" id="toolsNriDefaultNote"></span>' +
                 '</div>' +
                 '<div class="nri-calc-or">or <a href="#" onclick="document.getElementById(\'toolsNriCalcBox\').style.display=\'none\';document.getElementById(\'toolsManualDecBox\').style.display=\'flex\';return false">enter a known decimal directly</a></div>' +
             '</div>' +
@@ -893,6 +1010,8 @@
                 if (resEl) resEl.textContent = fmtDecimal(toolsManualDecimal);
                 var resRow = document.getElementById('toolsNriResultRow');
                 if (resRow) resRow.style.display = 'flex';
+                var noteEl = document.getElementById('toolsNriDefaultNote');
+                if (noteEl) noteEl.textContent = 'Pre-filled from property acres using default unit size and royalty rate';
             }
 
             if (disclaimerEl) disclaimerEl.style.display = hasAnyRevenue ? 'block' : 'none';
@@ -931,6 +1050,7 @@
                         '<span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
                 }
 
+                html += '<a href="#" class="tools-drilldown-btn" onclick="drillDownToUnit(' + g2 + ');return false">Unit Revenue Detail \u2192</a>';
                 html += '</div>';
             }
             for (var w2 = 0; w2 < wells.length; w2++) {

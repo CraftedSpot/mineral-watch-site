@@ -231,6 +231,20 @@
 .ptv-placeholder { opacity: 0.35; }
 .tools-wells-placeholder { text-align: center; padding: 32px 12px; font-size: 13px; color: #CBD5E0; }
 
+/* Unit detail view */
+.unit-detail-header { margin-bottom: 12px; }
+.unit-detail-wells { font-size: 12px; color: var(--slate-blue); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px; }
+.unit-well-tag { background: #EDF2F7; padding: 2px 8px; border-radius: 3px; font-size: 11px; }
+.unit-detail-table { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 10px; }
+.unit-detail-row { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 4px; padding: 6px 10px; font-size: 12px; align-items: center; }
+.unit-detail-row:not(:last-child) { border-bottom: 1px solid #f0f0f0; }
+.unit-detail-th { background: #F7FAFC; font-weight: 600; color: var(--slate-blue); font-size: 11px; }
+.unit-detail-row .net { color: #276749; font-weight: 600; }
+.unit-detail-row .vol { font-family: 'DM Mono', monospace; }
+.unit-detail-row .month-label { font-weight: 600; color: var(--oil-navy); }
+.unit-detail-avg { font-size: 12px; color: var(--slate-blue); padding: 8px 0; }
+.unit-detail-avg .net { color: #276749; font-weight: 700; }
+
 /* Disclaimer */
 .tools-disclaimer { padding: 8px 24px 20px; font-size: 11px; color: #A0AEC0; line-height: 1.5; }
 
