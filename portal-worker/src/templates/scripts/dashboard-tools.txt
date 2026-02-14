@@ -11,7 +11,6 @@
         var toolsManualDecimal = null;
         var toolsSelectedPropertyId = null;
         var toolsSelectedWellId = null;
-        var toolsCountyFilter = '';
         var toolsHighlightIndex = -1;
         var toolsDropdownItems = [];
 
@@ -137,28 +136,9 @@
         }
 
         function renderPropertySelector(area) {
-            // Build county filter options
-            var counties = {};
-            for (var i = 0; i < loadedProperties.length; i++) {
-                var c = (loadedProperties[i].fields || {}).COUNTY;
-                if (c) counties[c] = true;
-            }
-            var countyList = Object.keys(counties).sort();
-            var countyOpts = '<option value="">All Counties</option>';
-            for (var ci = 0; ci < countyList.length; ci++) {
-                countyOpts += '<option value="' + escapeHtml(countyList[ci]) + '"' +
-                    (toolsCountyFilter === countyList[ci] ? ' selected' : '') + '>' +
-                    escapeHtml(countyList[ci]) + '</option>';
-            }
-
             area.innerHTML =
                 '<div class="tools-selector">' +
                     '<label>Property</label>' +
-                    '<div class="tools-county-filter">' +
-                        '<select onchange="toolsCountyFilter=this.value;onToolsPropertySearchInput(document.getElementById(\'toolsPropertySearch\').value)">' +
-                        countyOpts +
-                        '</select>' +
-                    '</div>' +
                     '<div class="tools-search-wrapper" id="toolsPropertySearchWrapper">' +
                         '<input type="text" class="tools-search-input" id="toolsPropertySearch"' +
                             ' placeholder="Search by county, section, township-range..."' +
@@ -220,9 +200,6 @@
             for (var i = 0; i < loadedProperties.length; i++) {
                 var p = loadedProperties[i];
                 var f = p.fields || {};
-
-                // County filter
-                if (toolsCountyFilter && f.COUNTY !== toolsCountyFilter) continue;
 
                 var linked = p._linkedWells || 0;
                 var trs = formatTrs(f);
