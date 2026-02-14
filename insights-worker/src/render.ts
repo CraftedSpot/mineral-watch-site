@@ -866,11 +866,11 @@ const ARTICLES: Record<string, Article> = {
       "@type": "FAQPage",
       "mainEntity": [
         { "@type": "Question", "name": "How do I search for wells on my section at the OCC?", "acceptedAnswer": { "@type": "Answer", "text": "Use the Oil & Gas Well Records Search on the OCC Imaging portal. Enter your section, township, and range in the legal description fields, then click Search. The results show every well on record for that section, including active, plugged, and permitted wells. You can also use the Well Data Finder, a GIS-based map tool, to visually locate wells on your section." } },
-        { "@type": "Question", "name": "Where do I find spacing and pooling orders for my section?", "acceptedAnswer": { "@type": "Answer", "text": "Spacing and pooling applications are filed as Conservation Docket (CD) cases. For cases filed after March 21, 2022, search the Electronic Case Filing (ECF) system at ecf.public.occ.ok.gov. Select 'Oil & Gas' as the Program Area and 'Conservation Docket' as the Docket Type. For older cases filed before March 2022, use the Case Processing system at case.occ.ok.gov." } },
+        { "@type": "Question", "name": "Where do I find spacing and pooling orders for my section?", "acceptedAnswer": { "@type": "Answer", "text": "Spacing and pooling applications are filed as Conservation Docket (CD) cases. For cases filed in 2022 and later, search the Electronic Case Filing (ECF) system at ecf.public.occ.ok.gov. Select 'Oil & Gas' as the Program Area and 'Conservation Docket' as the Docket Type. For older cases, use the Case Processing system at case.occ.ok.gov." } },
         { "@type": "Question", "name": "How do I look up a drilling permit on the OCC website?", "acceptedAnswer": { "@type": "Answer", "text": "Drilling permits are Form 1000 filings. You can find them in the Oil & Gas Well Records Search by searching for your section. To view the actual Form 1000 document, use the OCC Imaging system at imaging.occ.ok.gov, select 'Oil and Gas Well Records Forms,' choose Form 1000, and search by API number or legal description." } },
-        { "@type": "Question", "name": "What is the difference between the Well Records Search and Well Data Finder?", "acceptedAnswer": { "@type": "Answer", "text": "The Oil & Gas Well Records Search is a traditional database search that returns detailed tabular results. Well Data Finder is a GIS-based map application that shows wells as points on a map. Both access the same underlying OCC well data." } },
+        { "@type": "Question", "name": "What is the difference between the Well Records Search and Well Data Finder?", "acceptedAnswer": { "@type": "Answer", "text": "The Oil & Gas Well Records Search is a traditional database search that returns detailed tabular results. Well Data Finder is a GIS-based map application that shows wells as points on a map. Both draw from the same underlying OCC well database, and together they are the supported tools going forward." } },
         { "@type": "Question", "name": "How do I find completion reports for wells on my section?", "acceptedAnswer": { "@type": "Answer", "text": "Completion reports (Form 1002A) can be found in the Oil & Gas Well Records Search by clicking the 'Completions' button on a well record. To view the scanned document, use the OCC Imaging system, select 'Oil and Gas Well Records Forms,' choose Form 1002A, and search by API number." } },
-        { "@type": "Question", "name": "What is the OCC Electronic Case Filing system?", "acceptedAnswer": { "@type": "Answer", "text": "The Electronic Case Filing (ECF) system is the OCC's current case management platform, launched on March 21, 2022. It replaced the older Case Processing system for all new filings. ECF allows the public to search for and view case documents including spacing applications, pooling orders, and other Conservation Docket cases." } },
+        { "@type": "Question", "name": "What is the OCC Electronic Case Filing system?", "acceptedAnswer": { "@type": "Answer", "text": "The Electronic Case Filing (ECF) system is the OCC's current case management platform, launched in 2022. It replaced the older Case Processing system for all new filings. ECF allows the public to search for and view case documents including spacing applications, pooling orders, and other Conservation Docket cases." } },
         { "@type": "Question", "name": "How do I check production data for a well in Oklahoma?", "acceptedAnswer": { "@type": "Answer", "text": "The Oil & Gas Well Records Search includes production data for gas wells under the 'Production' tab. For oil production and gross production tax data, the Oklahoma Tax Commission is the primary source. The RBDMS Data Explorer on the OCC website also provides production reports." } }
       ]
     }
@@ -3111,11 +3111,11 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h2 id="okies">What&rsquo;s Changing: OKIES System</h2>
 
-<p>The OCC is transitioning to a new platform called the <strong>Oklahoma Information Exchange System (OKIES)</strong>, which began phased implementation on June 30, 2025. OKIES is a form management platform that is replacing legacy systems &mdash; starting with the Form 1000 (Intent to Drill) process. Additional forms and processes are being added in phases.</p>
+<p>The OCC is transitioning to a new platform called the <strong>Oklahoma Information Exchange System (OKIES)</strong>, which began phased implementation on June 30, 2025. OKIES is a form management platform that is replacing legacy systems &mdash; starting with the Form 1000 (Intent to Drill) process. Form 1000 submissions now route through OKIES rather than the older paper/fax workflow. Additional forms and processes are being added in phases.</p>
 
 <p>For mineral owners, the key implication is that the way operators submit certain filings is changing. The underlying data &mdash; permits, completions, well records &mdash; will continue to be publicly accessible, but the systems through which you access them may look different over time.</p>
 
-<p>In the meantime, the existing tools described in this guide remain active. The Well Records Search, ECF, the Imaging system, and the other databases continue to function. If you can&rsquo;t find a recent filing in one system, it&rsquo;s worth checking whether it has moved to OKIES.</p>
+<p>Some legacy tools, including the original Well Browse Database, have already been retired or replaced. The supported tools going forward are the Oil &amp; Gas Well Records Search, Well Data Finder, ECF, the Imaging system, RBDMS Data Explorer, and OKIES-backed workflows. If you can&rsquo;t find a recent filing in one system, it&rsquo;s worth checking whether it has moved to OKIES.</p>
 
 <h2 id="limitations">Limitations of the OCC Website</h2>
 
@@ -3145,7 +3145,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">Where do I find spacing and pooling orders for my section?</div>
-        <p class="faq-answer">For cases filed after March 21, 2022, use the Electronic Case Filing system at ecf.public.occ.ok.gov. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type and legal description. For older cases, use the Case Processing system at case.occ.ok.gov.</p>
+        <p class="faq-answer">For cases filed in 2022 and later, use the Electronic Case Filing system at ecf.public.occ.ok.gov. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type and legal description. For older cases, use the Case Processing system at case.occ.ok.gov.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I look up a drilling permit on the OCC website?</div>
@@ -3153,7 +3153,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">What is the difference between the Well Records Search and Well Data Finder?</div>
-        <p class="faq-answer">The Well Records Search is a traditional database search returning tabular results with detailed well data. Well Data Finder is a GIS map application showing wells as points on a map. Both access the same data &mdash; the Well Records Search is better for detail, Well Data Finder is better for spatial context.</p>
+        <p class="faq-answer">The Well Records Search is a traditional database search returning tabular results with detailed well data. Well Data Finder is a GIS map application showing wells as points on a map. Both draw from the same underlying OCC well database &mdash; the Well Records Search is better for detail, Well Data Finder is better for spatial context.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I find completion reports for wells on my section?</div>
@@ -3161,7 +3161,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">What is the OCC Electronic Case Filing system?</div>
-        <p class="faq-answer">ECF is the OCC&rsquo;s current case management platform, launched March 21, 2022. It handles all new case filings including spacing, pooling, and increased density applications. The public can search and view case documents without an account.</p>
+        <p class="faq-answer">ECF is the OCC&rsquo;s current case management platform, launched in 2022. It handles all new case filings including spacing, pooling, and increased density applications. The public can search and view case documents without an account.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I check production data for a well in Oklahoma?</div>
