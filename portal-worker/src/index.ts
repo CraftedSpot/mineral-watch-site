@@ -88,6 +88,7 @@ import {
   handleGetPropertyLinkCounts,
   // Tools revenue estimator
   handlePropertyProduction,
+  handleWellProduction,
   // Wells handlers
   handleListWells,
   handleListWellsV2,
@@ -975,6 +976,9 @@ var index_default = {
       // Tools revenue estimator
       if (path === "/api/tools/property-production" && request.method === "GET") {
         return handlePropertyProduction(request, env);
+      }
+      if (path === "/api/tools/well-production" && request.method === "GET") {
+        return handleWellProduction(request, env);
       }
 
       // Properties endpoints

@@ -235,7 +235,8 @@ export {
 
 // Tools revenue estimator handler
 export {
-  handlePropertyProduction
+  handlePropertyProduction,
+  handleWellProduction
 } from './tools-revenue.js';
 
 // County records handlers (OKCountyRecords integration)

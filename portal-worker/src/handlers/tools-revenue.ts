@@ -1,9 +1,10 @@
 /**
- * Tools Revenue Estimator Handler
+ * Tools Revenue Estimator Handlers
  *
  * GET /api/tools/property-production?property_id=recXXX
+ * GET /api/tools/well-production?well_id=cwellXXX
  *
- * Returns a property's linked wells with OTC production data
+ * Returns property/well linked wells with OTC production data
  * for client-side revenue estimation. Handles:
  * - Interest decimal priority (well ri_nri > property ri_decimal)
  * - Shared PUN detection (multi-well production units)
@@ -278,5 +279,168 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     dataHorizon,
     wells: responseWells,
     sharedPunGroups,
+  });
+}
+
+export async function handleWellProduction(request: Request, env: Env): Promise<Response> {
+  const session = await authenticateRequest(request, env);
+  if (!session) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+  const url = new URL(request.url);
+  const wellId = url.searchParams.get('well_id');
+  if (!wellId) return jsonResponse({ error: 'well_id required' }, 400);
+
+  const userId = session.id;
+  const orgId = session.airtableUser?.fields?.Organization?.[0] || null;
+
+  // 1. Verify well ownership through property_well_links → properties
+  const ownerQuery = orgId
+    ? `SELECT cw.* FROM client_wells cw
+       JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
+       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+       WHERE cw.airtable_id = ? AND (p.organization_id = ? OR p.user_id = ?)
+       AND pwl.status IN ('Active', 'Linked') LIMIT 1`
+    : `SELECT cw.* FROM client_wells cw
+       JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
+       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+       WHERE cw.airtable_id = ? AND p.user_id = ?
+       AND pwl.status IN ('Active', 'Linked') LIMIT 1`;
+  const ownerBinds = orgId ? [wellId, orgId, userId] : [wellId, userId];
+
+  const wellResult = await env.WELLS_DB!.prepare(ownerQuery).bind(...ownerBinds).first() as any;
+  if (!wellResult) return jsonResponse({ error: 'Well not found' }, 404);
+
+  const well = {
+    id: wellResult.airtable_id,
+    wellName: wellResult.well_name || 'Unknown Well',
+    apiNumber: wellResult.api_number || null,
+    operator: wellResult.operator || null,
+    county: wellResult.county || null,
+    wellStatus: wellResult.well_status || null,
+    ri_nri: wellResult.ri_nri || null,
+    wi_nri: wellResult.wi_nri || null,
+    orri_nri: wellResult.orri_nri || null,
+  };
+
+  // 2. Get linked property for ri_decimal fallback
+  let linkedProperty: any = null;
+  const linkQuery = orgId
+    ? `SELECT p.airtable_record_id, p.county, p.section, p.township, p.range, p.meridian,
+              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres
+       FROM property_well_links pwl
+       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+       WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
+       AND (p.organization_id = ? OR p.user_id = ?)
+       ORDER BY p.ri_decimal DESC NULLS LAST LIMIT 1`
+    : `SELECT p.airtable_record_id, p.county, p.section, p.township, p.range, p.meridian,
+              p.ri_decimal, p.wi_decimal, p.ri_acres, p.total_acres, p.acres
+       FROM property_well_links pwl
+       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+       WHERE pwl.well_airtable_id = ? AND pwl.status IN ('Active', 'Linked')
+       AND p.user_id = ?
+       ORDER BY p.ri_decimal DESC NULLS LAST LIMIT 1`;
+  const linkBinds = orgId ? [wellId, orgId, userId] : [wellId, userId];
+
+  const linkResult = await env.WELLS_DB!.prepare(linkQuery).bind(...linkBinds).first() as any;
+  if (linkResult) {
+    linkedProperty = {
+      id: linkResult.airtable_record_id,
+      county: linkResult.county,
+      section: linkResult.section,
+      township: linkResult.township,
+      range: linkResult.range,
+      meridian: linkResult.meridian,
+      ri_decimal: linkResult.ri_decimal || null,
+      ri_acres: linkResult.ri_acres || null,
+      total_acres: linkResult.total_acres || null,
+      acres: linkResult.acres || null,
+    };
+  }
+
+  // 3. Determine interest decimal and source
+  let interestDecimal: number | null = null;
+  let interestSource = 'none';
+  if (well.ri_nri) {
+    interestDecimal = well.ri_nri;
+    interestSource = 'well_override';
+  } else if (linkedProperty?.ri_decimal) {
+    interestDecimal = linkedProperty.ri_decimal;
+    interestSource = 'property';
+  }
+
+  // 4. Resolve base_puns
+  if (!well.apiNumber) {
+    return jsonResponse({
+      well: { ...well, interestDecimal, interestSource },
+      linkedProperty,
+      dataHorizon: null,
+      production: [],
+      trailing3mo: { avgOilBbl: 0, avgGasMcf: 0 },
+    });
+  }
+
+  const api10 = well.apiNumber.replace(/-/g, '').substring(0, 10);
+  const punResult = await env.WELLS_DB!.prepare(
+    `SELECT DISTINCT base_pun FROM well_pun_links WHERE api_number = ? AND base_pun IS NOT NULL`
+  ).bind(api10).all();
+
+  const basePuns = (punResult.results as any[]).map(r => r.base_pun);
+
+  if (basePuns.length === 0) {
+    return jsonResponse({
+      well: { ...well, interestDecimal, interestSource, basePuns: [] },
+      linkedProperty,
+      dataHorizon: null,
+      production: [],
+      trailing3mo: { avgOilBbl: 0, avgGasMcf: 0 },
+    });
+  }
+
+  // 5. Query production (last 6 months)
+  const sixMonthsAgo = getMonthsAgo(6);
+  const prodRows: ProdRow[] = [];
+
+  for (const batch of chunk(basePuns, PUN_BATCH)) {
+    const ph = batch.map(() => '?').join(',');
+    const result = await env.WELLS_DB!.prepare(`
+      SELECT base_pun, year_month,
+        SUM(CASE WHEN product_code IN ('1','3') THEN gross_volume ELSE 0 END) as oil_bbl,
+        SUM(CASE WHEN product_code IN ('5','6') THEN gross_volume ELSE 0 END) as gas_mcf
+      FROM otc_production
+      WHERE base_pun IN (${ph}) AND year_month >= ?
+      GROUP BY base_pun, year_month ORDER BY year_month DESC
+    `).bind(...batch, sixMonthsAgo).all();
+    prodRows.push(...(result.results as ProdRow[]));
+  }
+
+  // 6. Aggregate production across PUNs by month
+  const monthlyProd = new Map<string, { oilBbl: number; gasMcf: number }>();
+  for (const row of prodRows) {
+    const existing = monthlyProd.get(row.year_month) || { oilBbl: 0, gasMcf: 0 };
+    existing.oilBbl += row.oil_bbl || 0;
+    existing.gasMcf += row.gas_mcf || 0;
+    monthlyProd.set(row.year_month, existing);
+  }
+
+  const production = Array.from(monthlyProd.entries())
+    .map(([ym, v]) => ({ yearMonth: ym, oilBbl: Math.round(v.oilBbl), gasMcf: Math.round(v.gasMcf) }))
+    .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth))
+    .slice(0, 6);
+
+  let dataHorizon: string | null = null;
+  for (const row of prodRows) {
+    if (!dataHorizon || row.year_month > dataHorizon) dataHorizon = row.year_month;
+  }
+
+  const trail3 = production.slice(0, 3);
+  const avgOil = trail3.length > 0 ? trail3.reduce((s, p) => s + p.oilBbl, 0) / trail3.length : 0;
+  const avgGas = trail3.length > 0 ? trail3.reduce((s, p) => s + p.gasMcf, 0) / trail3.length : 0;
+
+  return jsonResponse({
+    well: { ...well, interestDecimal, interestSource, basePuns },
+    linkedProperty,
+    dataHorizon,
+    production,
+    trailing3mo: { avgOilBbl: Math.round(avgOil), avgGasMcf: Math.round(avgGas) },
   });
 }
