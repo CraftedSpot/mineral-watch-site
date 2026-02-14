@@ -1564,7 +1564,7 @@ export function render404(): string {
 // ════════════════════════════════════════════
 
 const POOLING_ORDERS_BODY = `
-<p>If you own mineral rights in Oklahoma, there&rsquo;s a good chance you&rsquo;ll encounter a pooling order at some point &mdash; especially if your minerals are in an active drilling area like the STACK, SCOOP, or Merge plays. For many mineral owners, particularly those who inherited their interests, a pooling order is the first official document they&rsquo;ve ever received about their minerals. It can be confusing, intimidating, and time-sensitive.</p>
+<p>If you own mineral rights in Oklahoma, there&rsquo;s a good chance you&rsquo;ll encounter a pooling order at some point &mdash; especially if your minerals are in an active drilling area like the <a href="/insights/guides/scoop-stack-overview" style="color: var(--red-dirt); font-weight: 600;">STACK, SCOOP, or Merge plays</a>. For many mineral owners, particularly those who <a href="/insights/guides/inherited-mineral-rights" style="color: var(--red-dirt); font-weight: 600;">inherited their interests</a>, a pooling order is the first official document they&rsquo;ve ever received about their minerals. It can be confusing, intimidating, and time-sensitive.</p>
 
 <p>This guide will walk you through what a pooling order is, why you received one, what your options are, and how to evaluate them. We&rsquo;ll also cover the mistakes that cost mineral owners the most money, and when it makes sense to bring in professional help.</p>
 
@@ -1608,7 +1608,7 @@ const POOLING_ORDERS_BODY = `
 
 <h3 id="option-lease-bonus">Option 1: Cash Bonus Plus Royalty (Lease-Like Terms)</h3>
 
-<p>This is the option that most closely resembles a voluntary lease. You receive an upfront cash bonus payment per net mineral acre (NMA), and you receive a royalty on production &mdash; typically 3/16ths (18.75%) or 1/5th (20%), as specified in the order. You bear no risk of drilling costs.</p>
+<p>This is the option that most closely resembles a voluntary lease. You receive an upfront cash bonus payment per net mineral acre (NMA), and you receive a royalty on production &mdash; typically 3/16ths (18.75%) or 1/5th (20%), as specified in the order. You bear no risk of drilling costs. You can <a href="/tools/mineral-calculator" style="color: var(--red-dirt); font-weight: 600;">estimate your royalty revenue</a> under different election scenarios with our free calculator.</p>
 
 <p>The bonus amount is set in the pooling order. It might be $500/NMA, $1,000/NMA, $2,000/NMA, or more depending on the area, formation, and current market conditions. This is where knowing what other operators are offering in nearby sections becomes critical. A $750/NMA bonus might sound good in isolation, but if operators are offering $1,500/NMA in the next township over for the same formation, you&rsquo;d want to know that before accepting.</p>
 
@@ -1737,7 +1737,7 @@ const POOLING_ORDERS_BODY = `
 
 <p>Once you submit your election to the OCC within the deadline, the process moves forward:</p>
 
-<p><strong>If you chose the bonus option,</strong> the operator will send you a bonus check and a division order once the well is drilled and ready for production. The division order confirms your royalty interest in the well. Review it carefully &mdash; make sure your decimal interest is correct before signing.</p>
+<p><strong>If you chose the bonus option,</strong> the operator will send you a bonus check and a <a href="/insights/guides/division-orders-101" style="color: var(--red-dirt); font-weight: 600;">division order</a> once the well is drilled and ready for production. The division order confirms your royalty interest in the well. Review it carefully &mdash; make sure your decimal interest is correct before signing.</p>
 
 <p><strong>If you chose to participate,</strong> you&rsquo;ll receive an Authorization for Expenditure (AFE) detailing the estimated well costs. You&rsquo;ll need to pay your proportionate share as costs are incurred. Once the well is producing, you&rsquo;ll receive your working interest share of revenue, less operating expenses.</p>
 
@@ -1885,9 +1885,9 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 
 <p>If the minerals you inherited have producing wells, you should be receiving royalty checks. Here&rsquo;s how they work:</p>
 
-<p>When an operator produces oil or gas from a well on your section, they sell the production and distribute a share of the revenue to each mineral owner based on their decimal interest. Your decimal interest is your net mineral acres divided by the total acres in the drilling unit, multiplied by your royalty rate. For example, if you own 10 NMA in a 640-acre unit with a 3/16 royalty, your decimal interest would be 10/640 &times; 3/16 = 0.00292969 &mdash; meaning you receive about 0.29% of the well&rsquo;s gross revenue.</p>
+<p>When an operator produces oil or gas from a well on your section, they sell the production and distribute a share of the revenue to each mineral owner based on their decimal interest. Your decimal interest is your net mineral acres divided by the total acres in the drilling unit, multiplied by your royalty rate. For example, if you own 10 NMA in a 640-acre unit with a 3/16 royalty, your decimal interest would be 10/640 &times; 3/16 = 0.00292969 &mdash; meaning you receive about 0.29% of the well&rsquo;s gross revenue. Our <a href="/tools/mineral-calculator" style="color: var(--red-dirt); font-weight: 600;">Mineral Insight Calculator</a> can help you run this math.</p>
 
-<p>Royalty checks typically arrive monthly, though some operators pay quarterly or hold payment until a minimum threshold is reached. The check will include a detail statement showing the well name, production volumes, prices, and any deductions. Review these statements carefully &mdash; errors happen, and they tend to favor the operator, not you.</p>
+<p>Royalty checks typically arrive monthly, though some operators pay quarterly or hold payment until a minimum threshold is reached. The check will include a detail statement showing the well name, production volumes, prices, and any deductions. Review these statements carefully &mdash; errors happen, and they tend to favor the operator, not you. Our guide on <a href="/insights/guides/auditing-royalty-checks" style="color: var(--red-dirt); font-weight: 600;">auditing your royalty checks</a> walks through what to look for.</p>
 
 <p><strong>If the checks were going to the deceased person,</strong> you&rsquo;ll need to notify the operator of the ownership change. The operator will send you a new division order reflecting your inherited interest. Once you sign and return it, they&rsquo;ll begin issuing checks in your name. If there&rsquo;s unclaimed revenue that accumulated during the transition, it should be paid to you once the ownership update is processed.</p>
 
@@ -1911,7 +1911,7 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 
 <p>Mineral rights are a long-term asset. The wells producing today may decline, but new wells can be drilled, new formations can be developed, and the value of your minerals can grow over decades. Here&rsquo;s how to protect what you&rsquo;ve inherited:</p>
 
-<p><strong>Monitor your sections.</strong> The most important thing you can do is know what&rsquo;s happening on your properties. New drilling permits, pooling orders, spacing applications, and completion reports all directly affect your minerals. A pooling order gives you just 20 days to respond, and missing that deadline means you&rsquo;re assigned the worst option by default. Monitoring doesn&rsquo;t have to be complicated &mdash; but it does have to be consistent.</p>
+<p><strong>Monitor your sections.</strong> The most important thing you can do is know what&rsquo;s happening on your properties. New drilling permits, pooling orders, spacing applications, and completion reports all directly affect your minerals. A <a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">pooling order</a> gives you just 20 days to respond, and missing that deadline means you&rsquo;re assigned the worst option by default. Monitoring doesn&rsquo;t have to be complicated &mdash; but it does have to be consistent.</p>
 
 <p><strong>Be skeptical of unsolicited offers to buy.</strong> Mineral buyers actively seek out heirs of deceased mineral owners. Their business model depends on buying minerals for less than they&rsquo;re worth. A typical offer might be 3&ndash;5 years&rsquo; worth of current royalty income for an asset that could produce for 30 years or more. Some offers are fair; many are not. If you&rsquo;re considering selling, get multiple offers, understand the production trajectory of the wells on your properties, and have an oil and gas attorney review any purchase agreement before signing.</p>
 
@@ -1971,7 +1971,7 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">What is a division order and should I sign it?</div>
-        <p class="faq-answer">A division order states your decimal ownership interest in a well and authorizes the operator to pay you royalties. Verify that the decimal interest is correct before signing. Signing a division order does not change your actual ownership &mdash; it&rsquo;s primarily an administrative document that tells the operator where to send your check.</p>
+        <p class="faq-answer">A <a href="/insights/guides/division-orders-101" style="color: var(--red-dirt); font-weight: 600;">division order</a> states your decimal ownership interest in a well and authorizes the operator to pay you royalties. Verify that the decimal interest is correct before signing. Signing a division order does not change your actual ownership &mdash; it&rsquo;s primarily an administrative document that tells the operator where to send your check.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">Can I sell inherited mineral rights?</div>
@@ -2193,7 +2193,7 @@ const OCC_FILING_TYPES_BODY = `
 
         <p>For mineral owners, increased density is generally positive &mdash; more wells typically means more production and more royalty income. However, each new well may trigger a new pooling order if your interest isn&rsquo;t already leased for that specific well or formation. Pay attention to what formations are covered by your existing lease, if you have one.</p>
 
-        <p>Increased density applications are particularly common in the STACK and SCOOP plays, where a single section might eventually have 4, 6, or even 10+ horizontal wells targeting different formations and lateral positions.</p>
+        <p>Increased density applications are particularly common in the <a href="/insights/guides/scoop-stack-overview" style="color: var(--red-dirt); font-weight: 600;">STACK and SCOOP plays</a>, where a single section might eventually have 4, 6, or even 10+ horizontal wells targeting different formations and lateral positions.</p>
 
         <div class="filing-detail">
             <div class="filing-detail-item">
@@ -2397,7 +2397,7 @@ const OCC_FILING_TYPES_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">How do I find OCC filings on my property?</div>
-        <p class="faq-answer">You can search OCC filings through the Commission&rsquo;s online docket system and well records database. Search by section, township, and range to find filings related to your property. You can also search by operator name or cause number.</p>
+        <p class="faq-answer">You can search OCC filings through the Commission&rsquo;s online docket system and well records database. Search by section, township, and range to find filings related to your property. You can also search by operator name or cause number. For a step-by-step walkthrough, see our guide to <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">navigating the OCC website</a>.</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">What is the difference between a spacing order and a pooling order?</div>
@@ -2544,7 +2544,7 @@ const DIVISION_ORDERS_BODY = `
 
 <div class="callout callout-tip">
     <div class="callout-title">Checking the math</div>
-    <p>To verify your decimal interest, you need three numbers: your net mineral acres in the section (from your deeds or title opinion), the total acres in the drilling unit (typically 640 for a section), and your royalty rate (from your lease, pooling order, or lease terms). If the well spans multiple sections, you&rsquo;ll also need the lateral allocation percentage. Multiply your NMA &divide; unit acres &times; royalty rate &times; lateral allocation (if applicable). If your calculation doesn&rsquo;t match the division order, contact the operator before signing.</p>
+    <p>To verify your decimal interest, you need three numbers: your net mineral acres in the section (from your deeds or title opinion), the total acres in the drilling unit (typically 640 for a section), and your royalty rate (from your lease, pooling order, or lease terms). If the well spans multiple sections, you&rsquo;ll also need the lateral allocation percentage. Multiply your NMA &divide; unit acres &times; royalty rate &times; lateral allocation (if applicable). If your calculation doesn&rsquo;t match the division order, contact the operator before signing. You can also use our <a href="/tools/mineral-calculator" style="color: var(--red-dirt); font-weight: 600;">Mineral Insight Calculator</a> to verify your decimal.</p>
 </div>
 
 <h2 id="should-you-sign">Should You Sign It?</h2>
@@ -2643,7 +2643,7 @@ const DIVISION_ORDERS_BODY = `
 
 <p>Every division order you receive should be kept permanently. These documents form a record of your ownership across every well on your properties, and they&rsquo;re invaluable for:</p>
 
-<p><strong>Verifying royalty payments.</strong> When your monthly royalty check arrives, you can use the decimal interest from your division order and the production volumes from the OCC to verify the payment amount. This is how you catch underpayments.</p>
+<p><strong>Verifying royalty payments.</strong> When your monthly royalty check arrives, you can use the decimal interest from your division order and the production volumes from the OCC to verify the payment amount. This is how you catch underpayments. Our guide on <a href="/insights/guides/auditing-royalty-checks" style="color: var(--red-dirt); font-weight: 600;">auditing your royalty checks</a> walks through the process step by step.</p>
 
 <p><strong>Tax preparation.</strong> Your division orders, combined with your annual 1099s from each operator, provide the documentation your accountant needs to properly report your royalty income and claim your depletion deduction.</p>
 
@@ -3047,7 +3047,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h3>Finding a spacing or pooling order</h3>
 
-<p>These are Conservation Docket (CD) cases. If the case was filed <strong>after March 21, 2022</strong>, search in <strong>ECF</strong>. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type (Spacing or Pooling) and enter your legal description. If the case was filed <strong>before March 2022</strong>, use the <strong>Case Processing</strong> system and search by the operator name or the case number if you have it.</p>
+<p>These are Conservation Docket (CD) cases. For a breakdown of what each filing type means, see our <a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); font-weight: 600;">guide to OCC filing types</a>. If the case was filed <strong>after March 21, 2022</strong>, search in <strong>ECF</strong>. Select Oil &amp; Gas &rarr; Conservation Docket, then filter by Relief Type (Spacing or Pooling) and enter your legal description. If the case was filed <strong>before March 2022</strong>, use the <strong>Case Processing</strong> system and search by the operator name or the case number if you have it.</p>
 
 <h3>Reading a completion report</h3>
 
@@ -3133,7 +3133,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <div class="callout callout-warning">
     <div class="callout-title">Don&rsquo;t miss pooling deadlines</div>
-    <p>Pooling orders have strict response deadlines &mdash; typically 20 days from the date of the order. Missing a deadline means the OCC assigns you a default election, which may not be in your best interest. The official notice comes by mail, but if you&rsquo;re checking the website and see a pooling order on your section, act immediately. Contact the operator or an attorney to understand your options before the deadline passes.</p>
+    <p><a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">Pooling orders</a> have strict response deadlines &mdash; typically 20 days from the date of the order. Missing a deadline means the OCC assigns you a default election, which may not be in your best interest. The official notice comes by mail, but if you&rsquo;re checking the website and see a pooling order on your section, act immediately. Contact the operator or an attorney to understand your options before the deadline passes.</p>
 </div>
 
 <h2 id="faq">Frequently Asked Questions</h2>
@@ -3258,14 +3258,14 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
     <div class="audit-step-body">
         <p>Your decimal interest is the multiplier that determines your share of every dollar produced. If this number is wrong, every single check is wrong &mdash; not just by a little, but systematically, month after month. This is the first thing to verify because it has the largest cumulative impact.</p>
 
-        <p>Start with what you know: your mineral ownership (how many net mineral acres you own in the section) and your royalty rate (from your lease or the pooling order, if you were force-pooled). Multiply those together to get your NRI. For a horizontal well spanning multiple sections, the calculation includes a proration factor for how much of the lateral falls within your section.</p>
+        <p>Start with what you know: your mineral ownership (how many net mineral acres you own in the section) and your royalty rate (from your lease or the pooling order, if you were force-pooled). Multiply those together to get your NRI &mdash; or use our <a href="/tools/mineral-calculator" style="color: var(--red-dirt); font-weight: 600;">Mineral Insight Calculator</a> to calculate it. For a horizontal well spanning multiple sections, the calculation includes a proration factor for how much of the lateral falls within your section.</p>
 
         <p>Compare your calculated NRI to the decimal on your division order. If they don&rsquo;t match, contact the operator&rsquo;s division order department and ask for an explanation. Common causes of NRI errors include incorrect tract descriptions in the title opinion, outdated ownership records that don&rsquo;t reflect recent conveyances or probate proceedings, and mathematical errors in the proration of multi-unit horizontal wells.</p>
 
         <div class="check-detail">
             <div class="check-detail-item">
                 <h4>What You Need</h4>
-                <p>Your deed or conveyance documents, your lease or pooling order, the division order for each well, and the OCC&rsquo;s spacing and pooling orders for the unit.</p>
+                <p>Your deed or conveyance documents, your lease or pooling order, the <a href="/insights/guides/division-orders-101" style="color: var(--red-dirt); font-weight: 600;">division order</a> for each well, and the OCC&rsquo;s spacing and pooling orders for the unit.</p>
             </div>
             <div class="check-detail-item">
                 <h4>Red Flag</h4>
@@ -3296,7 +3296,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
         <div class="check-detail">
             <div class="check-detail-item">
                 <h4>What You Need</h4>
-                <p>Oklahoma Tax Commission gross production data (available via their website or through the OCC well records system), your royalty check stubs for the corresponding months.</p>
+                <p>Oklahoma Tax Commission gross production data (available via their website or through the <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">OCC well records system</a>), your royalty check stubs for the corresponding months.</p>
             </div>
             <div class="check-detail-item">
                 <h4>Red Flag</h4>
@@ -3353,7 +3353,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 
         <p>This is where your lease language becomes critical. Some leases call for royalties on &ldquo;gross proceeds at the well&rdquo; &mdash; which generally permits deductions for costs incurred after the wellhead. Others specify royalties on &ldquo;gross proceeds received&rdquo; or include explicit &ldquo;no deductions&rdquo; clauses. If your lease says the operator pays royalties &ldquo;free of all costs of production,&rdquo; deductions on your stub are a problem.</p>
 
-        <p>If you were pooled by the OCC (force-pooled), your options were set by the pooling order. The standard royalty option typically does not allow post-production deductions, but the specific language varies by order. Review the actual pooling order text &mdash; not just the summary.</p>
+        <p>If you were pooled by the OCC (force-pooled), your options were set by the <a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">pooling order</a>. The standard royalty option typically does not allow post-production deductions, but the specific language varies by order. Review the actual pooling order text &mdash; not just the summary.</p>
 
         <p>Even where deductions are permitted, they must be reasonable and actually incurred. An operator can&rsquo;t charge you for gathering fees on a well that&rsquo;s directly connected to a sales pipeline. And deductions that increase over time while the underlying service costs remain flat should be questioned.</p>
 
@@ -3523,7 +3523,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 const SCOOP_STACK_OVERVIEW_BODY = `
 <p>The Anadarko Basin spans roughly 70,000 square miles across western Oklahoma, the Texas Panhandle, and parts of southwestern Kansas and southeastern Colorado. It&rsquo;s been producing oil and gas for over a century. But the modern story of Oklahoma drilling is dominated by two geographic areas within that basin: the SCOOP and the STACK. Together with the transitional MERGE area between them, these plays account for the majority of horizontal drilling activity in Oklahoma.</p>
 
-<p>For mineral owners, these aren&rsquo;t abstract geological concepts. If your section is in one of the core counties of the SCOOP, STACK, or MERGE, you are likely to see &mdash; or may have already seen &mdash; spacing applications, pooling orders, drilling permits, and increased density filings on your property. Understanding the plays helps you understand why operators are interested in your minerals, what they&rsquo;re drilling for, and how your section fits into the bigger picture.</p>
+<p>For mineral owners, these aren&rsquo;t abstract geological concepts. If your section is in one of the core counties of the SCOOP, STACK, or MERGE, you are likely to see &mdash; or may have already seen &mdash; spacing applications, pooling orders, drilling permits, and increased density filings on your property &mdash; see our <a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); font-weight: 600;">guide to OCC filing types</a> for what each of these means. Understanding the plays helps you understand why operators are interested in your minerals, what they&rsquo;re drilling for, and how your section fits into the bigger picture.</p>
 
 <h2 id="quick-reference">Quick Reference: The Three Plays at a Glance</h2>
 
@@ -3696,7 +3696,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
 
 <div class="callout callout-tip">
     <div class="callout-title">Why stacked formations matter for mineral owners</div>
-    <p>When an operator drills the Meramec on your section, your lease may only cover the Meramec. When they come back to drill the Woodford, you may receive a new pooling order with a new set of election options. Each formation is effectively a separate development event &mdash; which means multiple leasing opportunities, multiple bonus payments, and multiple royalty streams from the same acreage. Check your lease carefully to see which formations are covered.</p>
+    <p>When an operator drills the Meramec on your section, your lease may only cover the Meramec. When they come back to drill the Woodford, you may receive a new <a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); font-weight: 600;">pooling order</a> with a new set of election options. Each formation is effectively a separate development event &mdash; which means multiple leasing opportunities, multiple bonus payments, and multiple royalty streams from the same acreage. Check your lease carefully to see which formations are covered.</p>
 </div>
 
 <h2 id="operators">Major Operators</h2>
@@ -3777,7 +3777,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
 
 <p>In an active play like the SCOOP or STACK, staying informed about what&rsquo;s happening on your sections is essential. The pace of activity means that filings can appear with relatively short notice &mdash; a spacing application today can become a pooling order with a 20-day deadline within months.</p>
 
-<p>The OCC&rsquo;s online well records system and docket allow you to search by section, township, and range. Check for new spacing applications (the earliest signal that an operator is planning development), pooling applications (which precede the pooling order and its deadline), drilling permits (Form 1000 filings that signal a rig is coming), and completion reports (which confirm what was drilled and how the well performed).</p>
+<p>The OCC&rsquo;s online well records system and docket allow you to search by section, township, and range &mdash; our <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">guide to the OCC website</a> walks through how. Check for new spacing applications (the earliest signal that an operator is planning development), pooling applications (which precede the pooling order and its deadline), drilling permits (Form 1000 filings that signal a rig is coming), and completion reports (which confirm what was drilled and how the well performed).</p>
 
 <p>For mineral owners with properties across multiple counties &mdash; which is common in families with generational mineral portfolios &mdash; manually checking the OCC systems on a regular basis becomes impractical. That&rsquo;s where automated monitoring comes in: setting up alerts for each of your sections ensures you&rsquo;re notified when any new filing appears, without having to manually check each one.</p>
 
