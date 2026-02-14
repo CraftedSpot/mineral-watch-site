@@ -1406,6 +1406,7 @@
         var rmAllocOverrides = {};
         var rmLabel = '';
         var rmDrilldownIdx = null;
+        var rmDrilldownUnitIdx = null;
 
         function rmCalcRevenue(oilBbl, gasMcf, decimal, allocationPct) {
             if (!decimal) return { gross: null, net: null };
@@ -1445,11 +1446,19 @@
 
         function rmDrillDownToWell(idx) {
             rmDrilldownIdx = idx;
+            rmDrilldownUnitIdx = null;
+            renderRevModalContent();
+        }
+
+        function rmDrillDownToUnit(idx) {
+            rmDrilldownUnitIdx = idx;
+            rmDrilldownIdx = null;
             renderRevModalContent();
         }
 
         function rmBackToOverview() {
             rmDrilldownIdx = null;
+            rmDrilldownUnitIdx = null;
             renderRevModalContent();
         }
 
@@ -1481,6 +1490,7 @@
             rmAllocOverrides = {};
             rmDeduction = 25;
             rmDrilldownIdx = null;
+            rmDrilldownUnitIdx = null;
 
             // Get ID and label from the open detail modal
             var id, subtitle, themeClass;
@@ -1834,6 +1844,91 @@
                 return;
             }
 
+            // ── Shared unit drilldown view ──
+            if (rmDrilldownUnitIdx != null && sharedGroups[rmDrilldownUnitIdx]) {
+                var ug = sharedGroups[rmDrilldownUnitIdx];
+                var ugDecimal = rmManualDecimal || prop.ri_decimal || null;
+                var ugProd = ug.production || [];
+                var ugLatest = ugProd.length > 0 ? ugProd[0] : null;
+                var ugTrail = ug.trailing3mo || {};
+                var ugRevLatest = ugLatest ? rmCalcRevenue(ugLatest.oilBbl, ugLatest.gasMcf, ugDecimal, null) : { gross: null, net: null };
+                var ugRevAvg = rmCalcRevenue(ugTrail.avgOilBbl || 0, ugTrail.avgGasMcf || 0, ugDecimal, null);
+
+                var uhtml = '<a href="#" class="tools-back-link" onclick="rmBackToOverview();return false">\u2190 Back to all wells</a>';
+
+                // Unit header
+                uhtml += '<div class="unit-detail-header">' +
+                    '<div class="pun-card-label">Shared Production Unit</div>' +
+                    '<div class="unit-detail-wells">' + (ug.wellNames || []).map(function(n) {
+                        return '<span class="unit-well-tag">' + escapeHtml(n) + '</span>';
+                    }).join(' ') + '</div>' +
+                '</div>';
+
+                // Production history table
+                if (ugProd.length > 0) {
+                    uhtml += '<div class="unit-detail-table">' +
+                        '<div class="unit-detail-row unit-detail-th">' +
+                            '<span>Month</span><span>Oil (BBL)</span><span>Gas (MCF)</span>' +
+                            (ugDecimal ? '<span>Net Revenue</span>' : '') +
+                        '</div>';
+                    for (var ui = 0; ui < ugProd.length; ui++) {
+                        var up = ugProd[ui];
+                        var uRev = rmCalcRevenue(up.oilBbl, up.gasMcf, ugDecimal, null);
+                        uhtml += '<div class="unit-detail-row">' +
+                            '<span class="month-label">' + formatYearMonth(up.yearMonth) + '</span>' +
+                            '<span class="vol">' + fmtVol(up.oilBbl) + '</span>' +
+                            '<span class="vol">' + fmtVol(up.gasMcf) + '</span>' +
+                            (ugDecimal ? '<span class="net">' + fmtMoney(uRev.net) + '</span>' : '') +
+                        '</div>';
+                    }
+                    uhtml += '</div>';
+                }
+
+                // 3-month average
+                if (ugTrail.avgOilBbl || ugTrail.avgGasMcf) {
+                    uhtml += '<div class="unit-detail-avg">' +
+                        '<strong>3-Month Avg:</strong> ' +
+                        '<span class="vol">' + fmtVol(ugTrail.avgOilBbl) + ' BBL</span> + ' +
+                        '<span class="vol">' + fmtVol(ugTrail.avgGasMcf) + ' MCF</span>' +
+                        (ugRevAvg.net != null ? ' \u2192 <span class="net">' + fmtMoney(ugRevAvg.net) + '/mo net</span>' : '') +
+                    '</div>';
+                }
+
+                // Unit revenue total block
+                if (ugRevLatest.gross != null) {
+                    var ugBasis = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
+                    uhtml += '<div class="property-total-v" style="margin-top:12px">' +
+                        '<div class="ptv-header">Unit Revenue</div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">Latest Month</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(ugRevLatest.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(ugRevLatest.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                        '</div>' +
+                        '<div class="ptv-divider"></div>' +
+                        '<div class="ptv-block">' +
+                            '<div class="ptv-label">3-Month Average</div>' +
+                            '<div class="ptv-gross">' + fmtMoney(ugRevAvg.gross) + '</div>' +
+                            '<div class="ptv-gross-label">Gross Revenue</div>' +
+                            '<div class="ptv-net">' + fmtMoney(ugRevAvg.net) + '</div>' +
+                            '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                        '</div>' +
+                        (ugBasis ? '<div class="ptv-basis">' + ugBasis + '</div>' : '') +
+                    '</div>';
+                }
+
+                uhtml += '<div class="rm-disclaimer">Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ due to posted wellhead prices, operator deductions, production allocation, and payment timing.</div>';
+                contentEl.innerHTML = uhtml;
+                if (noDecimal && rmManualDecimal) {
+                    var resEl = document.getElementById('rmNriResult');
+                    if (resEl) resEl.textContent = fmtDecimal(rmManualDecimal);
+                    var resRow = document.getElementById('rmNriResultRow');
+                    if (resRow) resRow.style.display = 'flex';
+                }
+                return;
+            }
+
             // No wells — fallback states
             if (wells.length === 0) {
                 var hasDecimal = prop.ri_decimal || rmManualDecimal;
@@ -1944,6 +2039,7 @@
                 if (sgRevLatest.gross != null) {
                     html += '<div class="well-revenue"><span class="gross">' + fmtMoney(sgRevLatest.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
                 }
+                html += '<a href="#" class="tools-drilldown-btn" onclick="rmDrillDownToUnit(' + g2 + ');return false">Unit Revenue Detail \u2192</a>';
                 html += '</div>';
             }
 
