@@ -547,6 +547,45 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
     margin-right: auto;
 }
 
+/* ── Live Price Indicator ── */
+.live-price-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--success);
+    background: var(--success-bg);
+    padding: 3px 10px;
+    border-radius: 20px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+.live-price-badge .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.live-price-badge.stale {
+    color: var(--text-muted);
+    background: rgba(0,0,0,0.04);
+}
+.live-price-badge.stale .live-dot {
+    background: var(--text-muted);
+    animation: none;
+}
+.price-source {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
 /* ── Responsive ── */
 @media (max-width: 768px) {
     .mobile-menu-btn { display: block; }
@@ -761,12 +800,12 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
         <div class="field">
             <label>Oil Price</label>
             <div class="field-wrap"><span class="prefix">$</span><input type="number" id="r-oil-price" value="68" min="0" step="any" class="has-prefix has-suffix" oninput="calcRoyalties()"><span class="suffix">/BBL</span></div>
-            <div class="help">Current ~$68 NYMEX WTI</div>
+            <div class="help" id="r-oil-price-help">Current WTI spot price</div>
         </div>
         <div class="field">
             <label>Gas Price</label>
             <div class="field-wrap"><span class="prefix">$</span><input type="number" id="r-gas-price" value="3.25" min="0" step="any" class="has-prefix has-suffix" oninput="calcRoyalties()"><span class="suffix">/MCF</span></div>
-            <div class="help">Current ~$3.25 Henry Hub</div>
+            <div class="help" id="r-gas-price-help">Current Henry Hub spot price</div>
         </div>
     </div>
 
@@ -819,6 +858,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
         <div class="field">
             <label>Oil Price</label>
             <div class="field-wrap"><span class="prefix">$</span><input type="number" id="p-oil-price" value="68" min="0" step="any" class="has-prefix has-suffix" oninput="calcPooling()"><span class="suffix">/BBL</span></div>
+            <div class="help" id="p-oil-price-help"></div>
         </div>
     </div>
     <div class="field-row">
@@ -830,6 +870,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
         <div class="field">
             <label>Gas Price</label>
             <div class="field-wrap"><span class="prefix">$</span><input type="number" id="p-gas-price" value="3.25" min="0" step="any" class="has-prefix has-suffix" oninput="calcPooling()"><span class="suffix">/MCF</span></div>
+            <div class="help" id="p-gas-price-help"></div>
         </div>
     </div>
 
@@ -1325,6 +1366,62 @@ document.addEventListener('click', function(e) {
         var svg = btn.querySelector('svg');
         if (svg) svg.style.stroke = btn.classList.contains('active') ? 'var(--red-dirt)' : 'rgba(255,255,255,0.45)';
     });
+
+    // ══════════════════════════════════════
+    //  LIVE PRICE TICKER — EIA via /api/prices
+    // ══════════════════════════════════════
+    (function loadLivePrices() {
+        var OIL_FIELDS = ['r-oil-price', 'p-oil-price'];
+        var GAS_FIELDS = ['r-gas-price', 'p-gas-price'];
+        var OIL_HELPS  = ['r-oil-price-help', 'p-oil-price-help'];
+        var GAS_HELPS  = ['r-gas-price-help', 'p-gas-price-help'];
+
+        function formatDate(dateStr) {
+            try {
+                var d = new Date(dateStr + 'T12:00:00Z');
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            } catch(e) { return dateStr; }
+        }
+
+        function liveBadge(dateStr) {
+            return '<span class="live-price-badge"><span class="live-dot"></span>Live \\u00b7 ' + formatDate(dateStr) + '</span>';
+        }
+
+        function setPrice(fieldIds, helpIds, price, dateStr, label) {
+            for (var i = 0; i < fieldIds.length; i++) {
+                var field = document.getElementById(fieldIds[i]);
+                if (field) {
+                    var current = parseFloat(field.value);
+                    var defaultOil = 68, defaultGas = 3.25;
+                    var isDefault = (fieldIds[i].indexOf('oil') >= 0 && current === defaultOil) ||
+                                    (fieldIds[i].indexOf('gas') >= 0 && current === defaultGas) ||
+                                    isNaN(current);
+                    if (isDefault) {
+                        field.value = price;
+                        field.dispatchEvent(new Event('input'));
+                    }
+                }
+                var help = document.getElementById(helpIds[i]);
+                if (help) {
+                    help.innerHTML = label + ' ' + liveBadge(dateStr);
+                }
+            }
+        }
+
+        fetch('/api/prices')
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.wti && data.wti.price) {
+                    setPrice(OIL_FIELDS, OIL_HELPS, data.wti.price, data.wti.date, 'WTI Spot');
+                }
+                if (data.henryHub && data.henryHub.price) {
+                    setPrice(GAS_FIELDS, GAS_HELPS, data.henryHub.price, data.henryHub.date, 'Henry Hub');
+                }
+            })
+            .catch(function(err) {
+                console.log('Price fetch unavailable, using defaults');
+            });
+    })();
 })();
 </script>
 

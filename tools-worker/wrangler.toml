@@ -4,5 +4,13 @@ compatibility_date = "2025-01-01"
 
 routes = [
   { pattern = "mymineralwatch.com/tools/*", zone_name = "mymineralwatch.com" },
-  { pattern = "mymineralwatch.com/tools", zone_name = "mymineralwatch.com" }
+  { pattern = "mymineralwatch.com/tools", zone_name = "mymineralwatch.com" },
+  { pattern = "mymineralwatch.com/api/prices", zone_name = "mymineralwatch.com" }
 ]
+
+# KV namespace for caching commodity prices (6hr TTL)
+[[kv_namespaces]]
+binding = "PRICES_KV"
+id = "1a845f0058a54e5eb3c507d3da51e1d0"
+
+# EIA API key — set via: wrangler secret put EIA_API_KEY

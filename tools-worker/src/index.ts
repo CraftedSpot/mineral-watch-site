@@ -1,11 +1,32 @@
 import { renderCalculator } from './calculator';
+import { handlePricesRequest } from './prices';
+
+export interface Env {
+  PRICES_KV: KVNamespace;
+  EIA_API_KEY: string;
+}
 
 export default {
-  async fetch(request: Request): Promise<Response> {
+  async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname.replace(/\/+$/, '') || '/tools';
 
     try {
+      // ── API routes ──
+      if (path === '/api/prices') {
+        if (request.method === 'OPTIONS') {
+          return new Response(null, {
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'GET, OPTIONS',
+              'Access-Control-Max-Age': '86400',
+            },
+          });
+        }
+        return handlePricesRequest(env);
+      }
+
+      // ── Page routes ──
       // Tools index — redirect to mineral calculator (only tool for now)
       if (path === '/tools') {
         return Response.redirect('https://mymineralwatch.com/tools/mineral-calculator', 302);
