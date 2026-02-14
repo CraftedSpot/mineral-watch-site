@@ -1442,6 +1442,22 @@
             if (rmData) renderRevModalContent(rmType, rmData);
         }
 
+        async function rmDrillDownToWell(wellId, wellName) {
+            closeRevenueModal();
+            // Close the detail modal underneath
+            if (rmType === 'property') {
+                if (typeof closePropertyDetailsModal === 'function') closePropertyDetailsModal();
+            } else {
+                if (typeof closeWellDetailsModal === 'function') closeWellDetailsModal();
+            }
+            // Switch to Tools tab
+            var toolsTab = document.querySelector('.tab[data-tab="tools"]');
+            if (toolsTab) toolsTab.click();
+            if (!toolsLoaded) await loadTools();
+            // Drill down to the well
+            drillDownToWell(wellId);
+        }
+
         function rmBuildAllocRowHtml(well) {
             var wid = well.wellId || well.id || '';
             var alloc = rmGetEffectiveAlloc(well);
@@ -1873,6 +1889,7 @@
                 } else {
                     html += '<div class="well-production" style="color:#A0AEC0">No production data</div>';
                 }
+                html += '<a href="#" class="tools-drilldown-btn" onclick="rmDrillDownToWell(\'' + (wl.wellId || '') + '\', \'' + escapeHtml(wl.wellName || '').replace(/'/g, "\\'") + '\');return false">Well Revenue Detail \u2192</a>';
                 html += '</div>';
             }
             html += '</div>'; // close grid
