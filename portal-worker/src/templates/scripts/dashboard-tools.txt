@@ -1337,3 +1337,694 @@
                 if (disclaimerEl) disclaimerEl.style.display = 'none';
             }
         }
+
+        // ═══════════════════════════════════════════
+        //  Revenue Estimate Modal (stacked on detail modals)
+        // ═══════════════════════════════════════════
+
+        var rmData = null;
+        var rmType = null;
+        var rmId = null;
+        var rmDeduction = 25;
+        var rmManualDecimal = null;
+        var rmLabel = '';
+
+        function rmCalcRevenue(oilBbl, gasMcf, decimal) {
+            if (!decimal) return { gross: null, net: null };
+            var oilPrice = toolsPrices.oil;
+            var gasPrice = toolsPrices.gas;
+            var grossWell = oilBbl * oilPrice + gasMcf * gasPrice;
+            var gross = grossWell * decimal;
+            var net = gross * (1 - rmDeduction / 100);
+            return { gross: gross, net: net };
+        }
+
+        function rmGetEffectiveDecimal(well) {
+            if (well.interestDecimal) return well.interestDecimal;
+            if (rmManualDecimal) return rmManualDecimal;
+            return null;
+        }
+
+        async function openRevenueModal(type) {
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert('Maximum modal depth reached. Please close some modals first.');
+                return;
+            }
+
+            // Reset state
+            rmData = null;
+            rmManualDecimal = null;
+            rmDeduction = 25;
+
+            // Get ID and label from the open detail modal
+            var id, subtitle, themeClass;
+            if (type === 'property') {
+                id = document.getElementById('propertyDetailsId').value;
+                var locEl = document.getElementById('propertyDetailsLocation');
+                subtitle = locEl ? locEl.textContent : '';
+                themeClass = 'property-theme';
+                rmLabel = subtitle;
+            } else {
+                id = document.getElementById('wellDetailsId').value;
+                var titleEl = document.getElementById('wellDetailsTitle');
+                var apiEl = document.getElementById('wellDetailsApi');
+                subtitle = (titleEl ? titleEl.textContent : '') + (apiEl ? ' \u00b7 ' + apiEl.textContent : '');
+                themeClass = 'well-theme';
+                rmLabel = titleEl ? titleEl.textContent : '';
+            }
+
+            if (!id) return;
+            rmType = type;
+            rmId = id;
+
+            // Ensure prices are loaded
+            if (!toolsPrices.date && !toolsPrices.source) {
+                try {
+                    var priceRes = await fetch('https://mymineralwatch.com/api/prices');
+                    if (priceRes.ok) {
+                        var priceData = await priceRes.json();
+                        if (priceData.wti && priceData.wti.price) toolsPrices.oil = priceData.wti.price;
+                        if (priceData.henryHub && priceData.henryHub.price) toolsPrices.gas = priceData.henryHub.price;
+                        toolsPrices.date = (priceData.wti && priceData.wti.date) || null;
+                        toolsPrices.source = 'EIA';
+                    }
+                } catch (e) { /* use defaults */ }
+            }
+
+            // Build modal
+            var overlay = document.createElement('div');
+            overlay.className = 'modal-overlay';
+            overlay.id = 'revenueEstimateModal';
+            overlay.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
+
+            var baseZIndex = 999999;
+            var newZIndex = baseZIndex + (modalStack.length * 10);
+            overlay.style.zIndex = String(newZIndex);
+
+            // Price display text
+            var priceText = '<span class="rm-price-item">Oil: $' + toolsPrices.oil.toFixed(2) + '/BBL</span>' +
+                '<span class="rm-price-item">Gas: $' + toolsPrices.gas.toFixed(2) + '/MCF</span>';
+            if (toolsPrices.date) {
+                var dp = toolsPrices.date.split('-');
+                var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+                priceText += '<span class="rm-price-source">EIA ' + months[parseInt(dp[1],10)-1] + ' ' + parseInt(dp[2],10) + ', ' + dp[0] + '</span>';
+            }
+
+            overlay.innerHTML =
+                '<div class="rev-modal" onclick="event.stopPropagation()">' +
+                    '<div class="rev-modal-header ' + themeClass + '">' +
+                        '<button class="close-btn" onclick="closeRevenueModal()">×</button>' +
+                        '<h2>Revenue Estimate</h2>' +
+                        '<div class="rev-modal-subtitle">' + escapeHtml(subtitle) + '</div>' +
+                    '</div>' +
+                    '<div class="rev-modal-body" id="rmBody">' +
+                        '<div class="rev-modal-prices">' + priceText + '</div>' +
+                        '<div class="rev-modal-deduction">' +
+                            '<label>Deductions</label>' +
+                            '<input type="range" id="rmDeductionSlider" min="0" max="50" value="25" oninput="rmOnDeductionChange(this.value)">' +
+                            '<span class="rm-ded-val" id="rmDeductionVal">25%</span>' +
+                        '</div>' +
+                        '<div id="rmNriArea"></div>' +
+                        '<div id="rmContent"><div class="tools-loading">Loading production data...</div></div>' +
+                    '</div>' +
+                    '<div class="rev-modal-footer">' +
+                        '<button class="rm-open-tools ' + themeClass + '" onclick="rmOpenInToolsTab()">Open in Revenue Estimator \u2192</button>' +
+                        '<button class="rm-close-link" onclick="closeRevenueModal()">Close</button>' +
+                    '</div>' +
+                '</div>';
+
+            // Close on overlay click
+            overlay.addEventListener('mousedown', function(e) {
+                if (e.target === overlay) closeRevenueModal();
+            });
+
+            document.body.appendChild(overlay);
+            modalStack.push({ type: 'revenue', id: id, element: overlay });
+
+            // Fetch data
+            try {
+                var endpoint = type === 'property'
+                    ? '/api/tools/property-production?property_id=' + encodeURIComponent(id)
+                    : '/api/tools/well-production?well_id=' + encodeURIComponent(id);
+                var res = await fetch(endpoint);
+                if (!res.ok) throw new Error('Failed to load');
+                rmData = await res.json();
+                renderRevModalContent();
+            } catch (err) {
+                var contentEl = document.getElementById('rmContent');
+                if (contentEl) contentEl.innerHTML = '<div class="rm-empty-state"><h3>Error loading data</h3><p>Could not load production data. Please try again.</p></div>';
+                console.error('[RevModal] Error:', err);
+            }
+        }
+
+        function closeRevenueModal() {
+            var overlay = document.getElementById('revenueEstimateModal');
+            if (overlay) {
+                overlay.remove();
+                var idx = modalStack.findIndex(function(m) { return m.element === overlay; });
+                if (idx > -1) modalStack.splice(idx, 1);
+            }
+            rmData = null;
+            rmType = null;
+            rmId = null;
+        }
+
+        function rmOnDeductionChange(val) {
+            rmDeduction = parseInt(val, 10);
+            var valEl = document.getElementById('rmDeductionVal');
+            if (valEl) valEl.textContent = rmDeduction + '%';
+            if (rmData) renderRevModalContent();
+        }
+
+        function rmCalcNri() {
+            var acres = parseFloat(document.getElementById('rmNriAcres').value) || 0;
+            var unit = parseFloat(document.getElementById('rmNriUnit').value) || 640;
+            var royaltyEl = document.getElementById('rmNriRoyalty');
+            var royalty = 0;
+            if (royaltyEl) {
+                var val = royaltyEl.value;
+                if (val.indexOf('/') > -1) {
+                    var parts = val.split('/');
+                    royalty = parseFloat(parts[0]) / parseFloat(parts[1]);
+                } else {
+                    royalty = parseFloat(val) || 0;
+                }
+            }
+            if (acres > 0 && unit > 0 && royalty > 0) {
+                rmManualDecimal = (acres * royalty) / unit;
+                var resultEl = document.getElementById('rmNriResult');
+                if (resultEl) resultEl.textContent = fmtDecimal(rmManualDecimal);
+                var resultRow = document.getElementById('rmNriResultRow');
+                if (resultRow) resultRow.style.display = 'flex';
+                if (rmData) renderRevModalContent();
+            }
+        }
+
+        function rmCalcManualProd() {
+            var oilBbl = parseFloat(document.getElementById('rmManualOil').value) || 0;
+            var gasMcf = parseFloat(document.getElementById('rmManualGas').value) || 0;
+            var decimal = rmManualDecimal || (rmData && rmData.property ? rmData.property.ri_decimal : null) || null;
+            var resultEl = document.getElementById('rmManualResult');
+            if (!resultEl) return;
+
+            if (!decimal || (oilBbl === 0 && gasMcf === 0)) {
+                resultEl.style.display = 'none';
+                return;
+            }
+            var rev = rmCalcRevenue(oilBbl, gasMcf, decimal);
+            if (rev.gross != null) {
+                resultEl.style.display = 'block';
+                resultEl.innerHTML = 'Gross: ' + fmtMoney(rev.gross) + '/mo \u2192 Net: ' + fmtMoney(rev.net) + '/mo <span style="font-weight:400;font-size:12px;color:#666">(' + rmDeduction + '% deductions)</span>';
+            } else {
+                resultEl.style.display = 'none';
+            }
+        }
+
+        function buildRmNriCalcHtml(prefillAcres) {
+            return '<div class="nri-calc-inline" id="rmNriCalcBox">' +
+                '<div class="nri-calc-title">Calculate Your Decimal Interest</div>' +
+                '<div class="nri-calc-subtitle">Enter your mineral interest details to see revenue estimates.</div>' +
+                '<div class="nri-calc-row">' +
+                    '<div class="nri-calc-field">' +
+                        '<label>Net Mineral Acres</label>' +
+                        '<input type="number" id="rmNriAcres" value="' + prefillAcres + '" step="any" min="0" placeholder="e.g. 10" oninput="rmCalcNri()">' +
+                    '</div>' +
+                    '<div class="nri-calc-field">' +
+                        '<label>Unit Size (acres)</label>' +
+                        '<select id="rmNriUnit" onchange="rmCalcNri()">' +
+                            '<option value="640" selected>640</option>' +
+                            '<option value="1280">1280</option>' +
+                        '</select>' +
+                    '</div>' +
+                    '<div class="nri-calc-field">' +
+                        '<label>Royalty Rate</label>' +
+                        '<select id="rmNriRoyalty" onchange="rmCalcNri()">' +
+                            '<option value="3/16" selected>3/16 (18.75%)</option>' +
+                            '<option value="1/8">1/8 (12.5%)</option>' +
+                            '<option value="1/5">1/5 (20%)</option>' +
+                            '<option value="1/4">1/4 (25%)</option>' +
+                        '</select>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="nri-calc-result-row" id="rmNriResultRow" style="display:none">' +
+                    '<span class="nri-calc-result-label">Your Decimal:</span>' +
+                    '<span class="nri-calc-result-value" id="rmNriResult"></span>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function renderRevModalContent() {
+            if (!rmData) return;
+            if (rmType === 'property') {
+                renderRevModalProperty();
+            } else {
+                renderRevModalWell();
+            }
+        }
+
+        function renderRevModalProperty() {
+            var data = rmData;
+            var contentEl = document.getElementById('rmContent');
+            var nriArea = document.getElementById('rmNriArea');
+            if (!contentEl) return;
+
+            var prop = data.property;
+            var wells = data.wells || [];
+            var sharedGroups = data.sharedPunGroups || [];
+
+            // Auto-calc decimal from property acres if no well has a decimal
+            var anyWellHasDecimal = wells.some(function(w) { return !!w.interestDecimal; });
+            if (!prop.ri_decimal && !rmManualDecimal && !anyWellHasDecimal) {
+                var autoAcres = prop.ri_acres || prop.total_acres || prop.acres || 0;
+                if (autoAcres > 0) {
+                    rmManualDecimal = (autoAcres * (3/16)) / 640;
+                }
+            }
+            var noDecimal = !prop.ri_decimal && !anyWellHasDecimal;
+
+            // NRI calculator
+            if (nriArea) {
+                if (noDecimal && !document.getElementById('rmNriCalcBox')) {
+                    nriArea.innerHTML = buildRmNriCalcHtml(prop.ri_acres || prop.total_acres || prop.acres || '');
+                } else if (!noDecimal) {
+                    nriArea.innerHTML = '';
+                }
+            }
+
+            // No wells — fallback states
+            if (wells.length === 0) {
+                var hasDecimal = prop.ri_decimal || rmManualDecimal;
+                var hasAcres = prop.ri_acres || prop.total_acres || prop.acres;
+                if (hasDecimal || hasAcres) {
+                    // Show manual production entry
+                    contentEl.innerHTML =
+                        '<div class="rm-manual-prod">' +
+                            '<div class="rm-manual-prod-title">No linked wells</div>' +
+                            '<div class="rm-manual-prod-hint">Enter estimated monthly production to see revenue.</div>' +
+                            '<div class="rm-manual-prod-row">' +
+                                '<div class="rm-manual-prod-field">' +
+                                    '<label>Monthly Oil (BBL)</label>' +
+                                    '<input type="number" id="rmManualOil" placeholder="e.g. 100" min="0" step="any" oninput="rmCalcManualProd()">' +
+                                '</div>' +
+                                '<div class="rm-manual-prod-field">' +
+                                    '<label>Monthly Gas (MCF)</label>' +
+                                    '<input type="number" id="rmManualGas" placeholder="e.g. 500" min="0" step="any" oninput="rmCalcManualProd()">' +
+                                '</div>' +
+                            '</div>' +
+                            '<div class="rm-manual-prod-result" id="rmManualResult" style="display:none"></div>' +
+                        '</div>' +
+                        '<div class="rm-disclaimer">Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ.</div>';
+                } else {
+                    contentEl.innerHTML =
+                        '<div class="rm-empty-state">' +
+                            '<h3>No linked wells or interest data</h3>' +
+                            '<p>Link wells from the Properties tab to see production-based revenue estimates.</p>' +
+                            '<button class="rm-empty-cta" onclick="closeRevenueModal();closePropertyDetailsModal();switchToTab(\'properties\')">Go to Properties</button>' +
+                        '</div>';
+                }
+                // Show auto-calc result
+                if (noDecimal && rmManualDecimal) {
+                    var resEl = document.getElementById('rmNriResult');
+                    if (resEl) resEl.textContent = fmtDecimal(rmManualDecimal);
+                    var resRow = document.getElementById('rmNriResultRow');
+                    if (resRow) resRow.style.display = 'flex';
+                }
+                return;
+            }
+
+            // ── Calculate totals ──
+            var totalGrossLatest = 0, totalNetLatest = 0;
+            var totalGrossAvg = 0, totalNetAvg = 0;
+            var hasAnyRevenue = false;
+
+            for (var g = 0; g < sharedGroups.length; g++) {
+                var group = sharedGroups[g];
+                var gProd = group.production || [];
+                var gLatest = gProd.length > 0 ? gProd[0] : null;
+                var gDecimal = rmManualDecimal || prop.ri_decimal || null;
+                var gTrail = group.trailing3mo || {};
+                var gRevLatest = gLatest ? rmCalcRevenue(gLatest.oilBbl, gLatest.gasMcf, gDecimal) : { gross: null, net: null };
+                var gRevAvg = rmCalcRevenue(gTrail.avgOilBbl || 0, gTrail.avgGasMcf || 0, gDecimal);
+                if (gRevLatest.gross != null) { totalGrossLatest += gRevLatest.gross; totalNetLatest += gRevLatest.net; hasAnyRevenue = true; }
+                if (gRevAvg.gross != null) { totalGrossAvg += gRevAvg.gross; totalNetAvg += gRevAvg.net; }
+            }
+
+            for (var w = 0; w < wells.length; w++) {
+                var well = wells[w];
+                var prod = well.production || [];
+                var latest = prod.length > 0 ? prod[0] : null;
+                var trail = well.trailing3mo || {};
+                var hasOwnProd = !well.sharedPun && latest;
+                var wInterests = well.interests || [];
+
+                if (wInterests.length > 1 && hasOwnProd) {
+                    for (var wi2 = 0; wi2 < wInterests.length; wi2++) {
+                        var wiRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wInterests[wi2].decimal);
+                        var wiRevAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wInterests[wi2].decimal);
+                        if (wiRev.gross != null) { totalGrossLatest += wiRev.gross; totalNetLatest += wiRev.net; hasAnyRevenue = true; }
+                        if (wiRevAvg.gross != null) { totalGrossAvg += wiRevAvg.gross; totalNetAvg += wiRevAvg.net; }
+                    }
+                } else {
+                    var decimal = rmGetEffectiveDecimal(well);
+                    var revL = hasOwnProd ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
+                    var revA = !well.sharedPun ? rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal) : { gross: null, net: null };
+                    if (revL.gross != null && !well.sharedPun) { totalGrossLatest += revL.gross; totalNetLatest += revL.net; hasAnyRevenue = true; }
+                    if (revA.gross != null && !well.sharedPun) { totalGrossAvg += revA.gross; totalNetAvg += revA.net; }
+                }
+            }
+
+            var html = '';
+
+            // Wells header
+            html += '<div class="rm-wells-header">' + wells.length + ' Well' + (wells.length !== 1 ? 's' : '') +
+                (sharedGroups.length > 0 ? ' + ' + sharedGroups.length + ' Shared Unit' + (sharedGroups.length !== 1 ? 's' : '') : '') + '</div>';
+
+            // Well cards grid
+            html += '<div class="tools-well-grid">';
+
+            // Shared PUN groups
+            for (var g2 = 0; g2 < sharedGroups.length; g2++) {
+                var sg = sharedGroups[g2];
+                var sgProd = sg.production || [];
+                var sgLatest = sgProd.length > 0 ? sgProd[0] : null;
+                var sgDecimal = rmManualDecimal || prop.ri_decimal || null;
+                var sgRevLatest = sgLatest ? rmCalcRevenue(sgLatest.oilBbl, sgLatest.gasMcf, sgDecimal) : { gross: null, net: null };
+
+                html += '<div class="pun-card">' +
+                    '<div class="pun-card-label">Shared Unit</div>' +
+                    '<div class="pun-card-wells">' + (sg.wellNames || []).map(escapeHtml).join(', ') + '</div>';
+                if (sgLatest) {
+                    html += '<div class="well-production"><span class="month-label">' + formatYearMonth(sgLatest.yearMonth) + ':</span> ' +
+                        '<span class="vol">' + fmtVol(sgLatest.oilBbl) + ' BBL</span> + <span class="vol">' + fmtVol(sgLatest.gasMcf) + ' MCF</span></div>';
+                }
+                if (sgRevLatest.gross != null) {
+                    html += '<div class="well-revenue"><span class="gross">' + fmtMoney(sgRevLatest.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
+                }
+                html += '</div>';
+            }
+
+            // Individual wells
+            for (var w2 = 0; w2 < wells.length; w2++) {
+                var wl = wells[w2];
+                var shutIn = isShutIn(wl.wellStatus);
+                var wDecimal = rmGetEffectiveDecimal(wl);
+                var wProd = wl.production || [];
+                var wLatest = wProd.length > 0 ? wProd[0] : null;
+                var wHasOwnProd = !wl.sharedPun && wLatest;
+                var wRevLatest = wHasOwnProd ? rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wDecimal) : { gross: null, net: null };
+
+                var wInts = wl.interests || [];
+                var badgesHtml = statusBadgeHtml(wl.wellStatus);
+                if (wInts.length > 0) {
+                    for (var ib = 0; ib < wInts.length; ib++) {
+                        var wi = wInts[ib];
+                        badgesHtml += '<span class="interest-badge interest-badge-' + wi.type.toLowerCase() + '">' + wi.type + ' ' + fmtDecimal(wi.decimal) + '</span>';
+                    }
+                } else if (wDecimal) {
+                    badgesHtml += '<span class="interest-badge">' + fmtDecimal(wDecimal) + '</span>';
+                }
+
+                html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
+                    '<div class="well-card-header">' +
+                        '<div>' +
+                            '<div class="well-card-name">' + escapeHtml(wl.wellName) + '</div>' +
+                            (wl.operator ? '<div class="well-card-operator">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</div>' : '') +
+                        '</div>' +
+                        '<div class="well-card-badges">' + badgesHtml + '</div>' +
+                    '</div>';
+
+                if (shutIn && !wLatest) {
+                    html += '<div class="well-production">No recent production</div>';
+                } else if (wl.sharedPun && !wLatest) {
+                    html += '<div class="well-production" style="color:#975A16;font-size:12px">Production via shared unit above</div>';
+                } else if (wLatest) {
+                    html += '<div class="well-production"><span class="month-label">' + formatYearMonth(wLatest.yearMonth) + ':</span> ' +
+                        '<span class="vol">' + fmtVol(wLatest.oilBbl) + ' BBL</span> + <span class="vol">' + fmtVol(wLatest.gasMcf) + ' MCF</span></div>';
+                    if (wInts.length > 1 && wHasOwnProd) {
+                        html += '<div class="well-interest-breakdown">';
+                        for (var ir = 0; ir < wInts.length; ir++) {
+                            var wirRev = rmCalcRevenue(wLatest.oilBbl, wLatest.gasMcf, wInts[ir].decimal);
+                            if (wirRev.gross != null) {
+                                html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wInts[ir].type + ':</span> <span class="net">' + fmtMoney(wirRev.net) + '/mo</span>' +
+                                    (wInts[ir].type === 'WI' ? ' <span class="wi-note">before OpEx</span>' : '') + '</div>';
+                            }
+                        }
+                        html += '</div>';
+                    } else if (wRevLatest.gross != null) {
+                        html += '<div class="well-revenue"><span class="gross">' + fmtMoney(wRevLatest.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(wRevLatest.net) + '</span></div>';
+                    }
+                } else {
+                    html += '<div class="well-production" style="color:#A0AEC0">No production data</div>';
+                }
+                html += '</div>';
+            }
+            html += '</div>'; // close grid
+
+            // Property total
+            if (hasAnyRevenue) {
+                var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
+                html += '<div class="property-total-v" style="margin-top:12px">' +
+                    '<div class="ptv-header">Property Total</div>' +
+                    '<div class="ptv-block">' +
+                        '<div class="ptv-label">Latest Month</div>' +
+                        '<div class="ptv-gross">' + fmtMoney(totalGrossLatest) + '</div>' +
+                        '<div class="ptv-gross-label">Gross Revenue</div>' +
+                        '<div class="ptv-net">' + fmtMoney(totalNetLatest) + '</div>' +
+                        '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                    '</div>' +
+                    '<div class="ptv-divider"></div>' +
+                    '<div class="ptv-block">' +
+                        '<div class="ptv-label">3-Month Average</div>' +
+                        '<div class="ptv-gross">' + fmtMoney(totalGrossAvg) + '</div>' +
+                        '<div class="ptv-gross-label">Gross Revenue</div>' +
+                        '<div class="ptv-net">' + fmtMoney(totalNetAvg) + '</div>' +
+                        '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                    '</div>' +
+                    (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
+                '</div>';
+            }
+
+            html += '<div class="rm-disclaimer">Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ due to posted wellhead prices, operator deductions, production allocation, and payment timing.</div>';
+
+            contentEl.innerHTML = html;
+
+            // Show auto-calc NRI result
+            if (noDecimal && rmManualDecimal) {
+                var resEl = document.getElementById('rmNriResult');
+                if (resEl) resEl.textContent = fmtDecimal(rmManualDecimal);
+                var resRow = document.getElementById('rmNriResultRow');
+                if (resRow) resRow.style.display = 'flex';
+            }
+        }
+
+        function renderRevModalWell() {
+            var data = rmData;
+            var contentEl = document.getElementById('rmContent');
+            var nriArea = document.getElementById('rmNriArea');
+            if (!contentEl) return;
+
+            var well = data.well || {};
+            var linkedProp = data.linkedProperty;
+            var production = data.production || [];
+            var trail = data.trailing3mo || {};
+
+            // Determine decimal
+            var decimal = well.interestDecimal || rmManualDecimal || null;
+            var noDecimal = !well.interestDecimal;
+
+            // Auto-calc from linked property acres
+            if (!decimal && linkedProp) {
+                var autoAcres = linkedProp.ri_acres || linkedProp.total_acres || linkedProp.acres || 0;
+                if (autoAcres > 0) {
+                    rmManualDecimal = (autoAcres * (3/16)) / 640;
+                    decimal = rmManualDecimal;
+                }
+            }
+
+            // NRI calculator
+            if (nriArea) {
+                if (noDecimal && !document.getElementById('rmNriCalcBox')) {
+                    var prefillAcres = linkedProp ? (linkedProp.ri_acres || linkedProp.total_acres || linkedProp.acres || '') : '';
+                    nriArea.innerHTML = buildRmNriCalcHtml(prefillAcres);
+                } else if (!noDecimal) {
+                    nriArea.innerHTML = '';
+                }
+            }
+
+            var html = '';
+            var latest = production.length > 0 ? production[0] : null;
+            var revLatest = latest ? rmCalcRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
+            var revAvg = rmCalcRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal);
+
+            // Linked property badge
+            if (linkedProp) {
+                var propLabel = (linkedProp.county || '') + ' ' +
+                    ((linkedProp.township || '').replace(/^T/i,'') || '') + '-' +
+                    ((linkedProp.range || '').replace(/^R/i,'') || '') + '-' +
+                    (linkedProp.section && linkedProp.section.length === 1 ? '0' + linkedProp.section : linkedProp.section || '');
+                html += '<div class="tools-linked-property" style="margin-bottom:12px">' +
+                    'Linked to property: ' + escapeHtml(propLabel) +
+                    (linkedProp.ri_decimal ? ' \u00b7 Decimal: ' + linkedProp.ri_decimal : '') +
+                '</div>';
+            }
+
+            // Well card
+            var shutIn = isShutIn(well.wellStatus);
+            var wmInterests = well.interests || [];
+            var badgesHtml = statusBadgeHtml(well.wellStatus);
+            if (wmInterests.length > 0) {
+                for (var ib = 0; ib < wmInterests.length; ib++) {
+                    var wmi = wmInterests[ib];
+                    badgesHtml += '<span class="interest-badge interest-badge-' + wmi.type.toLowerCase() + '">' + wmi.type + ' ' + fmtDecimal(wmi.decimal) + '</span>';
+                }
+            } else if (decimal) {
+                badgesHtml += '<span class="interest-badge">' + fmtDecimal(decimal) + '</span>';
+            }
+
+            html += '<div class="well-card well-card-single' + (shutIn ? ' shut-in' : '') + '">' +
+                '<div class="well-card-header">' +
+                    '<div>' +
+                        '<div class="well-card-name">' + escapeHtml(well.wellName || 'Unknown Well') + '</div>' +
+                        (well.operator ? '<div class="well-card-operator">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</div>' : '') +
+                    '</div>' +
+                    '<div class="well-card-badges">' + badgesHtml + '</div>' +
+                '</div>';
+
+            if (shutIn && !latest) {
+                html += '<div class="well-production">No recent production</div>';
+            } else if (latest) {
+                html += '<div class="well-production"><span class="month-label">' + formatYearMonth(latest.yearMonth) + ':</span> ' +
+                    '<span class="vol">' + fmtVol(latest.oilBbl) + ' BBL</span> + <span class="vol">' + fmtVol(latest.gasMcf) + ' MCF</span></div>';
+                if (wmInterests.length > 1) {
+                    html += '<div class="well-interest-breakdown">';
+                    for (var ir = 0; ir < wmInterests.length; ir++) {
+                        var wirRev = rmCalcRevenue(latest.oilBbl, latest.gasMcf, wmInterests[ir].decimal);
+                        if (wirRev.gross != null) {
+                            html += '<div class="interest-rev-line"><span class="interest-rev-type">' + wmInterests[ir].type + ':</span> <span class="gross">' + fmtMoney(wirRev.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net: ' + fmtMoney(wirRev.net) + '</span>' +
+                                (wmInterests[ir].type === 'WI' ? ' <span class="wi-note">before OpEx</span>' : '') + '</div>';
+                        }
+                    }
+                    html += '</div>';
+                } else if (revLatest.gross != null) {
+                    html += '<div class="well-revenue"><span class="gross">Gross: ' + fmtMoney(revLatest.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net: ' + fmtMoney(revLatest.net) + '</span></div>';
+                }
+                if (trail.avgOilBbl || trail.avgGasMcf) {
+                    html += '<div class="well-revenue-avg">3-Mo Avg: ';
+                    if (revAvg.gross != null) {
+                        html += '<span class="gross">Gross ' + fmtMoney(revAvg.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(revAvg.net) + '</span>';
+                    } else {
+                        html += '<span class="vol">' + fmtVol(trail.avgOilBbl) + ' BBL + ' + fmtVol(trail.avgGasMcf) + ' MCF</span>';
+                    }
+                    html += '</div>';
+                }
+            } else {
+                // No production — show manual entry if we have a decimal
+                if (decimal) {
+                    html += '<div class="well-production" style="color:#A0AEC0;margin-bottom:8px">No production data available</div>';
+                    html += '</div>'; // close well card
+                    html += '<div class="rm-manual-prod">' +
+                        '<div class="rm-manual-prod-title">Enter estimated production</div>' +
+                        '<div class="rm-manual-prod-row">' +
+                            '<div class="rm-manual-prod-field">' +
+                                '<label>Monthly Oil (BBL)</label>' +
+                                '<input type="number" id="rmManualOil" placeholder="e.g. 100" min="0" step="any" oninput="rmCalcManualProd()">' +
+                            '</div>' +
+                            '<div class="rm-manual-prod-field">' +
+                                '<label>Monthly Gas (MCF)</label>' +
+                                '<input type="number" id="rmManualGas" placeholder="e.g. 500" min="0" step="any" oninput="rmCalcManualProd()">' +
+                            '</div>' +
+                        '</div>' +
+                        '<div class="rm-manual-prod-result" id="rmManualResult" style="display:none"></div>' +
+                    '</div>';
+                    html += '<div class="rm-disclaimer">Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ.</div>';
+                    contentEl.innerHTML = html;
+                    if (noDecimal && rmManualDecimal) {
+                        var resEl = document.getElementById('rmNriResult');
+                        if (resEl) resEl.textContent = fmtDecimal(rmManualDecimal);
+                        var resRow = document.getElementById('rmNriResultRow');
+                        if (resRow) resRow.style.display = 'flex';
+                    }
+                    return;
+                }
+                html += '<div class="well-production" style="color:#A0AEC0">No production data available</div>';
+            }
+
+            html += '</div>'; // close well card
+
+            // Revenue total
+            if (revLatest.gross != null) {
+                var basisText = data.dataHorizon ? formatYearMonth(data.dataHorizon) + ' OTC data' : '';
+                html += '<div class="property-total-v" style="margin-top:12px">' +
+                    '<div class="ptv-header">Well Revenue</div>' +
+                    '<div class="ptv-block">' +
+                        '<div class="ptv-label">Latest Month</div>' +
+                        '<div class="ptv-gross">' + fmtMoney(revLatest.gross) + '</div>' +
+                        '<div class="ptv-gross-label">Gross Revenue</div>' +
+                        '<div class="ptv-net">' + fmtMoney(revLatest.net) + '</div>' +
+                        '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                    '</div>' +
+                    '<div class="ptv-divider"></div>' +
+                    '<div class="ptv-block">' +
+                        '<div class="ptv-label">3-Month Average</div>' +
+                        '<div class="ptv-gross">' + fmtMoney(revAvg.gross) + '</div>' +
+                        '<div class="ptv-gross-label">Gross Revenue</div>' +
+                        '<div class="ptv-net">' + fmtMoney(revAvg.net) + '</div>' +
+                        '<div class="ptv-net-label">Net (' + rmDeduction + '% deductions)</div>' +
+                    '</div>' +
+                    (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
+                '</div>';
+            }
+
+            html += '<div class="rm-disclaimer">Estimates based on EIA spot prices multiplied by your decimal interest. Actual royalty checks may differ due to posted wellhead prices, operator deductions, production allocation, and payment timing.</div>';
+
+            contentEl.innerHTML = html;
+
+            if (noDecimal && rmManualDecimal) {
+                var resEl2 = document.getElementById('rmNriResult');
+                if (resEl2) resEl2.textContent = fmtDecimal(rmManualDecimal);
+                var resRow2 = document.getElementById('rmNriResultRow');
+                if (resRow2) resRow2.style.display = 'flex';
+            }
+        }
+
+        async function rmOpenInToolsTab() {
+            var type = rmType;
+            var id = rmId;
+            var label = rmLabel;
+
+            // Close revenue modal
+            closeRevenueModal();
+
+            // Close detail modal underneath
+            if (type === 'property') {
+                if (typeof closePropertyDetailsModal === 'function') closePropertyDetailsModal();
+            } else {
+                if (typeof closeWellDetailsModal === 'function') closeWellDetailsModal();
+            }
+
+            // Switch to Tools tab
+            var tabBtn = document.querySelector('.tab[data-tab="tools"]');
+            if (tabBtn) tabBtn.click();
+
+            // Ensure tools loaded
+            await loadTools();
+
+            // Pre-select
+            if (type === 'property') {
+                setToolsMode('property');
+                toolsSelectedPropertyId = id;
+                var input = document.getElementById('toolsPropertySearch');
+                if (input) input.value = label;
+                var clearBtn = document.getElementById('toolsPropertySearchClear');
+                if (clearBtn) clearBtn.style.display = 'block';
+                onToolsPropertyChange(id);
+            } else {
+                setToolsMode('well');
+                toolsSelectedWellId = id;
+                var wInput = document.getElementById('toolsWellSearch');
+                if (wInput) wInput.value = label;
+                var wClearBtn = document.getElementById('toolsWellSearchClear');
+                if (wClearBtn) wClearBtn.style.display = 'block';
+                onToolsWellChange(id);
+            }
+        }
