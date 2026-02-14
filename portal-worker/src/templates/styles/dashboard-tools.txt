@@ -451,6 +451,11 @@
 .alloc-input:focus { outline: none; border-color: var(--red-dirt); }
 .alloc-pct { font-size: 11px; color: #94A3B8; }
 .alloc-source { font-size: 11px; color: #059669; font-style: italic; }
+.rm-well-detail { padding: 4px 12px 8px; border-top: 1px dashed #E2E8F0; }
+.rm-well-detail-row { font-size: 12px; color: #64748B; }
+.rm-well-detail-row .gross { color: #374151; font-weight: 500; }
+.rm-well-detail-row .net { color: var(--red-dirt); font-weight: 600; }
+.rm-detail-label { font-weight: 500; color: #475569; }
 
 /* Mobile */
 @media (max-width: 768px) {

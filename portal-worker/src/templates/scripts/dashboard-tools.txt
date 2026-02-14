@@ -1442,22 +1442,6 @@
             if (rmData) renderRevModalContent(rmType, rmData);
         }
 
-        async function rmDrillDownToWell(wellId, wellName) {
-            closeRevenueModal();
-            // Close the detail modal underneath
-            if (rmType === 'property') {
-                if (typeof closePropertyDetailsModal === 'function') closePropertyDetailsModal();
-            } else {
-                if (typeof closeWellDetailsModal === 'function') closeWellDetailsModal();
-            }
-            // Switch to Tools tab
-            var toolsTab = document.querySelector('.tab[data-tab="tools"]');
-            if (toolsTab) toolsTab.click();
-            if (!toolsLoaded) await loadTools();
-            // Drill down to the well
-            drillDownToWell(wellId);
-        }
-
         function rmBuildAllocRowHtml(well) {
             var wid = well.wellId || well.id || '';
             var alloc = rmGetEffectiveAlloc(well);
@@ -1889,7 +1873,28 @@
                 } else {
                     html += '<div class="well-production" style="color:#A0AEC0">No production data</div>';
                 }
-                html += '<a href="#" class="tools-drilldown-btn" onclick="rmDrillDownToWell(\'' + (wl.wellId || '') + '\', \'' + escapeHtml(wl.wellName || '').replace(/'/g, "\\'") + '\');return false">Well Revenue Detail \u2192</a>';
+                // Inline well revenue detail (3-mo avg + gross→net)
+                var wTrail = wl.trailing3mo || {};
+                if ((wTrail.avgOilBbl || wTrail.avgGasMcf) && wHasOwnProd) {
+                    html += '<div class="rm-well-detail">';
+                    html += '<div class="rm-well-detail-row"><span class="rm-detail-label">3-Mo Avg:</span> ';
+                    if (wInts.length > 1) {
+                        var rmCombAvg = 0;
+                        for (var ia2 = 0; ia2 < wInts.length; ia2++) {
+                            var aRev2 = rmCalcRevenue(wTrail.avgOilBbl || 0, wTrail.avgGasMcf || 0, wInts[ia2].decimal, wlAlloc);
+                            if (aRev2.net != null) rmCombAvg += aRev2.net;
+                        }
+                        html += '<span class="net">Combined Net ' + fmtMoney(rmCombAvg) + '/mo</span>';
+                    } else {
+                        var wRevAvg2 = rmCalcRevenue(wTrail.avgOilBbl || 0, wTrail.avgGasMcf || 0, wDecimal, wlAlloc);
+                        if (wRevAvg2.gross != null) {
+                            html += '<span class="gross">' + fmtMoney(wRevAvg2.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(wRevAvg2.net) + '</span>';
+                        } else {
+                            html += '<span class="vol">' + fmtVol(wTrail.avgOilBbl) + ' BBL + ' + fmtVol(wTrail.avgGasMcf) + ' MCF</span>';
+                        }
+                    }
+                    html += '</div></div>';
+                }
                 html += '</div>';
             }
             html += '</div>'; // close grid
