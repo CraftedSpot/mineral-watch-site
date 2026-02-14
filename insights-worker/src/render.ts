@@ -2714,7 +2714,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             <tr>
                 <td><strong>Well Data Finder</strong></td>
                 <td>Visual/map-based well search using GIS</td>
-                <td><a href="https://oklahoma.gov/occ" target="_blank" rel="noopener" class="tool-url">oklahoma.gov/occ</a> (GIS Data &amp; Maps)</td>
+                <td><a href="https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b" target="_blank" rel="noopener" class="tool-url">OCC Well Data Finder</a></td>
             </tr>
             <tr>
                 <td><strong>Electronic Case Filing (ECF)</strong></td>
