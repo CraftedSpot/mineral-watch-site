@@ -207,8 +207,9 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .section-header h2 { font-size: 32px; margin-bottom: 12px; }
 .section-header p { color: var(--slate-blue); font-size: 17px; }
 .matrix { background: var(--white); border-radius: 4px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.04); }
-.matrix-header { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr; background: var(--oil-navy); color: var(--white); padding: 20px 32px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-.matrix-row { display: grid; grid-template-columns: 2fr 1.2fr 1.2fr; padding: 20px 32px; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.2s; }
+.matrix-header { display: grid; grid-template-columns: 2fr 0.9fr 1.5fr; background: var(--oil-navy); color: var(--white); padding: 20px 32px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+.matrix-row { display: grid; grid-template-columns: 2fr 0.9fr 1.5fr; padding: 20px 32px; border-bottom: 1px solid var(--border); align-items: center; transition: background 0.2s; }
+.matrix-divider { display: grid; grid-template-columns: 1fr; padding: 12px 32px 8px; background: var(--paper); border-bottom: 1px solid var(--border); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--slate-blue); }
 .matrix-row:hover { background: #fcfcfc; }
 .matrix-row:last-child { border-bottom: none; }
 .m-feat { font-weight: 600; color: var(--oil-navy); font-size: 15px; }
@@ -263,7 +264,8 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
   .feature-row { grid-template-columns: 1fr; gap: 32px; }
   .feature-row.reverse { direction: ltr; }
   .cap-grid { grid-template-columns: 1fr; }
-  .matrix-header, .matrix-row { grid-template-columns: 1.5fr 1fr 1fr; padding: 16px; }
+  .matrix-header, .matrix-row { grid-template-columns: 1.5fr 0.8fr 1.2fr; padding: 16px; }
+  .matrix-divider { padding: 10px 16px 6px; }
   .stats-inner { gap: 16px; } .stat-num { font-size: 22px; }
   .comparison-v2 { padding: 48px 24px; } .export-bar { padding: 32px 24px; }
   .footer-inner { flex-direction: column; } .footer-links { gap: 32px; }
@@ -271,6 +273,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 @media (max-width: 600px) {
   .matrix-header, .matrix-row { grid-template-columns: 1fr; gap: 8px; }
   .m-watch { margin: 0; border-radius: 4px; }
+  .matrix-divider { padding: 10px 16px 6px; }
   .hero-ctas { flex-direction: column; align-items: center; }
   .inline-stats { flex-direction: column; gap: 16px; }
 }
@@ -665,16 +668,31 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
       <p>The difference between monitoring your minerals and managing them.</p>
     </div>
     <div class="matrix">
-      <div class="matrix-header"><div>Capability</div><div>Manual Approach</div><div>Mineral Watch</div></div>
-      <div class="matrix-row"><div class="m-feat">OCC Filing Discovery</div><div class="m-manual">Search the OCC website daily</div><div class="m-watch"><span class="check">&#10003;</span> 7 filing types scanned daily</div></div>
-      <div class="matrix-row"><div class="m-feat">Document Linking</div><div class="m-manual">Download and file manually</div><div class="m-watch"><span class="check">&#10003;</span> Auto-fetched and linked to properties</div></div>
-      <div class="matrix-row"><div class="m-feat">Adjacent Section Activity</div><div class="m-manual">Rarely checked</div><div class="m-watch"><span class="check">&#10003;</span> 9-section monitoring radius</div></div>
-      <div class="matrix-row"><div class="m-feat">Document Analysis</div><div class="m-manual">Read and interpret manually</div><div class="m-watch"><span class="check">&#10003;</span> Context-aware AI with risk insights</div></div>
+      <div class="matrix-header"><div>Capability</div><div>Manual</div><div>Mineral Watch</div></div>
+
+      <div class="matrix-divider">Discovery &amp; Alerts</div>
+      <div class="matrix-row"><div class="m-feat">New Permit Alerts</div><div class="m-manual">Search OCC filings daily</div><div class="m-watch"><span class="check">&#10003;</span> Alerted the moment an operator files to drill</div></div>
+      <div class="matrix-row"><div class="m-feat">Well Completion Tracking</div><div class="m-manual">Check completion records manually</div><div class="m-watch"><span class="check">&#10003;</span> Completions flagged &mdash; royalty checks follow</div></div>
+      <div class="matrix-row"><div class="m-feat">Operator Transfer Monitoring</div><div class="m-manual">Hope you hear about it</div><div class="m-watch"><span class="check">&#10003;</span> New operator identified, division order expected</div></div>
+      <div class="matrix-row"><div class="m-feat">Pooling &amp; Spacing Orders</div><div class="m-manual">Dig through OCC dockets</div><div class="m-watch"><span class="check">&#10003;</span> Auto-matched to your sections with bonus details</div></div>
+      <div class="matrix-row"><div class="m-feat">Adjacent Section Monitoring</div><div class="m-manual">Rarely checked</div><div class="m-watch"><span class="check">&#10003;</span> 9-section radius monitors activity around every property</div></div>
+      <div class="matrix-row"><div class="m-feat">Horizontal Well Detection</div><div class="m-manual">Miss wells that only touch your section laterally</div><div class="m-watch"><span class="check">&#10003;</span> Laterals detected even when permitted in adjacent sections</div></div>
+      <div class="matrix-row"><div class="m-feat">Email Alerts &amp; Digests</div><div class="m-manual">Check OCC website repeatedly</div><div class="m-watch"><span class="check">&#10003;</span> Weekly digests and instant alerts to your inbox</div></div>
+
+      <div class="matrix-divider">Production &amp; Revenue</div>
       <div class="matrix-row"><div class="m-feat">Well Discovery</div><div class="m-manual">Research individual well records</div><div class="m-watch"><span class="check">&#10003;</span> Wells surfaced and enriched automatically</div></div>
-      <div class="matrix-row"><div class="m-feat">Pooling Comparison</div><div class="m-manual">Ask around, check forums</div><div class="m-watch"><span class="check">&#10003;</span> Real comparisons across 77 counties</div></div>
-      <div class="matrix-row"><div class="m-feat">Decline Curves</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Production decline tracked per well</div></div>
-      <div class="matrix-row"><div class="m-feat">Activity Heat Maps</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Drilling, completions, and filings by township</div></div>
-      <div class="matrix-row"><div class="m-feat">Shut-In Detection</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Idle wells flagged across portfolio</div></div>
+      <div class="matrix-row"><div class="m-feat">Production Data Tracking</div><div class="m-manual">Pull reports from state sites</div><div class="m-watch"><span class="check">&#10003;</span> Monthly production volumes tracked per well</div></div>
+      <div class="matrix-row"><div class="m-feat">Decline Curves</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Production decline tracked per well over time</div></div>
+      <div class="matrix-row"><div class="m-feat">Shut-In Detection</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Idle and shut-in wells flagged across your portfolio</div></div>
+      <div class="matrix-row"><div class="m-feat">Revenue Estimation</div><div class="m-manual">Back-of-napkin math</div><div class="m-watch"><span class="check">&#10003;</span> Estimate revenue from interest, production, and current prices</div></div>
+      <div class="matrix-row"><div class="m-feat">Pooling Comparison</div><div class="m-manual">Ask around, check forums</div><div class="m-watch"><span class="check">&#10003;</span> Real bonus and royalty comparisons across 77 counties</div></div>
+
+      <div class="matrix-divider">Documents &amp; Portfolio Intelligence</div>
+      <div class="matrix-row"><div class="m-feat">Document Linking</div><div class="m-manual">Download and file manually</div><div class="m-watch"><span class="check">&#10003;</span> OCC filings auto-fetched and linked to properties</div></div>
+      <div class="matrix-row"><div class="m-feat">Document Analysis</div><div class="m-manual">Read and interpret manually</div><div class="m-watch"><span class="check">&#10003;</span> Context-aware AI extracts key terms and risk factors</div></div>
+      <div class="matrix-row"><div class="m-feat">Division Order Extraction</div><div class="m-manual">Cross-check decimals by hand</div><div class="m-watch"><span class="check">&#10003;</span> AI extracts interest decimals and validates against your records</div></div>
+      <div class="matrix-row"><div class="m-feat">Activity Heat Maps</div><div class="m-manual">No visibility</div><div class="m-watch"><span class="check">&#10003;</span> Drilling, completions, and filings visualized by township</div></div>
+      <div class="matrix-row"><div class="m-feat">Portfolio Dashboard</div><div class="m-manual">Spreadsheets and file folders</div><div class="m-watch"><span class="check">&#10003;</span> Every property, well, and filing in one place</div></div>
     </div>
   </div>
 </section>
