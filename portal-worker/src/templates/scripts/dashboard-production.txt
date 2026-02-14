@@ -34,11 +34,11 @@
                 const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
                 const hasOtcData = data.hasData && data.decimals && data.decimals.length > 0;
 
-                if (hasOtcData || hasUserInterest) {
+                if (hasUserInterest) {
                     section.style.display = '';
                     renderDecimalInterest(data, ent);
-                    // Show badge with count and auto-expand
-                    const count = (data.decimals ? data.decimals.length : 0) + (hasUserInterest ? 1 : 0);
+                    // Show badge with count of user interests
+                    const count = (ent.wi_nri ? 1 : 0) + (ent.ri_nri ? 1 : 0) + (ent.orri_nri ? 1 : 0);
                     badge.textContent = count;
                     badge.style.display = '';
                     badge.style.background = '#dbeafe';
@@ -51,7 +51,7 @@
                         arrow.style.transform = 'rotate(90deg)';
                     }
                 } else {
-                    // Hide the entire section when no data
+                    // Hide the entire section when no user interest data
                     section.style.display = 'none';
                 }
             } catch (error) {
@@ -112,40 +112,9 @@
                 html += `</div>`;
             }
 
-            // OTC product codes: 1=Oil, 3=Condensate, 5=Casinghead Gas, 6=Natural Gas
-            const productLabels = { '1': 'Oil', '3': 'Condensate', '5': 'Casinghead Gas', '6': 'Natural Gas' };
-
-            if (data.decimals && data.decimals.length > 0) {
-                // Separator between user interest and OTC data
-                if (hasUserInterest) {
-                    html += `<div style="border-top: 1px solid #e5e7eb; margin: 4px 0 8px;"></div>`;
-                    html += `<div style="font-size: 11px; font-weight: 600; color: #1e40af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">OTC Reported</div>`;
-                }
-
-                for (const d of data.decimals) {
-                    const monthDisplay = formatMonth(d.year_month);
-                    const product = productLabels[d.product_code] || d.product_code || '';
-                    html += `
-                    <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #6b7280; font-size: 13px;">${hasUserInterest ? '' : 'OTC Reported: '}${product ? escapeHtml(product) : ''}</span>
-                            <span style="font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace; font-size: 15px; font-weight: 600; color: #111827;">${d.decimal_equivalent.toFixed(8)}</span>
-                        </div>
-                        <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
-                            Source: OTC state tax records (${monthDisplay})
-                        </div>
-                    </div>
-                    `;
-                }
+            if (!hasUserInterest) {
+                html += `<div style="color: #6b7280; font-size: 14px; padding: 12px 0;">No interest data on file for this well.</div>`;
             }
-
-            html += `
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #e5e7eb;">
-                    <span style="color: #9ca3af; font-size: 12px; font-style: italic;">
-                        Division order comparison coming soon
-                    </span>
-                </div>
-            `;
 
             container.innerHTML = html;
         }
