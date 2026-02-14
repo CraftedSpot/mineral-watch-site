@@ -29,7 +29,7 @@
                     '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>' +
                     '<h3>Add properties or wells to get started</h3>' +
                     '<p>The Revenue Estimator uses your tracked well production data to estimate royalty income.</p>' +
-                    '<button class="btn-cta" onclick="switchToTab(\\\'properties\\\')">Go to Properties</button>' +
+                    '<button class="btn-cta" onclick="switchToTab(\'properties\')">Go to Properties</button>' +
                     '</div>';
                 return;
             }
@@ -92,8 +92,8 @@
                     '<p>Estimate royalty income from your properties and wells using real production data and live prices.</p>' +
                 '</div>' +
                 '<div class="tools-mode-toggle">' +
-                    '<button class="mode-btn active" id="toolsModeProperty" onclick="setToolsMode(\\\'property\\\')">By Property</button>' +
-                    '<button class="mode-btn" id="toolsModeWell" onclick="setToolsMode(\\\'well\\\')">By Well</button>' +
+                    '<button class="mode-btn active" id="toolsModeProperty" onclick="setToolsMode(\'property\')">By Property</button>' +
+                    '<button class="mode-btn" id="toolsModeWell" onclick="setToolsMode(\'well\')">By Well</button>' +
                 '</div>' +
                 '<div id="toolsSelectorArea"></div>' +
                 '<div class="tools-price-bar">' +
@@ -155,7 +155,7 @@
                 '<div class="tools-selector">' +
                     '<label>Property</label>' +
                     '<div class="tools-county-filter">' +
-                        '<select onchange="toolsCountyFilter=this.value;onToolsPropertySearchInput(document.getElementById(\\\'toolsPropertySearch\\\').value)">' +
+                        '<select onchange="toolsCountyFilter=this.value;onToolsPropertySearchInput(document.getElementById(\'toolsPropertySearch\').value)">' +
                         countyOpts +
                         '</select>' +
                     '</div>' +
@@ -725,13 +725,13 @@
                     '<span class="nri-calc-result-label">Your Decimal:</span>' +
                     '<span class="nri-calc-result-value" id="toolsNriResult"></span>' +
                 '</div>' +
-                '<div class="nri-calc-or">or <a href="#" onclick="document.getElementById(\\\'toolsNriCalcBox\\\').style.display=\\\'none\\\';document.getElementById(\\\'toolsManualDecBox\\\').style.display=\\\'flex\\\';return false">enter a known decimal directly</a></div>' +
+                '<div class="nri-calc-or">or <a href="#" onclick="document.getElementById(\'toolsNriCalcBox\').style.display=\'none\';document.getElementById(\'toolsManualDecBox\').style.display=\'flex\';return false">enter a known decimal directly</a></div>' +
             '</div>' +
             '<div class="no-decimal-prompt" id="toolsManualDecBox" style="display:none; margin: 0 24px 12px">' +
                 '<label>Decimal interest:</label>' +
                 '<input type="text" id="toolsManualDecInput" placeholder="e.g. 0.00293" oninput="onManualDecimalChange(this.value)"' +
                 (toolsManualDecimal ? ' value="' + toolsManualDecimal + '"' : '') + '>' +
-                ' <a href="#" onclick="document.getElementById(\\\'toolsManualDecBox\\\').style.display=\\\'none\\\';document.getElementById(\\\'toolsNriCalcBox\\\').style.display=\\\'block\\\';return false" style="font-size:12px;color:var(--slate-blue)">use calculator</a>' +
+                ' <a href="#" onclick="document.getElementById(\'toolsManualDecBox\').style.display=\'none\';document.getElementById(\'toolsNriCalcBox\').style.display=\'block\';return false" style="font-size:12px;color:var(--slate-blue)">use calculator</a>' +
             '</div>';
         }
 
@@ -853,7 +853,7 @@
                     '<div class="well-card-header">' +
                         '<div>' +
                             '<div class="well-card-name">' + escapeHtml(well.wellName) +
-                                ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\\\'' + well.wellId + '\\\');return false" title="View well details">' + modalLinkSvg + '</a>' +
+                                ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\'' + well.wellId + '\');return false" title="View well details">' + modalLinkSvg + '</a>' +
                             '</div>' +
                             (well.operator ? '<div class="well-card-operator">' + escapeHtml(well.operator.length > 30 ? well.operator.substring(0, 30) + '...' : well.operator) + '</div>' : '') +
                         '</div>' +
@@ -890,7 +890,7 @@
                 }
 
                 // Drill-down link
-                html += '<a href="#" class="tools-drilldown-link" onclick="drillDownToWell(\\\'' + well.wellId + '\\\');return false">View well revenue \u2192</a>';
+                html += '<a href="#" class="tools-drilldown-link" onclick="drillDownToWell(\'' + well.wellId + '\');return false">View well revenue \u2192</a>';
 
                 html += '</div>';
             }
@@ -920,7 +920,7 @@
                             '<span class="total-values"><span class="total-gross">Gross ' + fmtMoney(totalGrossAvg) + '</span><span class="total-arrow">\u2192</span><span class="total-net">Net ' + fmtMoney(totalNetAvg) + '</span></span>' +
                         '</div>' +
                         (basisText ? '<div class="total-basis">' + basisText + '</div>' : '') +
-                        '<a href="#" class="tools-modal-link-light" onclick="openPropertyDetails(\\\'' + prop.id + '\\\');return false">View property details \u2192</a>' +
+                        '<a href="#" class="tools-modal-link-light" onclick="openPropertyDetails(\'' + prop.id + '\');return false">View property details \u2192</a>' +
                     '</div>';
                 if (disclaimerEl) disclaimerEl.style.display = 'block';
             } else {
@@ -967,7 +967,7 @@
                     ((linkedProp.range || '').replace(/^R/i,'') || '') + '-' +
                     (linkedProp.section && linkedProp.section.length === 1 ? '0' + linkedProp.section : linkedProp.section || '');
                 html += '<div class="tools-linked-property">' +
-                    'Linked to property: <a href="#" onclick="openPropertyDetails(\\\'' + linkedProp.id + '\\\');return false">' + escapeHtml(propLabel) + '</a>' +
+                    'Linked to property: <a href="#" onclick="openPropertyDetails(\'' + linkedProp.id + '\');return false">' + escapeHtml(propLabel) + '</a>' +
                     (linkedProp.ri_decimal ? ' &middot; Decimal: ' + linkedProp.ri_decimal : '') +
                 '</div>';
             }
@@ -995,7 +995,7 @@
                 '<div class="well-card-header">' +
                     '<div>' +
                         '<div class="well-card-name">' + escapeHtml(well.wellName || 'Unknown Well') +
-                            ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\\\'' + well.id + '\\\');return false" title="View well details">' + modalLinkSvg + '</a>' +
+                            ' <a href="#" class="tools-modal-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false" title="View well details">' + modalLinkSvg + '</a>' +
                         '</div>' +
                         (well.operator ? '<div class="well-card-operator">' + escapeHtml(well.operator.length > 30 ? well.operator.substring(0, 30) + '...' : well.operator) + '</div>' : '') +
                     '</div>' +
