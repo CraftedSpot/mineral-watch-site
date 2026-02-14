@@ -2832,7 +2832,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
             </div>
             <div class="tool-detail-item">
                 <h4>Complements</h4>
-                <p>Use Well Data Finder to identify wells visually, then switch to Well Browse for detailed data on specific wells.</p>
+                <p>Use Well Data Finder to identify wells visually, then switch to the Well Records Search for detailed data on specific wells.</p>
             </div>
         </div>
     </div>
@@ -3051,7 +3051,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h3>Reading a completion report</h3>
 
-<p>Completion reports (Form 1002A) tell you what the operator found when they drilled. They include the formation name, total depth, perforated intervals, initial production rates, and completion method. Find them in the <strong>Well Browse Database</strong> by clicking the &ldquo;Completions&rdquo; button on a well record, or view the scanned document in the <strong>Imaging system</strong> by searching for Form 1002A with the well&rsquo;s API number.</p>
+<p>Completion reports (Form 1002A) tell you what the operator found when they drilled. They include the formation name, total depth, perforated intervals, initial production rates, and completion method. Find them in the <strong>Well Records Search</strong> by clicking the &ldquo;Completions&rdquo; button on a well record, or view the scanned document in the <strong>Imaging system</strong> by searching for Form 1002A with the well&rsquo;s API number.</p>
 
 <h3>Verifying who operates a well</h3>
 
@@ -3059,11 +3059,11 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
 <h3>Checking production data</h3>
 
-<p>The <strong>Well Browse Database</strong> includes gas production data under the &ldquo;Production&rdquo; tab for gas-classified wells. The <strong>RBDMS Data Explorer</strong> can generate production reports for specific timeframes. For gross production volumes and tax data (especially oil production), the Oklahoma Tax Commission&rsquo;s gross production reporting system is the primary source &mdash; though that&rsquo;s a separate agency from the OCC.</p>
+<p>The <strong>Well Records Search</strong> includes gas production data under the &ldquo;Production&rdquo; tab for gas-classified wells. The <strong>RBDMS Data Explorer</strong> can generate production reports for specific timeframes. For gross production volumes and tax data (especially oil production), the Oklahoma Tax Commission&rsquo;s gross production reporting system is the primary source &mdash; though that&rsquo;s a separate agency from the OCC.</p>
 
 <div class="callout callout-tip">
     <div class="callout-title">Cross-referencing tip</div>
-    <p>The most effective approach for mineral owners is to cross-reference multiple OCC tools. Start with Well Browse to identify wells on your section, then check ECF for any pending or recent cases (spacing, pooling, increased density), then use the Imaging system to pull the actual documents you need. This three-step process gives you the most complete picture of what&rsquo;s happening on your property.</p>
+    <p>The most effective approach for mineral owners is to cross-reference multiple OCC tools. Start with the Well Records Search to identify wells on your section, then check ECF for any pending or recent cases (spacing, pooling, increased density), then use the Imaging system to pull the actual documents you need. This three-step process gives you the most complete picture of what&rsquo;s happening on your property.</p>
 </div>
 
 <h2 id="forms-reference">Key OCC Forms for Mineral Owners</h2>
