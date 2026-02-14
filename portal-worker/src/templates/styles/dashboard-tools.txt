@@ -184,7 +184,16 @@
 .status-unknown { color: var(--slate-blue); background: #F7FAFC; }
 
 .interest-badge { font-size: 11px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--slate-blue); padding: 3px 8px; border-radius: 4px; background: #EDF2F7; }
+.interest-badge-ri { background: #EBF8FF; color: #2B6CB0; }
+.interest-badge-wi { background: #FEFCBF; color: #975A16; }
+.interest-badge-orri { background: #F0FFF4; color: #276749; }
 .interest-source { font-size: 10px; color: #A0AEC0; font-weight: 400; }
+
+/* Multi-interest revenue breakdown */
+.well-interest-breakdown { margin: 4px 0 2px; }
+.interest-rev-line { font-size: 12px; display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.interest-rev-type { font-weight: 600; color: var(--slate-blue); min-width: 36px; }
+.wi-note { font-size: 10px; color: #C05621; font-style: italic; }
 
 /* Production line */
 .well-production { font-size: 12px; color: var(--oil-navy); margin-bottom: 4px; }

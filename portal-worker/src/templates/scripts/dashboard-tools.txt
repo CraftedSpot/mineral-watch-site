@@ -966,18 +966,31 @@
                 if (gRevAvg.gross != null) { totalGrossAvg += gRevAvg.gross; totalNetAvg += gRevAvg.net; }
             }
 
-            // Individual well totals
+            // Individual well totals (sum across all interest types)
             for (var w = 0; w < wells.length; w++) {
                 var well = wells[w];
-                var decimal = getEffectiveDecimal(well);
                 var prod = well.production || [];
                 var latest = prod.length > 0 ? prod[0] : null;
                 var trail = well.trailing3mo || {};
                 var hasOwnProd = !well.sharedPun && latest;
-                var revLatest = hasOwnProd ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
-                var revAvg = !well.sharedPun ? calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal) : { gross: null, net: null };
-                if (revLatest.gross != null && !well.sharedPun) { totalGrossLatest += revLatest.gross; totalNetLatest += revLatest.net; hasAnyRevenue = true; }
-                if (revAvg.gross != null && !well.sharedPun) { totalGrossAvg += revAvg.gross; totalNetAvg += revAvg.net; }
+
+                var wellInterests = well.interests || [];
+                if (wellInterests.length > 1 && hasOwnProd) {
+                    // Sum revenue across all interest types
+                    for (var wi2 = 0; wi2 < wellInterests.length; wi2++) {
+                        var wiRev = calcWellRevenue(latest.oilBbl, latest.gasMcf, wellInterests[wi2].decimal);
+                        var wiRevAvg = calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, wellInterests[wi2].decimal);
+                        if (wiRev.gross != null) { totalGrossLatest += wiRev.gross; totalNetLatest += wiRev.net; hasAnyRevenue = true; }
+                        if (wiRevAvg.gross != null) { totalGrossAvg += wiRevAvg.gross; totalNetAvg += wiRevAvg.net; }
+                    }
+                } else {
+                    // Single interest type — use primary decimal
+                    var decimal = getEffectiveDecimal(well);
+                    var revLatest = hasOwnProd ? calcWellRevenue(latest.oilBbl, latest.gasMcf, decimal) : { gross: null, net: null };
+                    var revAvg = !well.sharedPun ? calcWellRevenue(trail.avgOilBbl || 0, trail.avgGasMcf || 0, decimal) : { gross: null, net: null };
+                    if (revLatest.gross != null && !well.sharedPun) { totalGrossLatest += revLatest.gross; totalNetLatest += revLatest.net; hasAnyRevenue = true; }
+                    if (revAvg.gross != null && !well.sharedPun) { totalGrossAvg += revAvg.gross; totalNetAvg += revAvg.net; }
+                }
             }
 
             // ── NRI calculator (left column, below price bar) ──
