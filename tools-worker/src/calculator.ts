@@ -585,6 +585,51 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
     color: var(--text-muted);
     margin-top: 2px;
 }
+.price-ticker {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 24px;
+    opacity: 0;
+    transition: opacity 0.4s;
+}
+.price-ticker.loaded { opacity: 1; }
+.price-ticker .ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,255,255,0.08);
+    padding: 6px 16px;
+    border-radius: 20px;
+}
+.price-ticker .ticker-label {
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+    font-weight: 500;
+}
+.price-ticker .ticker-value {
+    font-size: 15px;
+    color: #fff;
+    font-weight: 700;
+    font-family: 'DM Mono', monospace;
+}
+.price-ticker .ticker-date {
+    font-size: 11px;
+    color: rgba(255,255,255,0.4);
+}
+.price-ticker .live-dot-sm {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #48BB78;
+    animation: pulse-dot 2s infinite;
+}
+.price-ticker .ticker-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(255,255,255,0.15);
+}
 
 /* ── Responsive ── */
 @media (max-width: 768px) {
@@ -635,6 +680,22 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
     <div class="eyebrow">Mineral Watch Tools</div>
     <h1>Oklahoma Mineral Calculator</h1>
     <p class="subtitle">Five tools in one. Calculate your decimal, verify division orders, estimate royalties, compare pooling elections, and value your minerals.</p>
+
+    <div class="price-ticker" id="hero-ticker">
+        <div class="ticker-item">
+            <span class="live-dot-sm"></span>
+            <span class="ticker-label">WTI Crude</span>
+            <span class="ticker-value" id="ticker-oil">--</span>
+            <span class="ticker-date" id="ticker-oil-date"></span>
+        </div>
+        <div class="ticker-divider"></div>
+        <div class="ticker-item">
+            <span class="live-dot-sm"></span>
+            <span class="ticker-label">Henry Hub</span>
+            <span class="ticker-value" id="ticker-gas">--</span>
+            <span class="ticker-date" id="ticker-gas-date"></span>
+        </div>
+    </div>
 
     <div class="calc-tabs">
         <button class="calc-tab active" data-tab="decimal" onclick="switchTab('decimal')">
@@ -1408,6 +1469,26 @@ document.addEventListener('click', function(e) {
             }
         }
 
+        function updateTicker(data) {
+            var ticker = document.getElementById('hero-ticker');
+            if (!ticker) return;
+            if (data.wti && data.wti.price) {
+                var el = document.getElementById('ticker-oil');
+                if (el) el.textContent = '$' + data.wti.price.toFixed(2);
+                var dt = document.getElementById('ticker-oil-date');
+                if (dt) dt.textContent = formatDate(data.wti.date);
+            }
+            if (data.henryHub && data.henryHub.price) {
+                var el2 = document.getElementById('ticker-gas');
+                if (el2) el2.textContent = '$' + data.henryHub.price.toFixed(2);
+                var dt2 = document.getElementById('ticker-gas-date');
+                if (dt2) dt2.textContent = formatDate(data.henryHub.date);
+            }
+            if ((data.wti && data.wti.price) || (data.henryHub && data.henryHub.price)) {
+                ticker.classList.add('loaded');
+            }
+        }
+
         fetch('/api/prices')
             .then(function(res) { return res.json(); })
             .then(function(data) {
@@ -1417,6 +1498,7 @@ document.addEventListener('click', function(e) {
                 if (data.henryHub && data.henryHub.price) {
                     setPrice(GAS_FIELDS, GAS_HELPS, data.henryHub.price, data.henryHub.date, 'Henry Hub');
                 }
+                updateTicker(data);
             })
             .catch(function(err) {
                 console.log('Price fetch unavailable, using defaults');
