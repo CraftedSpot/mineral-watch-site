@@ -838,7 +838,7 @@ const ARTICLES: Record<string, Article> = {
     },
     toc: [
       { id: 'quick-reference', label: 'Quick Reference Table' },
-      { id: 'well-browse', label: 'Well Browse Database' },
+      { id: 'well-browse', label: 'Well Records Search' },
       { id: 'well-data-finder', label: 'Well Data Finder (GIS)' },
       { id: 'ecf', label: 'Electronic Case Filing' },
       { id: 'case-processing', label: 'Case Processing (Pre-2022)' },
@@ -2707,9 +2707,9 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </thead>
         <tbody>
             <tr>
-                <td><strong>Well Browse</strong></td>
+                <td><strong>Oil &amp; Gas Well Records Search</strong></td>
                 <td>Looking up well details by legal description, API number, or operator</td>
-                <td><a href="https://wellbrowse.occ.ok.gov" target="_blank" rel="noopener" class="tool-url">wellbrowse.occ.ok.gov</a></td>
+                <td><a href="https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&amp;dbid=0&amp;repo=OCC" target="_blank" rel="noopener" class="tool-url">OCC Well Records Search</a></td>
             </tr>
             <tr>
                 <td><strong>Well Data Finder</strong></td>
