@@ -31,7 +31,7 @@
         }
 
         function switchToTab(tabName) {
-            var tabBtn = document.querySelector('.tab[data-tab=\\\"' + tabName + '\\\"]');
+            var tabBtn = document.querySelector('.tab[data-tab="' + tabName + '"]');
             if (tabBtn) tabBtn.click();
         }
 
@@ -370,7 +370,7 @@
                         '</div>' +
                         '<div class="well-card-badges">' +
                             statusBadgeHtml(well.wellStatus) +
-                            (decimal ? '<span class="interest-badge">' + decimal.toFixed(8).replace(/0+$/, '').replace(/\\.$/, '') + (sourceLabel ? ' <span class="interest-source">' + sourceLabel + '</span>' : '') + '</span>' : '') +
+                            (decimal ? '<span class="interest-badge">' + decimal.toFixed(8).replace(/0+$/, '').replace(/\.$/, '') + (sourceLabel ? ' <span class="interest-source">' + sourceLabel + '</span>' : '') + '</span>' : '') +
                         '</div>' +
                     '</div>';
 
