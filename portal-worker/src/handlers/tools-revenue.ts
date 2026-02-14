@@ -439,7 +439,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   // 4. Resolve base_puns
   if (!well.apiNumber) {
     return jsonResponse({
-      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate },
+      well: { ...well, interestDecimal, interestSource, interestSourceDocId, interestSourceDate, interests },
       linkedProperty,
       dataHorizon: null,
       production: [],
