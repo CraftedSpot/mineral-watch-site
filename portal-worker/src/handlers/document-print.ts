@@ -202,6 +202,7 @@ function formatDocType(docType: string): string {
     completion_report: 'Completion Report',
     title_opinion: 'Title Opinion',
     affidavit: 'Affidavit',
+    check_stub: 'Check Stub / Revenue Statement',
     other: 'Document',
   };
   return typeMap[docType] || docType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -336,6 +337,11 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'notice':
     case 'transmittal':
       extractedFieldsHtml = generateCorrespondenceFields(data.extractedData);
+      break;
+    case 'check_stub':
+    case 'royalty_statement':
+    case 'revenue_statement':
+      extractedFieldsHtml = generateCheckStubFields(data.extractedData);
       break;
     default:
       extractedFieldsHtml = generateGenericFields(data.extractedData);
@@ -2508,6 +2514,166 @@ function generateDeathCertificateFields(data: any): string {
 
     ${familyHtml}
     ${chainHtml}
+  `;
+}
+
+function fmtCurrencyPrint(val: any): string {
+  if (val == null) return '-';
+  const n = parseFloat(val);
+  if (isNaN(n)) return escapeHtml(String(val));
+  const neg = n < 0;
+  const formatted = '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return neg ? `<span style="color:#DC2626;">-${formatted}</span>` : formatted;
+}
+
+function generateCheckStubFields(data: any): string {
+  const operator = data.operator || '';
+  const operatorNumber = data.operator_number || '';
+  const operatorAddress = data.operator_address || '';
+  const ownerName = data.owner_name || '';
+  const ownerNumber = data.owner_number || '';
+  const checkNumber = data.check_number || '';
+  const checkDate = data.check_date || '';
+  const checkAmount = data.check_amount;
+  const statementType = data.statement_type || 'royalty_check';
+  const wells: any[] = data.wells || [];
+  const summary = data.summary || {};
+
+  const stmtLabel = statementType === 'operating_statement' ? 'Operating Statement'
+    : statementType === 'supplemental_voucher' ? 'Supplemental Voucher' : 'Royalty Check';
+
+  // Parties
+  const operatorHtml = operator ? `
+    <div class="party-box">
+      <div class="party-label">Operator</div>
+      <div class="party-name">${escapeHtml(operator)}</div>
+      ${operatorNumber ? `<div class="party-detail">ID: ${escapeHtml(operatorNumber)}</div>` : ''}
+      ${operatorAddress ? `<div class="party-detail">${escapeHtml(operatorAddress)}</div>` : ''}
+    </div>` : '';
+
+  const ownerHtml = ownerName ? `
+    <div class="party-box">
+      <div class="party-label">Payee / Interest Owner</div>
+      <div class="party-name">${escapeHtml(ownerName)}</div>
+      ${ownerNumber ? `<div class="party-detail">Owner #: ${escapeHtml(ownerNumber)}</div>` : ''}
+    </div>` : '';
+
+  // Payment info
+  const checkAmountDisplay = checkAmount != null ? fmtCurrencyPrint(checkAmount) : '-';
+
+  // Wells table
+  let wellsHtml = '';
+  if (wells.length > 0) {
+    wellsHtml = `<div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Well Revenue Detail</div>`;
+
+    wells.forEach((well: any) => {
+      const wellName = well.well_name || 'Unknown';
+      const wellNum = well.well_number || '';
+      const api = well.api_number || '';
+      const months = Array.isArray(well.production_months) ? well.production_months.join(', ') : '';
+      const loc = [well.county, well.state].filter(Boolean).join(', ');
+
+      wellsHtml += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 8px;">
+        <div style="font-weight: 600; color: #1e293b;">${escapeHtml(wellName)}${wellNum ? ` (#${escapeHtml(wellNum)})` : ''}</div>
+        <div style="font-size: 12px; color: #64748b; margin-bottom: 8px;">
+          ${api ? `API: ${escapeHtml(api)} | ` : ''}${loc ? `${escapeHtml(loc)} | ` : ''}${months ? `Production: ${escapeHtml(months)}` : ''}
+        </div>`;
+
+      if (Array.isArray(well.products) && well.products.length > 0) {
+        wellsHtml += `<table class="data-table" style="font-size: 12px;">
+          <thead><tr>
+            <th>Product</th><th>Volume</th><th style="text-align:right;">Price</th>
+            <th>Decimal</th><th>Purchaser</th>
+            <th style="text-align:right;">Gross</th><th style="text-align:right;">Deductions</th>
+            <th style="text-align:right;">Taxes</th><th style="text-align:right;">Owner Amt</th>
+          </tr></thead><tbody>`;
+
+        well.products.forEach((p: any, i: number) => {
+          const prodType = (p.product_type || '').charAt(0).toUpperCase() + (p.product_type || '').slice(1);
+          const vol = p.volume != null ? Number(p.volume).toLocaleString('en-US') + (p.volume_unit ? ' ' + p.volume_unit : '') : '-';
+          const price = p.price_per_unit != null ? '$' + Number(p.price_per_unit).toFixed(2) : '-';
+          const dec = p.decimal_interest != null ? String(p.decimal_interest) : '-';
+          const purchaser = p.purchaser || '-';
+
+          wellsHtml += `<tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
+            <td>${escapeHtml(prodType)}</td>
+            <td>${escapeHtml(vol)}</td>
+            <td style="text-align:right;">${escapeHtml(price)}</td>
+            <td style="font-family:monospace;font-size:11px;">${escapeHtml(dec)}</td>
+            <td>${escapeHtml(purchaser)}</td>
+            <td style="text-align:right;">${fmtCurrencyPrint(p.gross_sales)}</td>
+            <td style="text-align:right;">${fmtCurrencyPrint(p.total_deductions)}</td>
+            <td style="text-align:right;">${fmtCurrencyPrint(p.total_taxes)}</td>
+            <td style="text-align:right;font-weight:600;">${fmtCurrencyPrint(p.owner_amount)}</td>
+          </tr>`;
+
+          // Deduction detail if available
+          if (Array.isArray(p.deductions) && p.deductions.length > 0) {
+            wellsHtml += `<tr><td colspan="9" style="padding: 4px 8px 4px 20px; background: #fffbeb; font-size: 11px;">`;
+            wellsHtml += `<strong>Deductions:</strong> `;
+            wellsHtml += p.deductions.map((d: any) => `${escapeHtml(d.raw_label || '')} (${escapeHtml(d.normalized_category || '')}) ${fmtCurrencyPrint(d.amount)}`).join(' | ');
+            wellsHtml += `</td></tr>`;
+          }
+          if (Array.isArray(p.taxes) && p.taxes.length > 0) {
+            wellsHtml += `<tr><td colspan="9" style="padding: 4px 8px 4px 20px; background: #eff6ff; font-size: 11px;">`;
+            wellsHtml += `<strong>Taxes:</strong> `;
+            wellsHtml += p.taxes.map((t: any) => `${escapeHtml(t.raw_label || '')} (${escapeHtml(t.normalized_type || '')}) ${fmtCurrencyPrint(t.amount)}`).join(' | ');
+            wellsHtml += `</td></tr>`;
+          }
+        });
+
+        wellsHtml += `</tbody></table>`;
+      }
+
+      if (well.well_owner_total != null) {
+        wellsHtml += `<div style="text-align:right;margin-top:6px;font-weight:600;font-size:13px;">Well Total: ${fmtCurrencyPrint(well.well_owner_total)}</div>`;
+      }
+      wellsHtml += `</div>`;
+    });
+    wellsHtml += `</div>`;
+  }
+
+  // Summary
+  let summaryHtml = '';
+  if (summary.total_net_revenue != null) {
+    summaryHtml = `<div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Revenue Summary</div>
+      <div class="field-grid">
+        ${summary.gas_net_revenue != null ? `<div class="field-item"><div class="field-label">Gas Net Revenue</div><div class="field-value">${fmtCurrencyPrint(summary.gas_net_revenue)}</div></div>` : ''}
+        ${summary.oil_net_revenue != null ? `<div class="field-item"><div class="field-label">Oil Net Revenue</div><div class="field-value">${fmtCurrencyPrint(summary.oil_net_revenue)}</div></div>` : ''}
+        ${summary.liquids_net_revenue ? `<div class="field-item"><div class="field-label">Liquids Net Revenue</div><div class="field-value">${fmtCurrencyPrint(summary.liquids_net_revenue)}</div></div>` : ''}
+        <div class="field-item"><div class="field-label">Total Net Revenue</div><div class="field-value highlight">${fmtCurrencyPrint(summary.total_net_revenue)}</div></div>
+      </div>
+    </div>`;
+  }
+
+  return `
+    ${operatorHtml || ownerHtml ? `
+    <div class="parties-grid" style="margin-bottom: 16px;">
+      ${operatorHtml}
+      ${ownerHtml}
+    </div>` : ''}
+
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label">Statement Type</div>
+        <div class="field-value">${escapeHtml(stmtLabel)}</div>
+      </div>
+      ${checkNumber ? `<div class="field-item"><div class="field-label">Check Number</div><div class="field-value mono">${escapeHtml(checkNumber)}</div></div>` : ''}
+      ${checkDate ? `<div class="field-item"><div class="field-label">Check Date</div><div class="field-value">${escapeHtml(formatDate(checkDate))}</div></div>` : ''}
+      <div class="field-item">
+        <div class="field-label">Check Amount</div>
+        <div class="field-value highlight" style="font-size: 16px;">${checkAmountDisplay}</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label">Wells</div>
+        <div class="field-value">${wells.length} well${wells.length !== 1 ? 's' : ''}</div>
+      </div>
+    </div>
+
+    ${wellsHtml}
+    ${summaryHtml}
   `;
 }
 
