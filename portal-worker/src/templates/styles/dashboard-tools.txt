@@ -97,8 +97,13 @@
 .tools-summary-row {
   display: flex; gap: 16px; margin: 0 24px 16px; align-items: flex-start;
 }
-.tools-summary-left { flex: 1; min-width: 0; }
-.tools-summary-right { flex-shrink: 0; width: 220px; position: sticky; top: 20px; align-self: flex-start; }
+.tools-summary-left { flex: 0 0 340px; }
+.tools-summary-center {
+  flex: 1; min-width: 0; max-height: 520px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 8px; background: #FAFBFC;
+  padding: 12px;
+}
+.tools-summary-right { flex: 0 0 220px; position: sticky; top: 20px; align-self: flex-start; }
 
 /* NRI area resets (inside left column, no outer margins) */
 #toolsNriArea .nri-calc-inline { margin: 0; margin-top: 12px; }
@@ -135,18 +140,12 @@
 /* Wells section */
 .tools-wells-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin: 10px 0 6px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
-}
-.tools-wells-scroll {
-  max-height: 380px; overflow-y: auto; padding-bottom: 4px;
-  border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
-  margin: 0;
+  margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--slate-blue);
 }
 
-/* Well card grid */
+/* Well card grid (single column inside center column) */
 .tools-well-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-  padding: 12px 0 0;
+  display: flex; flex-direction: column; gap: 10px;
 }
 
 /* Back link */
@@ -291,9 +290,10 @@
 @media (max-width: 768px) {
   .tools-header, .tools-selector, .tools-disclaimer { padding-left: 16px; padding-right: 16px; }
   .tools-summary-row { flex-direction: column; margin-left: 16px; margin-right: 16px; }
-  .tools-summary-right { width: 100%; }
+  .tools-summary-left { flex: 0 0 auto; width: 100%; }
+  .tools-summary-center { max-height: 400px; }
+  .tools-summary-right { flex: 0 0 auto; width: 100%; }
   .tools-mode-toggle { margin-left: 16px; margin-right: 16px; }
-  .tools-well-grid { grid-template-columns: 1fr; }
   .price-row { flex-direction: column; gap: 10px; }
   .price-field { min-width: 100%; }
   .well-card-header { flex-direction: column; }

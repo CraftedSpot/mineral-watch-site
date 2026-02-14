@@ -148,8 +148,8 @@
                             '</div>' +
                         '</div>' +
                         '<div id="toolsNriArea"></div>' +
-                        '<div id="toolsWellCards"><div class="tools-wells-placeholder">Select a property to see wells</div></div>' +
                     '</div>' +
+                    '<div class="tools-summary-center" id="toolsWellCards"><div class="tools-wells-placeholder">Select a property to see wells</div></div>' +
                     '<div class="tools-summary-right" id="toolsPropertyTotal">' + buildTotalPlaceholder() + '</div>' +
                 '</div>' +
                 '<div class="tools-disclaimer" id="toolsDisclaimer" style="display:none">' +
@@ -905,9 +905,6 @@
                 (sharedGroups.length > 0 ? ' + ' + sharedGroups.length + ' Shared Unit' + (sharedGroups.length !== 1 ? 's' : '') : '') +
                 '</span></div>';
 
-            // Scrollable container
-            html += '<div class="tools-wells-scroll">';
-
             // Shared PUN groups
             for (var g2 = 0; g2 < sharedGroups.length; g2++) {
                 var sg = sharedGroups[g2];
@@ -1003,7 +1000,6 @@
                 html += '</div>';
             }
             html += '</div>'; // close grid
-            html += '</div>'; // close scroll container
 
             cardsEl.innerHTML = html;
         }
