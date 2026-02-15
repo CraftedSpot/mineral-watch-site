@@ -910,19 +910,26 @@ export async function linkDocumentToEntities(
       }
 
       // Fall back to name match (simple — name + user ownership)
+      // Full normalization: strip ALL non-alphanumeric, uppercase, then compare
+      // Handles #, dashes, periods, spaces, OCR artifacts in one pass
       const wName = getValue(w.well_name) || getValue(w.name);
       if (wName && (documentUserId || documentOrgId)) {
         try {
           const normName = normalizeWellName(wName);
+          const alphanumOnly = (normName || wName).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
           const baseName = normName ? extractBaseName(normName) : null;
           const found = await db.prepare(`
             SELECT airtable_id as id FROM client_wells
             WHERE (user_id = ? OR organization_id = ?)
-            AND (UPPER(well_name) = UPPER(?) OR UPPER(well_name) LIKE UPPER(?))
+            AND (
+              UPPER(well_name) = UPPER(?)
+              OR UPPER(REPLACE(REPLACE(REPLACE(REPLACE(well_name, '#', ''), '-', ''), '.', ''), ' ', '')) = ?
+              OR UPPER(well_name) LIKE UPPER(?)
+            )
             LIMIT 1
           `).bind(
             documentUserId || '', documentOrgId || '',
-            normName || wName, `%${baseName || normName || wName}%`
+            normName || wName, alphanumOnly, `%${baseName || normName || wName}%`
           ).first();
           if (found) {
             const extraId = found.id as string;

@@ -278,9 +278,21 @@ var index_default = {
       return jsonResponse({ version: "2025-02-06-v3", deployed: new Date().toISOString() });
     }
 
+    // Block search engine crawling of portal subdomain
+    if (path === "/robots.txt") {
+      return new Response("User-agent: *\nDisallow: /\n", {
+        headers: { "Content-Type": "text/plain", "Cache-Control": "public, max-age=86400" }
+      });
+    }
+
     try {
       if (path === "/" || path === "") {
         return Response.redirect(`${BASE_URL}/portal`, 302);
+      }
+
+      // Legacy signup URLs — redirect to login
+      if (path === "/signup" || path === "/signup/") {
+        return Response.redirect(`${BASE_URL}/portal/login`, 301);
       }
       if (path === "/portal" || path === "/portal/") {
         return servePage(dashboardHtml, request, env);
