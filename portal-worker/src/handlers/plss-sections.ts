@@ -25,13 +25,20 @@ export async function handleGetPlssSection(request: Request, env: Env): Promise<
     // Pad section to 2 digits for matching
     const paddedSection = section.toString().padStart(2, "0");
 
+    // PLSS table stores townships in fractional format (e.g., "15N" → "150N")
+    // Normalize: extract number and direction, multiply by 10
+    const twnMatch = township.match(/^(\d+)([NS])$/i);
+    const plssTownship = twnMatch
+      ? `${parseInt(twnMatch[1]) * 10}${twnMatch[2].toUpperCase()}`
+      : township;
+
     // Query D1 for the section geometry
     const result = await env.WELLS_DB.prepare(`
       SELECT id, section, township, range, meridian, acres, geometry
       FROM plss_sections
       WHERE section = ? AND township = ? AND range = ?
       LIMIT 1
-    `).bind(paddedSection, township, range).first();
+    `).bind(paddedSection, plssTownship, range).first();
 
     if (!result) {
       // Try without padding
@@ -40,7 +47,7 @@ export async function handleGetPlssSection(request: Request, env: Env): Promise<
         FROM plss_sections
         WHERE section = ? AND township = ? AND range = ?
         LIMIT 1
-      `).bind(section, township, range).first();
+      `).bind(section, plssTownship, range).first();
 
       if (!result2) {
         return jsonResponse({ error: "Section not found" }, 404);
@@ -99,12 +106,18 @@ export async function handleGetPlssSectionsBatch(request: Request, env: Env): Pr
       const paddedSection = s.section.toString().padStart(2, "0");
       const cacheKey = `${s.section}-${s.township}-${s.range}`;
 
+      // PLSS table stores townships in fractional format (e.g., "15N" → "150N")
+      const twnMatch = s.township.match(/^(\d+)([NS])$/i);
+      const plssTownship = twnMatch
+        ? `${parseInt(twnMatch[1]) * 10}${twnMatch[2].toUpperCase()}`
+        : s.township;
+
       const result = await env.WELLS_DB.prepare(`
         SELECT id, section, township, range, meridian, acres, geometry
         FROM plss_sections
         WHERE section = ? AND township = ? AND range = ?
         LIMIT 1
-      `).bind(paddedSection, s.township, s.range).first();
+      `).bind(paddedSection, plssTownship, s.range).first();
 
       if (result) {
         const geometry = JSON.parse(result.geometry as string);
