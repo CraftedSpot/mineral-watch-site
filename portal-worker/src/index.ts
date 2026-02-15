@@ -95,6 +95,7 @@ import {
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
+  handleUpdateWellInterests,
   handleSearchWells,
   fetchWellDetailsFromOCC,
   // Well link counts
@@ -1036,6 +1037,10 @@ var index_default = {
       const wellNotesMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/notes$/);
       if (wellNotesMatch && request.method === "PATCH") {
         return handleUpdateWellNotes(wellNotesMatch[1], request, env);
+      }
+      const wellInterestsMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/interests$/);
+      if (wellInterestsMatch && request.method === "PATCH") {
+        return handleUpdateWellInterests(wellInterestsMatch[1], request, env);
       }
 
       // Completion reports endpoints

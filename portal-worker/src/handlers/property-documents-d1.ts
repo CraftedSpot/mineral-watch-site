@@ -144,22 +144,41 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
 
       console.log(`[GetWellDocuments-D1] Querying documents for API number ${apiNumber}`);
 
-      // Step 1: Resolve API number to airtable_record_id
-      const wellRecord = await env.WELLS_DB.prepare(
-        `SELECT airtable_record_id FROM airtable_wells WHERE api_number = ? LIMIT 1`
-      ).bind(apiNumber).first();
+      // Step 1: Resolve API number to record ID via client_wells or statewide wells
+      let wellAirtableId: string | null = null;
 
-      if (!wellRecord?.airtable_record_id) {
+      // Try client_wells first (user's tracked wells — airtable_id)
+      const clientWell = await env.WELLS_DB.prepare(
+        `SELECT airtable_id as record_id FROM client_wells WHERE api_number = ? LIMIT 1`
+      ).bind(apiNumber).first();
+      if (clientWell?.record_id) {
+        wellAirtableId = clientWell.record_id as string;
+      }
+
+      // Also try statewide wells (airtable_record_id) — documents may be linked via either
+      let statewideId: string | null = null;
+      const stateWell = await env.WELLS_DB.prepare(
+        `SELECT airtable_record_id as record_id FROM wells WHERE api_number = ? LIMIT 1`
+      ).bind(apiNumber).first();
+      if (stateWell?.record_id) {
+        statewideId = stateWell.record_id as string;
+        if (!wellAirtableId) wellAirtableId = statewideId;
+      }
+
+      if (!wellAirtableId) {
         console.log(`[GetWellDocuments-D1] No well found for API: ${apiNumber}`);
         return jsonResponse({ success: true, documents: [], source: 'D1', queryTime: Date.now() - start });
       }
 
-      const wellAirtableId = wellRecord.airtable_record_id as string;
-
       // Step 2: Find documents using LIKE patterns (supports comma-separated well_id)
-      const startsWithPattern = `${wellAirtableId},%`;
-      const endsWithPattern = `%,${wellAirtableId}`;
-      const containsPattern = `%,${wellAirtableId},%`;
+      // Check both IDs if they differ (client_wells vs statewide wells can have different record IDs)
+      const idsToCheck = [wellAirtableId];
+      if (statewideId && statewideId !== wellAirtableId) idsToCheck.push(statewideId);
+
+      const wellConditions = idsToCheck.map(() =>
+        `(d.well_id = ? OR d.well_id LIKE ? OR d.well_id LIKE ? OR d.well_id LIKE ?)`
+      ).join(' OR ');
+      const wellBindings = idsToCheck.flatMap(id => [id, `${id},%`, `%,${id}`, `%,${id},%`]);
 
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
@@ -170,17 +189,12 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
           d.upload_date,
           d.r2_key
         FROM documents d
-        WHERE (
-          d.well_id = ?
-          OR d.well_id LIKE ?
-          OR d.well_id LIKE ?
-          OR d.well_id LIKE ?
-        )
+        WHERE (${wellConditions})
           AND (d.deleted_at IS NULL OR d.deleted_at = '')
           AND d.doc_type IN (${docTypeList})
           AND (d.user_id = ? OR d.organization_id = ?)
         ORDER BY d.upload_date DESC
-      `).bind(wellAirtableId, startsWithPattern, endsWithPattern, containsPattern, authUser.id, userOrgId).all();
+      `).bind(...wellBindings, authUser.id, userOrgId).all();
       
       console.log(`[GetWellDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       

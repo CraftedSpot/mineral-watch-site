@@ -871,6 +871,91 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
 }
 
 /**
+ * Update well interest decimals (ri_nri, wi_nri, orri_nri) in D1
+ * Sets per-field source tracking (interest_source, wi_nri_source, orri_nri_source)
+ */
+export async function handleUpdateWellInterests(wellId: string, request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  // Check permissions - only Admin and Editor can update wells
+  const userRecord = await getUserFromSession(env, user);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot update wells" }, 403);
+  }
+
+  // Verify ownership via Airtable
+  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
+  const getResponse = await fetch(getUrl, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+
+  if (!getResponse.ok) {
+    return jsonResponse({ error: "Well not found" }, 404);
+  }
+
+  const well: any = await getResponse.json();
+  if (well.fields.User?.[0] !== user.id) {
+    return jsonResponse({ error: "Not authorized" }, 403);
+  }
+
+  const body: any = await request.json();
+  const updates: string[] = [];
+  const binds: any[] = [];
+
+  // Per-field source tracking
+  if (body.ri_nri !== undefined) {
+    const val = body.ri_nri !== null && body.ri_nri !== '' ? parseFloat(body.ri_nri) : null;
+    updates.push('ri_nri = ?', 'interest_source = ?', 'interest_source_doc_id = ?', 'interest_source_date = ?');
+    binds.push(val, val !== null ? 'manual_entry' : null, null, val !== null ? new Date().toISOString() : null);
+  }
+  if (body.wi_nri !== undefined) {
+    const val = body.wi_nri !== null && body.wi_nri !== '' ? parseFloat(body.wi_nri) : null;
+    updates.push('wi_nri = ?', 'wi_nri_source = ?', 'wi_nri_source_doc_id = ?', 'wi_nri_source_date = ?');
+    binds.push(val, val !== null ? 'manual_entry' : null, null, val !== null ? new Date().toISOString() : null);
+  }
+  if (body.orri_nri !== undefined) {
+    const val = body.orri_nri !== null && body.orri_nri !== '' ? parseFloat(body.orri_nri) : null;
+    updates.push('orri_nri = ?', 'orri_nri_source = ?', 'orri_nri_source_doc_id = ?', 'orri_nri_source_date = ?');
+    binds.push(val, val !== null ? 'manual_entry' : null, null, val !== null ? new Date().toISOString() : null);
+  }
+
+  if (updates.length > 0 && env.WELLS_DB) {
+    try {
+      // Try full update with source tracking columns
+      await env.WELLS_DB.prepare(
+        `UPDATE client_wells SET ${updates.join(', ')} WHERE airtable_id = ?`
+      ).bind(...binds, wellId).run();
+    } catch (e) {
+      // Source columns may not exist on fresh accounts (created dynamically by documents-worker).
+      // Fallback: update only the interest values without source tracking.
+      console.warn('[UpdateWellInterests] Source columns not available, falling back:', e);
+      const valUpdates: string[] = [];
+      const valBinds: any[] = [];
+      if (body.ri_nri !== undefined) {
+        valUpdates.push('ri_nri = ?');
+        valBinds.push(body.ri_nri !== null && body.ri_nri !== '' ? parseFloat(body.ri_nri) : null);
+      }
+      if (body.wi_nri !== undefined) {
+        valUpdates.push('wi_nri = ?');
+        valBinds.push(body.wi_nri !== null && body.wi_nri !== '' ? parseFloat(body.wi_nri) : null);
+      }
+      if (body.orri_nri !== undefined) {
+        valUpdates.push('orri_nri = ?');
+        valBinds.push(body.orri_nri !== null && body.orri_nri !== '' ? parseFloat(body.orri_nri) : null);
+      }
+      if (valUpdates.length > 0) {
+        await env.WELLS_DB.prepare(
+          `UPDATE client_wells SET ${valUpdates.join(', ')} WHERE airtable_id = ?`
+        ).bind(...valBinds, wellId).run();
+      }
+    }
+  }
+
+  return jsonResponse({ success: true });
+}
+
+/**
  * Normalize township/range input to handle both '12N' and '12' formats
  * @param value Township or range value (e.g., '12N', '12', '5W')
  * @param isRange Whether this is a range (W/E) or township (N/S) value

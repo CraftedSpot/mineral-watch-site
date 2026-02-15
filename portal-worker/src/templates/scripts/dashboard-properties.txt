@@ -688,38 +688,35 @@
             const ownershipGrid = document.getElementById('ownership-interests-grid');
             const ownershipCount = document.getElementById('ownership-interests-count');
 
-            const interestFields = [];
-            if (f.mi_acres != null || f.mi_decimal != null) {
-                if (f.mi_acres != null) interestFields.push({ id: 'miAcres', label: 'MI Acres', value: f.mi_acres, format: 'acres' });
-                if (f.mi_decimal != null) interestFields.push({ id: 'miDecimal', label: 'MI Decimal', value: f.mi_decimal, format: 'decimal' });
-            }
-            if (f.ri_decimal != null) interestFields.push({ id: 'riDecimal', label: 'RI Decimal', value: f.ri_decimal, format: 'decimal' });
-            if (f.wi_decimal != null) interestFields.push({ id: 'wiDecimal', label: 'WI Decimal', value: f.wi_decimal, format: 'decimal' });
-            if (f.orri_acres != null || f.orri_decimal != null) {
-                if (f.orri_acres != null) interestFields.push({ id: 'orriAcres', label: 'ORRI Acres', value: f.orri_acres, format: 'acres' });
-                if (f.orri_decimal != null) interestFields.push({ id: 'orriDecimal', label: 'ORRI Decimal', value: f.orri_decimal, format: 'decimal' });
-            }
+            // Always show all 6 ownership interest fields, pre-populated if values exist
+            const allInterestFields = [
+                { id: 'riDecimal', label: 'RI Decimal', value: f.ri_decimal, format: 'decimal' },
+                { id: 'wiDecimal', label: 'WI Decimal', value: f.wi_decimal, format: 'decimal' },
+                { id: 'orriDecimal', label: 'ORRI Decimal', value: f.orri_decimal, format: 'decimal' },
+                { id: 'miDecimal', label: 'MI Decimal', value: f.mi_decimal, format: 'decimal' },
+                { id: 'orriAcres', label: 'ORRI Acres', value: f.orri_acres, format: 'acres' },
+                { id: 'miAcres', label: 'MI Acres', value: f.mi_acres, format: 'acres' }
+            ];
 
-            if (interestFields.length > 0) {
-                ownershipSection.style.display = 'block';
-                ownershipCount.textContent = interestFields.length;
-                let html = '';
-                for (const field of interestFields) {
-                    const step = field.format === 'decimal' ? '0.00000001' : '0.01';
-                    const displayVal = field.value != null ? field.value : '';
-                    html += '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">'
-                        + '<span style="font-size: 13px; color: #374151; font-weight: 500;">' + field.label + '</span>'
-                        + '<input type="number" id="propEnterprise_' + field.id + '" step="' + step + '" min="0" value="' + displayVal + '" '
-                        + 'style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: \'SF Mono\', \'Monaco\', monospace; font-size: 13px; width: 140px; text-align: right; background: white;" '
-                        + 'oninput="toggleSaveButton(\'property\')" placeholder="—">'
-                        + '</div>';
-                }
-                ownershipGrid.innerHTML = html;
-                // Auto-expand
+            ownershipSection.style.display = 'block';
+            const populatedCount = allInterestFields.filter(ff => ff.value != null).length;
+            ownershipCount.textContent = populatedCount || '—';
+            let html = '';
+            for (const field of allInterestFields) {
+                const step = 'any';
+                const displayVal = field.value != null ? field.value : '';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">'
+                    + '<span style="font-size: 13px; color: #374151; font-weight: 500;">' + field.label + '</span>'
+                    + '<input type="number" id="propEnterprise_' + field.id + '" step="' + step + '" min="0" value="' + displayVal + '" '
+                    + 'style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: \'SF Mono\', \'Monaco\', monospace; font-size: 13px; width: 140px; text-align: right; background: white;" '
+                    + 'oninput="toggleSaveButton(\'property\')" placeholder="—">'
+                    + '</div>';
+            }
+            ownershipGrid.innerHTML = html;
+            // Auto-expand when any values exist
+            if (populatedCount > 0) {
                 document.getElementById('ownership-interests-content').style.display = 'block';
                 document.getElementById('ownership-interests-arrow').style.transform = 'rotate(90deg)';
-            } else {
-                ownershipSection.style.display = 'none';
             }
 
             // Store original enterprise values for change detection
@@ -1888,6 +1885,23 @@
             if (orriD !== undefined) enterpriseBody.orriDecimal = orriD;
             if (miA !== undefined) enterpriseBody.miAcres = miA;
             if (miD !== undefined) enterpriseBody.miDecimal = miD;
+
+            // Validate decimal fields are in range 0-1
+            const decimalChecks = [
+                { val: riDec, label: 'RI Decimal' },
+                { val: wiDec, label: 'WI Decimal' },
+                { val: orriD, label: 'ORRI Decimal' },
+                { val: miD, label: 'MI Decimal' }
+            ];
+            for (const chk of decimalChecks) {
+                if (chk.val !== null && chk.val !== undefined) {
+                    const num = parseFloat(chk.val);
+                    if (isNaN(num) || num < 0 || num > 1) {
+                        showToast(chk.label + ' must be between 0 and 1', 'error');
+                        return;
+                    }
+                }
+            }
 
             if (!propId) {
                 showToast('Error: Property ID not found', 'error');

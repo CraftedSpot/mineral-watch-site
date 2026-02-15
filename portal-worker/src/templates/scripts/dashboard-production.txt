@@ -34,44 +34,38 @@
                 const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
                 const hasOtcData = data.hasData && data.decimals && data.decimals.length > 0;
 
-                if (hasUserInterest) {
-                    section.style.display = '';
-                    renderDecimalInterest(data, ent);
-                    // Show badge with count of user interests
-                    const count = (ent.wi_nri ? 1 : 0) + (ent.ri_nri ? 1 : 0) + (ent.orri_nri ? 1 : 0);
+                // Always show the Decimal Interest section (editable)
+                section.style.display = '';
+                renderDecimalInterest(data, ent);
+                // Show badge with count of user interests
+                const count = (ent.wi_nri ? 1 : 0) + (ent.ri_nri ? 1 : 0) + (ent.orri_nri ? 1 : 0);
+                if (count > 0) {
                     badge.textContent = count;
                     badge.style.display = '';
                     badge.style.background = '#dbeafe';
                     badge.style.color = '#1e40af';
-                    // Auto-expand when data exists
+                } else {
+                    badge.textContent = '—';
+                    badge.style.display = '';
+                    badge.style.background = '#f3f4f6';
+                    badge.style.color = '#9ca3af';
+                }
+                // Auto-expand when data exists
+                if (hasUserInterest) {
                     const content = document.getElementById('decimal-interest-content');
                     const arrow = document.getElementById('decimal-interest-arrow');
                     if (content.style.display === 'none') {
                         content.style.display = 'block';
                         arrow.style.transform = 'rotate(90deg)';
                     }
-                } else {
-                    // Hide the entire section when no user interest data
-                    section.style.display = 'none';
                 }
             } catch (error) {
                 console.error('[DecimalInterest] Error:', error);
-                // On error, still show user enterprise interest if available
+                // On error, still show editable interest fields
                 const ent = window._currentWellEnterprise || {};
-                const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
                 const section = document.querySelector('.decimal-interest-section');
-                if (hasUserInterest) {
-                    section.style.display = '';
-                    renderDecimalInterest({ decimals: [] }, ent);
-                    const content = document.getElementById('decimal-interest-content');
-                    const arrow = document.getElementById('decimal-interest-arrow');
-                    if (content.style.display === 'none') {
-                        content.style.display = 'block';
-                        arrow.style.transform = 'rotate(90deg)';
-                    }
-                } else {
-                    section.style.display = 'none';
-                }
+                section.style.display = '';
+                renderDecimalInterest({ decimals: [] }, ent);
             }
         }
 
@@ -86,6 +80,8 @@
                     label = 'Division Order';
                 } else if (src === 'well_override' || src === 'bulk_upload') {
                     label = 'Bulk Upload';
+                } else if (src === 'manual_entry') {
+                    label = 'Manual Entry';
                 } else if (src === 'property') {
                     label = 'Property';
                 } else {
@@ -103,38 +99,37 @@
             }
 
             const ent = enterprise || {};
-            const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
 
             let html = '';
+            html += '<div style="padding: 8px 0 10px;">';
+            html += '<div style="font-size: 11px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Your Interest</div>';
 
-            // Your Interest section (from enterprise data)
-            if (hasUserInterest) {
-                html += `<div style="padding: 8px 0 10px;">
-                    <div style="font-size: 11px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Your Interest</div>`;
-                const interestTypes = [
-                    { label: 'RI NRI', value: ent.ri_nri, source: ent.ri_nri_source, sourceDate: ent.ri_nri_source_date },
-                    { label: 'WI NRI', value: ent.wi_nri, source: ent.wi_nri_source, sourceDate: ent.wi_nri_source_date },
-                    { label: 'ORRI NRI', value: ent.orri_nri, source: ent.orri_nri_source, sourceDate: ent.orri_nri_source_date }
-                ];
-                for (const item of interestTypes) {
-                    if (item.value) {
-                        const src = sourceLabel(item.source, item.sourceDate);
-                        html += `
-                        <div style="padding: 6px 0; border-bottom: 1px solid #f3f4f6;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="color: #6b7280; font-size: 13px;">${item.label}</span>
-                                <span style="font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace; font-size: 14px; font-weight: 600; color: #059669;">${parseFloat(item.value).toFixed(8)}</span>
-                            </div>
-                            ${src ? `<div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Source: ${src}</div>` : ''}
-                        </div>`;
-                    }
+            const interestTypes = [
+                { key: 'ri_nri', label: 'RI NRI', value: ent.ri_nri, source: ent.interest_source || ent.ri_nri_source, sourceDate: ent.interest_source_date || ent.ri_nri_source_date },
+                { key: 'wi_nri', label: 'WI NRI', value: ent.wi_nri, source: ent.wi_nri_source, sourceDate: ent.wi_nri_source_date },
+                { key: 'orri_nri', label: 'ORRI NRI', value: ent.orri_nri, source: ent.orri_nri_source, sourceDate: ent.orri_nri_source_date }
+            ];
+
+            for (const item of interestTypes) {
+                const displayVal = item.value != null ? parseFloat(item.value).toFixed(8) : '';
+                const src = sourceLabel(item.source, item.sourceDate);
+                html += '<div style="padding: 6px 0; border-bottom: 1px solid #f3f4f6;">';
+                html += '<div style="display: flex; justify-content: space-between; align-items: center;">';
+                html += '<span style="color: #6b7280; font-size: 13px;">' + item.label + '</span>';
+                html += '<input type="number" id="wellInterest_' + item.key + '" step="any" min="0" max="1" value="' + displayVal + '" ';
+                html += 'style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: \'SF Mono\', \'Monaco\', monospace; font-size: 13px; width: 140px; text-align: right; background: white;" ';
+                html += 'placeholder="0.00000000">';
+                html += '</div>';
+                if (src) {
+                    html += '<div style="font-size: 12px; color: #9ca3af; margin-top: 2px;">Source: ' + src + '</div>';
                 }
-                html += `</div>`;
+                html += '</div>';
             }
 
-            if (!hasUserInterest) {
-                html += `<div style="color: #6b7280; font-size: 14px; padding: 12px 0;">No interest data on file for this well.</div>`;
-            }
+            html += '<div style="margin-top: 10px; text-align: right;">';
+            html += '<button onclick="saveWellInterests()" style="padding: 6px 16px; background: #059669; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer;">Save Interests</button>';
+            html += '</div>';
+            html += '</div>';
 
             container.innerHTML = html;
         }

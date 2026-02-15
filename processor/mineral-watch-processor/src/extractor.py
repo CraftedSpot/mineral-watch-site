@@ -9815,19 +9815,21 @@ async def process_image_batch(images: list[tuple[int, str]], batch_description: 
     return content
 
 
-async def quick_classify_document(image_paths: list[str]) -> dict:
+async def quick_classify_document(image_paths: list[str], model_override: str = None) -> dict:
     """
     Quick classification to determine if document is "other" type.
     Uses fewer pages and simpler prompt for efficiency.
-    
+
     Args:
         image_paths: List of paths to first few page images
-    
+        model_override: Optional model to use instead of CONFIG.CLAUDE_MODEL
+
     Returns:
         Classification result with doc_type and confidence
     """
+    model = model_override or CONFIG.CLAUDE_MODEL
     logger.info(f"Quick classification using {len(image_paths)} pages")
-    logger.info(f"Using Claude model: {CONFIG.CLAUDE_MODEL}")
+    logger.info(f"Using Claude model: {model}")
     logger.info(f"API key configured: {'Yes' if CONFIG.ANTHROPIC_API_KEY else 'No'}")
     logger.info(f"API key length: {len(CONFIG.ANTHROPIC_API_KEY) if CONFIG.ANTHROPIC_API_KEY else 0}")
     
@@ -9960,7 +9962,7 @@ Examples of "other" documents (oil and gas docs that don't fit defined categorie
     
     try:
         response = client.messages.create(
-            model=CONFIG.CLAUDE_MODEL,
+            model=model,
             max_tokens=512,
             messages=[{"role": "user", "content": content}]
         )
@@ -9993,14 +9995,15 @@ Examples of "other" documents (oil and gas docs that don't fit defined categorie
         return {"doc_type": "other", "confidence": "low", "reasoning": f"Classification failed - {type(e).__name__}"}
 
 
-async def detect_documents(image_paths: list[str]) -> dict:
+async def detect_documents(image_paths: list[str], model_override: str = None) -> dict:
     """
     Detect if PDF contains multiple documents and identify boundaries.
     Uses batching for large PDFs.
-    
+
     Args:
         image_paths: List of paths to page images
-    
+        model_override: Optional model to use instead of CONFIG.CLAUDE_MODEL
+
     Returns:
         Detection result with document boundaries
     """
@@ -10082,16 +10085,17 @@ async def detect_documents(image_paths: list[str]) -> dict:
     })
     
     # Call Claude for detection with retry logic
+    detect_model = model_override or CONFIG.CLAUDE_MODEL
     async def make_detection_call():
         return client.messages.create(
-            model=CONFIG.CLAUDE_MODEL,
+            model=detect_model,
             max_tokens=1024,  # Small response expected
             messages=[
                 {"role": "user", "content": all_content}
             ]
         )
-    
-    logger.info(f"Calling Claude API for document detection")
+
+    logger.info(f"Calling Claude API for document detection ({detect_model})")
     response = await retry_with_backoff(make_detection_call)
     
     # Parse response - strip markdown fences if present
@@ -10122,7 +10126,7 @@ async def detect_documents(image_paths: list[str]) -> dict:
         }
 
 
-async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False, doc_type: str = None, pdf_path: str = None) -> dict:
+async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False, doc_type: str = None, pdf_path: str = None, model_override: str = None) -> dict:
     """
     Extract data from a single document by sending all pages in one API call.
 
@@ -10196,16 +10200,17 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         })
 
     # Call Claude for extraction with retry logic
+    extract_model = model_override or CONFIG.CLAUDE_MODEL
     async def make_extraction_call():
         return client.messages.create(
-            model=CONFIG.CLAUDE_MODEL,
+            model=extract_model,
             max_tokens=16384,
             messages=[
                 {"role": "user", "content": content}
             ]
         )
-    
-    logger.info(f"Calling Claude API for extraction ({CONFIG.CLAUDE_MODEL})")
+
+    logger.info(f"Calling Claude API for extraction ({extract_model})")
     response = await retry_with_backoff(make_extraction_call)
     
     # Parse response
@@ -10420,7 +10425,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         return {"error": "Failed to parse response", "raw_response": response_text}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None, model_override: str = None) -> dict:
     """
     Main entry point for document extraction.
     Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
@@ -10445,7 +10450,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # Saves 2 of 3 API calls (~67% cost reduction).
     if known_doc_type:
         logger.info(f"KNOWN DOC TYPE: '{known_doc_type}' — skipping classify/detect, extracting directly")
-        result = await extract_single_document(image_paths, doc_type=known_doc_type, pdf_path=pdf_path)
+        result = await extract_single_document(image_paths, doc_type=known_doc_type, pdf_path=pdf_path, model_override=model_override)
         result["_pipeline_type"] = "known_doc_type"
         result["_known_doc_type"] = known_doc_type
         result["_page_count"] = len(image_paths)
@@ -10454,7 +10459,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # Step 0: For single-page docs, use quick classification path
     if len(image_paths) == 1:
         logger.info("Single page document - using quick classification")
-        classification = await quick_classify_document(image_paths)
+        classification = await quick_classify_document(image_paths, model_override=model_override)
 
         # Handle rotation for single page
         rotation_needed = classification.get("rotation_needed", 0)
@@ -10463,7 +10468,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             from .main import rotate_image
             try:
                 rotated_path = rotate_image(image_paths[0], rotation_needed)
-                result = await extract_document_data([rotated_path], _rotation_attempted=True, pdf_path=pdf_path)
+                result = await extract_document_data([rotated_path], _rotation_attempted=True, pdf_path=pdf_path, model_override=model_override)
                 result["rotation_applied"] = rotation_needed
                 return result
             except Exception as e:
@@ -10476,17 +10481,17 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "doc_type": "other",
                 "category": "other",
                 "document_confidence": classification.get("confidence", "high"),
-                "classification_model": CONFIG.CLAUDE_MODEL,
+                "classification_model": model_override or CONFIG.CLAUDE_MODEL,
                 "page_count": 1,
                 "skip_extraction": True,
                 "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
             }
 
         # Single page, known type - extract it with focused prompt
-        return await extract_single_document(image_paths, doc_type=classification.get("doc_type"))
+        return await extract_single_document(image_paths, doc_type=classification.get("doc_type"), model_override=model_override)
 
     # Step 1: Quick classification on first page for rotation detection
-    classification = await quick_classify_document(image_paths[:1])
+    classification = await quick_classify_document(image_paths[:1], model_override=model_override)
 
     # Handle rotation if needed
     rotation_needed = classification.get("rotation_needed", 0)
@@ -10504,7 +10509,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 rotated_paths.append(img_path)
 
         logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
-        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path, flexible_pipeline=flexible_pipeline)
+        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path, flexible_pipeline=flexible_pipeline, model_override=model_override)
         result["rotation_applied"] = rotation_needed
         return result
 
@@ -10512,11 +10517,11 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # FLEXIBLE PIPELINE: Skip rigid splitting, let Sonnet handle everything
     # =========================================================================
     if flexible_pipeline:
-        logger.info(f"Using FLEXIBLE pipeline - skipping rigid splitting, sending all {len(image_paths)} pages to Sonnet")
+        logger.info(f"Using FLEXIBLE pipeline - skipping rigid splitting, sending all {len(image_paths)} pages to {'enhanced model' if model_override else 'Sonnet'}")
 
         try:
-            # Go directly to Sonnet extraction without page classification or splitting
-            result = await extract_single_document(image_paths, 1, len(image_paths))
+            # Go directly to extraction without page classification or splitting
+            result = await extract_single_document(image_paths, 1, len(image_paths), model_override=model_override)
             result["_pipeline_type"] = "flexible"
             result["_page_count"] = len(image_paths)
 
@@ -10618,7 +10623,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             ocr_quality.get('max_confidence'),
             ocr_quality.get('quality_score'),
             ocr_quality.get('is_likely_handwritten', False),
-            doc_type=classification.get("doc_type")
+            doc_type=classification.get("doc_type"),
+            model_override=model_override
         )
         result["_pipeline_type"] = "scanned_single_doc"
         result["_page_count"] = total_pages
@@ -10628,7 +10634,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # This is more reliable than text heuristics, especially for handwritten/scanned docs
     if total_pages > 1:
         logger.info(f"VISUAL DETECTION: Using detect_documents() for {total_pages} pages to find document boundaries")
-        detection_result = await detect_documents(image_paths)
+        detection_result = await detect_documents(image_paths, model_override=model_override)
         logger.info(f"Visual detection result: {detection_result}")
 
         # Convert detection result to page classifications format
@@ -10716,7 +10722,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             ocr_quality.get('max_confidence'),
             ocr_quality.get('quality_score'),
             ocr_quality.get('is_likely_handwritten', False),
-            doc_type=effective_doc_type
+            doc_type=effective_doc_type,
+            model_override=model_override
         )
         result["_coarse_type"] = coarse_type
         result["_quick_classification"] = classification.get("doc_type")
@@ -10768,7 +10775,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 ocr_quality.get('max_confidence'),
                 ocr_quality.get('quality_score'),
                 ocr_quality.get('is_likely_handwritten', False),
-                doc_type=coarse_type if coarse_type != "other" else None
+                doc_type=coarse_type if coarse_type != "other" else None,
+                model_override=model_override
             )
 
             # Add metadata from splitting

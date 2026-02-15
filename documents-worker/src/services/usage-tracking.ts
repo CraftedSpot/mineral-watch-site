@@ -455,7 +455,8 @@ export class UsageTrackingService {
     pageCount: number,
     isMultiDoc: boolean = false,
     childCount: number = 0,
-    skipExtraction: boolean = false
+    skipExtraction: boolean = false,
+    isEnhanced: boolean = false
   ): Promise<{ success: boolean; creditDeducted: boolean }> {
     const billingPeriod = getCurrentBillingPeriod();
 
@@ -464,13 +465,16 @@ export class UsageTrackingService {
     // - "other" docs with skip_extraction (classified but not extracted)
     // - "multi_document" parents with skip_extraction (children will be charged instead)
     const costsCredit = !skipExtraction;
+    const creditsPerDoc = isEnhanced ? 2 : 1;
     let creditDeducted = false;
 
     if (costsCredit) {
-      creditDeducted = await this.deductCredit(userId, userPlan);
+      creditDeducted = await this.deductCredits(userId, userPlan, creditsPerDoc);
       if (!creditDeducted) {
-        // This shouldn't happen if we check credits before processing
-        console.error(`[Credits] Failed to deduct credit for user ${userId}, document ${documentId}`);
+        // Race condition: credits spent between upload and processing.
+        // Extraction already happened (API cost incurred), so accept the results
+        // but log the shortfall. Don't fail — that would waste the API cost.
+        console.error(`[Credits] Shortfall: user ${userId} owes ${creditsPerDoc} credits for ${isEnhanced ? 'enhanced ' : ''}doc ${documentId}`);
       }
     }
 
@@ -506,11 +510,11 @@ export class UsageTrackingService {
       isMultiDoc ? 1 : 0,
       childCount ?? 0,
       skipExtraction ? 1 : 0,
-      costsCredit ? 1 : 0,
+      costsCredit ? creditsPerDoc : 0,
       billingPeriod
     ).run();
 
-    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Credit deducted: ${creditDeducted}. Pages: ${pageCount}`);
+    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Credits: ${costsCredit ? creditsPerDoc : 0}${isEnhanced ? ' (enhanced)' : ''}. Deducted: ${creditDeducted}. Pages: ${pageCount}`);
 
     return { success: true, creditDeducted };
   }

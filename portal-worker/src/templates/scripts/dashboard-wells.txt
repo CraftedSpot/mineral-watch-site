@@ -1332,6 +1332,72 @@
             }
         }
 
+        async function saveWellInterests() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            if (!wellId) { showToast('Error: Well ID not found', 'error'); return; }
+
+            const riVal = document.getElementById('wellInterest_ri_nri')?.value || '';
+            const wiVal = document.getElementById('wellInterest_wi_nri')?.value || '';
+            const orriVal = document.getElementById('wellInterest_orri_nri')?.value || '';
+
+            // Validate: decimals must be 0-1 range
+            const checks = [['RI NRI', riVal], ['WI NRI', wiVal], ['ORRI NRI', orriVal]];
+            for (const [label, val] of checks) {
+                if (val !== '') {
+                    const num = parseFloat(val);
+                    if (isNaN(num) || num < 0 || num > 1) {
+                        showToast(label + ' must be between 0 and 1', 'error');
+                        return;
+                    }
+                }
+            }
+
+            try {
+                const res = await fetch('/api/wells/' + wellId + '/interests', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        ri_nri: riVal !== '' ? riVal : null,
+                        wi_nri: wiVal !== '' ? wiVal : null,
+                        orri_nri: orriVal !== '' ? orriVal : null
+                    })
+                });
+                if (!res.ok) throw new Error('Failed to save');
+
+                // Update local cache
+                const well = loadedWells.find(w => w.id === wellId);
+                const riParsed = riVal !== '' ? parseFloat(riVal) : null;
+                const wiParsed = wiVal !== '' ? parseFloat(wiVal) : null;
+                const orriParsed = orriVal !== '' ? parseFloat(orriVal) : null;
+
+                if (well) {
+                    well.ri_nri = riParsed;
+                    well.wi_nri = wiParsed;
+                    well.orri_nri = orriParsed;
+                }
+
+                // Update enterprise state and re-render
+                const ent = window._currentWellEnterprise || {};
+                ent.ri_nri = riParsed;
+                ent.wi_nri = wiParsed;
+                ent.orri_nri = orriParsed;
+                if (riParsed !== null) { ent.interest_source = 'manual_entry'; ent.ri_nri_source = 'manual_entry'; }
+                else { ent.interest_source = null; ent.ri_nri_source = null; }
+                if (wiParsed !== null) ent.wi_nri_source = 'manual_entry';
+                else ent.wi_nri_source = null;
+                if (orriParsed !== null) ent.orri_nri_source = 'manual_entry';
+                else ent.orri_nri_source = null;
+                window._currentWellEnterprise = ent;
+
+                // Re-render interest section
+                renderDecimalInterest(null, ent);
+                showToast('Interests saved!', 'success');
+            } catch (err) {
+                console.error('Save interests error:', err);
+                showToast('Error saving interests', 'error');
+            }
+        }
+
         async function saveWellNotesFromModal() {
             const wellId = document.getElementById('wellDetailsId').value;
             const notes = document.getElementById('wellDetailsNotes').value;

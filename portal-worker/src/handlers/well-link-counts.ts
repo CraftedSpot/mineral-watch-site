@@ -161,29 +161,44 @@ async function fetchDocumentCounts(
   const filteredApis = apiNumbers.filter(a => a);
   const docTypeList = WELL_DOC_TYPES.map(type => `'${type}'`).join(', ');
 
-  // Step 1: Batch-resolve API numbers to airtable_record_ids
+  // Step 1: Batch-resolve API numbers to record IDs via client_wells and statewide wells
   const apiToRecordId = new Map<string, string>();
   const recordIdToApi = new Map<string, string>();
   const apiBatches = chunk(filteredApis, BATCH_SIZE_D1);
 
   const resolvePromises = apiBatches.map(async (batch) => {
+    const results: { api_number: string; record_id: string }[] = [];
     try {
       const placeholders = batch.map(() => '?').join(', ');
-      const result = await env.WELLS_DB.prepare(
-        `SELECT api_number, airtable_record_id FROM airtable_wells WHERE api_number IN (${placeholders})`
+      // Try client_wells first (airtable_id — matches documents linked via client_wells)
+      const clientResult = await env.WELLS_DB.prepare(
+        `SELECT api_number, airtable_id as record_id FROM client_wells WHERE api_number IN (${placeholders})`
       ).bind(...batch).all();
-      return result.results as { api_number: string; airtable_record_id: string }[] || [];
+      if (clientResult.results) {
+        for (const row of clientResult.results as any[]) {
+          if (row.record_id) results.push({ api_number: row.api_number, record_id: row.record_id });
+        }
+      }
+      // Also check statewide wells table (airtable_record_id — matches documents linked via wells)
+      const wellsResult = await env.WELLS_DB.prepare(
+        `SELECT api_number, airtable_record_id as record_id FROM wells WHERE api_number IN (${placeholders})`
+      ).bind(...batch).all();
+      if (wellsResult.results) {
+        for (const row of wellsResult.results as any[]) {
+          if (row.record_id) results.push({ api_number: row.api_number, record_id: row.record_id });
+        }
+      }
     } catch (err) {
       console.error('[WellLinkCounts] Error resolving API to record IDs:', err);
-      return [];
     }
+    return results;
   });
 
   const resolveResults = await Promise.all(resolvePromises);
   for (const rows of resolveResults) {
     for (const row of rows) {
-      apiToRecordId.set(row.api_number, row.airtable_record_id);
-      recordIdToApi.set(row.airtable_record_id, row.api_number);
+      apiToRecordId.set(row.api_number, row.record_id);
+      recordIdToApi.set(row.record_id, row.api_number);
     }
   }
 

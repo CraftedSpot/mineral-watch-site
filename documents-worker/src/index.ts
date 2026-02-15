@@ -871,6 +871,19 @@ export default {
         const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
         const userEmail = user.email || user.fields?.Email || null;
         const userName = user.name || user.fields?.Name || null;
+        const enhanced = formData.get('enhanced') === '1' ? 1 : 0;
+
+        // Server-side credit check before accepting upload
+        const creditsNeeded = enhanced ? 2 : 1;
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditUserId = userOrg || user.id;
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+        if (creditCheck.totalAvailable < creditsNeeded) {
+          return errorResponse(
+            `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+            402, env
+          );
+        }
 
         // All files (PDF and images) go to pending status for processing
         // The processor handles different file types appropriately
@@ -878,9 +891,9 @@ export default {
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id,
             file_size, status, upload_date, queued_at, user_plan, content_type,
-            user_email, user_name
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?)
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName).run();
+            user_email, user_name, enhanced_extraction
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName, enhanced).run();
 
         console.log('Document uploaded successfully:', docId);
 
@@ -938,6 +951,21 @@ export default {
         const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
         const userEmail = user.email || user.fields?.Email || null;
         const userName = user.name || user.fields?.Name || null;
+        const enhanced = formData.get('enhanced') === '1' ? 1 : 0;
+
+        // Server-side credit check before accepting upload
+        const creditsPerDoc = enhanced ? 2 : 1;
+        const validFiles = files.filter(f => isAllowedFileType(f.type) && f.size <= 50 * 1024 * 1024);
+        const creditsNeeded = validFiles.length * creditsPerDoc;
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditUserId = userOrg || user.id;
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+        if (creditCheck.totalAvailable < creditsNeeded) {
+          return errorResponse(
+            `Insufficient credits. Need ${creditsNeeded} for ${validFiles.length} files, have ${creditCheck.totalAvailable}.`,
+            402, env
+          );
+        }
 
         // Process each file
         for (let i = 0; i < files.length; i++) {
@@ -979,9 +1007,9 @@ export default {
               INSERT INTO documents (
                 id, r2_key, filename, original_filename, user_id, organization_id,
                 file_size, status, upload_date, queued_at, user_plan, content_type,
-                user_email, user_name
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?)
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName).run();
+                user_email, user_name, enhanced_extraction
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName, enhanced).run();
 
             results.push({
               success: true,
@@ -1631,7 +1659,7 @@ export default {
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id,
                  file_size, upload_date, page_count, processing_attempts, user_plan, content_type,
-                 source_metadata
+                 source_metadata, enhanced_extraction
           FROM (
             SELECT *,
               ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY upload_date ASC) as user_queue_pos
@@ -1677,11 +1705,12 @@ export default {
           }
 
           const userCredits = userCreditCache[userId];
+          const docCreditsNeeded = (doc as any).enhanced_extraction === 1 ? 2 : 1;
 
-          if (userCredits.hasCredits && userCredits.creditsRemaining > 0) {
+          if (userCredits.hasCredits && userCredits.creditsRemaining >= docCreditsNeeded) {
             docsToProcess.push(doc);
             // Decrement the cached count for subsequent docs from same user
-            userCreditCache[userId].creditsRemaining--;
+            userCreditCache[userId].creditsRemaining -= docCreditsNeeded;
             if (userCreditCache[userId].creditsRemaining <= 0) {
               userCreditCache[userId].hasCredits = false;
             }
@@ -2525,12 +2554,13 @@ export default {
                 // Get user info and plan from the document
                 // Use organization_id if available (for org-level credit tracking)
                 const docInfo = await env.WELLS_DB.prepare(`
-                  SELECT user_id, organization_id, user_plan FROM documents WHERE id = ?
+                  SELECT user_id, organization_id, user_plan, enhanced_extraction FROM documents WHERE id = ?
                 `).bind(docId).first();
 
                 if (docInfo?.user_id) {
                   const userId = docInfo.user_id as string;
                   const userPlan = (docInfo.user_plan as string) || 'Free';
+                  const isEnhanced = (docInfo as any).enhanced_extraction === 1;
 
                   // Skip credit tracking for system-triggered documents
                   if (userId === 'system_harvester' || userPlan === 'system') {
@@ -2547,9 +2577,10 @@ export default {
                       page_count || 0,
                       false, // isMultiDoc - handle this in split endpoint
                       0,     // childCount - handle this in split endpoint
-                      extracted_data?.skip_extraction || false
+                      extracted_data?.skip_extraction || false,
+                      isEnhanced
                     );
-                    console.log('[Usage] Tracked document processing for:', creditUserId, '(org:', docInfo.organization_id, ', user:', userId, ') plan:', userPlan);
+                    console.log('[Usage] Tracked document processing for:', creditUserId, '(org:', docInfo.organization_id, ', user:', userId, ') plan:', userPlan, isEnhanced ? '(enhanced)' : '');
                   }
                 }
               } catch (usageError) {

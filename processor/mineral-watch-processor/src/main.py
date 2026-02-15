@@ -300,9 +300,15 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             logger.info(f"Using STRICT pipeline for {content_type}")
 
         # 4. Extract with Claude Vision
+        # Check for enhanced extraction (Opus model)
+        enhanced = doc.get('enhanced_extraction', 0)
+        model_override = CONFIG.CLAUDE_ENHANCED_MODEL if enhanced else None
+        if model_override:
+            logger.info(f"Enhanced extraction enabled — using {model_override}")
+
         # Pass PDF path for deterministic splitting (only for strict PDFs)
         pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and (not use_flexible or known_doc_type)) else None
-        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type)
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type, model_override=model_override)
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):

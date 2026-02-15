@@ -32,6 +32,7 @@ export {
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
+  handleUpdateWellInterests,
   handleSearchWells,
   fetchWellDetailsFromOCC
 } from './wells.js';
