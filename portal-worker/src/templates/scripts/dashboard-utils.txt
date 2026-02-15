@@ -260,6 +260,9 @@
                 docBar.innerHTML = `
                     <div class="bulk-count"><span class="selected-count">${selectedDocuments.size}</span> selected</div>
                     <div class="bulk-actions">
+                        <button class="bulk-btn" onclick="bulkReanalyzeSelected()" style="background: #1E40AF; color: white;">
+                            Re-Analyze
+                        </button>
                         <button class="bulk-btn" onclick="bulkDeleteSelected('documents')">
                             Delete Selected
                         </button>

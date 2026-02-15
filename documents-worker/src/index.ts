@@ -615,7 +615,7 @@ export default {
           SELECT id, filename, doc_type, county, section, township, range,
                  confidence, status, upload_date, page_count, file_size, extracted_data, user_notes,
                  display_name, category, needs_review, field_scores, fields_needing_review, content_type,
-                 rotation_applied
+                 rotation_applied, enhanced_extraction
           FROM documents
           WHERE (${conditions.join(' OR ')})
             AND deleted_at IS NULL
@@ -823,6 +823,88 @@ export default {
       } catch (error) {
         console.error('[Documents] Re-link error:', error);
         return errorResponse('Failed to re-link documents', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/reanalyze - Re-queue documents for processing
+    if (path === '/api/documents/reanalyze' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const body = await request.json() as { document_ids?: string[]; enhanced?: boolean };
+        const { document_ids, enhanced } = body;
+
+        if (!document_ids || !Array.isArray(document_ids) || document_ids.length === 0) {
+          return errorResponse('document_ids must be a non-empty array', 400, env);
+        }
+        if (document_ids.length > 50) {
+          return errorResponse('Maximum 50 documents per request', 400, env);
+        }
+
+        const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
+        const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
+
+        // Verify ownership and eligible status
+        const placeholders = document_ids.map(() => '?').join(',');
+        const ownerConditions = ['user_id = ?'];
+        const ownerParams: string[] = [user.id];
+        if (userOrg) {
+          ownerConditions.push('organization_id = ?');
+          ownerParams.push(userOrg);
+        }
+
+        const eligibleDocs = await env.WELLS_DB.prepare(`
+          SELECT id FROM documents
+          WHERE id IN (${placeholders})
+            AND (${ownerConditions.join(' OR ')})
+            AND status IN ('complete', 'completed', 'failed', 'unprocessed', 'manual_review')
+            AND deleted_at IS NULL
+        `).bind(...document_ids, ...ownerParams).all();
+
+        if (eligibleDocs.results.length === 0) {
+          return errorResponse('No eligible documents found. Documents must be complete, failed, or unprocessed.', 400, env);
+        }
+
+        const eligibleIds = eligibleDocs.results.map((d: any) => d.id as string);
+        const creditsNeeded = eligibleIds.length * (enhanced ? 2 : 1);
+
+        // Credit pre-check
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditUserId = userOrg || user.id;
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+        if (creditCheck.totalAvailable < creditsNeeded) {
+          return errorResponse(
+            `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+            402, env
+          );
+        }
+
+        // Reset documents to pending
+        const updatePlaceholders = eligibleIds.map(() => '?').join(',');
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET status = 'pending',
+              enhanced_extraction = ?,
+              processing_attempts = 0,
+              extraction_started_at = NULL,
+              extraction_completed_at = NULL,
+              extraction_error = NULL,
+              queued_at = datetime('now', '-6 hours')
+          WHERE id IN (${updatePlaceholders})
+        `).bind(enhanced ? 1 : 0, ...eligibleIds).run();
+
+        console.log(`[Reanalyze] Queued ${eligibleIds.length} documents for re-analysis (enhanced=${enhanced})`);
+
+        return jsonResponse({
+          success: true,
+          queued: eligibleIds.length,
+          credits_reserved: creditsNeeded,
+          enhanced: !!enhanced
+        }, 200, env);
+      } catch (error) {
+        console.error('Reanalyze error:', error);
+        return errorResponse('Failed to re-analyze documents', 500, env);
       }
     }
 
