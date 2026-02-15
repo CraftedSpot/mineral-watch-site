@@ -668,36 +668,43 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
           console.error('[Intelligence Data] Check stub revenue error:', e instanceof Error ? e.message : e);
         }
 
-        // --- Source 2: OTC × decimal for wells without check stub data ---
+        // --- Source 2: OTC financial × decimal for wells without check stub data ---
+        // Dollar values are in otc_production_financial (not otc_production which only has volumes)
         const otcRevenue = new Map<string, number>(); // api10 → estimated revenue
         const wellsNeedingOtc = [...wellMap.entries()]
           .filter(([api10, info]) => !checkStubRevenue.has(api10) && info.decimal > 0);
 
-        if (wellsNeedingOtc.length > 0 && basePuns.length > 0) {
+        let latestFinMonth: string | null = null;
+
+        if (wellsNeedingOtc.length > 0) {
           try {
-            const punBatch = basePuns.slice(0, 50);
-            const punPlaceholders = punBatch.map(() => '?').join(',');
+            // Get latest month with financial data for user's wells
+            const otcApis = wellsNeedingOtc.map(([api10]) => api10);
+            const sampleBatch = otcApis.slice(0, 25);
+            const samplePlaceholders = sampleBatch.map(() => '?').join(',');
 
             const latestMonthResult = await env.WELLS_DB.prepare(
-              `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
-            ).bind(...punBatch).first() as { latest: string } | null;
+              `SELECT MAX(opf.year_month) as latest
+               FROM well_pun_links wpl
+               JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+               WHERE wpl.api_number IN (${samplePlaceholders}) AND opf.gross_value > 0`
+            ).bind(...sampleBatch).first() as { latest: string } | null;
 
-            if (latestMonthResult?.latest) {
-              const latestMonth = latestMonthResult.latest;
+            latestFinMonth = latestMonthResult?.latest || null;
 
-              // Per-well OTC net for latest month (batch by 25 to stay under D1 param limit)
-              const otcApis = wellsNeedingOtc.map(([api10]) => api10);
-              for (let i = 0; i < otcApis.length; i += 25) {
-                const apiBatch = otcApis.slice(i, i + 25);
+            if (latestFinMonth) {
+              // Per-well financial net for latest month (batch by 20 — join uses more params)
+              for (let i = 0; i < otcApis.length; i += 20) {
+                const apiBatch = otcApis.slice(i, i + 20);
                 const apiPlaceholders = apiBatch.map(() => '?').join(',');
 
                 const perWellResult = await env.WELLS_DB.prepare(`
-                  SELECT wpl.api_number, SUM(op.net_value) as well_net, SUM(op.gross_value) as well_gross
+                  SELECT wpl.api_number, SUM(opf.net_value) as well_net, SUM(opf.gross_value) as well_gross
                   FROM well_pun_links wpl
-                  JOIN otc_production op ON op.base_pun = wpl.base_pun AND op.year_month = ?
+                  JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10) AND opf.year_month = ?
                   WHERE wpl.api_number IN (${apiPlaceholders})
                   GROUP BY wpl.api_number
-                `).bind(latestMonth, ...apiBatch).all();
+                `).bind(latestFinMonth, ...apiBatch).all();
 
                 for (const row of perWellResult.results) {
                   const api = row.api_number as string;
@@ -724,22 +731,24 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
           estimatedRevenue = Math.round(totalRevenue * 100) / 100;
         }
 
-        // Revenue change: compare to prior month using OTC aggregate (check stubs are point-in-time)
-        if (estimatedRevenue && basePuns.length > 0) {
+        // Revenue change: compare to prior month using OTC financial aggregate
+        if (estimatedRevenue && latestFinMonth) {
           try {
-            const punBatch = basePuns.slice(0, 50);
-            const punPlaceholders = punBatch.map(() => '?').join(',');
-            const latestMonthResult = await env.WELLS_DB.prepare(
-              `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
-            ).bind(...punBatch).first() as { latest: string } | null;
-            if (latestMonthResult?.latest) {
+            const otcApis = [...otcRevenue.keys()];
+            if (otcApis.length > 0) {
+              const apiBatch = otcApis.slice(0, 25);
+              const apiPlaceholders = apiBatch.map(() => '?').join(',');
               const [curResult, priorResult] = await Promise.all([
                 env.WELLS_DB.prepare(
-                  `SELECT SUM(gross_value) as total FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-                ).bind(...punBatch, latestMonthResult.latest).first() as Promise<{ total: number } | null>,
+                  `SELECT SUM(opf.gross_value) as total FROM well_pun_links wpl
+                   JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10) AND opf.year_month = ?
+                   WHERE wpl.api_number IN (${apiPlaceholders})`
+                ).bind(latestFinMonth, ...apiBatch).first() as Promise<{ total: number } | null>,
                 env.WELLS_DB.prepare(
-                  `SELECT SUM(gross_value) as total FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-                ).bind(...punBatch, getPriorMonth(latestMonthResult.latest)).first() as Promise<{ total: number } | null>
+                  `SELECT SUM(opf.gross_value) as total FROM well_pun_links wpl
+                   JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10) AND opf.year_month = ?
+                   WHERE wpl.api_number IN (${apiPlaceholders})`
+                ).bind(getPriorMonth(latestFinMonth), ...apiBatch).first() as Promise<{ total: number } | null>
               ]);
               if (curResult?.total && priorResult?.total && priorResult.total > 0) {
                 revenueChange = ((curResult.total - priorResult.total) / priorResult.total) * 100;
