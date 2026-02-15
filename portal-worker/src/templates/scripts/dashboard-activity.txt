@@ -256,20 +256,33 @@
                 );
 
                 let actionsHtml = '<div class="activity-actions">';
-                // View on Map first (our map with section highlight)
+                // MW Map first — zoom to tracked well if possible, otherwise section highlight
                 const strField = f['Section-Township-Range'];
-                if (strField) {
-                    // Handle both formats: "32-15N-21W" (docket) and "S32 T15N R21W" (permits)
-                    const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i) ||
-                                     strField.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
-                    if (strMatch) {
+                if (strField || apiNumber) {
+                    // Check if this well is tracked — if so, deep-link to the well marker
+                    const trackedWell = apiNumber ? loadedWells.find(w => w.apiNumber === apiNumber) : null;
+                    if (trackedWell) {
                         const mapParams = new URLSearchParams({
-                            section: strMatch[1],
-                            township: strMatch[2],
-                            range: strMatch[3],
-                            county: f['County'] || ''
+                            well: trackedWell.id,
+                            county: trackedWell.county || f['County'] || '',
+                            section: trackedWell.section || '',
+                            township: trackedWell.township || '',
+                            range: trackedWell.range || ''
                         });
-                        actionsHtml += `<a href="/portal/oklahoma-map?${mapParams}" target="_blank" class="activity-btn">View on Map</a>`;
+                        actionsHtml += `<a href="/portal/oklahoma-map?${mapParams}" target="_blank" class="activity-btn">MW Map</a>`;
+                    } else if (strField) {
+                        // Fallback: section highlight for untracked wells
+                        const strMatch = strField.match(/(\d+)-(\d+[NS])-(\d+[EW])/i) ||
+                                         strField.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
+                        if (strMatch) {
+                            const mapParams = new URLSearchParams({
+                                section: strMatch[1],
+                                township: strMatch[2],
+                                range: strMatch[3],
+                                county: f['County'] || ''
+                            });
+                            actionsHtml += `<a href="/portal/oklahoma-map?${mapParams}" target="_blank" class="activity-btn">MW Map</a>`;
+                        }
                     }
                 }
                 // OCC Map second

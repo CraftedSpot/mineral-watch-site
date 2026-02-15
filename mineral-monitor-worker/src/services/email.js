@@ -1331,7 +1331,7 @@ function buildAlertSection(title, alerts, color, icon, portalUrl) {
       const strMatch = alert.section_township_range.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
       if (strMatch) {
         const mapUrl = `${portalUrl.replace('/portal', '/portal/oklahoma-map')}?section=${strMatch[1]}&township=${strMatch[2]}&range=${strMatch[3]}&county=${encodeURIComponent(alert.county || '')}`;
-        mapLink = `<a href="${mapUrl}" style="color: #2563EB; font-size: 11px; text-decoration: none; margin-right: 12px;">View on Map &rarr;</a>`;
+        mapLink = `<a href="${mapUrl}" style="color: #2563EB; font-size: 11px; text-decoration: none; margin-right: 12px;">MW Map &rarr;</a>`;
       }
     }
 
