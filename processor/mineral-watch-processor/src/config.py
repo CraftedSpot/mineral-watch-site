@@ -19,7 +19,7 @@ class Config:
     
     # Claude model
     CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
-    CLAUDE_ENHANCED_MODEL: str = os.environ.get("CLAUDE_ENHANCED_MODEL", "claude-opus-4-5-20250514")
+    CLAUDE_ENHANCED_MODEL: str = os.environ.get("CLAUDE_ENHANCED_MODEL", "claude-opus-4-6")
     
     # Image conversion
     IMAGE_DPI: int = int(os.environ.get("IMAGE_DPI", "150"))
