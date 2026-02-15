@@ -7721,83 +7721,6 @@
         }
         window.bulkReanalyzeSelected = bulkReanalyzeSelected;
 
-        // Upgrade all standard documents to enhanced
-        async function reanalyzeAllStandard() {
-            const standardDocs = loadedDocuments.filter(doc =>
-                !doc.deleted_at &&
-                doc.enhanced_extraction !== 1 &&
-                ['complete', 'completed', 'failed', 'manual_review', 'unprocessed'].includes(doc.status)
-            );
-
-            if (standardDocs.length === 0) {
-                showToast('All documents already use enhanced extraction', 'info');
-                return;
-            }
-
-            const totalCredits = standardDocs.length * 2;
-            const confirmed = await showConfirm(
-                `Upgrade <strong>${standardDocs.length}</strong> document${standardDocs.length > 1 ? 's' : ''} to Enhanced extraction?<br><br>This will use <strong>${totalCredits} credits</strong>.`,
-                { title: 'Upgrade All to Enhanced', confirmText: `Upgrade All (${totalCredits} credits)` }
-            );
-            if (!confirmed) return;
-
-            try {
-                const allIds = standardDocs.map(d => d.id);
-                let totalQueued = 0;
-
-                // Batch in groups of 50 (backend limit)
-                for (let i = 0; i < allIds.length; i += 50) {
-                    const batch = allIds.slice(i, i + 50);
-                    const res = await fetch('/api/documents/reanalyze', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ document_ids: batch, enhanced: true })
-                    });
-
-                    if (res.status === 402) {
-                        const err = await res.json();
-                        if (totalQueued > 0) {
-                            showToast(`Queued ${totalQueued} documents, then ran out of credits`, 'warning');
-                        } else {
-                            showToast(err.error || 'Insufficient credits', 'error');
-                        }
-                        await loadDocuments();
-                        loadUsageStats();
-                        return;
-                    }
-                    if (!res.ok) throw new Error('Failed to upgrade documents');
-
-                    const result = await res.json();
-                    totalQueued += result.queued;
-                }
-
-                showToast(`${totalQueued} document${totalQueued > 1 ? 's' : ''} queued for enhanced re-analysis`, 'success');
-                await loadDocuments();
-                loadUsageStats();
-            } catch (error) {
-                console.error('Error upgrading documents:', error);
-                showToast('Failed to upgrade documents', 'error');
-            }
-        }
-        window.reanalyzeAllStandard = reanalyzeAllStandard;
-
-        // Show/hide "Upgrade All to Enhanced" button based on standard doc count
-        function updateUpgradeButtonVisibility() {
-            const btn = document.getElementById('upgradeAllEnhancedBtn');
-            if (!btn) return;
-
-            const standardCount = loadedDocuments.filter(doc =>
-                !doc.deleted_at &&
-                doc.enhanced_extraction !== 1 &&
-                ['complete', 'completed', 'failed', 'manual_review', 'unprocessed'].includes(doc.status)
-            ).length;
-
-            btn.style.display = standardCount > 0 ? 'inline-flex' : 'none';
-            const textEl = document.getElementById('upgradeAllEnhancedText');
-            if (textEl) {
-                textEl.textContent = `Upgrade All to Enhanced (${standardCount} doc${standardCount > 1 ? 's' : ''})`;
-            }
-        }
 
         // Manual document linking modal functions
         function openManualDocLinkModal(targetType, targetId) {
@@ -8156,8 +8079,6 @@
 
             // Update re-link button visibility based on unlinked documents
             updateRelinkButtonVisibility();
-            // Update upgrade-all button visibility based on standard docs
-            updateUpgradeButtonVisibility();
         }
 /* __SPLIT_DOCS_B__ */
         // Linked Documents Functions
