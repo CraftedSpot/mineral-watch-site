@@ -1230,7 +1230,15 @@ function openUploadModal() {
     
     // Reset all modal state
     clearSelectedFile();
-    
+
+    // Set credit-per-doc text based on page-level toggle
+    const creditText = document.getElementById('creditPerDocText');
+    if (creditText) {
+        const enhToggle = document.getElementById('enhancedExtractionToggle');
+        const cpc = (enhToggle && enhToggle.checked) ? 2 : 1;
+        creditText.textContent = 'Each document extracted uses ' + cpc + ' credit' + (cpc > 1 ? 's' : '');
+    }
+
     // Check if user has credits available
     if (currentUsageStats) {
         const availableCredits = currentUsageStats.usage.total_available || 0;
@@ -1550,9 +1558,6 @@ async function displaySelectedFiles() {
 
     // Calculate and display credit estimation
     if (selectedFiles.length > 0) {
-        // Show enhanced extraction toggle
-        document.getElementById('enhancedExtractionToggle').style.display = 'block';
-
         // Store totalPages globally for updateCreditEstimate
         window._uploadTotalPages = totalPages;
         document.getElementById('totalPages').textContent = totalPages;
@@ -1561,15 +1566,14 @@ async function displaySelectedFiles() {
         updateCreditEstimate();
     } else {
         document.getElementById('creditEstimation').style.display = 'none';
-        document.getElementById('enhancedExtractionToggle').style.display = 'none';
     }
 }
 
 function updateCreditEstimate() {
     const totalPages = window._uploadTotalPages || 0;
     if (!totalPages) return;
-    const enhanced = document.getElementById('enhancedExtractionCheckbox')?.checked;
-    const creditsPerDoc = enhanced ? 2 : 1;
+    const enhToggle = document.getElementById('enhancedExtractionToggle');
+    const creditsPerDoc = (enhToggle && enhToggle.checked) ? 2 : 1;
     const baseCredits = Math.ceil(totalPages / 30);
     const estimatedCredits = baseCredits * creditsPerDoc;
     document.getElementById('estimatedCredits').textContent = estimatedCredits;
@@ -1605,12 +1609,6 @@ function clearSelectedFile() {
     if (uploadBtn) {
         uploadBtn.disabled = true;
     }
-    // Reset enhanced extraction checkbox
-    const enhancedCb = document.getElementById('enhancedExtractionCheckbox');
-    if (enhancedCb) enhancedCb.checked = false;
-    document.getElementById('enhancedExtractionToggle').style.display = 'none';
-    const creditText = document.getElementById('creditPerDocText');
-    if (creditText) creditText.textContent = 'Each document extracted uses 1 credit';
     window._uploadTotalPages = 0;
 }
 
@@ -1625,9 +1623,9 @@ async function handleDocumentUpload(e) {
     
     const formData = new FormData();
     
-    // Check if enhanced extraction is selected
-    const enhanced = document.getElementById('enhancedExtractionCheckbox')?.checked;
-    if (enhanced) {
+    // Check if enhanced extraction toggle is on (page-level toggle)
+    const enhToggle = document.getElementById('enhancedExtractionToggle');
+    if (enhToggle && enhToggle.checked) {
         formData.append('enhanced', '1');
     }
 
@@ -2123,6 +2121,11 @@ async function handlePhotoUpload() {
     uploadBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Creating PDF...';
 
     try {
+        // Check pdf-lib is available
+        if (typeof PDFLib === 'undefined') {
+            throw new Error('PDF library not loaded. Please refresh the page and try again.');
+        }
+
         // Create PDF using pdf-lib
         const { PDFDocument } = PDFLib;
         const pdfDoc = await PDFDocument.create();
@@ -2178,28 +2181,41 @@ async function handlePhotoUpload() {
         }
 
         // Generate PDF bytes
-        uploadBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Uploading...';
-
         const pdfBytes = await pdfDoc.save();
         const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const sizeMB = (pdfBlob.size / (1024 * 1024)).toFixed(1);
+        console.log('Photo PDF created:', sizeMB, 'MB,', includedPhotos.length, 'pages');
+
+        uploadBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Uploading (' + sizeMB + ' MB)...';
 
         // Generate filename
         const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
         const filename = `photo_document_${timestamp}_${includedPhotos.length}pages.pdf`;
 
-        // Upload using existing endpoint
+        // Upload using existing endpoint with 2-minute timeout
         const formData = new FormData();
         formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
+        const enhToggle = document.getElementById('enhancedExtractionToggle');
+        if (enhToggle && enhToggle.checked) {
+            formData.append('enhanced', '1');
+        }
+
+        const uploadController = new AbortController();
+        const uploadTimeout = setTimeout(() => uploadController.abort(), 120000);
 
         const response = await fetch('/api/documents/upload', {
             method: 'POST',
             body: formData,
-            credentials: 'include'
+            credentials: 'include',
+            signal: uploadController.signal
         });
+        clearTimeout(uploadTimeout);
 
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
+            const errorText = await response.text();
+            let errorMsg = 'Upload failed';
+            try { errorMsg = JSON.parse(errorText).error || errorMsg; } catch(e) {}
+            throw new Error(errorMsg);
         }
 
         // Success - close modal and refresh
@@ -2216,7 +2232,10 @@ async function handlePhotoUpload() {
 
     } catch (error) {
         console.error('Photo upload failed:', error);
-        alert('Upload failed: ' + error.message);
+        const msg = error.name === 'AbortError'
+            ? 'Upload timed out. The file may be too large for mobile upload. Try with fewer photos or use Wi-Fi.'
+            : error.message;
+        alert('Upload failed: ' + msg);
 
         // Reset button
         uploadBtn.disabled = false;

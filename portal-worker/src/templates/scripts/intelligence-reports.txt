@@ -330,8 +330,8 @@
             window.scrollTo(0, 0);
 
             // Update header for deduction report
-            document.getElementById('reportBreadcrumb').textContent = 'Deduction Audit';
-            document.getElementById('reportTitle').textContent = 'Deduction Audit Report';
+            document.getElementById('reportBreadcrumb').textContent = 'Residue Gas Deduction Audit';
+            document.getElementById('reportTitle').textContent = 'Residue Gas Deduction Audit Report';
             document.getElementById('reportContent').innerHTML = '<div class="report-loading">Analyzing deduction data across your portfolio...</div>';
             document.getElementById('reportSubtitle').textContent = 'Loading...';
             document.getElementById('reportStatus').textContent = '';
@@ -1493,7 +1493,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'deduction-audit-' + new Date().toISOString().substring(0, 10) + '.csv';
+            a.download = 'residue-gas-deduction-audit-' + new Date().toISOString().substring(0, 10) + '.csv';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

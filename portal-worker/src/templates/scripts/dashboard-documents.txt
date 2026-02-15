@@ -1,3 +1,30 @@
+        // Enhanced extraction toggle
+        let enhancedExtractionEnabled = false;
+
+        function toggleEnhancedExtraction() {
+            enhancedExtractionEnabled = document.getElementById('enhancedExtractionToggle').checked;
+            const track = document.getElementById('enhancedToggleTrack');
+            const thumb = document.getElementById('enhancedToggleThumb');
+            const text = document.getElementById('enhancedToggleText');
+            const label = document.getElementById('enhancedToggleLabel');
+            if (enhancedExtractionEnabled) {
+                track.style.background = '#059669';
+                thumb.style.transform = 'translateX(16px)';
+                text.style.color = '#065F46';
+                label.style.background = '#F0FDF4';
+                label.style.borderColor = '#BBF7D0';
+            } else {
+                track.style.background = '#D1D5DB';
+                thumb.style.transform = 'translateX(0)';
+                text.style.color = '#6B7280';
+                label.style.background = 'transparent';
+                label.style.borderColor = '#E5E7EB';
+            }
+            // Update credit estimate if upload modal is open with files selected
+            if (typeof updateCreditEstimate === 'function') updateCreditEstimate();
+        }
+        window.toggleEnhancedExtraction = toggleEnhancedExtraction;
+
         // Document functions
         let currentDocumentId = null;
         let currentDocumentContentType = null;

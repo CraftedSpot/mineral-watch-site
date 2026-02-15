@@ -4,7 +4,14 @@
         // and document detail content rendering.
 
         // Document viewer state
-        const _docViewerState = { docId: null, blobUrl: null, filename: null, contentType: null };
+        const _docViewerState = {
+            docId: null, blobUrl: null, filename: null, contentType: null,
+            // Image viewer transform state
+            zoom: 1, panX: 0, panY: 0, rotation: 0,
+            isDragging: false, dragStartX: 0, dragStartY: 0, panStartX: 0, panStartY: 0,
+            lastTouchDist: 0, lastTouchCenterX: 0, lastTouchCenterY: 0,
+            _keyHandler: null, _wheelHandler: null
+        };
 
         /**
          * Format document type for display (snake_case → readable label).
@@ -117,12 +124,57 @@
                 const objectUrl = URL.createObjectURL(blob);
 
                 if (isImage) {
-                    const rotationStyle = rotation ? `transform: rotate(${rotation}deg);` : '';
+                    // Reset viewer state
+                    _docViewerState.zoom = 1;
+                    _docViewerState.panX = 0;
+                    _docViewerState.panY = 0;
+                    _docViewerState.rotation = rotation || 0;
+                    _docViewerState.isDragging = false;
+
                     container.innerHTML = `
-                        <div style="width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 20px;">
-                            <img src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain; ${rotationStyle}"/>
+                        <div id="imageViewerWrapper" style="width: 100%; height: 100%; overflow: hidden; position: relative; cursor: default; touch-action: none;">
+                            <div id="imageViewerContent" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; transform-origin: center center;">
+                                <img id="viewerImage" src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; pointer-events: none;"/>
+                            </div>
+                            <div id="imageViewerToolbar" style="position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.75); border-radius: 8px; padding: 6px 10px; z-index: 10;">
+                                <button onclick="_imgZoomOut()" title="Zoom out (-)" style="background: none; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/><path d="M8 11h6" stroke-width="2" stroke-linecap="round"/></svg>
+                                </button>
+                                <span id="zoomIndicator" style="color: white; font-size: 12px; min-width: 42px; text-align: center; font-variant-numeric: tabular-nums; user-select: none;">100%</span>
+                                <button onclick="_imgZoomIn()" title="Zoom in (+)" style="background: none; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke-width="2" stroke-linecap="round"/><path d="M11 8v6M8 11h6" stroke-width="2" stroke-linecap="round"/></svg>
+                                </button>
+                                <button onclick="_imgResetZoom()" title="Fit to view (0)" style="background: none; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+                                </button>
+                                <div style="width: 1px; height: 20px; background: rgba(255,255,255,0.3); margin: 0 4px;"></div>
+                                <button onclick="_imgRotate(-90)" title="Rotate left (Shift+R)" style="background: none; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                </button>
+                                <button onclick="_imgRotate(90)" title="Rotate right (R)" style="background: none; border: none; color: white; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center;" onmouseover="this.style.background='rgba(255,255,255,0.15)'" onmouseout="this.style.background='none'">
+                                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 10H11a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg>
+                                </button>
+                            </div>
                         </div>
                     `;
+
+                    // Apply initial transform (for pre-existing rotation)
+                    _updateImageTransform();
+
+                    // Attach event listeners
+                    const wrapper = document.getElementById('imageViewerWrapper');
+                    _docViewerState._wheelHandler = function(e) { _imgHandleWheel(e); };
+                    wrapper.addEventListener('wheel', _docViewerState._wheelHandler, { passive: false });
+                    wrapper.addEventListener('mousedown', _imgHandleMouseDown);
+                    wrapper.addEventListener('mousemove', _imgHandleMouseMove);
+                    wrapper.addEventListener('mouseup', _imgHandleMouseUp);
+                    wrapper.addEventListener('mouseleave', _imgHandleMouseUp);
+                    wrapper.addEventListener('touchstart', _imgHandleTouchStart, { passive: false });
+                    wrapper.addEventListener('touchmove', _imgHandleTouchMove, { passive: false });
+                    wrapper.addEventListener('touchend', _imgHandleTouchEnd);
+
+                    _docViewerState._keyHandler = function(e) { _imgHandleKeyDown(e); };
+                    document.addEventListener('keydown', _docViewerState._keyHandler);
                 } else {
                     container.innerHTML = `
                         <iframe
@@ -149,6 +201,169 @@
             }
         }
 
+        // ── Image Viewer Controls ──────────────────────────────────────
+
+        function _updateImageTransform() {
+            const el = document.getElementById('imageViewerContent');
+            if (!el) return;
+            const s = _docViewerState;
+            // Order: translate (screen-space pan) then rotate then scale
+            el.style.transform = `scale(${s.zoom}) translate(${s.panX}px, ${s.panY}px) rotate(${s.rotation}deg)`;
+            const indicator = document.getElementById('zoomIndicator');
+            if (indicator) indicator.textContent = Math.round(s.zoom * 100) + '%';
+            const wrapper = document.getElementById('imageViewerWrapper');
+            if (wrapper) wrapper.style.cursor = s.zoom > 1 ? 'grab' : 'default';
+        }
+
+        function _imgZoomIn() {
+            _docViewerState.zoom = Math.min(5, _docViewerState.zoom * 1.25);
+            if (_docViewerState.zoom <= 1.01) { _docViewerState.panX = 0; _docViewerState.panY = 0; }
+            _updateImageTransform();
+        }
+
+        function _imgZoomOut() {
+            _docViewerState.zoom = Math.max(0.25, _docViewerState.zoom / 1.25);
+            if (_docViewerState.zoom <= 1.01) { _docViewerState.panX = 0; _docViewerState.panY = 0; }
+            _updateImageTransform();
+        }
+
+        function _imgResetZoom() {
+            _docViewerState.zoom = 1;
+            _docViewerState.panX = 0;
+            _docViewerState.panY = 0;
+            _updateImageTransform();
+        }
+
+        function _imgRotate(deg) {
+            _docViewerState.rotation = (_docViewerState.rotation + deg + 360) % 360;
+            _docViewerState.zoom = 1;
+            _docViewerState.panX = 0;
+            _docViewerState.panY = 0;
+            _updateImageTransform();
+        }
+
+        function _imgHandleWheel(e) {
+            e.preventDefault();
+            const s = _docViewerState;
+            if (e.deltaY < 0) {
+                s.zoom = Math.min(5, s.zoom * 1.15);
+            } else {
+                s.zoom = Math.max(0.25, s.zoom / 1.15);
+            }
+            if (s.zoom <= 1.01) { s.panX = 0; s.panY = 0; }
+            _updateImageTransform();
+        }
+
+        function _imgHandleMouseDown(e) {
+            if (_docViewerState.zoom <= 1.01) return;
+            e.preventDefault();
+            _docViewerState.isDragging = true;
+            _docViewerState.dragStartX = e.clientX;
+            _docViewerState.dragStartY = e.clientY;
+            _docViewerState.panStartX = _docViewerState.panX;
+            _docViewerState.panStartY = _docViewerState.panY;
+            const wrapper = document.getElementById('imageViewerWrapper');
+            if (wrapper) wrapper.style.cursor = 'grabbing';
+        }
+
+        function _imgHandleMouseMove(e) {
+            if (!_docViewerState.isDragging) return;
+            e.preventDefault();
+            const dx = (e.clientX - _docViewerState.dragStartX) / _docViewerState.zoom;
+            const dy = (e.clientY - _docViewerState.dragStartY) / _docViewerState.zoom;
+            _docViewerState.panX = _docViewerState.panStartX + dx;
+            _docViewerState.panY = _docViewerState.panStartY + dy;
+            _updateImageTransform();
+        }
+
+        function _imgHandleMouseUp() {
+            if (!_docViewerState.isDragging) return;
+            _docViewerState.isDragging = false;
+            const wrapper = document.getElementById('imageViewerWrapper');
+            if (wrapper) wrapper.style.cursor = _docViewerState.zoom > 1 ? 'grab' : 'default';
+        }
+
+        function _imgHandleTouchStart(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                _docViewerState.lastTouchDist = Math.hypot(dx, dy);
+                _docViewerState.lastTouchCenterX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                _docViewerState.lastTouchCenterY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            } else if (e.touches.length === 1 && _docViewerState.zoom > 1.01) {
+                e.preventDefault();
+                _docViewerState.isDragging = true;
+                _docViewerState.dragStartX = e.touches[0].clientX;
+                _docViewerState.dragStartY = e.touches[0].clientY;
+                _docViewerState.panStartX = _docViewerState.panX;
+                _docViewerState.panStartY = _docViewerState.panY;
+            }
+        }
+
+        function _imgHandleTouchMove(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.hypot(dx, dy);
+                if (_docViewerState.lastTouchDist > 0) {
+                    const scale = dist / _docViewerState.lastTouchDist;
+                    _docViewerState.zoom = Math.min(5, Math.max(0.25, _docViewerState.zoom * scale));
+                    if (_docViewerState.zoom <= 1.01) { _docViewerState.panX = 0; _docViewerState.panY = 0; }
+                    _updateImageTransform();
+                }
+                _docViewerState.lastTouchDist = dist;
+            } else if (e.touches.length === 1 && _docViewerState.isDragging) {
+                e.preventDefault();
+                const dx = (e.touches[0].clientX - _docViewerState.dragStartX) / _docViewerState.zoom;
+                const dy = (e.touches[0].clientY - _docViewerState.dragStartY) / _docViewerState.zoom;
+                _docViewerState.panX = _docViewerState.panStartX + dx;
+                _docViewerState.panY = _docViewerState.panStartY + dy;
+                _updateImageTransform();
+            }
+        }
+
+        function _imgHandleTouchEnd(e) {
+            if (e.touches.length < 2) _docViewerState.lastTouchDist = 0;
+            if (e.touches.length === 0) _docViewerState.isDragging = false;
+        }
+
+        function _imgHandleKeyDown(e) {
+            const modal = document.getElementById('documentViewModal');
+            if (!modal || modal.style.display === 'none') return;
+            const el = document.getElementById('imageViewerContent');
+            if (!el) return;
+
+            switch (e.key) {
+                case '+': case '=': e.preventDefault(); _imgZoomIn(); break;
+                case '-': case '_': e.preventDefault(); _imgZoomOut(); break;
+                case '0': e.preventDefault(); _imgResetZoom(); break;
+                case 'r': e.preventDefault(); _imgRotate(e.shiftKey ? -90 : 90); break;
+                case 'R': e.preventDefault(); _imgRotate(-90); break;
+                case 'ArrowLeft':
+                    if (_docViewerState.zoom > 1.01) { e.preventDefault(); _docViewerState.panX += 50 / _docViewerState.zoom; _updateImageTransform(); }
+                    break;
+                case 'ArrowRight':
+                    if (_docViewerState.zoom > 1.01) { e.preventDefault(); _docViewerState.panX -= 50 / _docViewerState.zoom; _updateImageTransform(); }
+                    break;
+                case 'ArrowUp':
+                    if (_docViewerState.zoom > 1.01) { e.preventDefault(); _docViewerState.panY += 50 / _docViewerState.zoom; _updateImageTransform(); }
+                    break;
+                case 'ArrowDown':
+                    if (_docViewerState.zoom > 1.01) { e.preventDefault(); _docViewerState.panY -= 50 / _docViewerState.zoom; _updateImageTransform(); }
+                    break;
+            }
+        }
+
+        // Make toolbar button handlers globally accessible
+        window._imgZoomIn = _imgZoomIn;
+        window._imgZoomOut = _imgZoomOut;
+        window._imgResetZoom = _imgResetZoom;
+        window._imgRotate = _imgRotate;
+
+        // ── End Image Viewer Controls ─────────────────────────────────
+
         /**
          * Close document viewer and clean up blob URL.
          * ctx = { container, modal, resetZIndex }
@@ -161,6 +376,23 @@
             if (ctx && ctx.resetZIndex) {
                 modal.style.zIndex = '2000';
             }
+
+            // Clean up image viewer event listeners
+            if (_docViewerState._keyHandler) {
+                document.removeEventListener('keydown', _docViewerState._keyHandler);
+                _docViewerState._keyHandler = null;
+            }
+            if (_docViewerState._wheelHandler) {
+                const wrapper = document.getElementById('imageViewerWrapper');
+                if (wrapper) wrapper.removeEventListener('wheel', _docViewerState._wheelHandler);
+                _docViewerState._wheelHandler = null;
+            }
+            // Reset viewer state
+            _docViewerState.zoom = 1;
+            _docViewerState.panX = 0;
+            _docViewerState.panY = 0;
+            _docViewerState.rotation = 0;
+            _docViewerState.isDragging = false;
 
             if (_docViewerState.blobUrl) {
                 URL.revokeObjectURL(_docViewerState.blobUrl);

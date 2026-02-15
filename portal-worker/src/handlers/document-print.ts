@@ -655,6 +655,9 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       .field-grid { grid-template-columns: 1fr; }
       .parties-grid { grid-template-columns: 1fr; }
       .footer { flex-direction: column; gap: 4px; text-align: center; }
+      .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+      .data-table { font-size: 10px; min-width: 600px; }
+      .data-table th, .data-table td { padding: 4px 6px; word-break: break-word; }
     }
 
     @media print {
@@ -2582,7 +2585,7 @@ function generateCheckStubFields(data: any): string {
         </div>`;
 
       if (Array.isArray(well.products) && well.products.length > 0) {
-        wellsHtml += `<table class="data-table" style="font-size: 12px;">
+        wellsHtml += `<div class="table-scroll"><table class="data-table" style="font-size: 12px;">
           <thead><tr>
             <th>Product</th><th>Volume</th><th style="text-align:right;">Price</th>
             <th>Decimal</th><th>Purchaser</th>
@@ -2624,7 +2627,7 @@ function generateCheckStubFields(data: any): string {
           }
         });
 
-        wellsHtml += `</tbody></table>`;
+        wellsHtml += `</tbody></table></div>`;
       }
 
       if (well.well_owner_total != null) {

@@ -73,17 +73,25 @@
             if (data.estimatedRevenue !== null && data.estimatedRevenue !== undefined) {
                 document.getElementById('summaryRevenue').textContent = formatCurrency(data.estimatedRevenue);
                 const revDetail = document.getElementById('summaryRevenueDetail');
-                if (data.revenueChange !== null && data.revenueChange !== undefined) {
+                if (data.revenueWellCount && data.totalWells) {
+                    revDetail.textContent = `Based on ${data.revenueWellCount} of ${data.totalWells} wells with data`;
+                    revDetail.className = 'summary-detail neutral';
+                } else if (data.revenueChange !== null && data.revenueChange !== undefined) {
                     const sign = data.revenueChange >= 0 ? '+' : '';
                     revDetail.textContent = `${sign}${data.revenueChange.toFixed(1)}% from prior month`;
                     revDetail.className = `summary-detail ${data.revenueChange >= 0 ? 'success' : 'alert'}`;
                 } else {
-                    revDetail.textContent = 'Based on latest OTC data';
+                    revDetail.textContent = 'Based on available data';
                     revDetail.className = 'summary-detail neutral';
                 }
             } else {
                 document.getElementById('summaryRevenue').textContent = '—';
-                document.getElementById('summaryRevenueDetail').textContent = 'No revenue data yet';
+                const revDetail = document.getElementById('summaryRevenueDetail');
+                if (data.totalWells > 0) {
+                    revDetail.textContent = 'Add decimal interests or check stubs';
+                } else {
+                    revDetail.textContent = 'No revenue data yet';
+                }
             }
 
             // Deduction Health - neutral presentation

@@ -528,13 +528,13 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
     // ---- Shared setup: wells query (once) ----
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ? OR organization_id = ?`
-      : `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ?`;
+      ? `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      : `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
       ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
-    const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string }>;
+    const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string; airtable_id: string; ri_nri: number | null; wi_nri: number | null; orri_nri: number | null }>;
 
     if (!wells || wells.length === 0) {
       return jsonResponse({
@@ -595,49 +595,163 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     const tSetup = Date.now();
 
     // ---- Parallel query groups ----
-    // Group A: Revenue (internal chain: latestMonth → current + prior)
-    async function queryRevenue(): Promise<{ estimatedRevenue: number | null; revenueChange: number | null }> {
+    // Group A: Revenue — combines check stub actuals + OTC×decimal
+    // Priority: check stub owner amounts (most accurate) > OTC gross × user's NRI
+    async function queryRevenue(): Promise<{ estimatedRevenue: number | null; revenueChange: number | null; revenueWellCount: number }> {
       let estimatedRevenue: number | null = null;
       let revenueChange: number | null = null;
+      let revenueWellCount = 0;
 
       try {
-        const punBatch = basePuns.slice(0, 50);
-        const punPlaceholders = punBatch.map(() => '?').join(',');
-
-        const latestMonthResult = await env.WELLS_DB.prepare(
-          `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
-        ).bind(...punBatch).first() as { latest: string } | null;
-
-        const latestMonth = latestMonthResult?.latest;
-        if (!latestMonth) return { estimatedRevenue, revenueChange };
-
-        // Current + prior revenue in parallel
-        const [revenueResult, priorResult] = await Promise.all([
-          env.WELLS_DB.prepare(
-            `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
-             FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-          ).bind(...punBatch, latestMonth).first() as Promise<{ total_net: number; total_gross: number } | null>,
-          env.WELLS_DB.prepare(
-            `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
-             FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-          ).bind(...punBatch, getPriorMonth(latestMonth)).first() as Promise<{ total_net: number; total_gross: number } | null>
-        ]);
-
-        if (revenueResult) {
-          estimatedRevenue = Math.round(revenueResult.total_net || revenueResult.total_gross || 0);
+        // Build per-well map: api10 → { airtableId, decimal }
+        const wellMap = new Map<string, { airtableId: string; decimal: number }>();
+        for (const w of wells) {
+          if (!w.api_number) continue;
+          const api10 = w.api_number.replace(/-/g, '').substring(0, 10);
+          const decimal = w.ri_nri || w.wi_nri || w.orri_nri || 0;
+          wellMap.set(api10, { airtableId: w.airtable_id || '', decimal });
         }
 
-        if (priorResult && estimatedRevenue) {
-          const priorRevenue = priorResult.total_net || priorResult.total_gross || 0;
-          if (priorRevenue > 0) {
-            revenueChange = ((estimatedRevenue - priorRevenue) / priorRevenue) * 100;
+        // --- Source 1: Check stub actuals (most accurate — already post-decimal, post-deductions) ---
+        const checkStubRevenue = new Map<string, number>(); // api10 → owner revenue
+        const sixMonthsAgo = new Date();
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        const sixMonthsCutoff = sixMonthsAgo.toISOString().substring(0, 10);
+
+        try {
+          const docs = await env.WELLS_DB.prepare(`
+            SELECT well_id, extracted_data FROM documents
+            WHERE user_id = ?
+              AND doc_type IN ('check_stub', 'royalty_statement', 'revenue_statement')
+              AND status = 'complete'
+              AND (deleted_at IS NULL OR deleted_at = '')
+            ORDER BY uploaded_at DESC
+            LIMIT 100
+          `).bind(authUser.id).all();
+
+          for (const doc of docs.results) {
+            try {
+              const data = typeof doc.extracted_data === 'string'
+                ? JSON.parse(doc.extracted_data as string) : doc.extracted_data;
+              if (!data) continue;
+
+              // Filter by check_date recency (skip stubs older than 6 months)
+              const checkDate = data.check_date;
+              if (checkDate && checkDate < sixMonthsCutoff) continue;
+
+              // Extract per-well owner amounts
+              const docWells = data.wells || [];
+              for (const dw of docWells) {
+                const dwApi = (dw.api_number || '').replace(/-/g, '').substring(0, 10);
+                if (!dwApi || !wellMap.has(dwApi)) continue;
+                if (checkStubRevenue.has(dwApi)) continue; // keep most recent (ordered DESC)
+                const wellTotal = dw.well_owner_total;
+                if (wellTotal != null && wellTotal > 0) {
+                  checkStubRevenue.set(dwApi, wellTotal);
+                }
+              }
+
+              // Fallback: single-well doc with summary total but no wells[] array
+              if (docWells.length === 0 && data.summary?.total_net_revenue > 0) {
+                const wellIds = (doc.well_id as string || '').split(',').filter(Boolean);
+                if (wellIds.length === 1) {
+                  for (const [api10, info] of wellMap) {
+                    if (info.airtableId === wellIds[0] && !checkStubRevenue.has(api10)) {
+                      checkStubRevenue.set(api10, data.summary.total_net_revenue);
+                    }
+                  }
+                }
+              }
+            } catch { /* skip unparseable docs */ }
           }
+        } catch (e) {
+          console.error('[Intelligence Data] Check stub revenue error:', e instanceof Error ? e.message : e);
+        }
+
+        // --- Source 2: OTC × decimal for wells without check stub data ---
+        const otcRevenue = new Map<string, number>(); // api10 → estimated revenue
+        const wellsNeedingOtc = [...wellMap.entries()]
+          .filter(([api10, info]) => !checkStubRevenue.has(api10) && info.decimal > 0);
+
+        if (wellsNeedingOtc.length > 0 && basePuns.length > 0) {
+          try {
+            const punBatch = basePuns.slice(0, 50);
+            const punPlaceholders = punBatch.map(() => '?').join(',');
+
+            const latestMonthResult = await env.WELLS_DB.prepare(
+              `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
+            ).bind(...punBatch).first() as { latest: string } | null;
+
+            if (latestMonthResult?.latest) {
+              const latestMonth = latestMonthResult.latest;
+
+              // Per-well OTC net for latest month (batch by 25 to stay under D1 param limit)
+              const otcApis = wellsNeedingOtc.map(([api10]) => api10);
+              for (let i = 0; i < otcApis.length; i += 25) {
+                const apiBatch = otcApis.slice(i, i + 25);
+                const apiPlaceholders = apiBatch.map(() => '?').join(',');
+
+                const perWellResult = await env.WELLS_DB.prepare(`
+                  SELECT wpl.api_number, SUM(op.net_value) as well_net, SUM(op.gross_value) as well_gross
+                  FROM well_pun_links wpl
+                  JOIN otc_production op ON op.base_pun = wpl.base_pun AND op.year_month = ?
+                  WHERE wpl.api_number IN (${apiPlaceholders})
+                  GROUP BY wpl.api_number
+                `).bind(latestMonth, ...apiBatch).all();
+
+                for (const row of perWellResult.results) {
+                  const api = row.api_number as string;
+                  const wellValue = (row.well_net as number) || (row.well_gross as number) || 0;
+                  const decimal = wellMap.get(api)?.decimal || 0;
+                  if (wellValue > 0 && decimal > 0) {
+                    otcRevenue.set(api, wellValue * decimal);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.error('[Intelligence Data] OTC revenue error:', e instanceof Error ? e.message : e);
+          }
+        }
+
+        // --- Combine both sources ---
+        let totalRevenue = 0;
+        for (const [, amt] of checkStubRevenue) totalRevenue += amt;
+        for (const [, amt] of otcRevenue) totalRevenue += amt;
+        revenueWellCount = checkStubRevenue.size + otcRevenue.size;
+
+        if (totalRevenue > 0) {
+          estimatedRevenue = Math.round(totalRevenue * 100) / 100;
+        }
+
+        // Revenue change: compare to prior month using OTC aggregate (check stubs are point-in-time)
+        if (estimatedRevenue && basePuns.length > 0) {
+          try {
+            const punBatch = basePuns.slice(0, 50);
+            const punPlaceholders = punBatch.map(() => '?').join(',');
+            const latestMonthResult = await env.WELLS_DB.prepare(
+              `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
+            ).bind(...punBatch).first() as { latest: string } | null;
+            if (latestMonthResult?.latest) {
+              const [curResult, priorResult] = await Promise.all([
+                env.WELLS_DB.prepare(
+                  `SELECT SUM(gross_value) as total FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
+                ).bind(...punBatch, latestMonthResult.latest).first() as Promise<{ total: number } | null>,
+                env.WELLS_DB.prepare(
+                  `SELECT SUM(gross_value) as total FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
+                ).bind(...punBatch, getPriorMonth(latestMonthResult.latest)).first() as Promise<{ total: number } | null>
+              ]);
+              if (curResult?.total && priorResult?.total && priorResult.total > 0) {
+                revenueChange = ((curResult.total - priorResult.total) / priorResult.total) * 100;
+              }
+            }
+          } catch { /* non-critical */ }
         }
       } catch (e) {
         console.error('[Intelligence Data] Revenue error:', e instanceof Error ? e.message : e);
       }
 
-      return { estimatedRevenue, revenueChange };
+      return { estimatedRevenue, revenueChange, revenueWellCount };
     }
 
     // Group B: Deductions (full detail — superset of summary count + insights)
@@ -854,6 +968,8 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       countyCount: counties.size,
       estimatedRevenue: revenueData.estimatedRevenue,
       revenueChange: revenueData.revenueChange !== null ? Math.round(revenueData.revenueChange * 10) / 10 : null,
+      revenueWellCount: revenueData.revenueWellCount,
+      totalWells: wells.length,
       deductionFlags: deductionData.deductionFlags,
       shutInWells: shutInData.total,
       wellsAnalyzed: deductionData.wellsAnalyzed,
@@ -3799,7 +3915,7 @@ function generateDeductionAuditPrintHtml(data: any, userName: string, options?: 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deduction Audit Report - Mineral Watch</title>
+  <title>Residue Gas Deduction Audit Report - Mineral Watch</title>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -3879,7 +3995,7 @@ function generateDeductionAuditPrintHtml(data: any, userName: string, options?: 
   <div class="print-container">
     <div class="header">
       <div>
-        <h1>DEDUCTION AUDIT REPORT${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
+        <h1>RESIDUE GAS DEDUCTION AUDIT REPORT${options?.tab === 'research' ? ' — MARKET RESEARCH' : ''}</h1>
         <div class="subtitle">Analysis Period: ${summary?.analysis_period || '6 months'} ending ${formatReportMonth(summary?.latest_month || '')}</div>
       </div>
       <div class="brand">

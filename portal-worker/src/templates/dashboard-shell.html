@@ -315,6 +315,18 @@
                                 </div>
                             </div>
                         </div>
+                        <!-- Enhanced Extraction Toggle -->
+                        <label id="enhancedToggleLabel" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; padding: 8px 14px; border: 1px solid #E5E7EB; border-radius: 8px; font-size: 13px; transition: all 0.2s;">
+                            <div style="position: relative; width: 36px; height: 20px; flex-shrink: 0;">
+                                <input type="checkbox" id="enhancedExtractionToggle" onchange="toggleEnhancedExtraction()" style="opacity: 0; width: 0; height: 0; position: absolute;">
+                                <div id="enhancedToggleTrack" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #D1D5DB; border-radius: 10px; transition: background 0.2s;"></div>
+                                <div id="enhancedToggleThumb" style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
+                            </div>
+                            <div>
+                                <div id="enhancedToggleText" style="color: #6B7280; font-weight: 600; font-size: 13px;">Enhanced extraction — 2 credits</div>
+                                <div style="color: #9CA3AF; font-size: 11px; margin-top: 1px;">Advanced model for handwritten, faded, or complex documents</div>
+                            </div>
+                        </label>
                         <button class="btn-add" onclick="openUploadModal()" style="font-size: 14px;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>

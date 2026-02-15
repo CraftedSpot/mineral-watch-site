@@ -428,7 +428,7 @@
                 : '';
 
             let html = countHtml + `
-                <table class="directory-table compact-directory">
+                <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;"><table class="directory-table compact-directory">
                     <thead>
                         <tr>
                             <th class="sortable" onclick="handleDirectorySort('operator_name')">Operator${renderDirectorySortArrow('operator_name')}</th>
@@ -491,7 +491,7 @@
                 `;
             });
 
-            html += '</tbody></table>';
+            html += '</tbody></table></div>';
             document.getElementById('directoryContent').innerHTML = html;
         }
 
