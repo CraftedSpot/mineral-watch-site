@@ -1116,6 +1116,44 @@ export default {
           // Continue without children data if query fails
         }
 
+        // Fetch ALL linked wells if well_id is set (same pattern as properties above)
+        let linked_wells: any[] = [];
+        if (doc.well_id) {
+          const wellIds = (doc.well_id as string).split(',').map(id => id.trim()).filter(id => id);
+          console.log('Fetching linked wells:', wellIds);
+
+          if (wellIds.length > 0) {
+            // Try client_wells first (user's tracked wells), then statewide wells
+            for (const wId of wellIds) {
+              // Check client_wells
+              let wellData = await env.WELLS_DB.prepare(`
+                SELECT airtable_id as id, well_name, api_number, operator, county, well_status
+                FROM client_wells WHERE airtable_id = ?
+              `).bind(wId).first();
+
+              if (!wellData) {
+                // Fallback to statewide wells table
+                wellData = await env.WELLS_DB.prepare(`
+                  SELECT airtable_record_id as id, well_name, api_number, operator, county, well_status
+                  FROM wells WHERE airtable_record_id = ?
+                `).bind(wId).first();
+              }
+
+              if (wellData) {
+                linked_wells.push({
+                  id: wellData.id,
+                  well_name: wellData.well_name,
+                  api_number: wellData.api_number,
+                  operator: wellData.operator,
+                  county: wellData.county,
+                  well_status: wellData.well_status
+                });
+              }
+            }
+            console.log('Found linked wells:', linked_wells.length);
+          }
+        }
+
         // For backwards compatibility, also set property_name from first linked property
         const property_name = linked_properties.length > 0 ? linked_properties[0].name : null;
 
@@ -1126,11 +1164,13 @@ export default {
           child_count,
           // Array of all linked properties
           linked_properties,
+          // Array of all linked wells
+          linked_wells,
           // For backwards compatibility - first property name
           property_name: property_name,
-          // Add well name and API number if we have well data
-          well_name: doc.well_name || null,
-          well_api_number: doc.well_api_number || null
+          // For backwards compatibility - first well name and API
+          well_name: linked_wells.length > 0 ? linked_wells[0].well_name : (doc.well_name || null),
+          well_api_number: linked_wells.length > 0 ? linked_wells[0].api_number : (doc.well_api_number || null)
         };
 
         console.log('Returning document with children and linked data:', {

@@ -6034,9 +6034,10 @@
         // Helper function to render linked items sections in document modal
         function renderDocumentLinkedSections(doc) {
             const hasLinkedProperties = doc.linked_properties && doc.linked_properties.length > 0;
-            const hasLinkedWell = doc.well_id && doc.well_name;
+            const hasLinkedWells = doc.linked_wells && doc.linked_wells.length > 0;
+            const hasLinkedWell = !hasLinkedWells && doc.well_id && doc.well_name; // fallback for old API
 
-            if (!hasLinkedProperties && !hasLinkedWell) {
+            if (!hasLinkedProperties && !hasLinkedWells && !hasLinkedWell) {
                 return '';
             }
 
@@ -6073,8 +6074,40 @@
                 html += `</div></div>`;
             }
 
-            // Linked Wells section
-            if (hasLinkedWell) {
+            // Linked Wells section (array from linked_wells, or fallback to single well)
+            if (hasLinkedWells) {
+                const wellCount = doc.linked_wells.length;
+                html += `
+                    <div class="doc-linked-section">
+                        <div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">
+                            <span class="doc-linked-arrow">▶</span>
+                            <span class="doc-linked-title">Linked Wells</span>
+                            <span class="doc-linked-count">${wellCount}</span>
+                        </div>
+                        <div class="doc-linked-content expanded">`;
+
+                for (const well of doc.linked_wells) {
+                    const ws = well.well_status || 'AC';
+                    const statusStyle = ws === 'AC' ? 'background: #dcfce7; color: #166534;' :
+                                       ws === 'TA' ? 'background: #fef9c3; color: #854d0e;' :
+                                       ws === 'PA' ? 'background: #f3f4f6; color: #6b7280;' :
+                                       'background: #e5e7eb; color: #374151;';
+
+                    html += `
+                            <div class="doc-linked-row" onclick="openWellFromDocument('${well.api_number || well.id}')">
+                                <div>
+                                    <div class="link-name">${escapeHtml(well.well_name || 'Unknown Well')}</div>
+                                    <div class="link-meta">${well.api_number ? escapeHtml(well.api_number) + ' • ' : ''}${well.operator ? escapeHtml(well.operator) + ' • ' : ''}${well.county ? escapeHtml(well.county) : ''}</div>
+                                </div>
+                                <div class="link-badges">
+                                    <span class="status-badge" style="${statusStyle}">${ws}</span>
+                                </div>
+                            </div>`;
+                }
+
+                html += `</div></div>`;
+            } else if (hasLinkedWell) {
+                // Fallback for documents fetched before linked_wells was added
                 const wellStatus = doc.well_status || 'AC';
                 const statusStyle = wellStatus === 'AC' ? 'background: #dcfce7; color: #166534;' :
                                    wellStatus === 'TA' ? 'background: #fef9c3; color: #854d0e;' :

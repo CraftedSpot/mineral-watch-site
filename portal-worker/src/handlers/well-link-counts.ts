@@ -48,10 +48,11 @@ function normalizeSection(sec: string | number | null): number | null {
 const BATCH_SIZE_D1 = 30; // D1 limit: 100 bound params; STR queries use 3 per item
 const WELLS_CACHE_TTL = 300; // 5 minutes
 
-// Document types that show on well modals
+// Document types that show on well modals (keep in sync with property-documents-d1.ts WELL_DOC_TYPES)
 const WELL_DOC_TYPES = [
   'completion_report', 'drilling_permit', 'plugging_report', 'well_log',
-  'production_report', 'regulatory_filing', 'occ_order', 'division_order'
+  'production_report', 'regulatory_filing', 'occ_order', 'division_order',
+  'transfer_order', 'revenue_statement', 'check_stub'
 ];
 
 interface LinkCounts {
