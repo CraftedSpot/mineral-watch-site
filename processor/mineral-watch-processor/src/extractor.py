@@ -8280,27 +8280,27 @@ IMPORTANT: Structure your response as follows:
 
    KEY TAKEAWAY:
    - 2-3 sentences maximum
-   - State operator, total check amount, and production month(s) covered
-   - Note the number of wells and key decimal interest(s)
-   - Flag if deductions exceed 25% of gross or if payments are >3 months behind production
+   - Lead with the most important finding: an anomaly, a flag, or a reassurance that everything looks normal
+   - Include operator name, check amount, and production month for context
+   - If deductions exceed 25% of gross or payments are >3 months behind production, say so here
 
    DETAILED ANALYSIS:
-   - Write as an experienced oil and gas revenue auditor
+   - Write as an experienced oil and gas revenue auditor advising a mineral owner
+   - Do NOT restate numbers the owner can already see in the extracted data (volumes, prices, per-well totals)
+   - Focus ONLY on what is unusual, noteworthy, or requires attention
    - Use this EXACT format with plain text section headings (NO markdown, NO **bold**):
 
-     Payment Summary:
-     [Who paid, check amount, check date, production months covered, statement type]
+     What Stands Out:
+     [Only mention things worth the owner's attention. Examples: unusually high or low deductions relative to gross, price significantly below or above recent Oklahoma posted prices, decimal interest differences between products on the same well, negative prior-period adjustments, missing wells compared to prior statements, payment lag >3 months from production month. If nothing is unusual, say "This statement looks routine — no anomalies detected." Do NOT just list the numbers back.]
 
-     Per-Well Breakdown:
-     [For EACH well: name, API, county, decimal interest, volumes by product, price, gross, deductions by category, taxes by type, and owner amount]
+     Deduction Review:
+     [State the overall deduction percentage for each well (total deductions / gross sales). Flag any well where deductions exceed 25% of gross. If interest_type is "royalty" and post-production costs (gathering, compression, transportation, processing, marketing) are being deducted, note that post-production deductions from royalty interests are legally contentious in Oklahoma and worth reviewing with the lease terms. If deductions are not itemized by category, say so. If deductions are zero or minimal, say "No significant deductions." Keep this to 2-3 sentences.]
 
-     Audit Flags:
-     [Flag: unusual deduction % (>25% of gross), decimal mismatches between products, late payments (>3 months), negative adjustments.
-      If interest_type is "royalty": note that post-production deductions are legally contentious in Oklahoma — flag any such deductions as worth reviewing.
-      If total_deductions has a value, say "deductions not itemized by category" rather than "no deductions shown".
-      DO NOT cite county averages, industry benchmarks, or statistics not on this document.]
+     Action Items:
+     [Concrete steps the owner should consider. Examples: "Verify your decimal interest matches your division order", "Compare this deduction rate to prior months", "Check your lease for a no-deductions clause — these gathering charges may not be permitted", "This negative adjustment warrants a call to the operator for explanation." If no action needed, say "No action needed — payment appears consistent with expected terms." Keep to 1-3 bullet points, plain text.]
 
-   - Keep each section concise (2-4 sentences each)
+   - DO NOT cite county averages, industry benchmarks, or statistics not on this document
+   - Keep the entire analysis under 200 words — brevity is valued
 
 SOURCE OF TRUTH: The DOCUMENT is the source of truth. Extract what it says. IGNORE filenames or external metadata.
 DO NOT EXTRACT: Owner/payee addresses, Tax ID numbers or EINs.
