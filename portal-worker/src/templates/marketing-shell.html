@@ -127,15 +127,19 @@
     </div>
   </div>
 
-  <!-- ======== TAB: Calendar (STATIC) ======== -->
+  <!-- ======== TAB: Calendar (LIVE) ======== -->
   <div id="tab-calendar" class="tab-panel">
-    <div class="cal-month-nav">
-      <button class="cal-nav-btn">&#9664;</button>
-      <div class="cal-month-title">February 2026</div>
-      <button class="cal-nav-btn">&#9654;</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="cal-month-nav">
+        <button class="cal-nav-btn" onclick="calPrevMonth()">&#9664;</button>
+        <div class="cal-month-title" id="calMonthTitle">February 2026</div>
+        <button class="cal-nav-btn" onclick="calNextMonth()">&#9654;</button>
+        <button class="cal-nav-btn" onclick="calGoToToday()" style="margin-left:8px;font-size:12px;padding:4px 10px;">Today</button>
+      </div>
+      <button class="btn btn-primary" onclick="openAddCalEvent()">+ Add Event</button>
     </div>
 
-    <div class="calendar-grid">
+    <div class="calendar-grid" id="calendarGrid">
       <div class="cal-header">Sun</div>
       <div class="cal-header">Mon</div>
       <div class="cal-header">Tue</div>
@@ -143,131 +147,20 @@
       <div class="cal-header">Thu</div>
       <div class="cal-header">Fri</div>
       <div class="cal-header">Sat</div>
-
-      <!-- Week 1 -->
-      <div class="cal-day"><div class="cal-day-num">1</div>
-        <div class="cal-event forum" title="Monthly Forum Post: OCC Trends">Forum: OCC Trends</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">2</div>
-        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">3</div>
-        <div class="cal-event blog" title="Blog: Why Mineral Owners Need OCC Monitoring">Blog: OCC Monitoring</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">4</div></div>
-      <div class="cal-day"><div class="cal-day-num">5</div>
-        <div class="cal-event social" title="LinkedIn: Book Infographic - Chapter 1">LI: Book Excerpt</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">6</div></div>
-      <div class="cal-day"><div class="cal-day-num">7</div></div>
-
-      <!-- Week 2 -->
-      <div class="cal-day"><div class="cal-day-num">8</div></div>
-      <div class="cal-day"><div class="cal-day-num">9</div>
-        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">10</div>
-        <div class="cal-event social" title="LinkedIn: 5 Things Your Mineral Manager Should Track">LI: Mineral Manager</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">11</div></div>
-      <div class="cal-day"><div class="cal-day-num">12</div>
-        <div class="cal-event forum" title="Forum Q&amp;A (daily 30min)">Forum Answers</div>
-        <div class="cal-event book" title="Submit book to NARO newsletter">NARO Submission</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">13</div></div>
-      <div class="cal-day"><div class="cal-day-num">14</div></div>
-
-      <!-- Week 3 -->
-      <div class="cal-day today"><div class="cal-day-num">15</div>
-        <div class="cal-event lead" title="Follow up: HHD Demo">HHD Follow-up</div>
-        <div class="cal-event seo" title="Publish county landing page: Canadian">SEO: Canadian Co.</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">16</div>
-        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
-        <div class="cal-event lead" title="Send trial invite to Whitfield">Trial: Whitfield</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">17</div>
-        <div class="cal-event lead" title="HHD Demo Call">HHD Demo Call</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">18</div>
-        <div class="cal-event email" title="HHD Follow-Up Drip #1">HHD Drip #1</div>
-        <div class="cal-event lead" title="Send case study to Sarah M.">Case Study &rarr; Sarah</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">19</div>
-        <div class="cal-event social" title="LinkedIn: Book Infographic - Chapter 2">LI: Book Ch.2</div>
-        <div class="cal-event lead" title="Reach out to Patterson Ranch">Reach: Patterson</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">20</div>
-        <div class="cal-event lead" title="Follow up Rodriguez trial">Rodriguez F/U</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">21</div></div>
-
-      <!-- Week 4 -->
-      <div class="cal-day"><div class="cal-day-num">22</div></div>
-      <div class="cal-day"><div class="cal-day-num">23</div>
-        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
-        <div class="cal-event email" title="Feature Announcement: Re-Analyze">Announce: Re-Analyze</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">24</div>
-        <div class="cal-event social" title="LinkedIn Article: Horizontal Wells Explained">LI: Horiz. Wells</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">25</div>
-        <div class="cal-event blog" title="Case Study: Price Oil &amp; Gas">Case Study: POG</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">26</div>
-        <div class="cal-event video" title="Record: Product Walkthrough">Record Walkthrough</div>
-      </div>
-      <div class="cal-day"><div class="cal-day-num">27</div></div>
-      <div class="cal-day"><div class="cal-day-num">28</div></div>
+      <!-- Day cells rendered dynamically -->
     </div>
 
     <!-- Upcoming Industry Events -->
     <div style="margin-top: 28px;">
-      <div class="metrics-section-title">Upcoming Industry Events</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div class="metrics-section-title" style="margin-bottom:0;">Upcoming Industry Events</div>
+        <button class="btn btn-primary" onclick="openAddCalEvent('Industry Event')" style="font-size:12px;padding:6px 12px;">+ Add Industry Event</button>
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Strategy</th><th>Status</th><th>Cost</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><div class="content-title">OCAPL Monthly Luncheon</div><div class="content-channel">Oklahoma City Association of Professional Landmen</div></td>
-              <td style="font-size:13px; white-space:nowrap;">Mar 5, 2026</td>
-              <td style="font-size:13px;">OKC</td>
-              <td style="font-size:13px; color: var(--text-secondary);">Attend, network, in-person demo</td>
-              <td><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></td>
-              <td style="font-family: var(--font-mono); font-size:13px;">~$50</td>
-            </tr>
-            <tr>
-              <td><div class="content-title">OK Energy Producers Alliance Annual</div><div class="content-channel">Producers &amp; operators conference</div></td>
-              <td style="font-size:13px; white-space:nowrap;">Mar 26-27, 2026</td>
-              <td style="font-size:13px;">Embassy Suites, OKC</td>
-              <td style="font-size:13px; color: var(--text-secondary);">Attend &amp; network; consider small sponsor table</td>
-              <td><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></td>
-              <td style="font-family: var(--font-mono); font-size:13px;">TBD</td>
-            </tr>
-            <tr>
-              <td><div class="content-title">AAPL Annual Meeting</div><div class="content-channel">National landman audience</div></td>
-              <td style="font-size:13px; white-space:nowrap;">Jun 24-26, 2026</td>
-              <td style="font-size:13px;">Salt Lake City</td>
-              <td style="font-size:13px; color: var(--text-secondary);">Networking for landman segment</td>
-              <td><span class="badge badge-idea"><span class="badge-dot dot-purple"></span>Evaluating</span></td>
-              <td style="font-family: var(--font-mono); font-size:13px;">~$500+</td>
-            </tr>
-            <tr>
-              <td><div class="content-title">NARO East Convention</div><div class="content-channel">Mineral/royalty owners — core audience</div></td>
-              <td style="font-size:13px; white-space:nowrap;">Sep 28-Oct 1, 2026</td>
-              <td style="font-size:13px;">Cambridge, OH</td>
-              <td style="font-size:13px; color: var(--text-secondary);">Sponsor or present webinar to exact ICP</td>
-              <td><span class="badge badge-idea"><span class="badge-dot dot-purple"></span>Evaluating</span></td>
-              <td style="font-family: var(--font-mono); font-size:13px;">TBD</td>
-            </tr>
-            <tr style="background: rgba(59, 130, 246, 0.04);">
-              <td><div class="content-title" style="color: var(--accent-blue);">OERB Oklahoma Oil &amp; Gas Expo</div><div class="content-channel">4,000+ attendees, 300 exhibitors, Prospect Fair</div></td>
-              <td style="font-size:13px; white-space:nowrap;">Oct 15, 2026</td>
-              <td style="font-size:13px;">OKC Fairgrounds</td>
-              <td style="font-size:13px; color: var(--text-secondary);">Exhibit at Prospect Fair — live MW demo booth</td>
-              <td><span class="badge badge-hot"><span class="badge-dot dot-red"></span>High Priority</span></td>
-              <td style="font-family: var(--font-mono); font-size:13px;">$500-1k</td>
-            </tr>
+          <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Strategy</th><th>Status</th><th>Cost</th><th style="width:60px;"></th></tr></thead>
+          <tbody id="industryEventsBody">
+            <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">Loading...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1252,6 +1145,85 @@
       <button class="btn btn-ghost" onclick="closeIdeaModal()">Cancel</button>
       <button class="btn btn-primary" onclick="saveIdea()">Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ======== Calendar Event Modal ======== -->
+<div class="modal-overlay" id="calEventModal">
+  <div class="modal">
+    <div class="modal-title" id="calEventModalTitle">Add Event</div>
+    <form id="calEventForm">
+    <input type="hidden" id="editCalEventId" value="">
+    <div class="modal-field">
+      <label>Title</label>
+      <input type="text" id="calEventTitle" required>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="modal-field">
+        <label>Date</label>
+        <input type="date" id="calEventDate" required>
+      </div>
+      <div class="modal-field">
+        <label>End Date <span style="color:var(--text-muted);font-size:11px;">(optional, multi-day)</span></label>
+        <input type="date" id="calEventEndDate">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="modal-field">
+        <label>Type</label>
+        <select id="calEventType">
+          <option value="Forum">Forum</option>
+          <option value="Blog">Blog</option>
+          <option value="Email">Email</option>
+          <option value="Social">Social</option>
+          <option value="Video">Video</option>
+          <option value="SEO">SEO</option>
+          <option value="Book">Book</option>
+          <option value="Lead">Lead</option>
+          <option value="Industry Event">Industry Event</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <label>Status</label>
+        <select id="calEventStatus">
+          <option value="">-- None --</option>
+          <option value="Planned">Planned</option>
+          <option value="Evaluating">Evaluating</option>
+          <option value="Confirmed">Confirmed</option>
+          <option value="Completed">Completed</option>
+          <option value="High Priority">High Priority</option>
+        </select>
+      </div>
+    </div>
+    <div id="calIndustryFields" style="display:none;">
+      <div class="modal-field">
+        <label>Location</label>
+        <input type="text" id="calEventLocation">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="modal-field">
+          <label>Strategy</label>
+          <input type="text" id="calEventStrategy">
+        </div>
+        <div class="modal-field">
+          <label>Cost</label>
+          <input type="text" id="calEventCost" placeholder="e.g. ~$500">
+        </div>
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>Description</label>
+      <input type="text" id="calEventDescription">
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="calEventNotes"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" onclick="closeCalEventModal()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save</button>
+    </div>
+    </form>
   </div>
 </div>
 

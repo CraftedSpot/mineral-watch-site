@@ -3,6 +3,7 @@ import { handleMetrics } from './handlers/metrics';
 import { handleLeads } from './handlers/leads';
 import { handleContent } from './handlers/content';
 import { handleIdeas } from './handlers/ideas';
+import { handleCalendar } from './handlers/calendar';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -46,6 +47,11 @@ export default {
       // /api/marketing/ideas[/:id][/promote]
       if (path.startsWith('/api/marketing/ideas')) {
         return handleIdeas(request, env, path, method);
+      }
+
+      // /api/marketing/calendar[/:id]
+      if (path.startsWith('/api/marketing/calendar')) {
+        return handleCalendar(request, env, path, method);
       }
 
       return jsonResponse({ error: 'Not found' }, 404);

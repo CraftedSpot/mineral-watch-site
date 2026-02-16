@@ -28,6 +28,7 @@
                     closeContentModal();
                     closeLeadModal();
                     closeIdeaModal();
+                    closeCalEventModal();
                 }
             });
         });
@@ -57,6 +58,7 @@
                 else if (tabName === 'content') loadContent();
                 else if (tabName === 'leads') loadLeads();
                 else if (tabName === 'ideas') loadIdeas();
+                else if (tabName === 'calendar') loadCalendar();
             }
         }
 
@@ -691,6 +693,296 @@
         }
 
         // =============================================
+        // CALENDAR TAB
+        // =============================================
+        let calYear = new Date().getFullYear();
+        let calMonth = new Date().getMonth() + 1; // 1-based
+        let allCalEvents = [];
+
+        async function loadCalendar() {
+            try {
+                const res = await fetch('/api/marketing/calendar');
+                if (!res.ok) throw new Error('Failed to load calendar');
+                allCalEvents = await res.json();
+                renderCalendarGrid();
+                renderIndustryEvents();
+            } catch (err) {
+                console.error('Calendar load error:', err);
+                document.getElementById('calMonthTitle').textContent = 'Error loading';
+            }
+        }
+
+        function calPrevMonth() {
+            calMonth--;
+            if (calMonth < 1) { calMonth = 12; calYear--; }
+            renderCalendarGrid();
+        }
+
+        function calNextMonth() {
+            calMonth++;
+            if (calMonth > 12) { calMonth = 1; calYear++; }
+            renderCalendarGrid();
+        }
+
+        function calGoToToday() {
+            const now = new Date();
+            calYear = now.getFullYear();
+            calMonth = now.getMonth() + 1;
+            renderCalendarGrid();
+        }
+
+        function renderCalendarGrid() {
+            const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            document.getElementById('calMonthTitle').textContent = monthNames[calMonth - 1] + ' ' + calYear;
+
+            const grid = document.getElementById('calendarGrid');
+            // Remove all day cells but keep headers
+            const headers = grid.querySelectorAll('.cal-header');
+            grid.innerHTML = '';
+            headers.forEach(h => grid.appendChild(h));
+
+            // First day of month (0=Sun)
+            const firstDay = new Date(calYear, calMonth - 1, 1).getDay();
+            const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+            const today = new Date();
+            const isCurrentMonth = today.getFullYear() === calYear && today.getMonth() + 1 === calMonth;
+            const todayDate = today.getDate();
+
+            // Get events for this month (non-industry)
+            const monthEvents = allCalEvents.filter(e => {
+                if (e.type === 'Industry Event') return false;
+                if (!e.date) return false;
+                const d = new Date(e.date + 'T00:00:00');
+                return d.getFullYear() === calYear && d.getMonth() + 1 === calMonth;
+            });
+
+            // Group events by day
+            const eventsByDay = {};
+            monthEvents.forEach(e => {
+                const d = new Date(e.date + 'T00:00:00').getDate();
+                if (!eventsByDay[d]) eventsByDay[d] = [];
+                eventsByDay[d].push(e);
+            });
+
+            // Empty cells before first day
+            for (let i = 0; i < firstDay; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cal-day cal-day-empty';
+                grid.appendChild(cell);
+            }
+
+            // Day cells
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'cal-day';
+                if (isCurrentMonth && day === todayDate) cell.classList.add('today');
+
+                const numEl = document.createElement('div');
+                numEl.className = 'cal-day-num';
+                numEl.textContent = day;
+                cell.appendChild(numEl);
+
+                // Render events for this day
+                const dayEvents = eventsByDay[day] || [];
+                dayEvents.forEach(evt => {
+                    const evtEl = document.createElement('div');
+                    const typeClass = (evt.type || '').toLowerCase().replace(/\s+/g, '-');
+                    evtEl.className = 'cal-event ' + typeClass;
+                    evtEl.title = evt.title + (evt.description ? ' — ' + evt.description : '');
+                    evtEl.textContent = truncate(evt.title, 20);
+                    evtEl.style.cursor = 'pointer';
+                    evtEl.onclick = function(e) { e.stopPropagation(); openEditCalEvent(evt.id); };
+                    cell.appendChild(evtEl);
+                });
+
+                // Click empty area to add event on that day
+                cell.addEventListener('click', function() {
+                    const dateStr = calYear + '-' + String(calMonth).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                    openAddCalEvent(null, dateStr);
+                });
+
+                grid.appendChild(cell);
+            }
+        }
+
+        function renderIndustryEvents() {
+            const tbody = document.getElementById('industryEventsBody');
+            const events = allCalEvents
+                .filter(e => e.type === 'Industry Event')
+                .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
+            if (events.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:2rem;">No industry events yet.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = events.map(evt => {
+                const statusBadge = getIndustryStatusBadge(evt.status);
+                let dateDisplay = evt.date ? formatDate(evt.date) : '--';
+                if (evt.end_date && evt.end_date !== evt.date) {
+                    dateDisplay += ' — ' + formatDate(evt.end_date);
+                }
+                const isHighPriority = evt.status === 'High Priority';
+                const rowStyle = isHighPriority ? ' style="background: rgba(59, 130, 246, 0.04);"' : '';
+                const titleStyle = isHighPriority ? ' style="color: var(--accent-blue);"' : '';
+
+                return '<tr' + rowStyle + '>' +
+                    '<td><div class="content-title"' + titleStyle + '>' + esc(evt.title) + '</div>' +
+                        (evt.description ? '<div class="content-channel">' + esc(evt.description) + '</div>' : '') +
+                    '</td>' +
+                    '<td style="font-size:13px; white-space:nowrap;">' + dateDisplay + '</td>' +
+                    '<td style="font-size:13px;">' + esc(evt.location || '--') + '</td>' +
+                    '<td style="font-size:13px; color: var(--text-secondary);">' + esc(evt.strategy || '--') + '</td>' +
+                    '<td>' + statusBadge + '</td>' +
+                    '<td style="font-family: var(--font-mono); font-size:13px;">' + esc(evt.cost || '--') + '</td>' +
+                    '<td><div class="action-dots">' +
+                        '<button class="action-btn" onclick=\'openEditCalEvent("' + evt.id + '")\' title="Edit">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>' +
+                        '</button>' +
+                        '<button class="action-btn action-btn-danger" onclick=\'deleteCalEvent("' + evt.id + '")\' title="Delete">' +
+                            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+                        '</button>' +
+                    '</div></td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function getIndustryStatusBadge(status) {
+            if (status === 'High Priority') return '<span class="badge badge-hot"><span class="badge-dot dot-red"></span>High Priority</span>';
+            if (status === 'Planned') return '<span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span>';
+            if (status === 'Evaluating') return '<span class="badge badge-idea"><span class="badge-dot dot-purple"></span>Evaluating</span>';
+            if (status === 'Confirmed') return '<span class="badge badge-published"><span class="badge-dot dot-green"></span>Confirmed</span>';
+            if (status === 'Completed') return '<span class="badge badge-target-list"><span class="badge-dot dot-gray"></span>Completed</span>';
+            return '<span class="badge">' + esc(status || '--') + '</span>';
+        }
+
+        // =============================================
+        // CALENDAR EVENT MODAL
+        // =============================================
+        function openAddCalEvent(type, dateStr) {
+            document.getElementById('editCalEventId').value = '';
+            document.getElementById('calEventModalTitle').textContent = 'Add Event';
+            document.getElementById('calEventForm').reset();
+            if (type) {
+                document.getElementById('calEventType').value = type;
+            }
+            if (dateStr) {
+                document.getElementById('calEventDate').value = dateStr;
+            }
+            toggleIndustryFields();
+            openModal('calEventModal');
+        }
+
+        function openEditCalEvent(id) {
+            const evt = allCalEvents.find(e => e.id === id);
+            if (!evt) return;
+
+            document.getElementById('editCalEventId').value = id;
+            document.getElementById('calEventModalTitle').textContent = 'Edit Event';
+            document.getElementById('calEventTitle').value = evt.title || '';
+            document.getElementById('calEventDate').value = evt.date || '';
+            document.getElementById('calEventEndDate').value = evt.end_date || '';
+            document.getElementById('calEventType').value = evt.type || 'Forum';
+            document.getElementById('calEventStatus').value = evt.status || '';
+            document.getElementById('calEventLocation').value = evt.location || '';
+            document.getElementById('calEventStrategy').value = evt.strategy || '';
+            document.getElementById('calEventCost').value = evt.cost || '';
+            document.getElementById('calEventDescription').value = evt.description || '';
+            document.getElementById('calEventNotes').value = evt.notes || '';
+            toggleIndustryFields();
+            openModal('calEventModal');
+        }
+
+        function toggleIndustryFields() {
+            const type = document.getElementById('calEventType').value;
+            document.getElementById('calIndustryFields').style.display = type === 'Industry Event' ? 'block' : 'none';
+        }
+
+        // Wire up type change to show/hide industry fields
+        document.addEventListener('DOMContentLoaded', function() {
+            const typeSelect = document.getElementById('calEventType');
+            if (typeSelect) typeSelect.addEventListener('change', toggleIndustryFields);
+
+            const calForm = document.getElementById('calEventForm');
+            if (calForm) calForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                saveCalEvent();
+            });
+        });
+
+        async function saveCalEvent() {
+            const id = document.getElementById('editCalEventId').value;
+            const payload = {
+                title: document.getElementById('calEventTitle').value.trim(),
+                date: document.getElementById('calEventDate').value || null,
+                end_date: document.getElementById('calEventEndDate').value || null,
+                type: document.getElementById('calEventType').value,
+                status: document.getElementById('calEventStatus').value || null,
+                location: document.getElementById('calEventLocation').value.trim() || null,
+                strategy: document.getElementById('calEventStrategy').value.trim() || null,
+                cost: document.getElementById('calEventCost').value.trim() || null,
+                description: document.getElementById('calEventDescription').value.trim() || null,
+                notes: document.getElementById('calEventNotes').value.trim() || null
+            };
+
+            if (!payload.title) {
+                showToast('Title is required', 'error');
+                return;
+            }
+            if (!payload.date) {
+                showToast('Date is required', 'error');
+                return;
+            }
+
+            try {
+                let res;
+                if (id) {
+                    res = await fetch('/api/marketing/calendar/' + id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    res = await fetch('/api/marketing/calendar', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!res.ok) throw new Error('Save failed');
+                closeCalEventModal();
+                loadedTabs['calendar'] = false;
+                loadCalendar();
+                loadedTabs['calendar'] = true;
+                showToast(id ? 'Event updated!' : 'Event added!', 'success');
+            } catch (err) {
+                console.error('Save calendar event error:', err);
+                showToast('Failed to save event', 'error');
+            }
+        }
+
+        async function deleteCalEvent(id) {
+            if (!confirm('Delete this event?')) return;
+
+            try {
+                const res = await fetch('/api/marketing/calendar/' + id, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                allCalEvents = allCalEvents.filter(e => e.id !== id);
+                renderCalendarGrid();
+                renderIndustryEvents();
+                showToast('Event deleted', 'success');
+            } catch (err) {
+                console.error('Delete calendar event error:', err);
+                showToast('Failed to delete event', 'error');
+            }
+        }
+
+        function closeCalEventModal() {
+            closeModal('calEventModal');
+        }
+
+        // =============================================
         // SEARCH
         // =============================================
         function handleSearch(value) {
@@ -867,5 +1159,6 @@
             else if (currentTab === 'content') loadContent();
             else if (currentTab === 'leads') loadLeads();
             else if (currentTab === 'ideas') loadIdeas();
+            else if (currentTab === 'calendar') loadCalendar();
             loadedTabs[currentTab] = true;
         }
