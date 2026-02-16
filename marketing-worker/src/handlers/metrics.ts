@@ -120,19 +120,23 @@ interface UserCounts {
   accountsByPlan: Record<string, number>;
 }
 
+// Plans where users in the same org count as 1 account
+const ORG_TIER_PLANS = new Set(['Professional', 'Business', 'Enterprise', 'Enterprise 1K']);
+
 async function getAirtableUserCounts(env: Env): Promise<UserCounts> {
   let totalUsers = 0;
   let activatedUsers = 0;
   const byPlan: Record<string, number> = {};
-  // Track unique accounts per plan: org users share one account, solo users = 1 account each
+  // Track unique accounts per plan: org users share one account (org-tier only), solo users = 1 account each
   const seenOrgs: Record<string, Set<string>> = {};
   let soloCountByPlan: Record<string, number> = {};
   let offset: string | undefined;
 
   try {
     // Paginate through all users (Airtable returns max 100 per page)
+    // Use 'Organization' linked record field (populated for all org members, unlike 'Organization ID' which is admin-only)
     do {
-      let url = `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?pageSize=100&fields%5B%5D=Plan&fields%5B%5D=Status&fields%5B%5D=${encodeURIComponent('📍 Client Properties')}&fields%5B%5D=${encodeURIComponent('Organization ID')}`;
+      let url = `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?pageSize=100&fields%5B%5D=Plan&fields%5B%5D=Status&fields%5B%5D=${encodeURIComponent('📍 Client Properties')}&fields%5B%5D=Organization`;
       if (offset) {
         url += `&offset=${offset}`;
       }
@@ -152,9 +156,11 @@ async function getAirtableUserCounts(env: Env): Promise<UserCounts> {
           const plan = record.fields?.Plan || 'Free';
           byPlan[plan] = (byPlan[plan] || 0) + 1;
 
-          // Track accounts: group by org, or count as solo
-          const orgId = record.fields?.['Organization ID'];
-          if (orgId) {
+          // Track accounts: group by org for org-tier plans, otherwise count individually
+          const orgLinks = record.fields?.['Organization'];
+          const orgId = Array.isArray(orgLinks) && orgLinks.length > 0 ? orgLinks[0] : null;
+
+          if (orgId && ORG_TIER_PLANS.has(plan)) {
             if (!seenOrgs[plan]) seenOrgs[plan] = new Set();
             seenOrgs[plan].add(orgId);
           } else {
