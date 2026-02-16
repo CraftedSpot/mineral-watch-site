@@ -3,17 +3,13 @@
  * Scrapes Mineral Rights Forum for Oklahoma posts, detects locations, tracks in Airtable
  */
 
-import { fetchLatestTopics, fetchTopicContent, buildUserMap, getOriginalPoster } from './scrapers/discourse.js';
+import { fetchLatestTopics, fetchTopicContent, buildUserMap, getOriginalPoster, getCategoryName } from './scrapers/discourse.js';
 import { parseLocations } from './parsers/location.js';
 import { writeForumPosts } from './services/airtable.js';
 import { sendForumDigest } from './services/email.js';
 import { filterNewTopics, markTopicsSeen, updateLastRun, getLastRun } from './utils/kv.js';
 
-// Discourse category names by ID (Oklahoma subcategories)
-// We'll populate this from the forum API response if available
-const CATEGORY_NAMES = {
-  48: 'Oklahoma',
-};
+// Category names now resolved via getCategoryName() from discourse.js
 
 export default {
   async scheduled(event, env, ctx) {
@@ -112,7 +108,7 @@ async function runForumMonitor(env) {
         const author = firstPost.username || op?.username || 'Unknown';
 
         // Get category name
-        const category = CATEGORY_NAMES[topic.category_id] || `Category ${topic.category_id}`;
+        const category = getCategoryName(topic.category_id);
 
         // Build post record
         const postData = {

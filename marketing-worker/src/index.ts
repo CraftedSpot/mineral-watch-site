@@ -7,6 +7,7 @@ import { handleCalendar } from './handlers/calendar';
 import { handleAnalytics } from './handlers/analytics';
 import { handleChecklist } from './handlers/checklist';
 import { handleYouTube } from './handlers/youtube';
+import { handleForum } from './handlers/forum';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -70,6 +71,11 @@ export default {
       // /api/marketing/youtube
       if (path === '/api/marketing/youtube' && method === 'GET') {
         return handleYouTube(request, env);
+      }
+
+      // /api/marketing/forum[/:id]
+      if (path.startsWith('/api/marketing/forum')) {
+        return handleForum(request, env, path, method);
       }
 
       return jsonResponse({ error: 'Not found' }, 404);

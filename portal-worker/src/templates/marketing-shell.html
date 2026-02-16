@@ -35,6 +35,7 @@
   <button class="tab-btn" onclick="switchTab('competitors', this)">Competitors <span class="count">4</span></button>
   <button class="tab-btn" onclick="switchTab('leads', this)">Leads Pipeline <span class="count" id="leadsCount">0</span></button>
   <button class="tab-btn" onclick="switchTab('ideas', this)">Idea Bank <span class="count" id="ideasCount">0</span></button>
+  <button class="tab-btn" onclick="switchTab('forum', this)">Forum Monitor <span class="count" id="forumCount">0</span></button>
 </div>
 
 <!-- Main Content -->
@@ -1011,6 +1012,113 @@
     </div>
   </div>
 
+  <!-- ======== TAB: Forum Monitor (LIVE) ======== -->
+  <div id="tab-forum" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Forum Monitor</div>
+        <div class="section-subtitle">Oklahoma forum posts from mineralrightsforum.com — tracked automatically</div>
+      </div>
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <select id="forumStatusFilter" onchange="filterForumPosts(this.value)" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+          <option value="all">All Posts</option>
+          <option value="New">New</option>
+          <option value="Reviewed">Reviewed</option>
+          <option value="Responded">Responded</option>
+          <option value="Skipped">Skipped</option>
+        </select>
+        <select id="forumCountyFilter" onchange="filterForumPosts()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border);background:var(--bg-primary);color:var(--text-primary);font-size:13px;">
+          <option value="all">All Counties</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Forum Stats Row -->
+    <div class="metrics-row" style="margin-bottom:1.5rem;">
+      <div class="metric-card">
+        <div class="metric-card-label">Total Posts</div>
+        <div class="metric-card-value" id="forumTotal">--</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">New</div>
+        <div class="metric-card-value" style="color:var(--accent-blue);" id="forumNew">--</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Responded</div>
+        <div class="metric-card-value" style="color:var(--accent-green);" id="forumResponded">--</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">With Location</div>
+        <div class="metric-card-value" style="color:var(--accent-amber);" id="forumWithLocation">--</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Counties Detected</div>
+        <div class="metric-card-value" style="color:var(--accent-cyan);" id="forumCounties">--</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="min-width:250px;">Post</th>
+            <th>County</th>
+            <th>STR</th>
+            <th>Category</th>
+            <th>Author</th>
+            <th>Posted</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="forumTableBody">
+          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px;">Loading forum posts...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======== Forum Post Detail Modal ======== -->
+<div class="modal-overlay" id="forumModal">
+  <div class="modal" style="max-width:600px;">
+    <div class="modal-title" id="forumModalTitle">Forum Post</div>
+    <input type="hidden" id="editForumId" value="">
+
+    <div id="forumModalExcerpt" style="background:var(--bg-secondary);padding:12px 16px;border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;max-height:200px;overflow-y:auto;"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;" id="forumModalBadges"></div>
+
+    <div class="modal-field">
+      <label>Response Status</label>
+      <select id="forumResponseStatus">
+        <option value="New">New</option>
+        <option value="Reviewed">Reviewed</option>
+        <option value="Responded">Responded</option>
+        <option value="Skipped">Skipped</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Result</label>
+      <select id="forumResult">
+        <option value="">-- None --</option>
+        <option value="DM Received">DM Received</option>
+        <option value="Sign-up">Sign-up</option>
+        <option value="No Response">No Response</option>
+        <option value="Conversation">Conversation</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="forumNotes" rows="3"></textarea>
+    </div>
+    <div class="modal-actions">
+      <a id="forumModalLink" href="#" target="_blank" class="btn btn-ghost" style="margin-right:auto;">View on Forum</a>
+      <button class="btn btn-ghost" onclick="closeForumModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveForumPost()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- ======== Content Modal ======== -->

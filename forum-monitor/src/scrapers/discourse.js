@@ -5,6 +5,44 @@
 
 const USER_AGENT = 'MineralWatch ForumMonitor/1.0';
 
+// Oklahoma subcategory IDs → county names (from /site.json, parent_category_id=48)
+const CATEGORY_NAMES = {
+  48: 'Oklahoma',
+  758: 'Alfalfa County, OK', 636: 'Atoka County, OK', 586: 'Beaver County, OK',
+  626: 'Beckham County, OK', 664: 'Blaine County, OK', 702: 'Bryan County, OK',
+  621: 'Caddo County, OK', 737: 'Canadian County, OK', 714: 'Carter County, OK',
+  136: 'Cimarron County, OK', 401: 'Cleveland County, OK', 628: 'Coal County, OK',
+  700: 'Comanche County, OK', 199: 'Cotton County, OK', 645: 'Creek County, OK',
+  705: 'Custer County, OK', 368: 'Delaware County, OK', 688: 'Dewey County, OK',
+  595: 'Ellis County, OK', 568: 'Garfield County, OK', 519: 'Garvin County, OK',
+  650: 'Grady County, OK', 492: 'Grant County, OK', 365: 'Greer County, OK',
+  379: 'Harmon County, OK', 632: 'Harper County, OK', 432: 'Haskell County, OK',
+  772: 'Hughes County, OK', 527: 'Jackson County, OK', 538: 'Jefferson County, OK',
+  374: 'Johnston County, OK', 522: 'Kay County, OK', 629: 'Kingfisher County, OK',
+  247: 'Kiowa County, OK', 575: 'Latimer County, OK', 599: 'Le Flore County, OK',
+  638: 'Lincoln County, OK', 665: 'Logan County, OK', 680: 'Love County, OK',
+  381: 'Major County, OK', 684: 'Marshall County, OK', 98: 'Mayes County, OK',
+  651: 'McClain County, OK', 100: 'McCurtain County, OK', 648: 'McIntosh County, OK',
+  396: 'Murray County, OK', 641: 'Muskogee County, OK', 596: 'Noble County, OK',
+  514: 'Nowata County, OK', 643: 'Okfuskee County, OK', 637: 'Oklahoma County, OK',
+  644: 'Okmulgee County, OK', 500: 'Osage County, OK', 495: 'Pawnee County, OK',
+  696: 'Payne County, OK', 647: 'Pittsburg County, OK', 701: 'Pontotoc County, OK',
+  661: 'Pottawatomie County, OK', 337: 'Pushmataha County, OK', 398: 'Roger Mills County, OK',
+  515: 'Rogers County, OK', 639: 'Seminole County, OK', 697: 'Stephens County, OK',
+  257: 'Texas County, OK', 520: 'Tillman County, OK', 640: 'Tulsa County, OK',
+  642: 'Wagoner County, OK', 90: 'Washington County, OK', 612: 'Washita County, OK',
+  736: 'Woods County, OK', 535: 'Woodward County, OK',
+};
+
+/**
+ * Resolve a Discourse category ID to a human-readable name
+ * @param {number} categoryId
+ * @returns {string}
+ */
+export function getCategoryName(categoryId) {
+  return CATEGORY_NAMES[categoryId] || `Category ${categoryId}`;
+}
+
 /**
  * Fetch latest Oklahoma topics from Discourse
  * @param {string} baseUrl - Forum base URL
