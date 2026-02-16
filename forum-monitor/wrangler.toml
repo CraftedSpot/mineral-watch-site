@@ -14,7 +14,7 @@ crons = ["0 12,15,18,21 * * *"]  # 4x daily: 7am, 10am, 1pm, 4pm CDT (UTC-5)
 
 [[kv_namespaces]]
 binding = "FORUM_CACHE"
-id = "TBD"
+id = "7e28242832504e8f8e5f86ee02259b79"
 
 [[d1_databases]]
 binding = "WELLS_DB"

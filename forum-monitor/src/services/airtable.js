@@ -25,10 +25,10 @@ export async function writeForumPosts(env, posts) {
 
     const records = batch.map((post) => ({
       fields: {
-        'Post Title': post.title || '',
+        'Post Title': (post.title || '').substring(0, 200),
         'Post URL': post.url || '',
         'Author': post.author || '',
-        'Posted At': post.postedAt || null,
+        'Posted At': formatDateForAirtable(post.postedAt),
         'Category': post.category || '',
         'Detected Location': post.detectedLocation || '',
         'Detected County': post.detectedCounty || null,
@@ -80,4 +80,18 @@ export async function writeForumPosts(env, posts) {
   }
 
   return createdIds;
+}
+
+/**
+ * Convert ISO datetime to YYYY-MM-DD for Airtable date fields
+ */
+function formatDateForAirtable(isoString) {
+  if (!isoString) return null;
+  try {
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return null;
+    return date.toISOString().split('T')[0];
+  } catch {
+    return null;
+  }
 }
