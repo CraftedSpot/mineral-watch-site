@@ -1,4 +1,5 @@
 import { Env } from '../types';
+import { fetchGAMetrics, GAMetrics } from '../ga';
 
 const BASE_ID = 'app3j3X29Uvp5stza';
 const USERS_TABLE = 'tblmb8sZtfn2EW900'; // 👤 Users
@@ -27,11 +28,16 @@ async function stripeGet(env: Env, path: string, params?: Record<string, string>
 
 export async function handleMetrics(request: Request, env: Env): Promise<Response> {
   try {
-    // Run Stripe and Airtable queries in parallel
-    const [activeSubs, canceledSubs, userCounts] = await Promise.all([
+    // Run Stripe, Airtable, and GA queries in parallel
+    const gaPromise = env.GOOGLE_SA_KEY
+      ? fetchGAMetrics(env).catch(err => { console.error('GA error:', err); return null as GAMetrics | null; })
+      : Promise.resolve(null as GAMetrics | null);
+
+    const [activeSubs, canceledSubs, userCounts, ga] = await Promise.all([
       stripeGet(env, '/v1/subscriptions', { status: 'active', limit: '100' }),
       stripeGet(env, '/v1/subscriptions', { status: 'canceled', limit: '100' }),
       getAirtableUserCounts(env),
+      gaPromise,
     ]);
 
     // Calculate MRR from active subs
@@ -88,6 +94,7 @@ export async function handleMetrics(request: Request, env: Env): Promise<Respons
 
     return jsonResponse({
       funnel: {
+        siteVisitors: ga?.sessions30d ?? null,
         signups: userCounts.totalUsers,
         activated: userCounts.activatedUsers,
         paid: paidUsers,
@@ -103,6 +110,14 @@ export async function handleMetrics(request: Request, env: Env): Promise<Respons
         mrr: mrrDollars,
         arr: arrDollars,
       },
+      ga: ga ? {
+        sessions30d: ga.sessions30d,
+        users30d: ga.users30d,
+        newUsers30d: ga.newUsers30d,
+        pageviews30d: ga.pageviews30d,
+        sessions7d: ga.sessions7d,
+        users7d: ga.users7d,
+      } : null,
       plans,
       usersByPlan: userCounts.byPlan,
       accountsByPlan: userCounts.accountsByPlan,

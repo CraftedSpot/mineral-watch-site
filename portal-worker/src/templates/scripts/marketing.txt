@@ -17,7 +17,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             // Determine initial tab from hash or default
             const hash = window.location.hash.replace('#', '');
-            if (['metrics', 'content', 'leads', 'ideas', 'calendar', 'plan', 'automations', 'venues', 'competitors'].includes(hash)) {
+            if (['metrics', 'analytics', 'content', 'leads', 'ideas', 'calendar', 'plan', 'automations', 'venues', 'competitors'].includes(hash)) {
                 currentTab = hash;
             }
             switchTab(currentTab);
@@ -55,6 +55,7 @@
             if (!loadedTabs[tabName]) {
                 loadedTabs[tabName] = true;
                 if (tabName === 'metrics') loadMetrics();
+                else if (tabName === 'analytics') loadAnalytics();
                 else if (tabName === 'content') loadContent();
                 else if (tabName === 'leads') loadLeads();
                 else if (tabName === 'ideas') loadIdeas();
@@ -80,6 +81,16 @@
         function renderMetrics(data) {
             const funnel = data.funnel || {};
             const metrics = data.metrics || {};
+            const ga = data.ga || null;
+
+            // Site Visitors (from GA)
+            if (funnel.siteVisitors != null) {
+                setText('funnelVisitors', formatNum(funnel.siteVisitors));
+                setText('funnelVisitorsDetail', 'Last 30 days');
+            } else {
+                setText('funnelVisitors', '—');
+                setText('funnelVisitorsDetail', 'GA not connected');
+            }
 
             // Funnel
             setText('funnelSignups', formatNum(funnel.signups));
@@ -131,12 +142,140 @@
         }
 
         function setMetricsError() {
-            ['funnelSignups', 'funnelActivated', 'funnelPaid', 'funnelConversion', 'funnelMrr'].forEach(id => {
+            ['funnelVisitors', 'funnelSignups', 'funnelActivated', 'funnelPaid', 'funnelConversion', 'funnelMrr'].forEach(id => {
                 setText(id, '--');
             });
             ['metricTotalSignups', 'metricFreeUsers', 'metricPaidUsers', 'metricChurn', 'metricMrr', 'metricArr'].forEach(id => {
                 setText(id, '--');
             });
+        }
+
+        // =============================================
+        // ANALYTICS TAB (GA4)
+        // =============================================
+        async function loadAnalytics() {
+            try {
+                var res = await fetch('/api/marketing/analytics');
+                if (!res.ok) throw new Error('Failed to load analytics');
+                var data = await res.json();
+                renderAnalytics(data);
+            } catch (err) {
+                console.error('Analytics error:', err);
+                document.getElementById('analyticsOverview').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;color:var(--accent-red);padding:20px;">Failed to load analytics: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderAnalytics(data) {
+            var ov = data.overview || {};
+
+            // Overview cards
+            function setOv(id, val, chgId, change, suffix) {
+                suffix = suffix || '';
+                setText(id, val != null ? formatNum(val) + suffix : '—');
+                var chgEl = document.getElementById(chgId);
+                if (chgEl && change != null) {
+                    var arrow = change > 0 ? '&#9650; ' : change < 0 ? '&#9660; ' : '';
+                    var cls = change > 0 ? 'up' : change < 0 ? 'down' : 'neutral';
+                    chgEl.className = 'stat-change ' + cls;
+                    chgEl.innerHTML = arrow + Math.abs(change) + '% vs prev 30d';
+                } else if (chgEl) {
+                    chgEl.textContent = '';
+                }
+            }
+
+            setOv('gaSessions', ov.sessions?.value, 'gaSessionsChg', ov.sessions?.change);
+            setOv('gaUsers', ov.users?.value, 'gaUsersChg', ov.users?.change);
+            setOv('gaNewUsers', ov.newUsers?.value, 'gaNewUsersChg', ov.newUsers?.change);
+            setOv('gaPageviews', ov.pageviews?.value, 'gaPageviewsChg', ov.pageviews?.change);
+
+            // Duration: format seconds as Xm Ys
+            if (ov.avgDuration) {
+                var secs = ov.avgDuration.value || 0;
+                var durStr = secs >= 60 ? Math.floor(secs / 60) + 'm ' + (secs % 60) + 's' : secs + 's';
+                setText('gaDuration', durStr);
+                var dChg = document.getElementById('gaDurationChg');
+                if (dChg && ov.avgDuration.change != null) {
+                    var c = ov.avgDuration.change;
+                    dChg.className = 'stat-change ' + (c > 0 ? 'up' : c < 0 ? 'down' : 'neutral');
+                    dChg.innerHTML = (c > 0 ? '&#9650; ' : c < 0 ? '&#9660; ' : '') + Math.abs(c) + '%';
+                }
+            }
+
+            setOv('gaBounce', ov.bounceRate?.value, 'gaBounceChg', ov.bounceRate?.change != null ? -ov.bounceRate.change : null, '%');
+
+            // Daily chart (bar chart)
+            var daily = data.daily || [];
+            if (daily.length > 0) {
+                var maxSessions = Math.max.apply(null, daily.map(function(d) { return d.sessions; }));
+                if (maxSessions === 0) maxSessions = 1;
+                var barsHtml = '<div class="analytics-chart-bars">';
+                var labelsHtml = '<div class="analytics-chart-labels">';
+                daily.forEach(function(d, i) {
+                    var h = Math.max(2, Math.round((d.sessions / maxSessions) * 110));
+                    var dateStr = d.date.substring(4, 6) + '/' + d.date.substring(6, 8);
+                    barsHtml += '<div class="analytics-bar" style="height:' + h + 'px"><div class="analytics-bar-tip">' + dateStr + ': ' + d.sessions + ' sessions</div></div>';
+                    // Show label every 5th day
+                    if (i % 5 === 0) {
+                        labelsHtml += '<div class="analytics-chart-label">' + dateStr + '</div>';
+                    } else {
+                        labelsHtml += '<div class="analytics-chart-label"></div>';
+                    }
+                });
+                barsHtml += '</div>';
+                labelsHtml += '</div>';
+                document.getElementById('gaDailyChart').innerHTML = barsHtml + labelsHtml;
+            }
+
+            // Traffic sources table
+            var channels = data.channels || [];
+            var totalSessions = channels.reduce(function(sum, c) { return sum + c.sessions; }, 0) || 1;
+            document.getElementById('gaChannelsBody').innerHTML = channels.length === 0
+                ? '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>'
+                : channels.map(function(c) {
+                    var pct = Math.round((c.sessions / totalSessions) * 1000) / 10;
+                    return '<tr><td><strong>' + esc(c.channel) + '</strong></td><td style="text-align:right">' + formatNum(c.sessions) + '</td><td style="text-align:right">' + formatNum(c.users) + '</td><td style="text-align:right">' + formatNum(c.newUsers) + '</td><td style="text-align:right">' + pct + '%<span class="pct-bar" style="width:' + Math.round(pct) + 'px"></span></td></tr>';
+                }).join('');
+
+            // Top pages table
+            var pages = data.pages || [];
+            document.getElementById('gaPagesBody').innerHTML = pages.length === 0
+                ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>'
+                : pages.map(function(p) {
+                    var durStr = p.avgDuration >= 60 ? Math.floor(p.avgDuration / 60) + 'm ' + (p.avgDuration % 60) + 's' : p.avgDuration + 's';
+                    var shortPath = p.path.length > 40 ? p.path.substring(0, 40) + '...' : p.path;
+                    return '<tr><td title="' + esc(p.path) + '"><code style="font-size:12px;">' + esc(shortPath) + '</code></td><td style="text-align:right">' + formatNum(p.pageviews) + '</td><td style="text-align:right">' + formatNum(p.sessions) + '</td><td style="text-align:right">' + durStr + '</td></tr>';
+                }).join('');
+
+            // Geographic table
+            var geo = data.geo || [];
+            var geoTotal = geo.reduce(function(sum, g) { return sum + g.sessions; }, 0) || 1;
+            document.getElementById('gaGeoBody').innerHTML = geo.length === 0
+                ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>'
+                : geo.map(function(g) {
+                    var pct = Math.round((g.sessions / geoTotal) * 1000) / 10;
+                    return '<tr><td>' + esc(g.region) + '</td><td style="text-align:right">' + formatNum(g.sessions) + '</td><td style="text-align:right">' + formatNum(g.users) + '</td><td style="text-align:right">' + pct + '%</td></tr>';
+                }).join('');
+
+            // Devices table
+            var devices = data.devices || [];
+            var devTotal = devices.reduce(function(sum, d) { return sum + d.sessions; }, 0) || 1;
+            document.getElementById('gaDevicesBody').innerHTML = devices.length === 0
+                ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>'
+                : devices.map(function(d) {
+                    var pct = Math.round((d.sessions / devTotal) * 1000) / 10;
+                    var icon = d.device === 'desktop' ? '&#128187;' : d.device === 'mobile' ? '&#128241;' : '&#128218;';
+                    return '<tr><td>' + icon + ' ' + esc(d.device.charAt(0).toUpperCase() + d.device.slice(1)) + '</td><td style="text-align:right">' + formatNum(d.sessions) + '</td><td style="text-align:right">' + formatNum(d.users) + '</td><td style="text-align:right">' + pct + '%<span class="pct-bar" style="width:' + Math.round(pct) + 'px"></span></td></tr>';
+                }).join('');
+
+            // Referrals table
+            var refs = data.referrals || [];
+            var refTotal = refs.reduce(function(sum, r) { return sum + r.sessions; }, 0) || 1;
+            document.getElementById('gaReferralsBody').innerHTML = refs.length === 0
+                ? '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">No data</td></tr>'
+                : refs.map(function(r) {
+                    var pct = Math.round((r.sessions / refTotal) * 1000) / 10;
+                    return '<tr><td>' + esc(r.source) + '</td><td style="text-align:right">' + formatNum(r.sessions) + '</td><td style="text-align:right">' + formatNum(r.users) + '</td><td style="text-align:right">' + pct + '%</td></tr>';
+                }).join('');
         }
 
         // =============================================
@@ -1235,6 +1374,7 @@
         function refreshCurrentTab() {
             loadedTabs[currentTab] = false;
             if (currentTab === 'metrics') loadMetrics();
+            else if (currentTab === 'analytics') loadAnalytics();
             else if (currentTab === 'content') loadContent();
             else if (currentTab === 'leads') loadLeads();
             else if (currentTab === 'ideas') loadIdeas();

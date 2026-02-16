@@ -26,6 +26,7 @@
 <!-- Tab Navigation -->
 <div class="tab-nav">
   <button class="tab-btn active" onclick="switchTab('metrics', this)">Metrics</button>
+  <button class="tab-btn" onclick="switchTab('analytics', this)">Analytics</button>
   <button class="tab-btn" onclick="switchTab('calendar', this)">Calendar</button>
   <button class="tab-btn" onclick="switchTab('plan', this)">Action Plan</button>
   <button class="tab-btn" onclick="switchTab('content', this)">Content Pipeline <span class="count" id="contentCount">0</span></button>
@@ -53,8 +54,8 @@
     <div class="funnel-row">
       <div class="funnel-step">
         <div class="funnel-step-label">Site Visitors</div>
-        <div class="funnel-step-value" style="color: var(--text-primary);">—</div>
-        <div class="funnel-step-detail">Add GA/Plausible to track</div>
+        <div class="funnel-step-value" id="funnelVisitors" style="color: var(--text-primary);">—</div>
+        <div class="funnel-step-detail" id="funnelVisitorsDetail">Loading...</div>
         <div class="funnel-arrow">&#8250;</div>
       </div>
       <div class="funnel-step">
@@ -123,6 +124,103 @@
       <div class="metric-card">
         <div class="metric-card-label">Loading...</div>
         <div class="metric-card-value" style="color: var(--text-muted);">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Analytics (LIVE — GA4) ======== -->
+  <div id="tab-analytics" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Site Analytics</div>
+        <div class="section-subtitle">Google Analytics — last 30 days vs previous 30 days</div>
+      </div>
+      <button class="btn btn-ghost" onclick="loadAnalytics()" id="analyticsRefreshBtn">&#8635; Refresh</button>
+    </div>
+
+    <!-- Overview Cards -->
+    <div class="stat-row" id="analyticsOverview">
+      <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value" id="gaSessions">—</div><div class="stat-change" id="gaSessionsChg"></div></div>
+      <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value" id="gaUsers">—</div><div class="stat-change" id="gaUsersChg"></div></div>
+      <div class="stat-card"><div class="stat-label">New Users</div><div class="stat-value" id="gaNewUsers">—</div><div class="stat-change" id="gaNewUsersChg"></div></div>
+      <div class="stat-card"><div class="stat-label">Pageviews</div><div class="stat-value" id="gaPageviews">—</div><div class="stat-change" id="gaPageviewsChg"></div></div>
+      <div class="stat-card"><div class="stat-label">Avg Duration</div><div class="stat-value" id="gaDuration">—</div><div class="stat-change" id="gaDurationChg"></div></div>
+      <div class="stat-card"><div class="stat-label">Bounce Rate</div><div class="stat-value" id="gaBounce">—</div><div class="stat-change" id="gaBounceChg"></div></div>
+    </div>
+
+    <!-- Daily Trend (text sparkline) -->
+    <div class="analytics-section">
+      <div class="metrics-section-title">Daily Sessions (30 days)</div>
+      <div class="analytics-chart" id="gaDailyChart">
+        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Two-column layout for tables -->
+    <div class="analytics-grid">
+      <!-- Traffic Sources -->
+      <div class="analytics-section">
+        <div class="metrics-section-title">Traffic Sources</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Channel</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">New</th><th style="text-align:right">%</th></tr></thead>
+            <tbody id="gaChannelsBody">
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Top Pages -->
+      <div class="analytics-section">
+        <div class="metrics-section-title">Top Pages</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Sessions</th><th style="text-align:right">Avg Time</th></tr></thead>
+            <tbody id="gaPagesBody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Geographic -->
+      <div class="analytics-section">
+        <div class="metrics-section-title">Top Regions</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Region</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+            <tbody id="gaGeoBody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Devices -->
+      <div class="analytics-section">
+        <div class="metrics-section-title">Devices</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Device</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+            <tbody id="gaDevicesBody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Referral Sources -->
+      <div class="analytics-section">
+        <div class="metrics-section-title">Referral Sources</div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Source</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+            <tbody id="gaReferralsBody">
+              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
