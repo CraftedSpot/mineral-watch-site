@@ -9,8 +9,10 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 
 [vars]
 GA_PROPERTY_ID = "524835329"
+YOUTUBE_CHANNEL_ID = "UCvI-hRdOn4VIBXp10zoS4fQ"
 
 # Secrets (via wrangler secret put):
 # STRIPE_SECRET_KEY
 # MINERAL_AIRTABLE_API_KEY
 # GOOGLE_SA_KEY (JSON service account key)
+# YOUTUBE_API_KEY

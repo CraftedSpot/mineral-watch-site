@@ -138,90 +138,126 @@
       <button class="btn btn-ghost" onclick="loadAnalytics()" id="analyticsRefreshBtn">&#8635; Refresh</button>
     </div>
 
-    <!-- Overview Cards -->
-    <div class="stat-row" id="analyticsOverview">
-      <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value" id="gaSessions">—</div><div class="stat-change" id="gaSessionsChg"></div></div>
-      <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value" id="gaUsers">—</div><div class="stat-change" id="gaUsersChg"></div></div>
-      <div class="stat-card"><div class="stat-label">New Users</div><div class="stat-value" id="gaNewUsers">—</div><div class="stat-change" id="gaNewUsersChg"></div></div>
-      <div class="stat-card"><div class="stat-label">Pageviews</div><div class="stat-value" id="gaPageviews">—</div><div class="stat-change" id="gaPageviewsChg"></div></div>
-      <div class="stat-card"><div class="stat-label">Avg Duration</div><div class="stat-value" id="gaDuration">—</div><div class="stat-change" id="gaDurationChg"></div></div>
-      <div class="stat-card"><div class="stat-label">Bounce Rate</div><div class="stat-value" id="gaBounce">—</div><div class="stat-change" id="gaBounceChg"></div></div>
+    <!-- Site Overview -->
+    <div class="collapsible" data-section="ga-overview">
+      <div class="collapsible-header" onclick="toggleSection(this)">
+        <span class="collapsible-arrow">&#9662;</span>
+        <span class="metrics-section-title" style="margin-bottom:0;">Site Overview</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="stat-row" id="analyticsOverview">
+          <div class="stat-card"><div class="stat-label">Sessions</div><div class="stat-value" id="gaSessions">—</div><div class="stat-change" id="gaSessionsChg"></div></div>
+          <div class="stat-card"><div class="stat-label">Users</div><div class="stat-value" id="gaUsers">—</div><div class="stat-change" id="gaUsersChg"></div></div>
+          <div class="stat-card"><div class="stat-label">New Users</div><div class="stat-value" id="gaNewUsers">—</div><div class="stat-change" id="gaNewUsersChg"></div></div>
+          <div class="stat-card"><div class="stat-label">Pageviews</div><div class="stat-value" id="gaPageviews">—</div><div class="stat-change" id="gaPageviewsChg"></div></div>
+          <div class="stat-card"><div class="stat-label">Avg Duration</div><div class="stat-value" id="gaDuration">—</div><div class="stat-change" id="gaDurationChg"></div></div>
+          <div class="stat-card"><div class="stat-label">Bounce Rate</div><div class="stat-value" id="gaBounce">—</div><div class="stat-change" id="gaBounceChg"></div></div>
+        </div>
+        <div class="analytics-chart" id="gaDailyChart">
+          <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>
+        </div>
+      </div>
     </div>
 
-    <!-- Daily Trend (text sparkline) -->
-    <div class="analytics-section">
-      <div class="metrics-section-title">Daily Sessions (30 days)</div>
-      <div class="analytics-chart" id="gaDailyChart">
-        <div style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</div>
+    <!-- Traffic & Pages -->
+    <div class="collapsible" data-section="ga-traffic">
+      <div class="collapsible-header" onclick="toggleSection(this)">
+        <span class="collapsible-arrow">&#9662;</span>
+        <span class="metrics-section-title" style="margin-bottom:0;">Traffic Sources &amp; Top Pages</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="analytics-grid">
+          <div class="analytics-section">
+            <div class="table-wrap table-scroll">
+              <table>
+                <thead><tr><th>Channel</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">New</th><th style="text-align:right">%</th></tr></thead>
+                <tbody id="gaChannelsBody">
+                  <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytics-section">
+            <div class="table-wrap table-scroll">
+              <table>
+                <thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Sessions</th><th style="text-align:right">Avg Time</th></tr></thead>
+                <tbody id="gaPagesBody">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Two-column layout for tables -->
-    <div class="analytics-grid">
-      <!-- Traffic Sources -->
-      <div class="analytics-section">
-        <div class="metrics-section-title">Traffic Sources</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Channel</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">New</th><th style="text-align:right">%</th></tr></thead>
-            <tbody id="gaChannelsBody">
-              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
-            </tbody>
-          </table>
+    <!-- Audience -->
+    <div class="collapsible" data-section="ga-audience">
+      <div class="collapsible-header" onclick="toggleSection(this)">
+        <span class="collapsible-arrow">&#9662;</span>
+        <span class="metrics-section-title" style="margin-bottom:0;">Audience &amp; Referrals</span>
+      </div>
+      <div class="collapsible-body">
+        <div class="analytics-grid">
+          <div class="analytics-section">
+            <div class="metrics-section-title" style="margin-top:0;">Top Regions</div>
+            <div class="table-wrap table-scroll">
+              <table>
+                <thead><tr><th>Region</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+                <tbody id="gaGeoBody">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytics-section">
+            <div class="metrics-section-title" style="margin-top:0;">Devices</div>
+            <div class="table-wrap table-scroll">
+              <table>
+                <thead><tr><th>Device</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+                <tbody id="gaDevicesBody">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="analytics-section">
+            <div class="metrics-section-title" style="margin-top:0;">Referral Sources</div>
+            <div class="table-wrap table-scroll">
+              <table>
+                <thead><tr><th>Source</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
+                <tbody id="gaReferralsBody">
+                  <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
+    </div>
 
-      <!-- Top Pages -->
-      <div class="analytics-section">
-        <div class="metrics-section-title">Top Pages</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Page</th><th style="text-align:right">Views</th><th style="text-align:right">Sessions</th><th style="text-align:right">Avg Time</th></tr></thead>
-            <tbody id="gaPagesBody">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
-            </tbody>
-          </table>
-        </div>
+    <!-- YouTube Channel -->
+    <div class="collapsible" data-section="ga-youtube">
+      <div class="collapsible-header" onclick="toggleSection(this)">
+        <span class="collapsible-arrow">&#9662;</span>
+        <span class="metrics-section-title" style="margin-bottom:0;">&#9654; YouTube Channel</span>
       </div>
-
-      <!-- Geographic -->
-      <div class="analytics-section">
-        <div class="metrics-section-title">Top Regions</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Region</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
-            <tbody id="gaGeoBody">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
-            </tbody>
-          </table>
+      <div class="collapsible-body">
+        <div class="stat-row" id="ytOverview">
+          <div class="stat-card"><div class="stat-label">Subscribers</div><div class="stat-value" id="ytSubscribers">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Views</div><div class="stat-value" id="ytTotalViews">—</div></div>
+          <div class="stat-card"><div class="stat-label">Videos</div><div class="stat-value" id="ytVideoCount">—</div></div>
+          <div class="stat-card"><div class="stat-label">Avg Views/Video</div><div class="stat-value" id="ytAvgViews">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Likes</div><div class="stat-value" id="ytTotalLikes">—</div></div>
+          <div class="stat-card"><div class="stat-label">Total Comments</div><div class="stat-value" id="ytTotalComments">—</div></div>
         </div>
-      </div>
-
-      <!-- Devices -->
-      <div class="analytics-section">
-        <div class="metrics-section-title">Devices</div>
-        <div class="table-wrap">
+        <div class="table-wrap table-scroll" id="ytVideosWrap">
           <table>
-            <thead><tr><th>Device</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
-            <tbody id="gaDevicesBody">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Referral Sources -->
-      <div class="analytics-section">
-        <div class="metrics-section-title">Referral Sources</div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Source</th><th style="text-align:right">Sessions</th><th style="text-align:right">Users</th><th style="text-align:right">%</th></tr></thead>
-            <tbody id="gaReferralsBody">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+            <thead><tr><th>Video</th><th style="text-align:right">Views</th><th style="text-align:right">Likes</th><th style="text-align:right">Comments</th><th style="text-align:right">Duration</th><th style="text-align:right">Published</th></tr></thead>
+            <tbody id="ytVideosBody">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Loading...</td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 

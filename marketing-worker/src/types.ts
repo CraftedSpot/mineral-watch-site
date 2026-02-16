@@ -4,4 +4,6 @@ export interface Env {
   MINERAL_AIRTABLE_API_KEY: string;
   GOOGLE_SA_KEY: string;
   GA_PROPERTY_ID: string;
+  YOUTUBE_API_KEY: string;
+  YOUTUBE_CHANNEL_ID: string;
 }

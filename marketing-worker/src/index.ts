@@ -6,6 +6,7 @@ import { handleIdeas } from './handlers/ideas';
 import { handleCalendar } from './handlers/calendar';
 import { handleAnalytics } from './handlers/analytics';
 import { handleChecklist } from './handlers/checklist';
+import { handleYouTube } from './handlers/youtube';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -64,6 +65,11 @@ export default {
       // /api/marketing/checklist[/:id]
       if (path.startsWith('/api/marketing/checklist')) {
         return handleChecklist(request, env, path, method);
+      }
+
+      // /api/marketing/youtube
+      if (path === '/api/marketing/youtube' && method === 'GET') {
+        return handleYouTube(request, env);
       }
 
       return jsonResponse({ error: 'Not found' }, 404);

@@ -156,14 +156,61 @@
         // =============================================
         async function loadAnalytics() {
             try {
-                var res = await fetch('/api/marketing/analytics');
-                if (!res.ok) throw new Error('Failed to load analytics');
-                var data = await res.json();
-                renderAnalytics(data);
+                // Load GA and YouTube in parallel
+                var [gaRes, ytRes] = await Promise.all([
+                    fetch('/api/marketing/analytics'),
+                    fetch('/api/marketing/youtube')
+                ]);
+                if (gaRes.ok) {
+                    var gaData = await gaRes.json();
+                    renderAnalytics(gaData);
+                } else {
+                    document.getElementById('analyticsOverview').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;color:var(--accent-red);padding:20px;">Failed to load GA analytics</div>';
+                }
+                if (ytRes.ok) {
+                    var ytData = await ytRes.json();
+                    renderYouTube(ytData);
+                } else {
+                    document.getElementById('ytVideosBody').innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--accent-red);padding:20px;">Failed to load YouTube data</td></tr>';
+                }
             } catch (err) {
                 console.error('Analytics error:', err);
                 document.getElementById('analyticsOverview').innerHTML = '<div class="stat-card" style="grid-column:1/-1;text-align:center;color:var(--accent-red);padding:20px;">Failed to load analytics: ' + esc(err.message) + '</div>';
             }
+        }
+
+        function renderYouTube(data) {
+            var ch = data.channel || {};
+            var summary = data.summary || {};
+            var videos = data.videos || [];
+
+            setText('ytSubscribers', formatNum(ch.subscribers));
+            setText('ytTotalViews', formatNum(ch.totalViews));
+            setText('ytVideoCount', formatNum(ch.videoCount));
+            setText('ytAvgViews', formatNum(summary.avgViewsPerVideo));
+            setText('ytTotalLikes', formatNum(summary.totalLikes));
+            setText('ytTotalComments', formatNum(summary.totalComments));
+
+            var tbody = document.getElementById('ytVideosBody');
+            if (!tbody) return;
+
+            if (videos.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">No videos yet — upload your first video!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = videos.map(function(v) {
+                var pubDate = v.publishedAt ? formatDate(v.publishedAt) : '--';
+                var title = v.title.length > 50 ? v.title.substring(0, 50) + '...' : v.title;
+                return '<tr>' +
+                    '<td><a href="https://youtube.com/watch?v=' + esc(v.id) + '" target="_blank" style="color:var(--accent-blue);text-decoration:none;" title="' + esc(v.title) + '">' + esc(title) + '</a></td>' +
+                    '<td style="text-align:right;font-family:var(--font-mono);">' + formatNum(v.views) + '</td>' +
+                    '<td style="text-align:right;font-family:var(--font-mono);">' + formatNum(v.likes) + '</td>' +
+                    '<td style="text-align:right;font-family:var(--font-mono);">' + formatNum(v.comments) + '</td>' +
+                    '<td style="text-align:right;font-family:var(--font-mono);color:var(--text-muted);">' + esc(v.duration) + '</td>' +
+                    '<td style="text-align:right;white-space:nowrap;">' + pubDate + '</td>' +
+                '</tr>';
+            }).join('');
         }
 
         function renderAnalytics(data) {
