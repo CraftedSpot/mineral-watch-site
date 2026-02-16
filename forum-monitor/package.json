@@ -1,0 +1,25 @@
+{
+  "name": "forum-monitor",
+  "version": "1.0.0",
+  "description": "Monitors Mineral Rights Forum for Oklahoma posts, detects locations, tracks in Airtable",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "trigger": "curl -H 'Authorization: Bearer test-secret' http://localhost:8787/trigger/forum",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.51.0"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "mineral-rights",
+    "forum-monitoring",
+    "discourse"
+  ],
+  "author": "James Price",
+  "license": "UNLICENSED",
+  "private": true
+}

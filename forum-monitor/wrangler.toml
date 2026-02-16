@@ -1,0 +1,27 @@
+name = "forum-monitor"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+AIRTABLE_BASE_ID = "app3j3X29Uvp5stza"
+FORUM_BASE_URL = "https://www.mineralrightsforum.com"
+OKLAHOMA_CATEGORY_ID = "48"
+ADMIN_EMAIL = "james@mymineralwatch.com"
+DRY_RUN = "false"
+
+[triggers]
+crons = ["0 12,15,18,21 * * *"]  # 4x daily: 7am, 10am, 1pm, 4pm CDT (UTC-5)
+
+[[kv_namespaces]]
+binding = "FORUM_CACHE"
+id = "TBD"
+
+[[d1_databases]]
+binding = "WELLS_DB"
+database_name = "oklahoma-wells"
+database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
+
+# Secrets (wrangler secret put):
+# RESEND_API_KEY
+# MINERAL_AIRTABLE_API_KEY
+# TRIGGER_SECRET
