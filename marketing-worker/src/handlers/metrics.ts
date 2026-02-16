@@ -105,6 +105,7 @@ export async function handleMetrics(request: Request, env: Env): Promise<Respons
       },
       plans,
       usersByPlan: userCounts.byPlan,
+      accountsByPlan: userCounts.accountsByPlan,
     });
   } catch (error: any) {
     console.error('Metrics error:', error);
@@ -116,24 +117,22 @@ interface UserCounts {
   totalUsers: number;
   activatedUsers: number;
   byPlan: Record<string, number>;
+  accountsByPlan: Record<string, number>;
 }
 
 async function getAirtableUserCounts(env: Env): Promise<UserCounts> {
   let totalUsers = 0;
   let activatedUsers = 0;
   const byPlan: Record<string, number> = {};
+  // Track unique accounts per plan: org users share one account, solo users = 1 account each
+  const seenOrgs: Record<string, Set<string>> = {};
+  let soloCountByPlan: Record<string, number> = {};
   let offset: string | undefined;
 
   try {
     // Paginate through all users (Airtable returns max 100 per page)
     do {
-      const params = new URLSearchParams({
-        'fields[]': 'Plan',
-        'fields[]': 'Status',
-        pageSize: '100',
-      });
-      // Need to add fields[] properly for multiple values
-      let url = `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?pageSize=100&fields%5B%5D=Plan&fields%5B%5D=Status&fields%5B%5D=${encodeURIComponent('📍 Client Properties')}`;
+      let url = `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?pageSize=100&fields%5B%5D=Plan&fields%5B%5D=Status&fields%5B%5D=${encodeURIComponent('📍 Client Properties')}&fields%5B%5D=${encodeURIComponent('Organization ID')}`;
       if (offset) {
         url += `&offset=${offset}`;
       }
@@ -146,13 +145,21 @@ async function getAirtableUserCounts(env: Env): Promise<UserCounts> {
       if (data.records) {
         for (const record of data.records) {
           const status = record.fields?.Status;
-          // Skip inactive/disabled users
           if (status === 'Disabled' || status === 'Banned') continue;
 
           totalUsers++;
 
           const plan = record.fields?.Plan || 'Free';
           byPlan[plan] = (byPlan[plan] || 0) + 1;
+
+          // Track accounts: group by org, or count as solo
+          const orgId = record.fields?.['Organization ID'];
+          if (orgId) {
+            if (!seenOrgs[plan]) seenOrgs[plan] = new Set();
+            seenOrgs[plan].add(orgId);
+          } else {
+            soloCountByPlan[plan] = (soloCountByPlan[plan] || 0) + 1;
+          }
 
           // Activated = has at least 1 linked property
           const properties = record.fields?.['📍 Client Properties'];
@@ -165,9 +172,18 @@ async function getAirtableUserCounts(env: Env): Promise<UserCounts> {
       offset = data.offset;
     } while (offset);
 
-    return { totalUsers, activatedUsers, byPlan };
+    // Calculate accounts per plan: unique orgs + solo users
+    const accountsByPlan: Record<string, number> = {};
+    const allPlans = new Set([...Object.keys(byPlan), ...Object.keys(seenOrgs), ...Object.keys(soloCountByPlan)]);
+    for (const plan of allPlans) {
+      const orgCount = seenOrgs[plan]?.size || 0;
+      const soloCount = soloCountByPlan[plan] || 0;
+      accountsByPlan[plan] = orgCount + soloCount;
+    }
+
+    return { totalUsers, activatedUsers, byPlan, accountsByPlan };
   } catch (error) {
     console.error('Airtable user count error:', error);
-    return { totalUsers: 0, activatedUsers: 0, byPlan: {} };
+    return { totalUsers: 0, activatedUsers: 0, byPlan: {}, accountsByPlan: {} };
   }
 }

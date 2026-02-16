@@ -100,12 +100,13 @@
             setText('metricMrr', metrics.mrr != null ? '$' + formatNum(metrics.mrr) : '--');
             setText('metricArr', metrics.arr != null ? '$' + formatNum(metrics.arr) : '--');
 
-            // Plan Breakdown
+            // Plan Breakdown (by accounts, not individual users)
             const planRow = document.getElementById('planBreakdownRow');
             if (planRow) {
+                const accountsByPlan = data.accountsByPlan || {};
                 const usersByPlan = data.usersByPlan || {};
                 const plans = data.plans || [];
-                const entries = Object.entries(usersByPlan).sort((a, b) => b[1] - a[1]);
+                const entries = Object.entries(accountsByPlan).sort((a, b) => b[1] - a[1]);
 
                 if (entries.length === 0) {
                     planRow.innerHTML = '<div class="metric-card"><div class="metric-card-label">No data</div><div class="metric-card-value" style="color: var(--text-muted);">—</div></div>';
@@ -114,12 +115,15 @@
 
                 planRow.innerHTML = entries.map(function(entry) {
                     const planName = entry[0];
-                    const count = entry[1];
+                    const accounts = entry[1];
+                    const users = usersByPlan[planName] || 0;
                     const stripe = plans.find(function(p) { return p.name && p.name.toLowerCase().includes(planName.toLowerCase()); });
                     const revenue = stripe ? '$' + formatNum(stripe.revenue) + '/mo' : '';
+                    const userNote = users !== accounts ? ' (' + users + ' users)' : '';
                     return '<div class="metric-card">' +
                         '<div class="metric-card-label">' + esc(planName) + '</div>' +
-                        '<div class="metric-card-value">' + count + '</div>' +
+                        '<div class="metric-card-value">' + accounts + ' acct' + (accounts !== 1 ? 's' : '') + '</div>' +
+                        (userNote ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + userNote + '</div>' : '') +
                         (revenue ? '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' + revenue + '</div>' : '') +
                     '</div>';
                 }).join('');
