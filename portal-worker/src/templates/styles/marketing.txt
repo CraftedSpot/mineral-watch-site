@@ -362,12 +362,13 @@
   .cal-event.lead { background: var(--accent-amber-dim); color: var(--accent-amber); }
   .cal-event.event-conf { background: rgba(139,92,246,0.15); color: #a78bfa; border-left: 2px solid #a78bfa; }
 
+  .cal-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+
   .cal-month-nav {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 20px;
-    margin-bottom: 16px;
   }
 
   .cal-month-title { font-size: 18px; font-weight: 700; }
