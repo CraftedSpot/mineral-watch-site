@@ -39,7 +39,8 @@ import {
   adminBackfillHtml,
   learnHtml,
   intelligenceHtml,
-  operatorsHtml
+  operatorsHtml,
+  marketingHtml
 } from './templates/index.js';
 
 import {
@@ -320,6 +321,14 @@ var index_default = {
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
         return servePage(learnHtml, request, env);
+      }
+      if (path === "/portal/marketing" || path === "/portal/marketing/") {
+        // Super-admin only
+        const mktUser = await authenticateRequest(request, env);
+        if (!mktUser || !isSuperAdmin(mktUser.email)) {
+          return Response.redirect(`${BASE_URL}/portal`, 302);
+        }
+        return servePage(marketingHtml, request, env);
       }
 
       // Analyze OCC order route - handles email link clicks
@@ -886,6 +895,37 @@ var index_default = {
         }
       }
       
+      // Proxy marketing endpoints to marketing-worker (super-admin only)
+      if (path.startsWith("/api/marketing/")) {
+        const mktUser = await authenticateRequest(request, env);
+        if (!mktUser || !isSuperAdmin(mktUser.email)) {
+          return jsonResponse({ error: 'Admin required' }, 403);
+        }
+        if (!env.MARKETING_WORKER) {
+          return jsonResponse({ error: 'Marketing service not available' }, 503);
+        }
+        try {
+          const mktUrl = new URL(path + url.search, request.url);
+          const mktRequest = new Request(mktUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+            redirect: 'manual',
+          });
+          const mktResponse = await env.MARKETING_WORKER.fetch(mktRequest);
+          return new Response(await mktResponse.text(), {
+            status: mktResponse.status,
+            headers: {
+              ...Object.fromEntries(mktResponse.headers.entries()),
+              ...CORS_HEADERS,
+            },
+          });
+        } catch (error) {
+          console.error('Marketing proxy error:', error);
+          return jsonResponse({ error: 'Marketing service temporarily unavailable' }, 503);
+        }
+      }
+
       // Proxy documents endpoints to documents-worker
       if (path.startsWith("/api/documents")) {
         console.log(`[Portal] Proxying documents request: ${path}${url.search}`);

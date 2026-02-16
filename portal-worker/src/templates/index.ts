@@ -14,5 +14,6 @@ import adminBackfillHtml from './admin-backfill.html';
 import learnHtml from './learn.html';
 import intelligenceHtml from './intelligence-builder.js';
 import operatorsHtml from './operators-builder.js';
+import marketingHtml from './marketing-builder.js';
 
-export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml, operatorsHtml };
+export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml, operatorsHtml, marketingHtml };

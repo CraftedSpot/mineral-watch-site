@@ -1,0 +1,1266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mineral Watch — Marketing Command Center</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* __MARKETING_CSS__ */
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">
+      <a href="/portal" id="backToPortal" style="color:inherit;text-decoration:none;">&#9670; Mineral Watch</a> <span>Marketing Command Center</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost" onclick="window.location.href='/portal'">&#8592; Portal</button>
+  </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('metrics', this)">Metrics</button>
+  <button class="tab-btn" onclick="switchTab('calendar', this)">Calendar</button>
+  <button class="tab-btn" onclick="switchTab('plan', this)">Action Plan</button>
+  <button class="tab-btn" onclick="switchTab('content', this)">Content Pipeline <span class="count" id="contentCount">0</span></button>
+  <button class="tab-btn" onclick="switchTab('automations', this)">Automations <span class="count">8</span></button>
+  <button class="tab-btn" onclick="switchTab('venues', this)">Venues &amp; Channels <span class="count">18</span></button>
+  <button class="tab-btn" onclick="switchTab('competitors', this)">Competitors <span class="count">4</span></button>
+  <button class="tab-btn" onclick="switchTab('leads', this)">Leads Pipeline <span class="count" id="leadsCount">0</span></button>
+  <button class="tab-btn" onclick="switchTab('ideas', this)">Idea Bank <span class="count" id="ideasCount">0</span></button>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- ======== TAB: Metrics (LIVE) ======== -->
+  <div id="tab-metrics" class="tab-panel active">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Marketing Metrics</div>
+        <div class="section-subtitle">Key performance indicators — live from Stripe &amp; D1</div>
+      </div>
+    </div>
+
+    <!-- Conversion Funnel -->
+    <div class="metrics-section-title">Conversion Funnel</div>
+    <div class="funnel-row">
+      <div class="funnel-step">
+        <div class="funnel-step-label">Site Visitors</div>
+        <div class="funnel-step-value" style="color: var(--text-primary);">—</div>
+        <div class="funnel-step-detail">Add GA/Plausible to track</div>
+        <div class="funnel-arrow">&#8250;</div>
+      </div>
+      <div class="funnel-step">
+        <div class="funnel-step-label">Sign-Ups</div>
+        <div class="funnel-step-value" id="funnelSignups" style="color: var(--accent-blue);">—</div>
+        <div class="funnel-step-detail">All time</div>
+        <div class="funnel-arrow">&#8250;</div>
+      </div>
+      <div class="funnel-step">
+        <div class="funnel-step-label">Activated</div>
+        <div class="funnel-step-value" id="funnelActivated" style="color: var(--accent-amber);">—</div>
+        <div class="funnel-step-detail">Added &#8805;1 property</div>
+        <div class="funnel-arrow">&#8250;</div>
+      </div>
+      <div class="funnel-step">
+        <div class="funnel-step-label">Free &#8594; Paid</div>
+        <div class="funnel-step-value" id="funnelPaid" style="color: var(--accent-green);">—</div>
+        <div class="funnel-step-detail" id="funnelConversion">—</div>
+        <div class="funnel-arrow">&#8250;</div>
+      </div>
+      <div class="funnel-step">
+        <div class="funnel-step-label">MRR</div>
+        <div class="funnel-step-value" id="funnelMrr" style="color: var(--accent-green);">—</div>
+        <div class="funnel-step-detail" id="funnelMrrDetail">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Users & Revenue -->
+    <div class="metrics-section-title">Users &amp; Revenue</div>
+    <div class="metrics-row">
+      <div class="metric-card">
+        <div class="metric-card-label">Total Sign-Ups</div>
+        <div class="metric-card-value" id="metricTotalSignups" style="color: var(--accent-blue);">—</div>
+        <div class="metric-card-detail">All time</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Free Tier</div>
+        <div class="metric-card-value" id="metricFreeUsers" style="color: var(--text-secondary);">—</div>
+        <div class="metric-card-detail">Unpaid users</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Paid Users</div>
+        <div class="metric-card-value" id="metricPaidUsers" style="color: var(--accent-green);">—</div>
+        <div class="metric-card-detail" id="metricPaidDetail">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">Monthly Churn</div>
+        <div class="metric-card-value" id="metricChurn" style="color: var(--accent-green);">—</div>
+        <div class="metric-card-detail">Target: &lt;5%</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">MRR</div>
+        <div class="metric-card-value" id="metricMrr" style="color: var(--accent-green);">—</div>
+        <div class="metric-card-detail">Monthly recurring revenue</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-card-label">ARR (Run Rate)</div>
+        <div class="metric-card-value" id="metricArr" style="color: var(--accent-green);">—</div>
+        <div class="metric-card-detail">MRR x 12</div>
+      </div>
+    </div>
+
+    <!-- Plan Breakdown -->
+    <div class="metrics-section-title">Plan Breakdown</div>
+    <div class="metrics-row" id="planBreakdownRow">
+      <div class="metric-card">
+        <div class="metric-card-label">Loading...</div>
+        <div class="metric-card-value" style="color: var(--text-muted);">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Calendar (STATIC) ======== -->
+  <div id="tab-calendar" class="tab-panel">
+    <div class="cal-month-nav">
+      <button class="cal-nav-btn">&#9664;</button>
+      <div class="cal-month-title">February 2026</div>
+      <button class="cal-nav-btn">&#9654;</button>
+    </div>
+
+    <div class="calendar-grid">
+      <div class="cal-header">Sun</div>
+      <div class="cal-header">Mon</div>
+      <div class="cal-header">Tue</div>
+      <div class="cal-header">Wed</div>
+      <div class="cal-header">Thu</div>
+      <div class="cal-header">Fri</div>
+      <div class="cal-header">Sat</div>
+
+      <!-- Week 1 -->
+      <div class="cal-day"><div class="cal-day-num">1</div>
+        <div class="cal-event forum" title="Monthly Forum Post: OCC Trends">Forum: OCC Trends</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">2</div>
+        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">3</div>
+        <div class="cal-event blog" title="Blog: Why Mineral Owners Need OCC Monitoring">Blog: OCC Monitoring</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">4</div></div>
+      <div class="cal-day"><div class="cal-day-num">5</div>
+        <div class="cal-event social" title="LinkedIn: Book Infographic - Chapter 1">LI: Book Excerpt</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">6</div></div>
+      <div class="cal-day"><div class="cal-day-num">7</div></div>
+
+      <!-- Week 2 -->
+      <div class="cal-day"><div class="cal-day-num">8</div></div>
+      <div class="cal-day"><div class="cal-day-num">9</div>
+        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">10</div>
+        <div class="cal-event social" title="LinkedIn: 5 Things Your Mineral Manager Should Track">LI: Mineral Manager</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">11</div></div>
+      <div class="cal-day"><div class="cal-day-num">12</div>
+        <div class="cal-event forum" title="Forum Q&amp;A (daily 30min)">Forum Answers</div>
+        <div class="cal-event book" title="Submit book to NARO newsletter">NARO Submission</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">13</div></div>
+      <div class="cal-day"><div class="cal-day-num">14</div></div>
+
+      <!-- Week 3 -->
+      <div class="cal-day today"><div class="cal-day-num">15</div>
+        <div class="cal-event lead" title="Follow up: HHD Demo">HHD Follow-up</div>
+        <div class="cal-event seo" title="Publish county landing page: Canadian">SEO: Canadian Co.</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">16</div>
+        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
+        <div class="cal-event lead" title="Send trial invite to Whitfield">Trial: Whitfield</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">17</div>
+        <div class="cal-event lead" title="HHD Demo Call">HHD Demo Call</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">18</div>
+        <div class="cal-event email" title="HHD Follow-Up Drip #1">HHD Drip #1</div>
+        <div class="cal-event lead" title="Send case study to Sarah M.">Case Study &rarr; Sarah</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">19</div>
+        <div class="cal-event social" title="LinkedIn: Book Infographic - Chapter 2">LI: Book Ch.2</div>
+        <div class="cal-event lead" title="Reach out to Patterson Ranch">Reach: Patterson</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">20</div>
+        <div class="cal-event lead" title="Follow up Rodriguez trial">Rodriguez F/U</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">21</div></div>
+
+      <!-- Week 4 -->
+      <div class="cal-day"><div class="cal-day-num">22</div></div>
+      <div class="cal-day"><div class="cal-day-num">23</div>
+        <div class="cal-event email" title="Weekly County Digest">County Digest</div>
+        <div class="cal-event email" title="Feature Announcement: Re-Analyze">Announce: Re-Analyze</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">24</div>
+        <div class="cal-event social" title="LinkedIn Article: Horizontal Wells Explained">LI: Horiz. Wells</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">25</div>
+        <div class="cal-event blog" title="Case Study: Price Oil &amp; Gas">Case Study: POG</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">26</div>
+        <div class="cal-event video" title="Record: Product Walkthrough">Record Walkthrough</div>
+      </div>
+      <div class="cal-day"><div class="cal-day-num">27</div></div>
+      <div class="cal-day"><div class="cal-day-num">28</div></div>
+    </div>
+
+    <!-- Upcoming Industry Events -->
+    <div style="margin-top: 28px;">
+      <div class="metrics-section-title">Upcoming Industry Events</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Event</th><th>Date</th><th>Location</th><th>Strategy</th><th>Status</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><div class="content-title">OCAPL Monthly Luncheon</div><div class="content-channel">Oklahoma City Association of Professional Landmen</div></td>
+              <td style="font-size:13px; white-space:nowrap;">Mar 5, 2026</td>
+              <td style="font-size:13px;">OKC</td>
+              <td style="font-size:13px; color: var(--text-secondary);">Attend, network, in-person demo</td>
+              <td><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></td>
+              <td style="font-family: var(--font-mono); font-size:13px;">~$50</td>
+            </tr>
+            <tr>
+              <td><div class="content-title">OK Energy Producers Alliance Annual</div><div class="content-channel">Producers &amp; operators conference</div></td>
+              <td style="font-size:13px; white-space:nowrap;">Mar 26-27, 2026</td>
+              <td style="font-size:13px;">Embassy Suites, OKC</td>
+              <td style="font-size:13px; color: var(--text-secondary);">Attend &amp; network; consider small sponsor table</td>
+              <td><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></td>
+              <td style="font-family: var(--font-mono); font-size:13px;">TBD</td>
+            </tr>
+            <tr>
+              <td><div class="content-title">AAPL Annual Meeting</div><div class="content-channel">National landman audience</div></td>
+              <td style="font-size:13px; white-space:nowrap;">Jun 24-26, 2026</td>
+              <td style="font-size:13px;">Salt Lake City</td>
+              <td style="font-size:13px; color: var(--text-secondary);">Networking for landman segment</td>
+              <td><span class="badge badge-idea"><span class="badge-dot dot-purple"></span>Evaluating</span></td>
+              <td style="font-family: var(--font-mono); font-size:13px;">~$500+</td>
+            </tr>
+            <tr>
+              <td><div class="content-title">NARO East Convention</div><div class="content-channel">Mineral/royalty owners — core audience</div></td>
+              <td style="font-size:13px; white-space:nowrap;">Sep 28-Oct 1, 2026</td>
+              <td style="font-size:13px;">Cambridge, OH</td>
+              <td style="font-size:13px; color: var(--text-secondary);">Sponsor or present webinar to exact ICP</td>
+              <td><span class="badge badge-idea"><span class="badge-dot dot-purple"></span>Evaluating</span></td>
+              <td style="font-family: var(--font-mono); font-size:13px;">TBD</td>
+            </tr>
+            <tr style="background: rgba(59, 130, 246, 0.04);">
+              <td><div class="content-title" style="color: var(--accent-blue);">OERB Oklahoma Oil &amp; Gas Expo</div><div class="content-channel">4,000+ attendees, 300 exhibitors, Prospect Fair</div></td>
+              <td style="font-size:13px; white-space:nowrap;">Oct 15, 2026</td>
+              <td style="font-size:13px;">OKC Fairgrounds</td>
+              <td style="font-size:13px; color: var(--text-secondary);">Exhibit at Prospect Fair — live MW demo booth</td>
+              <td><span class="badge badge-hot"><span class="badge-dot dot-red"></span>High Priority</span></td>
+              <td style="font-family: var(--font-mono); font-size:13px;">$500-1k</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="cal-legend" style="margin-top:16px;">
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-cyan-dim);"></div>Forum</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-blue-dim);"></div>Blog</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-green-dim);"></div>Email</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-purple-dim);"></div>Social</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-red-dim);"></div>Video</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-pink-dim);"></div>SEO</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: #292524;"></div>Book</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background: var(--accent-amber-dim);"></div>Lead Action</div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Action Plan (STATIC) ======== -->
+  <div id="tab-plan" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Marketing Action Plan</div>
+        <div class="section-subtitle">12-month phased roadmap with prioritized checklists</div>
+      </div>
+    </div>
+
+    <!-- Phase Timeline -->
+    <div class="phase-timeline">
+      <div class="phase-block current">
+        <div class="phase-label p1">Phase 1</div>
+        <div class="phase-name">Foundation</div>
+        <div class="phase-dates">Feb &#8211; Apr 2026</div>
+        <ul class="phase-goals">
+          <li>Launch detailed Features page (SEO)</li>
+          <li>Publish 2 county/basin landing pages</li>
+          <li>Set up email welcome sequence + digest</li>
+          <li>Continue MR Forum engagement + ad</li>
+          <li>Start LinkedIn cadence (2-3x/week)</li>
+          <li>Attend OK Energy Producers (Mar 26)</li>
+          <li>Begin enterprise target account list</li>
+          <li>Publish first 2 educational blog posts</li>
+        </ul>
+        <div class="phase-target" style="color: var(--accent-red);">Target: 50 sign-ups, 1 new enterprise convo</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-label p2">Phase 2</div>
+        <div class="phase-name">Content Engine</div>
+        <div class="phase-dates">May &#8211; Jul 2026</div>
+        <ul class="phase-goals">
+          <li>Launch YouTube (3-4 videos)</li>
+          <li>2 blog posts/month consistently</li>
+          <li>Launch referral program</li>
+          <li>Send monthly OK Drilling Digests</li>
+          <li>3-5 enterprise discovery meetings</li>
+          <li>Attend AAPL Annual (Jun 24-26)</li>
+          <li>Publish comparison pages</li>
+          <li>Collect &amp; publish first testimonials</li>
+        </ul>
+        <div class="phase-target" style="color: var(--accent-amber);">Target: 100 sign-ups, 2 enterprise clients</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-label p3">Phase 3</div>
+        <div class="phase-name">Acceleration</div>
+        <div class="phase-dates">Aug &#8211; Oct 2026</div>
+        <ul class="phase-goals">
+          <li>Exhibit at OERB Expo (Oct 15)</li>
+          <li>Publish first case study</li>
+          <li>Ramp YouTube to 2 videos/month</li>
+          <li>Test small Google Ads budget</li>
+          <li>Explore NARO sponsorship/webinar</li>
+          <li>Attend OCAPL fall luncheons</li>
+        </ul>
+        <div class="phase-target" style="color: var(--accent-blue);">Target: 150 sign-ups, 3 enterprise clients</div>
+      </div>
+      <div class="phase-block">
+        <div class="phase-label p4">Phase 4</div>
+        <div class="phase-name">Scale &amp; Optimize</div>
+        <div class="phase-dates">Nov 2026 &#8211; Jan 2027</div>
+        <ul class="phase-goals">
+          <li>Analyze channel performance — double down</li>
+          <li>Optimize free &#8594; paid conversion</li>
+          <li>Publish "2026 OK Mineral Activity Report"</li>
+          <li>Plan 2027 budget on proven CAC/LTV</li>
+          <li>Evaluate geographic expansion (KS, TX)</li>
+        </ul>
+        <div class="phase-target" style="color: var(--accent-green);">Target: 200+ sign-ups, 4-5 enterprise, positive unit econ</div>
+      </div>
+    </div>
+
+    <!-- Target Audience Profiles -->
+    <div class="metrics-section-title">Target Audience Profiles</div>
+    <div class="audience-grid">
+      <div class="audience-card" style="border-top-color: var(--accent-blue);">
+        <div class="audience-card-title">Individual Mineral Owners</div>
+        <div class="audience-card-subtitle">Inherited or purchased OK mineral rights — your core audience</div>
+        <div class="audience-detail"><span class="audience-detail-label">Pain Points</span>Don't know what's happening on/near their land, miss pooling orders, confused by check stubs</div>
+        <div class="audience-detail"><span class="audience-detail-label">Where</span>MR Forum, NARO events, Google searches, Facebook groups, YouTube</div>
+        <div class="audience-detail"><span class="audience-detail-label">Typical Tier</span>Free &#8594; Starter &#8594; Standard ($10-$50/mo)</div>
+        <div class="audience-detail"><span class="audience-detail-label">Messaging</span>"Know what's happening on your minerals before it's too late"</div>
+      </div>
+      <div class="audience-card" style="border-top-color: var(--accent-amber);">
+        <div class="audience-card-title">Landmen &amp; Small Operators</div>
+        <div class="audience-card-subtitle">Professional landmen managing title research and leasing across OK</div>
+        <div class="audience-detail"><span class="audience-detail-label">Pain Points</span>Need efficient tracking of permits, completions, operator changes across many sections</div>
+        <div class="audience-detail"><span class="audience-detail-label">Where</span>OCAPL events, AAPL conferences, LinkedIn, industry software tools</div>
+        <div class="audience-detail"><span class="audience-detail-label">Typical Tier</span>Standard &#8594; Professional ($50-$99/mo)</div>
+        <div class="audience-detail"><span class="audience-detail-label">Messaging</span>"Monitor every section in your territory automatically"</div>
+      </div>
+      <div class="audience-card" style="border-top-color: var(--accent-green);">
+        <div class="audience-card-title">Enterprise Clients</div>
+        <div class="audience-card-subtitle">Holding companies, banks, title companies — large mineral portfolios</div>
+        <div class="audience-detail"><span class="audience-detail-label">Pain Points</span>Need bulk import, document extraction, portfolio-wide monitoring, custom reporting</div>
+        <div class="audience-detail"><span class="audience-detail-label">Where</span>LinkedIn, industry conferences, referrals, direct outreach</div>
+        <div class="audience-detail"><span class="audience-detail-label">Typical Tier</span>$350+/mo, annual contracts ($3,500-$4,200/yr)</div>
+        <div class="audience-detail"><span class="audience-detail-label">Messaging</span>"Enterprise monitoring at a fraction of Enverus pricing"</div>
+      </div>
+    </div>
+
+    <!-- SEO Keyword Clusters -->
+    <div class="metrics-section-title">SEO Keyword Clusters</div>
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px;">
+      <div class="keyword-cluster">
+        <div class="keyword-cluster-title">Product-Category Keywords</div>
+        <div class="keyword-tags">
+          <span class="keyword-tag">Oklahoma mineral rights monitoring</span>
+          <span class="keyword-tag">OCC permit alerts</span>
+          <span class="keyword-tag">mineral rights tracking software</span>
+          <span class="keyword-tag">Oklahoma well monitoring</span>
+          <span class="keyword-tag">OCC filing alerts</span>
+          <span class="keyword-tag">track drilling near my property</span>
+        </div>
+      </div>
+      <div class="keyword-cluster">
+        <div class="keyword-cluster-title">Educational Long-Tail Keywords</div>
+        <div class="keyword-tags">
+          <span class="keyword-tag">what is an OCC spacing order</span>
+          <span class="keyword-tag">how to track drilling permits Oklahoma</span>
+          <span class="keyword-tag">Oklahoma mineral owner rights</span>
+          <span class="keyword-tag">what to do when you get a pooling order</span>
+          <span class="keyword-tag">how to read division order</span>
+          <span class="keyword-tag">how to audit royalty check Oklahoma</span>
+        </div>
+      </div>
+      <div class="keyword-cluster">
+        <div class="keyword-cluster-title">Competitor Comparison Keywords</div>
+        <div class="keyword-tags">
+          <span class="keyword-tag">Mineral IQ alternative</span>
+          <span class="keyword-tag">EnergyLink vs Mineral Watch</span>
+          <span class="keyword-tag">best mineral rights software Oklahoma</span>
+          <span class="keyword-tag">mineral rights management software</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Initiative Checklists -->
+    <div class="metrics-section-title" style="margin-top: 28px;">Initiative Checklists</div>
+    <div class="action-plan-grid">
+      <div class="ap-card" style="border-left: 3px solid var(--accent-red);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-red-dim); color: var(--accent-red);">&#128293;</div>
+          <div>
+            <div class="ap-card-title">Forum Authority Building</div>
+            <div class="ap-card-timeline">Start immediately — ongoing daily</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Buy 1-year Mineral Rights Forum subscription</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Set up signature with blue link to mymineralwatch.com</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Commit 30 min/day answering questions using MW data</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Save best answers &#8594; repurpose as blog posts</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Monthly trend post showing OCC filing activity</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Track DMs received &#8594; add to leads pipeline</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-red);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-red-dim); color: var(--accent-red);">&#128213;</div>
+          <div>
+            <div class="ap-card-title">Book Distribution &amp; Repurposing</div>
+            <div class="ap-card-timeline">Weeks 1-4</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Break chapters into LinkedIn article series</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Pull infographic pages &#8594; LinkedIn carousel posts</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Free chapter download as website lead magnet</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Submit to NARO newsletter/blog</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Add to forum signature alongside website link</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Send to warm leads as value-add touchpoint</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-amber);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-amber-dim); color: var(--accent-amber);">&#128241;</div>
+          <div>
+            <div class="ap-card-title">LinkedIn Content Engine</div>
+            <div class="ap-card-timeline">Weeks 1-8, then ongoing</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>2x/week posts: articles, carousels, short tips</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Repurpose forum answers &#8594; LinkedIn articles</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Book infographic excerpts as carousel posts</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>"Did you know" mineral rights quick facts</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Product updates framed as value stories</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Connect with OK landmen, mineral managers, attorneys</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-amber);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-amber-dim); color: var(--accent-amber);">&#9654;</div>
+          <div>
+            <div class="ap-card-title">Video Content (Crafted Spot Edge)</div>
+            <div class="ap-card-timeline">Weeks 3-8</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Product walkthrough: Upload &#8594; Monitor &#8594; Alert</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>"How to read a spacing order" explainer</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>"What happens when a well is drilled near you" visual</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>60-second mineral rights tips for LinkedIn/YouTube</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Testimonial video from early adopters</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Post to YouTube, embed on website, share on LI</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-blue);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-blue-dim); color: var(--accent-blue);">&#128269;</div>
+          <div>
+            <div class="ap-card-title">SEO &amp; Directory Submissions</div>
+            <div class="ap-card-timeline">Weeks 2-6</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>County-specific landing pages (start top 5 active)</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>"Mineral Watch vs spreadsheets" comparison page</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Submit to NARO directory</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Submit to G2 / Capterra SaaS directories</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Submit to OK small business / tech directories</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Google Ads: long-tail mineral rights keywords ($10-20/day)</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-blue);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-blue-dim); color: var(--accent-blue);">&#129309;</div>
+          <div>
+            <div class="ap-card-title">Partnerships &amp; Referrals</div>
+            <div class="ap-card-timeline">Weeks 4-12</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Identify 5-10 OK mineral rights attorneys</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Identify 5-10 estate/probate attorneys (OKC area)</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Pitch referral deal: discounted MW trial for clients</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Explore LandGate co-marketing angle</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Contact NARO re: directory listing + sponsorship</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Join OCAPL — attend monthly luncheons</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-green);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-green-dim); color: var(--accent-green);">&#127873;</div>
+          <div>
+            <div class="ap-card-title">Referral Program</div>
+            <div class="ap-card-timeline">Launch Month 3-4 (Apr-May)</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Build simple referral link system in dashboard</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Reward: 1 free month for referrer + referred user</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Alternative reward: bonus document extraction credits</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Mention in welcome emails and monthly digest</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Add in-app referral prompt</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Track referral source via UTM or code</li>
+        </ul>
+      </div>
+
+      <div class="ap-card" style="border-left: 3px solid var(--accent-green);">
+        <div class="ap-card-header">
+          <div class="ap-card-icon" style="background: var(--accent-green-dim); color: var(--accent-green);">&#9993;</div>
+          <div>
+            <div class="ap-card-title">Email Marketing &amp; Nurture</div>
+            <div class="ap-card-timeline">Start Month 1, ongoing</div>
+          </div>
+        </div>
+        <ul class="ap-card-items">
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Welcome sequence: 3 emails over 10 days</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Monthly Oklahoma Drilling Digest email</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Upgrade nudges: free users active 30+ days</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Enterprise nurture: personalized OCC data follow-ups</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Feature announcement template</li>
+          <li><div class="ap-check" onclick="this.classList.toggle('done')"></div>Ask existing users for testimonials</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Content Pipeline (LIVE) ======== -->
+  <div id="tab-content" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Content Pipeline</div>
+        <div class="section-subtitle">All marketing content — from idea through publication</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAddContent()">+ Add Content</button>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Published</div>
+        <div class="stat-value green" id="contentPublished">0</div>
+        <div class="stat-detail">Active + Published</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">In Progress</div>
+        <div class="stat-value amber" id="contentInProgress">0</div>
+        <div class="stat-detail">Drafts &amp; scheduled</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Ideas Queued</div>
+        <div class="stat-value purple" id="contentIdeasQueued">0</div>
+        <div class="stat-detail">Idea + Planned</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Pieces</div>
+        <div class="stat-value blue" id="contentTotalPieces">0</div>
+        <div class="stat-detail">All content</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-toolbar-left">
+          <input type="text" class="search-input" id="contentSearch" placeholder="Search content..." oninput="handleSearch(this.value)">
+          <button class="filter-btn active" onclick="filterContent('all')">All</button>
+          <button class="filter-btn" onclick="filterContent('Blog')">Blog</button>
+          <button class="filter-btn" onclick="filterContent('Email')">Email</button>
+          <button class="filter-btn" onclick="filterContent('Social')">Social</button>
+          <button class="filter-btn" onclick="filterContent('Forum')">Forum</button>
+          <button class="filter-btn" onclick="filterContent('Video')">Video</button>
+          <button class="filter-btn" onclick="filterContent('SEO')">SEO</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Content</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Target Date</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="contentTableBody">
+          <tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 40px;">Loading content...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Automations (STATIC) ======== -->
+  <div id="tab-automations" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Marketing Automations</div>
+        <div class="section-subtitle">Automated workflows leveraging your existing monitoring data</div>
+      </div>
+    </div>
+
+    <div class="auto-grid">
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Weekly County Activity Digest</div>
+          <div class="toggle-track on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">Sends prospects a weekly email showing new OCC filings in their counties of interest. Personalized per prospect's property locations. Uses existing monitoring data.</div>
+        <div class="auto-card-meta">
+          <span>Frequency: <strong>Weekly (Mon 8am)</strong></span>
+          <span>Recipients: <strong>12 prospects</strong></span>
+          <span>Last sent: <strong>Feb 10</strong></span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Feature Announcements</div>
+          <div class="toggle-track on" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">Template-driven feature announcement emails. Fill in feature name, description, benefit &#8594; auto-sends to all active users and warm leads.</div>
+        <div class="auto-card-meta">
+          <span>Trigger: <strong>Manual</strong></span>
+          <span>Recipients: <strong>All users + leads</strong></span>
+          <span>Last sent: <strong>Jan 28</strong></span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Welcome Email Sequence</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">3-email onboarding series over 10 days: introduce MW, show how to add first property, highlight alert features. Drives activation.</div>
+        <div class="auto-card-meta">
+          <span>Trigger: <strong>New sign-up</strong></span>
+          <span>Recipients: <strong>All new users</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Credit Usage Nudge (Upsell)</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">When a trial user hits 80% of their free credits, send email showing what they've discovered and what upgrading unlocks. Soft upsell with real account data.</div>
+        <div class="auto-card-meta">
+          <span>Trigger: <strong>80% credit usage</strong></span>
+          <span>Recipients: <strong>Trial users</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Monthly Portfolio Report</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">Monthly email summarizing activity on monitored properties — permits, completions, operator changes. Demonstrates ongoing value, reduces churn.</div>
+        <div class="auto-card-meta">
+          <span>Frequency: <strong>1st of month</strong></span>
+          <span>Recipients: <strong>Paid users</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">Forum Trend Auto-Draft</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">Auto-generates monthly forum content from OCC trends — active counties, new operators, unusual patterns. Creates draft for your review before posting.</div>
+        <div class="auto-card-meta">
+          <span>Frequency: <strong>Monthly</strong></span>
+          <span>Channel: <strong>MR Forum</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">"New Well Near You" Prospect Alerts</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">When a new drilling permit is detected near a prospect's property, send a personalized alert demonstrating MW's value in real-time.</div>
+        <div class="auto-card-meta">
+          <span>Trigger: <strong>New permit match</strong></span>
+          <span>Recipients: <strong>Prospects + trial users</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+
+      <div class="auto-card">
+        <div class="auto-card-header">
+          <div class="auto-card-title">30-Day Upgrade Nudge</div>
+          <div class="toggle-track" onclick="this.classList.toggle('on')"><div class="toggle-knob"></div></div>
+        </div>
+        <div class="auto-card-desc">For free-tier users active 30+ days, send targeted email showing what they're missing. Include their actual property activity as proof of value.</div>
+        <div class="auto-card-meta">
+          <span>Trigger: <strong>30 days active on free</strong></span>
+          <span>Recipients: <strong>Free tier users</strong></span>
+          <span style="color: var(--accent-amber);">Not configured</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Venues & Channels (STATIC) ======== -->
+  <div id="tab-venues" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Venues &amp; Channels Directory</div>
+        <div class="section-subtitle">Every place Mineral Watch could have a presence — with links, descriptions, and status</div>
+      </div>
+    </div>
+
+    <div class="venue-category-header">Forums &amp; Communities</div>
+    <div class="venue-grid">
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Mineral Rights Forum</div><span class="badge badge-active"><span class="badge-dot dot-green"></span>Active</span></div>
+        <div class="venue-card-desc">The largest online community for mineral rights owners. Primary venue for daily Q&amp;A authority building.</div>
+        <div class="venue-tags"><span class="venue-tag">Individual Owners</span><span class="venue-tag">Oklahoma</span><span class="venue-tag">High Intent</span></div>
+        <div class="venue-meta"><span>Cost: <strong>$300/mo</strong></span><span>Strategy: <strong>Daily Q&amp;A + monthly trend posts</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">LinkedIn</div><span class="badge badge-active"><span class="badge-dot dot-green"></span>Active</span></div>
+        <div class="venue-card-desc">Where landmen, holding company managers, and O&amp;G professionals spend time. Personal profile content 2-3x/week.</div>
+        <div class="venue-tags"><span class="venue-tag">Enterprise</span><span class="venue-tag">Landmen</span><span class="venue-tag">Professional</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free (+ $100/mo Sales Nav)</strong></span><span>Strategy: <strong>2-3x/week posts + enterprise outreach</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">YouTube</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Mineral owners actively learning on YouTube. Almost no one doing OK-specific OCC education on video.</div>
+        <div class="venue-tags"><span class="venue-tag">Education</span><span class="venue-tag">SEO</span><span class="venue-tag">Long-form</span></div>
+        <div class="venue-meta"><span>Cost: <strong>$0-100</strong></span><span>Strategy: <strong>1-2 videos/month starting Month 2-3</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Facebook Groups</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Oklahoma mineral rights Facebook groups reach older demographic mineral owners.</div>
+        <div class="venue-tags"><span class="venue-tag">Older Demo</span><span class="venue-tag">Oklahoma</span><span class="venue-tag">Community</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free / $10-20/day (ads)</strong></span><span>Strategy: <strong>Join groups, helpful posts, carousel ads</strong></span></div>
+      </div>
+    </div>
+
+    <div class="venue-category-header">Industry Associations &amp; Events</div>
+    <div class="venue-grid">
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">NARO</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Oklahoma chapter is your goldmine — their members are exactly your target. Newsletter, events, educational sessions.</div>
+        <div class="venue-tags"><span class="venue-tag">Mineral Owners</span><span class="venue-tag">Bullseye Audience</span><span class="venue-tag">Events</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Membership + sponsorship TBD</strong></span><span>Strategy: <strong>Directory, newsletter, webinar, convention</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">OCAPL</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Monthly lunch meetings, networking events, and continuing education. Direct access to working landmen in OKC metro.</div>
+        <div class="venue-tags"><span class="venue-tag">Landmen</span><span class="venue-tag">Title Examiners</span><span class="venue-tag">Referral Source</span></div>
+        <div class="venue-meta"><span>Cost: <strong>~$300/yr</strong></span><span>Strategy: <strong>Local chapter networking, referrals</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">OERB Oklahoma Oil &amp; Gas Expo</div><span class="badge badge-hot"><span class="badge-dot dot-red"></span>High Priority</span></div>
+        <div class="venue-card-desc">4,000+ attendees, 300 exhibitors. NEW Prospect Fair specifically for royalty/mineral/working interest owners. Oct 15, 2026.</div>
+        <div class="venue-tags"><span class="venue-tag">4,000+ Attendees</span><span class="venue-tag">Prospect Fair</span><span class="venue-tag">Demo Opportunity</span></div>
+        <div class="venue-meta"><span>Cost: <strong>$500-1,000 (booth)</strong></span><span>Strategy: <strong>Exhibit at Prospect Fair — live demo</strong></span></div>
+      </div>
+    </div>
+
+    <div class="venue-category-header">Directories &amp; Listings</div>
+    <div class="venue-grid">
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">G2</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Leading B2B software review platform. Listing establishes MW as a legitimate SaaS product.</div>
+        <div class="venue-tags"><span class="venue-tag">SaaS</span><span class="venue-tag">Reviews</span><span class="venue-tag">Enterprise Buyers</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free listing</strong></span><span>Strategy: <strong>List + collect reviews</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Capterra</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Popular software comparison directory. Free listing, pay for premium placement.</div>
+        <div class="venue-tags"><span class="venue-tag">SaaS</span><span class="venue-tag">Directory</span><span class="venue-tag">Comparison</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free / paid placement</strong></span><span>Strategy: <strong>List + optimize profile</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">NARO Service Directory</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">NARO directory of services for mineral/royalty owners. Puts MW in front of their membership.</div>
+        <div class="venue-tags"><span class="venue-tag">Mineral Owners</span><span class="venue-tag">Directory</span><span class="venue-tag">Targeted</span></div>
+        <div class="venue-meta"><span>Cost: <strong>NARO membership</strong></span><span>Strategy: <strong>List as service provider</strong></span></div>
+      </div>
+    </div>
+
+    <div class="venue-category-header">Referral Partners</div>
+    <div class="venue-grid">
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">OK Mineral Rights Attorneys</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Attorneys specializing in mineral rights, title opinions, quiet title actions. Referral program: discounted MW trial for their clients.</div>
+        <div class="venue-tags"><span class="venue-tag">Referral</span><span class="venue-tag">High Trust</span><span class="venue-tag">Mineral Owners</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free (referral exchange)</strong></span><span>Strategy: <strong>Identify 5-10, pitch referral deal</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Estate Planning Attorneys</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Handle inheritance cases where clients suddenly own mineral rights they don't understand. Perfect warm referral.</div>
+        <div class="venue-tags"><span class="venue-tag">Referral</span><span class="venue-tag">Inherited Minerals</span><span class="venue-tag">Warm Leads</span></div>
+        <div class="venue-meta"><span>Cost: <strong>Free</strong></span><span>Strategy: <strong>Target 5-10 OKC area firms</strong></span></div>
+      </div>
+    </div>
+
+    <div class="venue-category-header">Paid Advertising</div>
+    <div class="venue-grid">
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Google Ads (Search)</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Long-tail keyword targeting for high-intent searches. Low competition, high intent. Start small.</div>
+        <div class="venue-tags"><span class="venue-tag">High Intent</span><span class="venue-tag">Long-tail</span><span class="venue-tag">Scalable</span></div>
+        <div class="venue-meta"><span>Cost: <strong>$10-20/day</strong></span><span>Strategy: <strong>Long-tail keywords, county-specific</strong></span></div>
+      </div>
+      <div class="venue-card">
+        <div class="venue-card-header"><div class="venue-card-title">Facebook/Instagram Ads</div><span class="badge badge-planned"><span class="badge-dot dot-blue"></span>Planned</span></div>
+        <div class="venue-card-desc">Targeted ads to OK mineral rights Facebook groups. Carousel ads featuring book infographics could work well.</div>
+        <div class="venue-tags"><span class="venue-tag">Targeted</span><span class="venue-tag">Older Demo</span><span class="venue-tag">Visual</span></div>
+        <div class="venue-meta"><span>Cost: <strong>$10-20/day</strong></span><span>Strategy: <strong>Interest targeting + group ads</strong></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Competitors (STATIC) ======== -->
+  <div id="tab-competitors" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Competitive Intelligence</div>
+        <div class="section-subtitle">Track competitors' pricing, features, and positioning</div>
+      </div>
+    </div>
+
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+      <div style="font-weight: 700; margin-bottom: 8px;">Competitive Positioning</div>
+      <div style="font-size: 14px; color: var(--text-secondary); line-height: 1.6;">Mineral Watch's differentiation is not about being "better than Enverus" — it's about being <strong style="color: var(--text-primary);">different</strong>. Oklahoma-specific, OCC-native, built for individual owners and small firms at a fraction of enterprise pricing. Core message: <em style="color: var(--accent-blue);">"Mineral Watch is your Oklahoma watchdog — the simplest way to know what's happening on and around your minerals, before it's too late."</em></div>
+    </div>
+
+    <div class="competitor-grid">
+      <div class="comp-card">
+        <div class="comp-card-head">
+          <div><div class="comp-name">MineralIQ / EnergyLink</div><div class="comp-url">mineraliq.com (Enverus)</div></div>
+          <span class="badge badge-monitoring">Monitoring</span>
+        </div>
+        <div class="comp-card-body">
+          <div class="comp-row"><span class="comp-label">Pricing</span><span class="comp-value">Free tier + $49-299/mo</span></div>
+          <div class="comp-row"><span class="comp-label">Target</span><span class="comp-value">Professional landmen, institutions</span></div>
+          <div class="comp-row"><span class="comp-label">Strengths</span><span class="comp-value">GIS mapping, county data, revenue tracking</span></div>
+          <div class="comp-row"><span class="comp-label">Weakness</span><span class="comp-value">No document intelligence, intimidating for individuals</span></div>
+          <div class="comp-row"><span class="comp-label">OCC Depth</span><span class="comp-value">Surface-level activity alerts</span></div>
+          <div class="comp-notes">
+            <div class="comp-notes-title">Latest Intel</div>
+            Added new "portfolio view" in Jan. Still no automated OCC monitoring — manual data entry. Pricing increased $10/tier Q4 2025. Forum users complaining about data delays.
+          </div>
+        </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-card-head">
+          <div><div class="comp-name">Pangaea</div><div class="comp-url">pangaea.io</div></div>
+          <span class="badge badge-monitoring">Monitoring</span>
+        </div>
+        <div class="comp-card-body">
+          <div class="comp-row"><span class="comp-label">Pricing</span><span class="comp-value">Enterprise only (~$500+/mo)</span></div>
+          <div class="comp-row"><span class="comp-label">Target</span><span class="comp-value">Large mineral buyers, institutions</span></div>
+          <div class="comp-row"><span class="comp-label">Strengths</span><span class="comp-value">Deep analytics, API, multi-state</span></div>
+          <div class="comp-row"><span class="comp-label">Weakness</span><span class="comp-value">Overkill for families/individuals, enterprise pricing</span></div>
+          <div class="comp-notes">
+            <div class="comp-notes-title">Latest Intel</div>
+            Enterprise-focused, not competing for individual owners. Good benchmark for enterprise feature expectations. $20-30K quotes give strong price anchoring for $3,500-$4,200/yr enterprise tier.
+          </div>
+        </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-card-head">
+          <div><div class="comp-name">LandGate</div><div class="comp-url">landgate.com</div></div>
+          <span class="badge badge-monitoring">Monitoring</span>
+        </div>
+        <div class="comp-card-body">
+          <div class="comp-row"><span class="comp-label">Pricing</span><span class="comp-value">Free tier + Premium</span></div>
+          <div class="comp-row"><span class="comp-label">Target</span><span class="comp-value">Mineral valuation seekers</span></div>
+          <div class="comp-row"><span class="comp-label">Strengths</span><span class="comp-value">Valuation tools, marketplace</span></div>
+          <div class="comp-row"><span class="comp-label">Weakness</span><span class="comp-value">No ongoing monitoring, no OCC depth</span></div>
+          <div class="comp-notes">
+            <div class="comp-notes-title">Latest Intel</div>
+            Complementary rather than competitive. Users value minerals but have no ongoing monitoring. Natural handoff partnership opportunity.
+          </div>
+        </div>
+      </div>
+
+      <div class="comp-card">
+        <div class="comp-card-head">
+          <div><div class="comp-name">Legacy Mineral Management</div><div class="comp-url">legacymineralmgmt.com</div></div>
+          <span class="badge badge-monitoring">Monitoring</span>
+        </div>
+        <div class="comp-card-body">
+          <div class="comp-row"><span class="comp-label">Type</span><span class="comp-value">Full-service mineral management</span></div>
+          <div class="comp-row"><span class="comp-label">Target</span><span class="comp-value">Hands-off mineral owners</span></div>
+          <div class="comp-row"><span class="comp-label">Strengths</span><span class="comp-value">Full-service, human management</span></div>
+          <div class="comp-row"><span class="comp-label">Weakness</span><span class="comp-value">Expensive, you give up control</span></div>
+          <div class="comp-notes">
+            <div class="comp-notes-title">Latest Intel</div>
+            Currently advertising on MR Forum with UTM tracking. Different value prop — they manage your minerals, MW gives you tools to manage yourself. Their ads validate the MRF audience is worth spending on.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Leads Pipeline (LIVE) ======== -->
+  <div id="tab-leads" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Leads Pipeline</div>
+        <div class="section-subtitle">Enterprise ABM pipeline + individual lead tracking</div>
+      </div>
+      <button class="btn btn-primary" onclick="openAddLead()">+ Add Lead</button>
+    </div>
+
+    <!-- Pipeline Stages -->
+    <div class="pipeline-stages" id="pipelineStageCounts">
+      <div class="pipeline-stage" data-stage="Target List">
+        <div class="pipeline-stage-label">Target List</div>
+        <div class="pipeline-stage-count" style="color: var(--text-secondary);">0</div>
+        <div class="pipeline-stage-value">Build account list</div>
+      </div>
+      <div class="pipeline-stage" data-stage="Outreach">
+        <div class="pipeline-stage-label">Outreach</div>
+        <div class="pipeline-stage-count" style="color: var(--accent-blue);">0</div>
+        <div class="pipeline-stage-value">Personalized contact</div>
+      </div>
+      <div class="pipeline-stage" data-stage="Discovery">
+        <div class="pipeline-stage-label">Discovery</div>
+        <div class="pipeline-stage-count" style="color: var(--accent-amber);">0</div>
+        <div class="pipeline-stage-value">Meeting / demo</div>
+      </div>
+      <div class="pipeline-stage" data-stage="Proposal">
+        <div class="pipeline-stage-label">Proposal</div>
+        <div class="pipeline-stage-count" style="color: var(--accent-purple);">0</div>
+        <div class="pipeline-stage-value">Pending close</div>
+      </div>
+      <div class="pipeline-stage" data-stage="Closed Won">
+        <div class="pipeline-stage-label">Closed Won</div>
+        <div class="pipeline-stage-count" style="color: var(--accent-green);">0</div>
+        <div class="pipeline-stage-value">—</div>
+      </div>
+    </div>
+
+    <!-- ABM Strategy Card -->
+    <div style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+      <div style="font-weight: 700; margin-bottom: 8px;">Enterprise ABM Playbook</div>
+      <div style="font-size: 13px; color: var(--text-secondary); line-height: 1.6;">
+        <strong>Step 1:</strong> Build target list (20-30 accounts) &#8594;
+        <strong>Step 2:</strong> Personalized outreach referencing specific OCC activity &#8594;
+        <strong>Step 3:</strong> Discovery &#8594; Demo &#8594; Proposal &#8594;
+        <strong>Step 4:</strong> Close (anchor against Enverus $20-30K quotes), then ask for testimonial + case study
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Leads</div>
+        <div class="stat-value blue" id="leadsTotalCount">0</div>
+        <div class="stat-detail">In pipeline</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Enterprise</div>
+        <div class="stat-value amber" id="leadsEntCount">0</div>
+        <div class="stat-detail">Enterprise leads</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Individual</div>
+        <div class="stat-value cyan" id="leadsIndCount">0</div>
+        <div class="stat-detail">Individual leads</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pipeline Value</div>
+        <div class="stat-value green" id="leadsPipelineValue">$0</div>
+        <div class="stat-detail">Annual potential</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <div class="table-toolbar-left">
+          <input type="text" class="search-input" id="leadsSearch" placeholder="Search leads..." oninput="handleSearch(this.value)">
+          <button class="filter-btn active" onclick="filterLeads('all')">All</button>
+          <button class="filter-btn" onclick="filterLeads('enterprise')">Enterprise</button>
+          <button class="filter-btn" onclick="filterLeads('individual')">Individual</button>
+        </div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Company</th>
+            <th>Stage</th>
+            <th>Properties</th>
+            <th>Est. Value</th>
+            <th>Source</th>
+            <th>Next Action</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="leadsTableBody">
+          <tr><td colspan="8" style="text-align:center; color: var(--text-muted); padding: 40px;">Loading leads...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Idea Bank (LIVE) ======== -->
+  <div id="tab-ideas" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Idea Bank</div>
+        <div class="section-subtitle">Quick capture for marketing ideas — promote to Content Pipeline when ready</div>
+      </div>
+    </div>
+
+    <div class="quick-add">
+      <input type="text" id="ideaQuickInput" placeholder="Quick add an idea... (press Enter)" onkeydown="if(event.key==='Enter')quickAddIdea()">
+      <button class="btn btn-primary" onclick="quickAddIdea()">Add</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Idea</th><th>Category</th><th>Source</th><th>Added</th><th></th></tr></thead>
+        <tbody id="ideasTableBody">
+          <tr><td colspan="5" style="text-align:center; color: var(--text-muted); padding: 40px;">Loading ideas...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ======== Content Modal ======== -->
+<div class="modal-overlay" id="contentModal">
+  <div class="modal">
+    <div class="modal-title" id="contentModalTitle">Add Content</div>
+    <input type="hidden" id="editContentId" value="">
+    <div class="modal-field">
+      <label>Title</label>
+      <input type="text" id="contentTitle">
+    </div>
+    <div class="modal-field">
+      <label>Channel</label>
+      <select id="contentChannel">
+        <option value="">— Select —</option>
+        <option value="Blog">Blog</option>
+        <option value="Email">Email</option>
+        <option value="Social">Social</option>
+        <option value="Forum">Forum</option>
+        <option value="Video">Video</option>
+        <option value="SEO">SEO</option>
+        <option value="Book">Book</option>
+        <option value="Case Study">Case Study</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Distribution</label>
+      <input type="text" id="contentDistribution" placeholder="e.g. Blog &rarr; LinkedIn">
+    </div>
+    <div class="modal-field">
+      <label>Status</label>
+      <select id="contentStatus">
+        <option value="Idea">Idea</option>
+        <option value="Planned">Planned</option>
+        <option value="Draft">Draft</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Scheduled">Scheduled</option>
+        <option value="Published">Published</option>
+        <option value="Active">Active</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Priority</label>
+      <select id="contentPriority">
+        <option value="Med">Med</option>
+        <option value="High">High</option>
+        <option value="Low">Low</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Target Date</label>
+      <input type="date" id="contentTargetDate">
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="contentNotes"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="contentDeleteBtn" style="display:none;" onclick="deleteContent()">Delete</button>
+      <button class="btn btn-ghost" onclick="closeContentModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContent()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== Lead Modal ======== -->
+<div class="modal-overlay" id="leadModal">
+  <div class="modal">
+    <div class="modal-title" id="leadModalTitle">Add Lead</div>
+    <input type="hidden" id="editLeadId" value="">
+    <div class="modal-field">
+      <label>Name</label>
+      <input type="text" id="leadName">
+    </div>
+    <div class="modal-field">
+      <label>Email</label>
+      <input type="email" id="leadEmail">
+    </div>
+    <div class="modal-field">
+      <label>Company</label>
+      <input type="text" id="leadCompany">
+    </div>
+    <div class="modal-field">
+      <label>Stage</label>
+      <select id="leadStage">
+        <option value="Target List">Target List</option>
+        <option value="Outreach">Outreach</option>
+        <option value="Warm">Warm</option>
+        <option value="Hot">Hot</option>
+        <option value="Discovery">Discovery</option>
+        <option value="Proposal">Proposal</option>
+        <option value="Trial">Trial</option>
+        <option value="Closed Won">Closed Won</option>
+        <option value="Closed Lost">Closed Lost</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Type</label>
+      <select id="leadType">
+        <option value="Individual">Individual</option>
+        <option value="Enterprise">Enterprise</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Properties</label>
+      <input type="number" id="leadProperties">
+    </div>
+    <div class="modal-field">
+      <label>Est Value</label>
+      <input type="text" id="leadEstValue" placeholder="e.g. $99/mo or $4,200/yr">
+    </div>
+    <div class="modal-field">
+      <label>Source</label>
+      <select id="leadSource">
+        <option value="">— Select —</option>
+        <option value="Forum DM">Forum DM</option>
+        <option value="LinkedIn">LinkedIn</option>
+        <option value="Referral">Referral</option>
+        <option value="Intro Email">Intro Email</option>
+        <option value="Direct">Direct</option>
+        <option value="Event">Event</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Next Action</label>
+      <input type="text" id="leadNextAction">
+    </div>
+    <div class="modal-field">
+      <label>Next Action Date</label>
+      <input type="date" id="leadNextActionDate">
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="leadNotes"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="leadDeleteBtn" style="display:none;" onclick="deleteLead()">Delete</button>
+      <button class="btn btn-ghost" onclick="closeLeadModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveLead()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== Idea Modal ======== -->
+<div class="modal-overlay" id="ideaModal">
+  <div class="modal">
+    <div class="modal-title" id="ideaModalTitle">Edit Idea</div>
+    <input type="hidden" id="editIdeaId" value="">
+    <div class="modal-field">
+      <label>Idea</label>
+      <input type="text" id="ideaTitle">
+    </div>
+    <div class="modal-field">
+      <label>Category</label>
+      <select id="ideaCategory">
+        <option value="General">General</option>
+        <option value="Content">Content</option>
+        <option value="SEO">SEO</option>
+        <option value="Partnership">Partnership</option>
+        <option value="Lead Gen">Lead Gen</option>
+        <option value="Automation">Automation</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Source</label>
+      <input type="text" id="ideaSource">
+    </div>
+    <div class="modal-field">
+      <label>Notes</label>
+      <textarea id="ideaNotes"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeIdeaModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveIdea()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======== Toast ======== -->
+<div id="toast" class="toast" style="display:none;"></div>
+
+<script>
+/* __MARKETING_JS__ */
+</script>
+
+</body>
+</html>

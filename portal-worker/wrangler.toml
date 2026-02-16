@@ -33,6 +33,11 @@ service = "documents-worker"
 binding = "OCC_FETCHER"
 service = "occ-fetcher"
 
+# Service binding to marketing-worker
+[[services]]
+binding = "MARKETING_WORKER"
+service = "marketing-worker"
+
 # D1 Database for Oklahoma Wells
 [[d1_databases]]
 binding = "WELLS_DB"

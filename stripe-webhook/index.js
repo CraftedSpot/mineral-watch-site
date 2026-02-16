@@ -434,6 +434,33 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   const subscriptionId = subscription.id;
   const status = subscription.status;
 
+  // If user scheduled cancellation at period end, cancel immediately
+  // This ensures handleSubscriptionDeleted fires right away and our
+  // Airtable cleanup + cancellation email happen in sync with Stripe
+  if (subscription.cancel_at_period_end && status === 'active') {
+    console.log(`Subscription ${subscriptionId} set to cancel at period end — canceling immediately`);
+    try {
+      const cancelResp = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+      if (cancelResp.ok) {
+        console.log(`Immediately canceled subscription ${subscriptionId} — subscription.deleted webhook will handle cleanup`);
+        return; // subscription.deleted webhook will fire and handle Airtable update + email
+      } else {
+        const errText = await cancelResp.text();
+        console.error(`Failed to immediately cancel subscription ${subscriptionId}:`, errText);
+        // Fall through to normal update handling as fallback
+      }
+    } catch (cancelErr) {
+      console.error(`Error canceling subscription ${subscriptionId}:`, cancelErr);
+      // Fall through to normal update handling as fallback
+    }
+  }
+
   // Get the current price from the subscription
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const newPlan = priceId ? (PRICE_TO_PLAN[priceId] || 'Starter') : 'Starter';

@@ -18,6 +18,7 @@ export interface Env {
   AUTH_WORKER: Fetcher;
   DOCUMENTS_WORKER?: Fetcher;
   OCC_FETCHER?: Fetcher;
+  MARKETING_WORKER?: Fetcher;
 
   // D1 Database
   WELLS_DB?: D1Database;

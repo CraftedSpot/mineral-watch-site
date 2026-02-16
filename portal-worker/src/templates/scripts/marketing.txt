@@ -1,0 +1,871 @@
+        // =============================================
+        // MARKETING COMMAND CENTER
+        // =============================================
+
+        let currentTab = 'metrics';
+        let loadedTabs = {};
+        let allLeads = [];
+        let allContent = [];
+        let allIdeas = [];
+        let activeLeadFilter = 'all';
+        let activeContentFilter = 'all';
+        let searchQuery = '';
+
+        // =============================================
+        // INITIALIZATION
+        // =============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            // Determine initial tab from hash or default
+            const hash = window.location.hash.replace('#', '');
+            if (['metrics', 'content', 'leads', 'ideas', 'calendar', 'plan', 'automations', 'venues', 'competitors'].includes(hash)) {
+                currentTab = hash;
+            }
+            switchTab(currentTab);
+
+            // ESC closes modals
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeContentModal();
+                    closeLeadModal();
+                    closeIdeaModal();
+                }
+            });
+        });
+
+        // =============================================
+        // TAB SWITCHING
+        // =============================================
+        function switchTab(tabName, clickedBtn) {
+            currentTab = tabName;
+            window.location.hash = tabName;
+
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                const isMatch = clickedBtn ? (btn === clickedBtn) : (btn.getAttribute('onclick') || '').includes("'" + tabName + "'");
+                btn.classList.toggle('active', isMatch);
+            });
+
+            // Update tab panels
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+            });
+
+            // Load data on first visit
+            if (!loadedTabs[tabName]) {
+                loadedTabs[tabName] = true;
+                if (tabName === 'metrics') loadMetrics();
+                else if (tabName === 'content') loadContent();
+                else if (tabName === 'leads') loadLeads();
+                else if (tabName === 'ideas') loadIdeas();
+            }
+        }
+
+        // =============================================
+        // METRICS TAB
+        // =============================================
+        async function loadMetrics() {
+            try {
+                const res = await fetch('/api/marketing/metrics');
+                if (!res.ok) throw new Error('Failed to load metrics');
+                const data = await res.json();
+                renderMetrics(data);
+            } catch (err) {
+                console.error('Metrics load error:', err);
+                setMetricsError();
+            }
+        }
+
+        function renderMetrics(data) {
+            const funnel = data.funnel || {};
+            const metrics = data.metrics || {};
+
+            // Funnel
+            setText('funnelSignups', formatNum(funnel.signups));
+            setText('funnelActivated', formatNum(funnel.activated));
+            setText('funnelPaid', formatNum(funnel.paid));
+            setText('funnelConversion', funnel.conversion != null ? funnel.conversion + '%' : '--');
+            setText('funnelMrr', funnel.mrr != null ? '$' + formatNum(funnel.mrr) : '--');
+            const mrrDetail = document.getElementById('funnelMrrDetail');
+            if (mrrDetail && funnel.mrrDetail) {
+                mrrDetail.textContent = funnel.mrrDetail;
+            }
+
+            // Metric cards
+            setText('metricTotalSignups', formatNum(metrics.totalSignups));
+            setText('metricFreeUsers', formatNum(metrics.freeUsers));
+            setText('metricPaidUsers', formatNum(metrics.paidUsers));
+            setText('metricChurn', metrics.churn != null ? metrics.churn + '%' : '--');
+            setText('metricMrr', metrics.mrr != null ? '$' + formatNum(metrics.mrr) : '--');
+            setText('metricArr', metrics.arr != null ? '$' + formatNum(metrics.arr) : '--');
+        }
+
+        function setMetricsError() {
+            ['funnelSignups', 'funnelActivated', 'funnelPaid', 'funnelConversion', 'funnelMrr'].forEach(id => {
+                setText(id, '--');
+            });
+            ['metricTotalSignups', 'metricFreeUsers', 'metricPaidUsers', 'metricChurn', 'metricMrr', 'metricArr'].forEach(id => {
+                setText(id, '--');
+            });
+        }
+
+        // =============================================
+        // CONTENT TAB
+        // =============================================
+        async function loadContent() {
+            try {
+                const res = await fetch('/api/marketing/content');
+                if (!res.ok) throw new Error('Failed to load content');
+                allContent = await res.json();
+                renderContentStats();
+                renderContentTable();
+            } catch (err) {
+                console.error('Content load error:', err);
+                document.getElementById('contentTableBody').innerHTML =
+                    '<tr><td colspan="6" style="text-align:center;color:var(--error);padding:2rem;">Failed to load content. Please refresh.</td></tr>';
+            }
+        }
+
+        function renderContentStats() {
+            const published = allContent.filter(c => c.status === 'Published' || c.status === 'Active').length;
+            const inProgress = allContent.filter(c => c.status === 'Draft' || c.status === 'In Progress').length;
+            const ideas = allContent.filter(c => c.status === 'Idea' || c.status === 'Planned').length;
+            setText('contentPublished', published);
+            setText('contentInProgress', inProgress);
+            setText('contentIdeasQueued', ideas);
+            setText('contentTotalPieces', allContent.length);
+        }
+
+        function filterContent(status) {
+            activeContentFilter = status;
+            renderContentTable();
+        }
+
+        function renderContentTable() {
+            const tbody = document.getElementById('contentTableBody');
+            let filtered = allContent;
+
+            if (activeContentFilter !== 'all') {
+                filtered = filtered.filter(c => c.channel === activeContentFilter);
+            }
+
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                filtered = filtered.filter(c =>
+                    (c.title || '').toLowerCase().includes(q) ||
+                    (c.channel || '').toLowerCase().includes(q) ||
+                    (c.notes || '').toLowerCase().includes(q)
+                );
+            }
+
+            setText('contentCount', filtered.length);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem;">No content items found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(item => {
+                const channelClass = getChannelClass(item.channel);
+                const statusBadge = getContentStatusBadge(item.status);
+                const priorityClass = getPriorityClass(item.priority);
+                const targetDate = item.target_date ? formatDate(item.target_date) : '--';
+                const truncNotes = truncate(item.notes, 60);
+                const id = item.id;
+
+                return `<tr>
+                    <td>
+                        <div style="display:flex;align-items:center;gap:0.5rem;">
+                            <span class="channel-icon ${channelClass}"></span>
+                            <div>
+                                <div style="font-weight:500;">${esc(item.title)}</div>
+                                <div style="font-size:0.75rem;color:var(--text-muted);">${esc(item.channel || '')}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="status-badge ${statusBadge}">${esc(item.status || 'Idea')}</span></td>
+                    <td><span class="${priorityClass}">${esc(item.priority || '--')}</span></td>
+                    <td>${targetDate}</td>
+                    <td title="${esc(item.notes || '')}">${esc(truncNotes)}</td>
+                    <td>
+                        <div class="action-dots">
+                            <button class="action-btn" onclick='openEditContent("${id}")' title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="action-btn action-btn-danger" onclick='deleteContent("${id}")' title="Delete">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // =============================================
+        // LEADS TAB
+        // =============================================
+        async function loadLeads() {
+            try {
+                const res = await fetch('/api/marketing/leads');
+                if (!res.ok) throw new Error('Failed to load leads');
+                allLeads = await res.json();
+                renderLeadStats();
+                renderPipelineStages();
+                renderLeadsTable();
+            } catch (err) {
+                console.error('Leads load error:', err);
+                document.getElementById('leadsTableBody').innerHTML =
+                    '<tr><td colspan="8" style="text-align:center;color:var(--error);padding:2rem;">Failed to load leads. Please refresh.</td></tr>';
+            }
+        }
+
+        function renderLeadStats() {
+            const enterprise = allLeads.filter(l => l.type === 'Enterprise').length;
+            const individual = allLeads.filter(l => l.type === 'Individual').length;
+            const totalValue = allLeads.reduce((sum, l) => sum + (parseFloat(l.est_value) || 0), 0);
+
+            setText('leadsTotalCount', allLeads.length);
+            setText('leadsEntCount', enterprise);
+            setText('leadsIndCount', individual);
+            setText('leadsPipelineValue', '$' + formatNum(totalValue));
+        }
+
+        function renderPipelineStages() {
+            const stageCounts = {};
+            allLeads.forEach(l => {
+                const stage = l.stage || 'Unknown';
+                stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+            });
+
+            const container = document.getElementById('pipelineStageCounts');
+            if (!container) return;
+
+            container.querySelectorAll('[data-stage]').forEach(el => {
+                const stage = el.dataset.stage;
+                const countEl = el.querySelector('.pipeline-stage-count');
+                if (countEl) {
+                    countEl.textContent = stageCounts[stage] || 0;
+                }
+            });
+        }
+
+        function filterLeads(filter) {
+            activeLeadFilter = filter;
+            renderLeadsTable();
+        }
+
+        function renderLeadsTable() {
+            const tbody = document.getElementById('leadsTableBody');
+            let filtered = allLeads;
+
+            if (activeLeadFilter !== 'all') {
+                filtered = filtered.filter(l => {
+                    if (activeLeadFilter === 'enterprise') return l.type === 'Enterprise';
+                    if (activeLeadFilter === 'individual') return l.type === 'Individual';
+                    if (activeLeadFilter === 'hot') return l.stage === 'Hot' || l.stage === 'Warm';
+                    if (activeLeadFilter === 'active') return !['Closed Won', 'Closed Lost'].includes(l.stage);
+                    return true;
+                });
+            }
+
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                filtered = filtered.filter(l =>
+                    (l.name || '').toLowerCase().includes(q) ||
+                    (l.email || '').toLowerCase().includes(q) ||
+                    (l.company || '').toLowerCase().includes(q) ||
+                    (l.source || '').toLowerCase().includes(q)
+                );
+            }
+
+            setText('leadsCount', filtered.length);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">No leads found.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(lead => {
+                const stageBadge = getLeadStageBadge(lead.stage);
+                const estValue = lead.est_value ? '$' + formatNum(lead.est_value) : '--';
+                const nextAction = lead.next_action ? esc(truncate(lead.next_action, 40)) : '--';
+                const id = lead.id;
+
+                return `<tr>
+                    <td>
+                        <div>
+                            <div style="font-weight:500;">${esc(lead.name)}</div>
+                            <div style="font-size:0.75rem;color:var(--text-muted);">${esc(lead.email || '')}</div>
+                        </div>
+                    </td>
+                    <td>${esc(lead.company || '--')}</td>
+                    <td><span class="status-badge ${stageBadge}">${esc(lead.stage || 'Target List')}</span></td>
+                    <td>${lead.properties != null ? lead.properties : '--'}</td>
+                    <td>${estValue}</td>
+                    <td>${esc(lead.source || '--')}</td>
+                    <td title="${esc(lead.next_action || '')}">${nextAction}</td>
+                    <td>
+                        <div class="action-dots">
+                            <button class="action-btn" onclick='openEditLead("${id}")' title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="action-btn action-btn-danger" onclick='deleteLead("${id}")' title="Delete">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // =============================================
+        // IDEAS TAB
+        // =============================================
+        async function loadIdeas() {
+            try {
+                const res = await fetch('/api/marketing/ideas');
+                if (!res.ok) throw new Error('Failed to load ideas');
+                allIdeas = await res.json();
+                renderIdeasTable();
+            } catch (err) {
+                console.error('Ideas load error:', err);
+                document.getElementById('ideasTableBody').innerHTML =
+                    '<tr><td colspan="5" style="text-align:center;color:var(--error);padding:2rem;">Failed to load ideas. Please refresh.</td></tr>';
+            }
+        }
+
+        function renderIdeasTable() {
+            const tbody = document.getElementById('ideasTableBody');
+
+            let filtered = allIdeas;
+            if (searchQuery) {
+                const q = searchQuery.toLowerCase();
+                filtered = filtered.filter(idea =>
+                    (idea.title || '').toLowerCase().includes(q) ||
+                    (idea.category || '').toLowerCase().includes(q) ||
+                    (idea.source || '').toLowerCase().includes(q)
+                );
+            }
+
+            setText('ideasCount', filtered.length);
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:2rem;">No ideas yet. Add one above!</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(idea => {
+                const catBadge = getCategoryBadge(idea.category);
+                const addedDate = idea.created_at ? formatDate(idea.created_at) : '--';
+                const id = idea.id;
+
+                return `<tr>
+                    <td style="font-weight:500;">${esc(idea.title)}</td>
+                    <td><span class="status-badge ${catBadge}">${esc(idea.category || 'General')}</span></td>
+                    <td>${esc(idea.source || '--')}</td>
+                    <td>${addedDate}</td>
+                    <td>
+                        <div class="action-dots">
+                            <button class="action-btn action-btn-promote" onclick='promoteIdea("${id}")' title="Promote to Content">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/></svg>
+                            </button>
+                            <button class="action-btn" onclick='openEditIdea("${id}")' title="Edit">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                            </button>
+                            <button class="action-btn action-btn-danger" onclick='deleteIdea("${id}")' title="Delete">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // =============================================
+        // QUICK ADD IDEA
+        // =============================================
+        async function quickAddIdea() {
+            const input = document.getElementById('ideaQuickInput');
+            const title = (input.value || '').trim();
+            if (!title) return;
+
+            try {
+                const res = await fetch('/api/marketing/ideas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, category: 'General', source: 'Quick Add' })
+                });
+                if (!res.ok) throw new Error('Failed to add idea');
+                const newIdea = await res.json();
+                allIdeas.unshift(newIdea);
+                input.value = '';
+                renderIdeasTable();
+                showToast('Idea added!', 'success');
+            } catch (err) {
+                console.error('Quick add error:', err);
+                showToast('Failed to add idea', 'error');
+            }
+        }
+
+        // =============================================
+        // IDEA PROMOTION
+        // =============================================
+        async function promoteIdea(id) {
+            if (!confirm('Promote this idea to a content item?')) return;
+
+            try {
+                const res = await fetch('/api/marketing/ideas/' + id + '/promote', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!res.ok) throw new Error('Failed to promote idea');
+
+                // Remove from ideas list
+                allIdeas = allIdeas.filter(i => i.id !== id);
+                renderIdeasTable();
+
+                // Reload content if it was already loaded
+                if (loadedTabs['content']) {
+                    loadContent();
+                } else {
+                    loadedTabs['content'] = false; // Force reload on next visit
+                }
+
+                showToast('Idea promoted to content pipeline!', 'success');
+            } catch (err) {
+                console.error('Promote error:', err);
+                showToast('Failed to promote idea', 'error');
+            }
+        }
+
+        // =============================================
+        // CONTENT MODAL (ADD / EDIT)
+        // =============================================
+        function openAddContent() {
+            document.getElementById('editContentId').value = '';
+            document.getElementById('contentModalTitle').textContent = 'Add Content';
+            document.getElementById('contentForm').reset();
+            openModal('contentModal');
+        }
+
+        async function openEditContent(id) {
+            const item = allContent.find(c => c.id === id);
+            if (!item) return;
+
+            document.getElementById('editContentId').value = id;
+            document.getElementById('contentModalTitle').textContent = 'Edit Content';
+            document.getElementById('contentTitle').value = item.title || '';
+            document.getElementById('contentChannel').value = item.channel || '';
+            document.getElementById('contentDistribution').value = item.distribution || '';
+            document.getElementById('contentStatus').value = item.status || 'Idea';
+            document.getElementById('contentPriority').value = item.priority || 'Medium';
+            document.getElementById('contentTargetDate').value = item.target_date || '';
+            document.getElementById('contentNotes').value = item.notes || '';
+            openModal('contentModal');
+        }
+
+        async function saveContent() {
+            const id = document.getElementById('editContentId').value;
+            const payload = {
+                title: document.getElementById('contentTitle').value.trim(),
+                channel: document.getElementById('contentChannel').value,
+                distribution: document.getElementById('contentDistribution').value.trim(),
+                status: document.getElementById('contentStatus').value,
+                priority: document.getElementById('contentPriority').value,
+                target_date: document.getElementById('contentTargetDate').value || null,
+                notes: document.getElementById('contentNotes').value.trim()
+            };
+
+            if (!payload.title) {
+                showToast('Title is required', 'error');
+                return;
+            }
+
+            try {
+                let res;
+                if (id) {
+                    res = await fetch('/api/marketing/content/' + id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    res = await fetch('/api/marketing/content', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!res.ok) throw new Error('Save failed');
+                closeContentModal();
+                loadContent();
+                showToast(id ? 'Content updated!' : 'Content added!', 'success');
+            } catch (err) {
+                console.error('Save content error:', err);
+                showToast('Failed to save content', 'error');
+            }
+        }
+
+        async function deleteContent(id) {
+            if (!confirm('Delete this content item?')) return;
+
+            try {
+                const res = await fetch('/api/marketing/content/' + id, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                allContent = allContent.filter(c => c.id !== id);
+                renderContentStats();
+                renderContentTable();
+                showToast('Content deleted', 'success');
+            } catch (err) {
+                console.error('Delete content error:', err);
+                showToast('Failed to delete content', 'error');
+            }
+        }
+
+        function closeContentModal() {
+            closeModal('contentModal');
+        }
+
+        // =============================================
+        // LEAD MODAL (ADD / EDIT)
+        // =============================================
+        function openAddLead() {
+            document.getElementById('editLeadId').value = '';
+            document.getElementById('leadModalTitle').textContent = 'Add Lead';
+            document.getElementById('leadForm').reset();
+            openModal('leadModal');
+        }
+
+        async function openEditLead(id) {
+            const lead = allLeads.find(l => l.id === id);
+            if (!lead) return;
+
+            document.getElementById('editLeadId').value = id;
+            document.getElementById('leadModalTitle').textContent = 'Edit Lead';
+            document.getElementById('leadName').value = lead.name || '';
+            document.getElementById('leadEmail').value = lead.email || '';
+            document.getElementById('leadCompany').value = lead.company || '';
+            document.getElementById('leadStage').value = lead.stage || 'Target List';
+            document.getElementById('leadType').value = lead.type || 'Individual';
+            document.getElementById('leadProperties').value = lead.properties != null ? lead.properties : '';
+            document.getElementById('leadEstValue').value = lead.est_value || '';
+            document.getElementById('leadSource').value = lead.source || '';
+            document.getElementById('leadNextAction').value = lead.next_action || '';
+            document.getElementById('leadNextActionDate').value = lead.next_action_date || '';
+            document.getElementById('leadNotes').value = lead.notes || '';
+            openModal('leadModal');
+        }
+
+        async function saveLead() {
+            const id = document.getElementById('editLeadId').value;
+            const payload = {
+                name: document.getElementById('leadName').value.trim(),
+                email: document.getElementById('leadEmail').value.trim(),
+                company: document.getElementById('leadCompany').value.trim(),
+                stage: document.getElementById('leadStage').value,
+                type: document.getElementById('leadType').value,
+                properties: parseInt(document.getElementById('leadProperties').value) || null,
+                est_value: parseFloat(document.getElementById('leadEstValue').value) || null,
+                source: document.getElementById('leadSource').value,
+                next_action: document.getElementById('leadNextAction').value.trim(),
+                next_action_date: document.getElementById('leadNextActionDate').value || null,
+                notes: document.getElementById('leadNotes').value.trim()
+            };
+
+            if (!payload.name) {
+                showToast('Name is required', 'error');
+                return;
+            }
+
+            try {
+                let res;
+                if (id) {
+                    res = await fetch('/api/marketing/leads/' + id, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    res = await fetch('/api/marketing/leads', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                if (!res.ok) throw new Error('Save failed');
+                closeLeadModal();
+                loadLeads();
+                showToast(id ? 'Lead updated!' : 'Lead added!', 'success');
+            } catch (err) {
+                console.error('Save lead error:', err);
+                showToast('Failed to save lead', 'error');
+            }
+        }
+
+        async function deleteLead(id) {
+            if (!confirm('Delete this lead?')) return;
+
+            try {
+                const res = await fetch('/api/marketing/leads/' + id, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                allLeads = allLeads.filter(l => l.id !== id);
+                renderLeadStats();
+                renderPipelineStages();
+                renderLeadsTable();
+                showToast('Lead deleted', 'success');
+            } catch (err) {
+                console.error('Delete lead error:', err);
+                showToast('Failed to delete lead', 'error');
+            }
+        }
+
+        function closeLeadModal() {
+            closeModal('leadModal');
+        }
+
+        // =============================================
+        // IDEA MODAL (EDIT ONLY - add uses quick-add)
+        // =============================================
+        function openEditIdea(id) {
+            const idea = allIdeas.find(i => i.id === id);
+            if (!idea) return;
+
+            document.getElementById('editIdeaId').value = id;
+            document.getElementById('ideaModalTitle').textContent = 'Edit Idea';
+            document.getElementById('ideaTitle').value = idea.title || '';
+            document.getElementById('ideaCategory').value = idea.category || 'General';
+            document.getElementById('ideaSource').value = idea.source || '';
+            document.getElementById('ideaNotes').value = idea.notes || '';
+            openModal('ideaModal');
+        }
+
+        async function saveIdea() {
+            const id = document.getElementById('editIdeaId').value;
+            const payload = {
+                title: document.getElementById('ideaTitle').value.trim(),
+                category: document.getElementById('ideaCategory').value,
+                source: document.getElementById('ideaSource').value.trim(),
+                notes: document.getElementById('ideaNotes').value.trim()
+            };
+
+            if (!payload.title) {
+                showToast('Title is required', 'error');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/marketing/ideas/' + id, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!res.ok) throw new Error('Save failed');
+                closeIdeaModal();
+                loadIdeas();
+                showToast('Idea updated!', 'success');
+            } catch (err) {
+                console.error('Save idea error:', err);
+                showToast('Failed to save idea', 'error');
+            }
+        }
+
+        async function deleteIdea(id) {
+            if (!confirm('Delete this idea?')) return;
+
+            try {
+                const res = await fetch('/api/marketing/ideas/' + id, { method: 'DELETE' });
+                if (!res.ok) throw new Error('Delete failed');
+                allIdeas = allIdeas.filter(i => i.id !== id);
+                renderIdeasTable();
+                showToast('Idea deleted', 'success');
+            } catch (err) {
+                console.error('Delete idea error:', err);
+                showToast('Failed to delete idea', 'error');
+            }
+        }
+
+        function closeIdeaModal() {
+            closeModal('ideaModal');
+        }
+
+        // =============================================
+        // SEARCH
+        // =============================================
+        function handleSearch(value) {
+            searchQuery = (value || '').trim();
+            // Re-render current tab
+            if (currentTab === 'content') renderContentTable();
+            else if (currentTab === 'leads') renderLeadsTable();
+            else if (currentTab === 'ideas') renderIdeasTable();
+        }
+
+        // =============================================
+        // MODAL HELPERS
+        // =============================================
+        function openModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'flex';
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        function closeModal(modalId) {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        }
+
+        // Close modal on overlay click
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                e.target.style.display = 'none';
+                document.body.style.overflow = '';
+            }
+        });
+
+        // =============================================
+        // BADGE / CLASS HELPERS
+        // =============================================
+        function getChannelClass(channel) {
+            const map = {
+                'Forum': 'type-forum',
+                'Blog': 'type-blog',
+                'Email': 'type-email',
+                'Social': 'type-social',
+                'Video': 'type-video',
+                'SEO': 'type-seo',
+                'Book': 'type-book',
+                'Case Study': 'type-case'
+            };
+            return map[channel] || '';
+        }
+
+        function getContentStatusBadge(status) {
+            const map = {
+                'Idea': 'badge-idea',
+                'Planned': 'badge-planned',
+                'Draft': 'badge-draft',
+                'In Progress': 'badge-draft',
+                'Scheduled': 'badge-scheduled',
+                'Published': 'badge-published',
+                'Active': 'badge-active'
+            };
+            return map[status] || 'badge-idea';
+        }
+
+        function getLeadStageBadge(stage) {
+            const map = {
+                'Target List': 'badge-target-list',
+                'Outreach': 'badge-outreach',
+                'Warm': 'badge-warm',
+                'Hot': 'badge-hot',
+                'Discovery': 'badge-discovery',
+                'Proposal': 'badge-proposal',
+                'Trial': 'badge-trial',
+                'Closed Won': 'badge-closed-won',
+                'Closed Lost': 'badge-closed-lost'
+            };
+            return map[stage] || 'badge-target-list';
+        }
+
+        function getPriorityClass(priority) {
+            const map = {
+                'High': 'priority-high',
+                'Medium': 'priority-med',
+                'Low': 'priority-low'
+            };
+            return map[priority] || '';
+        }
+
+        function getCategoryBadge(category) {
+            const map = {
+                'Blog': 'badge-planned',
+                'Social': 'badge-scheduled',
+                'Email': 'badge-outreach',
+                'Video': 'badge-idea',
+                'Feature': 'badge-published',
+                'SEO': 'badge-active',
+                'Partnership': 'badge-warm',
+                'General': 'badge-target-list'
+            };
+            return map[category] || 'badge-target-list';
+        }
+
+        // =============================================
+        // UTILITY FUNCTIONS
+        // =============================================
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) el.textContent = value != null ? value : '--';
+        }
+
+        function esc(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function formatNum(n) {
+            if (n == null) return '--';
+            const num = parseFloat(n);
+            if (isNaN(num)) return '--';
+            return num.toLocaleString('en-US');
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '--';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch {
+                return dateStr;
+            }
+        }
+
+        function showToast(message, type, duration) {
+            // Check if a showToast already exists from shared utils
+            if (window._sharedShowToast) {
+                window._sharedShowToast(message, type, duration);
+                return;
+            }
+
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-' + (type || 'info');
+            toast.textContent = message;
+            toast.style.cssText = 'position:fixed;bottom:1.5rem;right:1.5rem;padding:0.75rem 1.25rem;border-radius:8px;color:#fff;font-size:0.875rem;z-index:999999;opacity:0;transition:opacity 0.3s;max-width:400px;';
+
+            if (type === 'success') toast.style.background = '#059669';
+            else if (type === 'error') toast.style.background = '#dc2626';
+            else toast.style.background = '#2563eb';
+
+            document.body.appendChild(toast);
+            requestAnimationFrame(() => { toast.style.opacity = '1'; });
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 300);
+            }, duration || 3000);
+        }
+
+        // =============================================
+        // REFRESH CURRENT TAB
+        // =============================================
+        function refreshCurrentTab() {
+            loadedTabs[currentTab] = false;
+            if (currentTab === 'metrics') loadMetrics();
+            else if (currentTab === 'content') loadContent();
+            else if (currentTab === 'leads') loadLeads();
+            else if (currentTab === 'ideas') loadIdeas();
+            loadedTabs[currentTab] = true;
+        }
