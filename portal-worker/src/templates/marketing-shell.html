@@ -1119,6 +1119,13 @@
       <label>Notes</label>
       <textarea id="forumNotes" rows="3"></textarea>
     </div>
+    <div style="background:var(--bg-secondary);padding:12px 16px;border-radius:8px;margin-bottom:16px;">
+      <label style="font-size:12px;font-weight:600;color:var(--text-muted);display:block;margin-bottom:6px;">UTM Link for Forum Reply</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input id="forumUTMLink" type="text" readonly style="flex:1;font-size:12px;font-family:var(--font-mono);background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text-secondary);">
+        <button class="btn btn-ghost" onclick="copyForumUTMLink()" id="forumCopyBtn" style="white-space:nowrap;font-size:12px;">Copy</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <a id="forumModalLink" href="#" target="_blank" class="btn btn-ghost" style="margin-right:auto;">View on Forum</a>
       <button class="btn btn-ghost" onclick="closeForumModal()">Cancel</button>

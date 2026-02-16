@@ -1787,7 +1787,22 @@
                 occSection.style.display = 'none';
             }
 
+            // Build UTM link for forum reply
+            var county = (post.detected_county || 'general').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+            var utmLink = 'https://mymineralwatch.com?utm_source=mineralrightsforum&utm_medium=forum&utm_campaign=forum_reply&utm_content=' + encodeURIComponent(county);
+            document.getElementById('forumUTMLink').value = utmLink;
+            document.getElementById('forumCopyBtn').textContent = 'Copy';
+
             openModal('forumModal');
+        }
+
+        function copyForumUTMLink() {
+            var input = document.getElementById('forumUTMLink');
+            input.select();
+            navigator.clipboard.writeText(input.value).then(function() {
+                document.getElementById('forumCopyBtn').textContent = 'Copied!';
+                setTimeout(function() { document.getElementById('forumCopyBtn').textContent = 'Copy'; }, 2000);
+            });
         }
 
         async function saveForumPost() {

@@ -145,6 +145,19 @@ function buildDigestHtml(posts, dateStr) {
             </td>
           </tr>
 
+          <!-- CTA -->
+          <tr>
+            <td style="padding:0 24px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="background:#1C2B36;border-radius:8px;padding:14px 24px;">
+                    <a href="https://mymineralwatch.com?utm_source=forum_digest&utm_medium=email&utm_campaign=forum_monitor" style="color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">Track Your Minerals on Mineral Watch &rarr;</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
           <!-- Footer -->
           <tr>
             <td style="background:#F8FAFC;padding:16px 24px;border-top:1px solid #E2E8F0;">
