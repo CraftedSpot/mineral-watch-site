@@ -60,6 +60,7 @@
                 else if (tabName === 'leads') loadLeads();
                 else if (tabName === 'ideas') loadIdeas();
                 else if (tabName === 'calendar') loadCalendar();
+                else if (tabName === 'plan') loadChecklist();
             }
         }
 
@@ -1369,6 +1370,158 @@
         }
 
         // =============================================
+        // COLLAPSIBLE SECTIONS
+        // =============================================
+        function toggleSection(headerEl) {
+            var section = headerEl.parentElement;
+            var key = section.dataset.section;
+            section.classList.toggle('collapsed');
+            // Persist state in localStorage
+            try {
+                var collapsed = JSON.parse(localStorage.getItem('mktCollapsed') || '{}');
+                collapsed[key] = section.classList.contains('collapsed');
+                localStorage.setItem('mktCollapsed', JSON.stringify(collapsed));
+            } catch(e) {}
+        }
+
+        // Restore collapsed state on load
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                var collapsed = JSON.parse(localStorage.getItem('mktCollapsed') || '{}');
+                document.querySelectorAll('.collapsible[data-section]').forEach(function(el) {
+                    if (collapsed[el.dataset.section]) {
+                        el.classList.add('collapsed');
+                    }
+                });
+            } catch(e) {}
+        });
+
+        // =============================================
+        // CHECKLIST (ACTION PLAN)
+        // =============================================
+        let allChecklistItems = [];
+
+        async function loadChecklist() {
+            try {
+                var res = await fetch('/api/marketing/checklist');
+                if (!res.ok) throw new Error('Failed to load checklist');
+                allChecklistItems = await res.json();
+                renderChecklist();
+            } catch (err) {
+                console.error('Checklist load error:', err);
+                document.getElementById('checklistGrid').innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--accent-red);padding:30px;">Failed to load checklists</div>';
+            }
+        }
+
+        function renderChecklist() {
+            var grid = document.getElementById('checklistGrid');
+            if (!grid) return;
+
+            // Group by initiative
+            var groups = {};
+            var groupOrder = [];
+            allChecklistItems.forEach(function(item) {
+                var key = item.initiative || 'Other';
+                if (!groups[key]) {
+                    groups[key] = [];
+                    groupOrder.push(key);
+                }
+                groups[key].push(item);
+            });
+
+            if (groupOrder.length === 0) {
+                grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:30px;">No checklist items yet.</div>';
+                return;
+            }
+
+            // Initiative icons
+            var icons = {
+                'Forum Authority Building': '&#128172;',
+                'Book Distribution & Repurposing': '&#128214;',
+                'LinkedIn Content Engine': '&#128101;',
+                'Video Content': '&#127909;',
+                'SEO & Directory Submissions': '&#128270;',
+                'Partnerships & Referrals': '&#129309;',
+                'Referral Program': '&#127873;',
+                'Email Marketing & Nurture': '&#9993;'
+            };
+            var colors = {
+                'Forum Authority Building': 'var(--accent-cyan-dim)',
+                'Book Distribution & Repurposing': '#292524',
+                'LinkedIn Content Engine': 'var(--accent-blue-dim)',
+                'Video Content': 'var(--accent-red-dim)',
+                'SEO & Directory Submissions': 'var(--accent-pink-dim)',
+                'Partnerships & Referrals': 'var(--accent-amber-dim)',
+                'Referral Program': 'var(--accent-green-dim)',
+                'Email Marketing & Nurture': 'var(--accent-purple-dim)'
+            };
+
+            var totalDone = 0;
+            var totalItems = allChecklistItems.length;
+            allChecklistItems.forEach(function(item) { if (item.done) totalDone++; });
+
+            // Update progress counter
+            var progressEl = document.getElementById('checklistProgress');
+            if (progressEl) {
+                var pct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
+                progressEl.textContent = totalDone + '/' + totalItems + ' done (' + pct + '%)';
+            }
+
+            grid.innerHTML = groupOrder.map(function(groupName) {
+                var items = groups[groupName];
+                var done = items.filter(function(i) { return i.done; }).length;
+                var icon = icons[groupName] || '&#128203;';
+                var bgColor = colors[groupName] || 'var(--bg-primary)';
+
+                var itemsHtml = items.map(function(item) {
+                    var checkClass = item.done ? 'ap-check done' : 'ap-check';
+                    var textStyle = item.done ? 'text-decoration:line-through;color:var(--text-muted);' : '';
+                    return '<li>' +
+                        '<div class="' + checkClass + '" onclick="toggleCheckItem(\'' + item.id + '\', ' + !item.done + ')"></div>' +
+                        '<span style="' + textStyle + '">' + esc(item.item) + '</span>' +
+                    '</li>';
+                }).join('');
+
+                return '<div class="ap-card">' +
+                    '<div class="ap-card-header">' +
+                        '<div class="ap-card-icon" style="background:' + bgColor + ';">' + icon + '</div>' +
+                        '<div>' +
+                            '<div class="ap-card-title">' + esc(groupName) + '</div>' +
+                            '<div class="ap-card-timeline">' + done + ' of ' + items.length + ' complete</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<ul class="ap-card-items">' + itemsHtml + '</ul>' +
+                '</div>';
+            }).join('');
+        }
+
+        async function toggleCheckItem(id, newDone) {
+            // Optimistic update
+            var item = allChecklistItems.find(function(i) { return i.id === id; });
+            if (item) {
+                item.done = newDone;
+                renderChecklist();
+            }
+
+            try {
+                var res = await fetch('/api/marketing/checklist/' + id, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ done: newDone })
+                });
+                if (!res.ok) throw new Error('Toggle failed');
+            } catch (err) {
+                console.error('Toggle check error:', err);
+                // Revert on error
+                if (item) {
+                    item.done = !newDone;
+                    renderChecklist();
+                }
+                showToast('Failed to update checklist', 'error');
+            }
+        }
+
+        // =============================================
         // REFRESH CURRENT TAB
         // =============================================
         function refreshCurrentTab() {
@@ -1379,5 +1532,6 @@
             else if (currentTab === 'leads') loadLeads();
             else if (currentTab === 'ideas') loadIdeas();
             else if (currentTab === 'calendar') loadCalendar();
+            else if (currentTab === 'plan') loadChecklist();
             loadedTabs[currentTab] = true;
         }

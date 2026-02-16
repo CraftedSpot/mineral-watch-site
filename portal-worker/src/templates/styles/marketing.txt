@@ -847,6 +847,28 @@
     font-family: var(--font-mono);
   }
 
+  /* Collapsible sections */
+  .collapsible { margin-bottom: 20px; }
+  .collapsible-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  .collapsible-header:hover { opacity: 0.85; }
+  .collapsible-arrow {
+    font-size: 14px;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .collapsible.collapsed .collapsible-arrow { transform: rotate(-90deg); }
+  .collapsible-body { padding-top: 14px; }
+  .collapsible.collapsed .collapsible-body { display: none; }
+
   /* Modal styles */
   .modal-overlay {
     display: none;
