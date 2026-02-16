@@ -15,6 +15,7 @@
 
                 currentUser = await checkAuth();
                 if (!currentUser) return;
+                showSuperAdminNav();
 
                 // Dashboard-specific: plan badge and limits
                 document.getElementById('planBadge').textContent = currentUser.plan || 'FREE';

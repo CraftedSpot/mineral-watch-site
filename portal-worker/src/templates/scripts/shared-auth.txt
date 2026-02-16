@@ -53,6 +53,19 @@
             window.location.href = '/portal/login';
         }
 
+        // Super-admin nav: inject Marketing link for james@mymineralwatch.com
+        function showSuperAdminNav() {
+            const user = window.currentUser;
+            if (!user || user.email !== 'james@mymineralwatch.com') return;
+            const menu = document.querySelector('.user-menu');
+            if (!menu) return;
+            const btn = document.createElement('a');
+            btn.href = '/portal/marketing';
+            btn.textContent = 'Marketing';
+            btn.style.cssText = 'background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;text-decoration:none;letter-spacing:0.3px;';
+            menu.insertBefore(btn, menu.firstChild);
+        }
+
         // Impersonation banner: fetch target user info, override currentUser, show yellow bar
         async function loadImpersonationBanner(actAsParam) {
             try {

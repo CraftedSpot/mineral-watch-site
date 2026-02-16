@@ -53,6 +53,7 @@
             const actAs = setupImpersonation();
             const user = await checkAuth();
             if (!user) return;
+            showSuperAdminNav();
             if (actAs) await loadImpersonationBanner(actAs);
 
             try {

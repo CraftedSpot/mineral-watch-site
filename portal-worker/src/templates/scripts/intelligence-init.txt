@@ -12,6 +12,7 @@
                 const actAs = setupImpersonation();
                 currentUser = await checkAuth();
                 if (!currentUser) return;
+                showSuperAdminNav();
                 if (actAs) await loadImpersonationBanner(actAs);
 
                 // Load all intelligence data in one request

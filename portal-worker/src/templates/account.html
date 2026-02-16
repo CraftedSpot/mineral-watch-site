@@ -522,6 +522,16 @@
                 const config = planConfigs[plan] || planConfigs['Free'];
                 
                 document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+                if (currentUser.email === 'james@mymineralwatch.com') {
+                    const menu = document.querySelector('.user-menu');
+                    if (menu) {
+                        const btn = document.createElement('a');
+                        btn.href = '/portal/marketing';
+                        btn.textContent = 'Marketing';
+                        btn.style.cssText = 'background:rgba(139,92,246,0.15);color:#a78bfa;border:1px solid rgba(139,92,246,0.3);padding:6px 14px;border-radius:4px;font-size:12px;font-weight:600;text-decoration:none;letter-spacing:0.3px;';
+                        menu.insertBefore(btn, menu.firstChild);
+                    }
+                }
                 document.getElementById('profileName').textContent = currentUser.name || '—';
                 document.getElementById('profileEmail').textContent = currentUser.email;
                 document.getElementById('currentPlan').textContent = plan;
