@@ -1495,6 +1495,36 @@
             }).join('');
         }
 
+        async function addChecklistItem() {
+            var initiative = document.getElementById('checklistInitiative').value;
+            var input = document.getElementById('checklistItemInput');
+            var text = (input.value || '').trim();
+            if (!text) return;
+
+            // Find the highest sort order in that initiative to append at end
+            var maxSort = 0;
+            allChecklistItems.forEach(function(i) {
+                if (i.initiative === initiative && i.sort > maxSort) maxSort = i.sort;
+            });
+
+            try {
+                var res = await fetch('/api/marketing/checklist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ initiative: initiative, item: text, sort: maxSort + 1 })
+                });
+                if (!res.ok) throw new Error('Failed to add item');
+                var newItem = await res.json();
+                allChecklistItems.push(newItem);
+                input.value = '';
+                renderChecklist();
+                showToast('Item added to ' + initiative, 'success');
+            } catch (err) {
+                console.error('Add checklist item error:', err);
+                showToast('Failed to add item', 'error');
+            }
+        }
+
         async function toggleCheckItem(id, newDone) {
             // Optimistic update
             var item = allChecklistItems.find(function(i) { return i.id === id; });

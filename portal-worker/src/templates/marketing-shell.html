@@ -296,6 +296,20 @@
         <span class="checklist-progress" id="checklistProgress" style="margin-left:auto;font-size:13px;color:var(--text-muted);"></span>
       </div>
       <div class="collapsible-body">
+        <div class="quick-add" style="margin-bottom:16px;">
+          <select id="checklistInitiative" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:10px 12px;border-radius:8px;font-size:14px;font-family:var(--font-body);min-width:200px;">
+            <option value="Forum Authority Building">Forum Authority Building</option>
+            <option value="Book Distribution &amp; Repurposing">Book Distribution &amp; Repurposing</option>
+            <option value="LinkedIn Content Engine">LinkedIn Content Engine</option>
+            <option value="Video Content">Video Content</option>
+            <option value="SEO &amp; Directory Submissions">SEO &amp; Directory Submissions</option>
+            <option value="Partnerships &amp; Referrals">Partnerships &amp; Referrals</option>
+            <option value="Referral Program">Referral Program</option>
+            <option value="Email Marketing &amp; Nurture">Email Marketing &amp; Nurture</option>
+          </select>
+          <input type="text" id="checklistItemInput" placeholder="Add a checklist item..." onkeydown="if(event.key==='Enter')addChecklistItem()">
+          <button class="btn btn-primary" onclick="addChecklistItem()">+ Add</button>
+        </div>
         <div class="action-plan-grid" id="checklistGrid">
           <div style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:30px;">Loading checklists...</div>
         </div>
