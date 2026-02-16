@@ -65,6 +65,19 @@ function buildDigestHtml(posts, dateStr) {
         )
         .join('');
 
+      // OCC data badges
+      const occBadges = [];
+      if (post.wellsFound) {
+        occBadges.push(`<span style="display:inline-block;background:#D1FAE5;color:#065F46;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px;margin-right:4px;">${post.wellsFound} active well${post.wellsFound !== 1 ? 's' : ''}</span>`);
+      }
+      if (post.activeOperators) {
+        occBadges.push(`<span style="display:inline-block;background:#FEF3C7;color:#92400E;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px;margin-right:4px;">${escapeHtml(post.activeOperators)}</span>`);
+      }
+      if (post.occDataSummary && !post.wellsFound && !post.activeOperators) {
+        occBadges.push(`<span style="display:inline-block;background:#E0F2FE;color:#0369A1;font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px;margin-right:4px;">${escapeHtml(post.occDataSummary)}</span>`);
+      }
+      const occBadgeHtml = occBadges.join('');
+
       const timeAgo = post.postedAt ? formatTimeAgo(new Date(post.postedAt)) : '';
 
       return `
@@ -78,6 +91,8 @@ function buildDigestHtml(posts, dateStr) {
             </p>
             ${locationBadge ? `<div style="margin-top:6px;">${locationBadge}</div>` : ''}
             ${operatorBadges ? `<div style="margin-top:4px;">${operatorBadges}</div>` : ''}
+            ${occBadgeHtml ? `<div style="margin-top:4px;">${occBadgeHtml}</div>` : ''}
+            ${post.occDataSummary && post.wellsFound ? `<p style="margin:6px 0 0;font-size:12px;color:#0369A1;line-height:1.3;font-style:italic;">${escapeHtml(post.occDataSummary)}</p>` : ''}
             ${post.excerpt ? `<p style="margin:8px 0 0;font-size:13px;color:#334E68;line-height:1.4;">${escapeHtml(post.excerpt.substring(0, 200))}${post.excerpt.length > 200 ? '...' : ''}</p>` : ''}
           </td>
         </tr>

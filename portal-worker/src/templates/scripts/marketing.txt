@@ -1635,7 +1635,7 @@
             } catch (err) {
                 console.error('Forum load error:', err);
                 document.getElementById('forumTableBody').innerHTML =
-                    '<tr><td colspan="8" style="text-align:center;color:var(--error);padding:2rem;">Failed to load forum posts. Please refresh.</td></tr>';
+                    '<tr><td colspan="10" style="text-align:center;color:var(--error);padding:2rem;">Failed to load forum posts. Please refresh.</td></tr>';
             }
         }
 
@@ -1708,7 +1708,7 @@
             setText('forumCount', filtered.length);
 
             if (filtered.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem;">No forum posts found.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:2rem;">No forum posts found.</td></tr>';
                 return;
             }
 
@@ -1718,7 +1718,8 @@
                 var excerptShort = truncate(post.excerpt, 80);
                 var countyDisplay = post.detected_county || '--';
                 var strDisplay = post.detected_str || '--';
-                var catShort = (post.category || '').replace(', OK', '').replace(' County', '');
+                var wellsDisplay = post.wells_found || '--';
+                var opsDisplay = post.active_operators || '--';
                 var id = post.id;
 
                 return '<tr>' +
@@ -1732,7 +1733,8 @@
                     '</td>' +
                     '<td>' + (post.detected_county ? '<span style="background:var(--accent-blue-dim);color:var(--accent-blue);padding:2px 8px;border-radius:4px;font-size:12px;white-space:nowrap;">' + esc(countyDisplay) + '</span>' : '<span style="color:var(--text-muted);">--</span>') + '</td>' +
                     '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(strDisplay) + '</td>' +
-                    '<td style="font-size:13px;white-space:nowrap;">' + esc(catShort) + '</td>' +
+                    '<td style="font-family:var(--font-mono);font-size:13px;text-align:center;">' + (post.wells_found ? '<span style="background:var(--accent-green-dim);color:var(--accent-green);padding:2px 8px;border-radius:4px;font-size:12px;">' + post.wells_found + '</span>' : '<span style="color:var(--text-muted);">--</span>') + '</td>' +
+                    '<td style="font-size:12px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + esc(post.active_operators || '') + '">' + esc(truncate(post.active_operators || '', 25)) + '</td>' +
                     '<td style="font-size:13px;">' + esc(post.author) + '</td>' +
                     '<td style="font-size:13px;white-space:nowrap;">' + postedDate + '</td>' +
                     '<td><span class="status-badge ' + statusBadge + '">' + esc(post.response_status || 'New') + '</span></td>' +
@@ -1774,6 +1776,16 @@
                 badges += '<span style="background:var(--bg-secondary);color:var(--text-secondary);padding:3px 10px;border-radius:4px;font-size:12px;">by ' + esc(post.author) + '</span>';
             }
             document.getElementById('forumModalBadges').innerHTML = badges;
+
+            // OCC Data
+            var occSection = document.getElementById('forumModalOCCData');
+            var occText = document.getElementById('forumModalOCCText');
+            if (post.occ_data && post.occ_data.length > 0) {
+                occSection.style.display = 'block';
+                occText.textContent = post.occ_data;
+            } else {
+                occSection.style.display = 'none';
+            }
 
             openModal('forumModal');
         }

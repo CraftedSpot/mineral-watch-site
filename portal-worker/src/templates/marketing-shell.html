@@ -1064,7 +1064,8 @@
             <th style="min-width:250px;">Post</th>
             <th>County</th>
             <th>STR</th>
-            <th>Category</th>
+            <th>Wells</th>
+            <th>Operators</th>
             <th>Author</th>
             <th>Posted</th>
             <th>Status</th>
@@ -1072,7 +1073,7 @@
           </tr>
         </thead>
         <tbody id="forumTableBody">
-          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:40px;">Loading forum posts...</td></tr>
+          <tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:40px;">Loading forum posts...</td></tr>
         </tbody>
       </table>
     </div>
@@ -1089,6 +1090,11 @@
     <div id="forumModalExcerpt" style="background:var(--bg-secondary);padding:12px 16px;border-radius:8px;font-size:13px;color:var(--text-secondary);line-height:1.5;margin-bottom:16px;max-height:200px;overflow-y:auto;"></div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;" id="forumModalBadges"></div>
+
+    <div id="forumModalOCCData" style="display:none;background:var(--accent-green-dim);padding:12px 16px;border-radius:8px;margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:600;color:var(--accent-green);margin-bottom:4px;">OCC Data Found</div>
+      <div id="forumModalOCCText" style="font-size:13px;color:var(--text-secondary);line-height:1.4;"></div>
+    </div>
 
     <div class="modal-field">
       <label>Response Status</label>

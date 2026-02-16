@@ -34,6 +34,9 @@ export async function writeForumPosts(env, posts) {
         'Detected County': post.detectedCounty || null,
         'Detected STR': post.detectedSTR || '',
         'Post Excerpt': (post.excerpt || '').substring(0, 500),
+        'OCC Data Found': post.occDataSummary || '',
+        'Wells Found': post.wellsFound || null,
+        'Active Operators': post.activeOperators || '',
         'Response Status': 'New',
       },
     }));

@@ -7,6 +7,7 @@ import { fetchLatestTopics, fetchTopicContent, buildUserMap, getOriginalPoster, 
 import { parseLocations } from './parsers/location.js';
 import { writeForumPosts } from './services/airtable.js';
 import { sendForumDigest } from './services/email.js';
+import { enrichWithOCC } from './services/occ-lookup.js';
 import { filterNewTopics, markTopicsSeen, updateLastRun, getLastRun } from './utils/kv.js';
 
 // Category names now resolved via getCategoryName() from discourse.js
@@ -110,6 +111,16 @@ async function runForumMonitor(env) {
         // Get category name
         const category = getCategoryName(topic.category_id);
 
+        // Cross-reference with OCC data if STR detected
+        let occData = { occDataSummary: '', wellsFound: null, activeOperators: '' };
+        if (locations.str.length > 0 && env.WELLS_DB) {
+          try {
+            occData = await enrichWithOCC(env.WELLS_DB, locations);
+          } catch (err) {
+            console.error(`[ForumMonitor] OCC enrichment error for topic ${topic.id}: ${err.message}`);
+          }
+        }
+
         // Build post record
         const postData = {
           topicId: topic.id,
@@ -120,13 +131,14 @@ async function runForumMonitor(env) {
           category,
           excerpt: stripHtml(postText).substring(0, 500),
           ...locations,
+          ...occData,
         };
 
         parsedPosts.push(postData);
 
         console.log(
           `[ForumMonitor] Parsed topic ${topic.id}: "${topic.title}" ` +
-            `[STR: ${locations.detectedSTR || 'none'}, County: ${locations.detectedCounty || 'none'}]`
+            `[STR: ${locations.detectedSTR || 'none'}, County: ${locations.detectedCounty || 'none'}, Wells: ${occData.wellsFound || 0}, Dockets: ${occData.occDataSummary ? 'yes' : 'none'}]`
         );
 
         // Small delay between topic fetches to be polite
