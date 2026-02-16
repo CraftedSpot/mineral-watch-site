@@ -129,7 +129,7 @@
 
   <!-- ======== TAB: Calendar (LIVE) ======== -->
   <div id="tab-calendar" class="tab-panel">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div class="cal-toolbar">
       <div class="cal-month-nav">
         <button class="cal-nav-btn" onclick="calPrevMonth()">&#9664;</button>
         <div class="cal-month-title" id="calMonthTitle">February 2026</div>
@@ -148,6 +148,9 @@
       <div class="cal-header">Fri</div>
       <div class="cal-header">Sat</div>
       <!-- Day cells rendered dynamically -->
+    </div>
+    <div class="cal-agenda" id="calAgenda">
+      <!-- Mobile agenda view rendered dynamically -->
     </div>
 
     <!-- Upcoming Industry Events -->
