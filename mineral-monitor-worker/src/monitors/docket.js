@@ -108,6 +108,29 @@ async function storeDocketEntries(db, entries) {
       ).run();
 
       inserted++;
+
+      // Sync junction table for additional_sections (used by property-link-counts)
+      if (entry.additional_sections && entry.additional_sections.length > 0) {
+        try {
+          await db.prepare('DELETE FROM docket_entry_sections WHERE case_number = ?')
+            .bind(entry.case_number).run();
+          for (const sec of entry.additional_sections) {
+            const normSec = parseInt(sec.section, 10);
+            if (isNaN(normSec)) continue;
+            const twn = (sec.township || '').toString().trim().toUpperCase();
+            const rng = (sec.range || '').toString().trim().toUpperCase();
+            if (!twn || !rng) continue;
+            const meridian = sec.meridian?.toUpperCase() ||
+              (['CIMARRON', 'TEXAS', 'BEAVER'].includes(entry.county?.toUpperCase()) ? 'CM' : 'IM');
+            await db.prepare(`
+              INSERT OR IGNORE INTO docket_entry_sections (case_number, section, township, range, meridian)
+              VALUES (?, ?, ?, ?, ?)
+            `).bind(entry.case_number, String(normSec), twn, rng, meridian).run();
+          }
+        } catch (jErr) {
+          console.error(`[Docket] Error syncing junction sections for ${entry.case_number}:`, jErr.message);
+        }
+      }
     } catch (err) {
       if (err.message.includes('UNIQUE constraint')) {
         skipped++;

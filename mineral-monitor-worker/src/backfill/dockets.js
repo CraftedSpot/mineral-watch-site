@@ -161,6 +161,41 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
         }
       }
     }
+
+    // Sync junction table for additional_sections
+    const junctionStmts = [];
+    for (const entry of batch) {
+      if (!entry.additional_sections || entry.additional_sections.length === 0) continue;
+      junctionStmts.push(
+        db.prepare('DELETE FROM docket_entry_sections WHERE case_number = ?')
+          .bind(entry.case_number)
+      );
+      for (const sec of entry.additional_sections) {
+        const normSec = parseInt(sec.section, 10);
+        if (isNaN(normSec)) continue;
+        const twn = (sec.township || '').toString().trim().toUpperCase();
+        const rng = (sec.range || '').toString().trim().toUpperCase();
+        if (!twn || !rng) continue;
+        const meridian = sec.meridian?.toUpperCase() ||
+          (['CIMARRON', 'TEXAS', 'BEAVER'].includes(entry.county?.toUpperCase()) ? 'CM' : 'IM');
+        junctionStmts.push(
+          db.prepare(`
+            INSERT OR IGNORE INTO docket_entry_sections (case_number, section, township, range, meridian)
+            VALUES (?, ?, ?, ?, ?)
+          `).bind(entry.case_number, String(normSec), twn, rng, meridian)
+        );
+      }
+    }
+    if (junctionStmts.length > 0) {
+      // Batch in chunks of 500 (D1 batch limit)
+      for (let j = 0; j < junctionStmts.length; j += 500) {
+        try {
+          await db.batch(junctionStmts.slice(j, j + 500));
+        } catch (jErr) {
+          console.error(`[Backfill] Junction table batch error:`, jErr.message);
+        }
+      }
+    }
   }
 
   return { inserted, updated };

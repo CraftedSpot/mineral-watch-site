@@ -202,31 +202,46 @@ async function fetchDocumentCounts(
     }
   }
 
-  // Step 2: Count documents per well using LIKE patterns (supports comma-separated well_id)
+  // Step 2: Count documents per well (batched — single query per chunk instead of per-well)
+  // Each record ID needs 4 bind params (exact + 3 LIKE patterns for comma-separated well_id)
+  // D1 limit: 100 params → 25 IDs per batch
   const recordIds = Array.from(recordIdToApi.keys());
-  const idBatches = chunk(recordIds, 25); // Smaller batches — each ID generates 4 WHERE conditions
+  const idBatches = chunk(recordIds, 25);
 
   const countPromises = idBatches.map(async (batch) => {
     try {
-      // Count documents for each well individually within the batch
-      const results: { recordId: string; count: number }[] = [];
-      for (const recordId of batch) {
-        const startsWithPattern = `${recordId},%`;
-        const endsWithPattern = `%,${recordId}`;
-        const containsPattern = `%,${recordId},%`;
+      // Build combined OR conditions for all record IDs in this batch
+      const conditions = batch.map(() =>
+        `(well_id = ? OR well_id LIKE ? OR well_id LIKE ? OR well_id LIKE ?)`
+      ).join(' OR ');
 
-        const row = await env.WELLS_DB.prepare(`
-          SELECT COUNT(*) as count FROM documents
-          WHERE (well_id = ? OR well_id LIKE ? OR well_id LIKE ? OR well_id LIKE ?)
-            AND (deleted_at IS NULL OR deleted_at = '')
-            AND doc_type IN (${docTypeList})
-        `).bind(recordId, startsWithPattern, endsWithPattern, containsPattern).first();
+      const bindings = batch.flatMap(id => [
+        id,           // exact match (single-well doc)
+        `${id},%`,    // first in comma-separated list
+        `%,${id}`,    // last in comma-separated list
+        `%,${id},%`   // middle of comma-separated list
+      ]);
 
-        if (row && (row.count as number) > 0) {
-          results.push({ recordId, count: row.count as number });
+      const rows = await env.WELLS_DB.prepare(`
+        SELECT well_id FROM documents
+        WHERE (${conditions})
+          AND (deleted_at IS NULL OR deleted_at = '')
+          AND doc_type IN (${docTypeList})
+      `).bind(...bindings).all();
+
+      // Parse comma-separated well_ids and count per record ID
+      const batchSet = new Set(batch);
+      const counts = new Map<string, number>();
+      for (const row of (rows.results || [])) {
+        const ids = (row.well_id as string).split(',').map(s => s.trim());
+        for (const id of ids) {
+          if (batchSet.has(id)) {
+            counts.set(id, (counts.get(id) || 0) + 1);
+          }
         }
       }
-      return results;
+
+      return Array.from(counts.entries()).map(([recordId, count]) => ({ recordId, count }));
     } catch (err) {
       console.error('[WellLinkCounts] Error fetching document counts:', err);
       return [];

@@ -298,50 +298,46 @@ async function fetchOCCFilingCounts(
     }
   }
 
-  // Also check additional_sections JSON (parallelized)
+  // Also check additional_sections via junction table (indexed STR lookup)
   const directBatches = chunk(Array.from(directSTRMap.entries()), BATCH_SIZE_D1);
   const additionalBatchPromises = directBatches.map(async (batch) => {
     try {
-      const likeConditions = batch.map(() => `additional_sections LIKE ?`).join(' OR ');
-      const likeBindings = batch.map(([key]) => {
+      const whereConditions = batch.map(() =>
+        `(des.section = ? AND des.township = ? AND des.range = ?)`
+      ).join(' OR ');
+      const whereBindings = batch.flatMap(([key]) => {
         const [sec, twn, rng] = key.split('|');
-        return `%"section":"${sec}"%"township":"${twn}"%"range":"${rng}"%`;
+        return [String(sec), twn, rng];
       });
 
       const query = `
-        SELECT additional_sections, COUNT(*) as count
-        FROM occ_docket_entries
-        WHERE (${likeConditions})
-        GROUP BY additional_sections
+        SELECT des.section as sec, des.township as twn, des.range as rng,
+               COUNT(DISTINCT des.case_number) as count
+        FROM docket_entry_sections des
+        WHERE (${whereConditions})
+        GROUP BY des.section, des.township, des.range
       `;
-      const result = await env.WELLS_DB.prepare(query).bind(...likeBindings).all();
-      return { results: result.results as { additional_sections: string; count: number }[] || [], batch };
+      const result = await env.WELLS_DB.prepare(query).bind(...whereBindings).all();
+      return result.results as { sec: string; twn: string; rng: string; count: number }[] || [];
     } catch (err) {
       console.error('[LinkCounts] Error querying additional sections:', err);
-      return { results: [], batch };
+      return [];
     }
   });
 
   const additionalResults = await Promise.all(additionalBatchPromises);
 
-  for (const { results: rows } of additionalResults) {
+  for (const rows of additionalResults) {
     for (const row of rows) {
-      try {
-        const sections = JSON.parse(row.additional_sections || '[]');
-        for (const section of sections) {
-          const normSec = normalizeSection(section.section);
-          const normTwn = normalizeTownship(section.township);
-          const normRng = normalizeRange(section.range);
-          if (normSec !== null && normTwn && normRng) {
-            const strKey = `${normSec}|${normTwn}|${normRng}`;
-            const propIds = directSTRMap.get(strKey) || [];
-            for (const propId of propIds) {
-              filingCounts.set(propId, (filingCounts.get(propId) || 0) + row.count);
-            }
-          }
-        }
-      } catch {
-        // Skip malformed JSON
+      const normSec = normalizeSection(row.sec);
+      const normTwn = normalizeTownship(row.twn);
+      const normRng = normalizeRange(row.rng);
+      if (normSec === null || !normTwn || !normRng) continue;
+
+      const strKey = `${normSec}|${normTwn}|${normRng}`;
+      const propIds = directSTRMap.get(strKey) || [];
+      for (const propId of propIds) {
+        filingCounts.set(propId, (filingCounts.get(propId) || 0) + row.count);
       }
     }
   }
