@@ -10,6 +10,19 @@ const RESEND_API_URL = 'https://api.resend.com/emails';
 const EMAIL_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
+ * Append UTM tracking params to a URL or path
+ * @param {string} path - URL or path (e.g., '/portal' or 'https://portal...')
+ * @param {string} campaign - UTM campaign (e.g., 'well_alert', 'daily_digest')
+ * @param {string} [content] - Optional UTM content (e.g., activity type)
+ */
+function utm(path, campaign, content) {
+  const sep = path.includes('?') ? '&' : '?';
+  let url = `${path}${sep}utm_source=mineral_watch&utm_medium=email&utm_campaign=${campaign}`;
+  if (content) url += `&utm_content=${encodeURIComponent(content)}`;
+  return url;
+}
+
+/**
  * Send a simple email via Resend
  * @param {Object} env - Worker environment
  * @param {Object} data - Email data
@@ -190,7 +203,7 @@ export async function sendAlertEmail(env, data) {
   
   // Generate auto-login MW map link if we have apiNumber and userId
   if (apiNumber && userId) {
-    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, `/portal/map?well=${apiNumber}`);
+    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, utm(`/portal/map?well=${apiNumber}`, 'well_alert', activityType));
   }
 
   const subject = buildSubject(alertLevel, activityType, county, statusChange);
@@ -582,7 +595,7 @@ async function buildHtmlBody(data, env) {
   if (shouldShowTrackButton && apiNumber && userId && env.TRACK_WELL_SECRET) {
     const expiration = Math.floor(Date.now() / 1000) + (48 * 60 * 60); // 48 hours from now
     const token = await generateTrackToken(userId, apiNumber, expiration, env.TRACK_WELL_SECRET);
-    trackingLink = `https://portal.mymineralwatch.com/add-well?api=${apiNumber}&user=${userId}&token=${token}&exp=${expiration}`;
+    trackingLink = utm(`https://portal.mymineralwatch.com/add-well?api=${apiNumber}&user=${userId}&token=${token}&exp=${expiration}`, 'well_alert', 'track_well');
     console.log(`[Email] Generated track link for API ${apiNumber}, user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
   } else {
     const reason = !shouldShowTrackButton ? 'already tracked' : 
@@ -849,9 +862,9 @@ async function buildHtmlBody(data, env) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size: 12px;">
-                    <a href="https://portal.mymineralwatch.com" style="color: #334E68; text-decoration: none; margin-right: 16px;">Dashboard</a>
-                    <a href="https://portal.mymineralwatch.com/settings" style="color: #334E68; text-decoration: none; margin-right: 16px;">Settings</a>
-                    <a href="https://portal.mymineralwatch.com/settings" style="color: #64748B; text-decoration: none;">Unsubscribe</a>
+                    <a href="${utm('https://portal.mymineralwatch.com', 'well_alert', 'footer_dashboard')}" style="color: #334E68; text-decoration: none; margin-right: 16px;">Dashboard</a>
+                    <a href="${utm('https://portal.mymineralwatch.com/settings', 'well_alert', 'footer_settings')}" style="color: #334E68; text-decoration: none; margin-right: 16px;">Settings</a>
+                    <a href="${utm('https://portal.mymineralwatch.com/settings', 'well_alert', 'footer_unsubscribe')}" style="color: #64748B; text-decoration: none;">Unsubscribe</a>
                   </td>
                 </tr>
               </table>
@@ -956,7 +969,7 @@ Note: This alert indicates activity near your mineral interests. It does not gua
 
 ---
 Mineral Watch Oklahoma
-https://mymineralwatch.com
+${utm('https://mymineralwatch.com', 'well_alert', 'footer')}
   `.trim();
 
   return text;
@@ -1010,11 +1023,12 @@ export async function sendDigestEmail(env, digestData) {
     subject = `Weekly Report: ${totalAlerts} New Alert${totalAlerts !== 1 ? 's' : ''} | Mineral Watch`;
   }
 
-  // Generate auto-login portal URL
+  // Generate auto-login portal URL with UTM tracking
+  const utmCampaign = `${frequency}_digest`;
   const portalLoginUrl = userId
-    ? await generateEmailLoginUrl(env, to, userId, '/portal')
+    ? await generateEmailLoginUrl(env, to, userId, utm('/portal', utmCampaign))
     : null;
-  digestData.portalLoginUrl = portalLoginUrl || 'https://portal.mymineralwatch.com/portal';
+  digestData.portalLoginUrl = portalLoginUrl || utm('https://portal.mymineralwatch.com/portal', utmCampaign);
 
   const htmlBody = buildDigestHtmlBody(digestData);
   const textBody = buildDigestTextBody(digestData);
@@ -1306,7 +1320,7 @@ function buildDigestHtmlBody(digestData) {
             <td style="background: #F8FAFC; padding: 16px 24px; border-top: 1px solid #E2E8F0;">
               <p style="font-size: 12px; color: #64748B; margin: 0; text-align: center;">
                 This is your ${frequency} digest from Mineral Watch Oklahoma.<br>
-                <a href="https://portal.mymineralwatch.com/account" style="color: #2563EB; text-decoration: none;">Manage notification preferences</a>
+                <a href="${utm('https://portal.mymineralwatch.com/account', frequency + '_digest', 'manage_preferences')}" style="color: #2563EB; text-decoration: none;">Manage notification preferences</a>
               </p>
             </td>
           </tr>
@@ -1497,7 +1511,7 @@ ${'='.repeat(30)}
       text += ` - S${act.surface_section} T${act.surface_township} R${act.surface_range}\n`;
     }
     if (nearbyOverflow > 0) {
-      text += `\n  View ${nearbyOverflow} more: ${portalLoginUrl || 'https://portal.mymineralwatch.com/portal'}\n`;
+      text += `\n  View ${nearbyOverflow} more: ${portalLoginUrl || utm('https://portal.mymineralwatch.com/portal', frequency + '_digest', 'nearby_overflow')}\n`;
     }
   }
 
@@ -1531,11 +1545,11 @@ ${'-'.repeat(30)}
 
   text += `
 ---
-View all activity: ${portalLoginUrl || 'https://portal.mymineralwatch.com/portal'}
-Manage preferences: https://portal.mymineralwatch.com/account
+View all activity: ${portalLoginUrl || utm('https://portal.mymineralwatch.com/portal', frequency + '_digest')}
+Manage preferences: ${utm('https://portal.mymineralwatch.com/account', frequency + '_digest', 'manage_preferences')}
 
 Mineral Watch Oklahoma
-https://mymineralwatch.com
+${utm('https://mymineralwatch.com', frequency + '_digest', 'footer')}
 `;
 
   return text.trim();
