@@ -994,7 +994,8 @@
                     const res = await fetch('/api/wells/v2');
                     if (!res.ok) throw new Error('Failed to fetch wells');
 
-                    const allWells = await res.json();
+                    const data = await res.json();
+                    const allWells = data.records || data;
                     well = allWells.find(w => w.id === wellId);
 
                     if (!well) {
