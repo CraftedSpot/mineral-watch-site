@@ -177,14 +177,19 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // 1. Get all PUN links for this well from well_pun_links
-    const linksResult = await env.WELLS_DB.prepare(`
-      SELECT l.pun, l.base_pun, l.confidence, l.match_method, l.formation,
-             m.lease_name, m.is_multi_well, m.well_count, m.county
-      FROM well_pun_links l
-      LEFT JOIN pun_metadata m ON l.pun = m.pun
-      WHERE l.api_number = ? OR l.api_number = ?
-    `).bind(apiNumber, api10).all();
+    // 1. Get PUN links and data horizon in parallel (2 queries, 1 round trip)
+    const [linksResult, horizonResult] = await env.WELLS_DB.batch([
+      env.WELLS_DB.prepare(`
+        SELECT l.pun, l.base_pun, l.confidence, l.match_method, l.formation,
+               m.lease_name, m.is_multi_well, m.well_count, m.county
+        FROM well_pun_links l
+        LEFT JOIN pun_metadata m ON l.pun = m.pun
+        WHERE l.api_number = ? OR l.api_number = ?
+      `).bind(apiNumber, api10),
+      env.WELLS_DB.prepare(
+        `SELECT MAX(year_month) as horizon FROM otc_production`
+      ),
+    ]);
 
     const links = linksResult.results as Array<{
       pun: string;
@@ -252,14 +257,12 @@ export async function handleGetProductionSummary(
     // Use data horizon (latest month in OTC data) instead of today for status thresholds
     // This avoids false-idle caused by OTC's 2-3 month reporting lag
     const now = new Date();
-    const horizonResult = await env.WELLS_DB.prepare(
-      `SELECT MAX(year_month) as horizon FROM otc_production`
-    ).first() as { horizon: string } | null;
+    const horizon = (horizonResult.results[0] as any)?.horizon as string | null;
 
     let horizonDate: Date;
-    if (horizonResult?.horizon) {
-      const hYear = parseInt(horizonResult.horizon.substring(0, 4));
-      const hMonth = parseInt(horizonResult.horizon.substring(4, 6));
+    if (horizon) {
+      const hYear = parseInt(horizon.substring(0, 4));
+      const hMonth = parseInt(horizon.substring(4, 6));
       horizonDate = new Date(hYear, hMonth - 1, 1);
     } else {
       horizonDate = new Date(now);
@@ -277,64 +280,61 @@ export async function handleGetProductionSummary(
     lastYearSameMonth.setFullYear(lastYearSameMonth.getFullYear() - 1);
     const lastYearYM = `${lastYearSameMonth.getFullYear()}${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    // 4. Query production data for all linked PUNs
-    // Get recent production (for last month and status)
-    const recentResult = await env.WELLS_DB.prepare(`
-      SELECT pun, year_month, product_code, SUM(gross_volume) as volume
-      FROM otc_production
-      WHERE ${punWhereClause}
-      GROUP BY pun, year_month, product_code
-      ORDER BY year_month DESC
-      LIMIT 50
-    `).bind(...uniqueBasePuns).all();
-
-    // Get last 12 months totals
-    const last12MoResult = await env.WELLS_DB.prepare(`
-      SELECT pun, product_code, SUM(gross_volume) as volume
-      FROM otc_production
-      WHERE ${punWhereClause} AND year_month >= ?
-      GROUP BY pun, product_code
-    `).bind(...uniqueBasePuns, twelveMonthsAgoYM).all();
-
-    // Get lifetime totals
-    const lifetimeResult = await env.WELLS_DB.prepare(`
-      SELECT pun, product_code, SUM(gross_volume) as volume
-      FROM otc_production
-      WHERE ${punWhereClause}
-      GROUP BY pun, product_code
-    `).bind(...uniqueBasePuns).all();
-
-    // Get sparkline data in BOE (Barrels of Oil Equivalent), last 6 calendar months
-    // BOE = Oil + (Gas / 6) - standard industry conversion
-    // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
     const sixMonthsAgo = new Date(horizonDate);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-    const sparklineResult = await env.WELLS_DB.prepare(`
-      SELECT year_month,
-             SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
-             SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
-      FROM otc_production
-      WHERE ${punWhereClause} AND year_month >= ?
-      GROUP BY year_month
-      ORDER BY year_month ASC
-    `).bind(...uniqueBasePuns, sixMonthsAgoYM).all();
+    // 4. Batch all 6 production queries into a single D1 round trip
+    const [recentResult, last12MoResult, lifetimeResult, sparklineResult, lastYearResult, monthsProducedBatchResult] = await env.WELLS_DB.batch([
+      // Recent production (for last month and status)
+      env.WELLS_DB.prepare(`
+        SELECT pun, year_month, product_code, SUM(gross_volume) as volume
+        FROM otc_production
+        WHERE ${punWhereClause}
+        GROUP BY pun, year_month, product_code
+        ORDER BY year_month DESC
+        LIMIT 50
+      `).bind(...uniqueBasePuns),
+      // Last 12 months totals
+      env.WELLS_DB.prepare(`
+        SELECT pun, product_code, SUM(gross_volume) as volume
+        FROM otc_production
+        WHERE ${punWhereClause} AND year_month >= ?
+        GROUP BY pun, product_code
+      `).bind(...uniqueBasePuns, twelveMonthsAgoYM),
+      // Lifetime totals
+      env.WELLS_DB.prepare(`
+        SELECT pun, product_code, SUM(gross_volume) as volume
+        FROM otc_production
+        WHERE ${punWhereClause}
+        GROUP BY pun, product_code
+      `).bind(...uniqueBasePuns),
+      // Sparkline data (last 6 months BOE)
+      env.WELLS_DB.prepare(`
+        SELECT year_month,
+               SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
+               SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
+        FROM otc_production
+        WHERE ${punWhereClause} AND year_month >= ?
+        GROUP BY year_month
+        ORDER BY year_month ASC
+      `).bind(...uniqueBasePuns, sixMonthsAgoYM),
+      // YoY comparison data
+      env.WELLS_DB.prepare(`
+        SELECT product_code, SUM(gross_volume) as volume
+        FROM otc_production
+        WHERE ${punWhereClause} AND year_month = ?
+        GROUP BY product_code
+      `).bind(...uniqueBasePuns, lastYearYM),
+      // Months produced count and first production month
+      env.WELLS_DB.prepare(`
+        SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
+        FROM otc_production
+        WHERE ${punWhereClause}
+      `).bind(...uniqueBasePuns),
+    ]);
 
-    // Get YoY comparison data
-    const lastYearResult = await env.WELLS_DB.prepare(`
-      SELECT product_code, SUM(gross_volume) as volume
-      FROM otc_production
-      WHERE ${punWhereClause} AND year_month = ?
-      GROUP BY product_code
-    `).bind(...uniqueBasePuns, lastYearYM).all();
-
-    // Get months produced count and first production month
-    const monthsProducedResult = await env.WELLS_DB.prepare(`
-      SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
-      FROM otc_production
-      WHERE ${punWhereClause}
-    `).bind(...uniqueBasePuns).first() as { months_count: number; first_month: string } | null;
+    const monthsProducedResult = (monthsProducedBatchResult.results[0] || null) as { months_count: number; first_month: string } | null;
 
     // 5. Process results - aggregate across all PUNs
     const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};

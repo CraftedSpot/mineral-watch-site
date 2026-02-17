@@ -623,29 +623,83 @@ async function syncLinksChunked(env: any, cursor: SyncCursor, tickStart: number)
 // ============================================================================
 
 async function runCleanup(env: any, cursor: SyncCursor): Promise<void> {
-  // DISABLED: Orphan cleanup was deleting valid records because upserts
-  // were failing silently. Re-enable once upsert bug is fixed and verified.
-  console.log('[Sync] Orphan cleanup DISABLED — skipping');
-  return;
+  console.log('[Sync] Running orphan cleanup with safety guards...');
 
-  console.log('[Sync] Running orphan cleanup...');
+  const SAFETY_THRESHOLD = 0.9; // Only cleanup if we synced ≥90% of expected records
 
-  if (cursor.collectedIds.properties.length > 0) {
-    const validPropertyIds = new Set(cursor.collectedIds.properties);
-    await cleanupOrphans(env, 'properties', 'airtable_record_id', validPropertyIds);
-  }
+  // --- Properties ---
+  await safeCleanup(env, {
+    tableName: 'properties',
+    airtableIdColumn: 'airtable_record_id',
+    collectedIds: cursor.collectedIds.properties,
+    threshold: SAFETY_THRESHOLD,
+  });
 
-  if (cursor.collectedIds.client_wells.length > 0) {
-    const validWellIds = new Set(cursor.collectedIds.client_wells);
-    await cleanupOrphans(env, 'client_wells', 'airtable_id', validWellIds);
-  }
+  // --- Client Wells ---
+  await safeCleanup(env, {
+    tableName: 'client_wells',
+    airtableIdColumn: 'airtable_id',
+    collectedIds: cursor.collectedIds.client_wells,
+    threshold: SAFETY_THRESHOLD,
+  });
 
-  if (cursor.collectedIds.links.length > 0) {
-    const validLinkIds = new Set(cursor.collectedIds.links);
-    await cleanupOrphans(env, 'property_well_links', 'airtable_record_id', validLinkIds);
-  }
+  // --- Property-Well Links ---
+  await safeCleanup(env, {
+    tableName: 'property_well_links',
+    airtableIdColumn: 'airtable_record_id',
+    collectedIds: cursor.collectedIds.links,
+    threshold: SAFETY_THRESHOLD,
+  });
 
   console.log('[Sync] Orphan cleanup complete');
+}
+
+/**
+ * Safely cleanup orphans for a single table.
+ * Compares collected Airtable ID count against D1 row count.
+ * Skips cleanup if synced count is below threshold (partial sync protection).
+ */
+async function safeCleanup(
+  env: any,
+  opts: {
+    tableName: string;
+    airtableIdColumn: string;
+    collectedIds: string[];
+    threshold: number;
+  }
+): Promise<void> {
+  const { tableName, airtableIdColumn, collectedIds, threshold } = opts;
+
+  if (collectedIds.length === 0) {
+    console.log(`[Sync] Cleanup ${tableName}: no IDs collected, skipping`);
+    return;
+  }
+
+  // Count how many D1 rows have an Airtable ID (synced from Airtable, not D1-first bulk uploads)
+  const d1Count = await env.WELLS_DB.prepare(
+    `SELECT COUNT(*) as count FROM ${tableName} WHERE ${airtableIdColumn} IS NOT NULL`
+  ).first();
+  const existingCount = (d1Count?.count as number) || 0;
+
+  const ratio = existingCount > 0 ? collectedIds.length / existingCount : 1;
+
+  if (ratio < threshold) {
+    console.warn(
+      `[Sync] SAFETY GUARD: Skipping ${tableName} cleanup — ` +
+      `synced ${collectedIds.length} but D1 has ${existingCount} ` +
+      `(ratio ${(ratio * 100).toFixed(1)}% < ${(threshold * 100).toFixed(0)}% threshold). ` +
+      `Possible partial sync.`
+    );
+    return;
+  }
+
+  console.log(
+    `[Sync] Cleanup ${tableName}: synced ${collectedIds.length} / ${existingCount} D1 rows ` +
+    `(${(ratio * 100).toFixed(1)}%) — safe to proceed`
+  );
+
+  const validIds = new Set(collectedIds);
+  await cleanupOrphans(env, tableName, airtableIdColumn, validIds);
 }
 
 async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
@@ -807,7 +861,7 @@ async function geocodeBhFromSectionCenters(env: any): Promise<void> {
 // Main Entry Point — Phase Machine
 // ============================================================================
 
-export async function syncAirtableData(env: any): Promise<SyncResult> {
+export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<any>) => void }): Promise<SyncResult> {
   const tickStart = Date.now();
 
   if (!env.MINERAL_AIRTABLE_API_KEY) {
@@ -875,9 +929,17 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     }
 
     if (cursor.phase === 'post_sync') {
-      // Post-sync tasks temporarily skipped — suspected of causing Worker timeout
-      console.log('[Sync] Post-sync tasks skipped (debugging sync completion)');
-      // await runPostSync(env, cursor);
+      if (ctx) {
+        // Fire-and-forget: run post-sync tasks without blocking sync completion
+        console.log('[Sync] Launching post-sync tasks (non-blocking via waitUntil)');
+        ctx.waitUntil(runPostSync(env, cursor).catch(err =>
+          console.error('[Sync] Post-sync task error (non-blocking):', err)
+        ));
+      } else {
+        // No execution context (e.g. manual trigger) — run inline
+        console.log('[Sync] Running post-sync tasks (inline, no ctx)');
+        await runPostSync(env, cursor);
+      }
     }
 
     // Sync cycle complete

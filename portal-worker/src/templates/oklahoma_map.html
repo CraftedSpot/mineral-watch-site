@@ -4302,17 +4302,60 @@
             return OPERATOR_COLORS.default;
         }
         
-        // Fetch tracked wells from API
+        // Transform V2 flat well record to V1 fields format for map compatibility
+        function v2WellToFields(w) {
+            return {
+                id: w.id,
+                createdTime: w.createdTime,
+                fields: {
+                    'API Number': w.apiNumber || '',
+                    'Well Name': w.well_name || '',
+                    'Operator': w.operator || '',
+                    'Well Status': w.well_status || '',
+                    'Well Type': w.well_type || '',
+                    'County': w.county || '',
+                    'Section': w.section || '',
+                    'Township': w.township || '',
+                    'Range': w.range || '',
+                    'Meridian': w.meridian || '',
+                    'Formation Name': w.formation_name || '',
+                    'Formation': w.formation_name || '',
+                    'Formation Depth': w.formation_depth || '',
+                    'Total Depth': w.measured_total_depth || '',
+                    'True Vertical Depth': w.true_vertical_depth || '',
+                    'Lateral Length': w.lateral_length || null,
+                    'OCC Map Link': w.occMapLink || '',
+                    'Completion Date': w.completion_date || '',
+                    'Spud Date': w.spud_date || '',
+                    'First Production Date': w.first_production_date || '',
+                    'IP Oil': w.ip_oil_bbl || null,
+                    'IP Oil BBL': w.ip_oil_bbl || null,
+                    'IP Gas': w.ip_gas_mcf || null,
+                    'IP Gas MCF': w.ip_gas_mcf || null,
+                    'BH Section': w.bh_section || '',
+                    'BH Township': w.bh_township || '',
+                    'BH Range': w.bh_range || '',
+                    'Operator Phone': w.operator_phone || '',
+                    'Contact Name': w.operator_contact || '',
+                    'Operator Contact': w.operator_contact || '',
+                    'Notes': w.notes || '',
+                    'Status': w.userStatus || 'Active',
+                }
+            };
+        }
+
+        // Fetch tracked wells from API (V2 D1-first endpoint)
         async function fetchTrackedWells() {
             try {
                 console.log('Fetching tracked wells...');
-                const response = await fetch('/api/wells', { credentials: 'include' });
+                const response = await fetch('/api/wells/v2', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 const data = await response.json();
-                console.log(`Loaded ${data.length} wells`);
-                return data;
+                const records = (data.records || []).map(v2WellToFields);
+                console.log(`Loaded ${records.length} wells`);
+                return records;
             } catch (error) {
                 console.error('Error fetching wells:', error);
                 return [];

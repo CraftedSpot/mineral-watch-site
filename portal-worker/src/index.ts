@@ -254,7 +254,7 @@ var index_default = {
     // Default: Airtable sync (every 15 minutes)
     console.log('Running Airtable sync...');
     try {
-      const result = await syncAirtableData(env);
+      const result = await syncAirtableData(env, ctx);
       console.log('Sync completed:', result);
     } catch (error) {
       console.error('Scheduled sync failed:', error);
