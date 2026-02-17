@@ -556,9 +556,15 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
           <li>Market Research: statewide benchmarks, county-level analytics, and township-level pooling data</li>
         </ul>
       </div>
-      <div class="screenshot-frame">
-        <img src="assets/pooling-rate-comparison.png" alt="Pooling Rate Comparison">
-        <div class="screenshot-frame-label">Pooling Rate Comparison — 28 counties, $707 avg bonus per acre across My Markets</div>
+      <div class="carousel-wrap">
+        <div class="report-carousel" id="reportsOverviewCarousel">
+          <img src="assets/intelligence-dashboard-overview.png" alt="Intelligence Dashboard Overview" class="active">
+          <img src="assets/pooling-rate-comparison.png" alt="Pooling Rate Comparison">
+        </div>
+        <div class="map-carousel-tabs" data-carousel="reportsOverviewCarousel">
+          <button class="active">Intelligence Hub</button>
+          <button>Pooling Comparison</button>
+        </div>
       </div>
     </div>
 
