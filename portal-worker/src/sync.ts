@@ -875,7 +875,9 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     }
 
     if (cursor.phase === 'post_sync') {
-      await runPostSync(env, cursor);
+      // Post-sync tasks temporarily skipped — suspected of causing Worker timeout
+      console.log('[Sync] Post-sync tasks skipped (debugging sync completion)');
+      // await runPostSync(env, cursor);
     }
 
     // Sync cycle complete
