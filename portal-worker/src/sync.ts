@@ -12,7 +12,7 @@ const BATCH_SIZE = 500; // Max statements per batch to stay within limits
 
 // Chunked sync configuration
 const CURSOR_KEY = 'sync:cursor';
-const TIME_BUDGET_MS = 25_000; // Stop fetching after 25s wall clock
+const TIME_BUDGET_MS = 600_000; // 10 minutes — cron handlers have 15min timeout
 const MAX_OCC_LOOKUPS_PER_TICK = 20; // Limit OCC API calls for new wells per tick
 const CURSOR_STALE_MS = 2 * 60 * 60 * 1000; // Restart if cursor >2 hours old
 
