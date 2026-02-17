@@ -895,11 +895,15 @@ var index_default = {
         }
       }
       
-      // Proxy marketing endpoints to marketing-worker (super-admin only)
+      // Proxy marketing endpoints to marketing-worker (super-admin or API key)
       if (path.startsWith("/api/marketing/")) {
-        const mktUser = await authenticateRequest(request, env);
-        if (!mktUser || !isSuperAdmin(mktUser.email)) {
-          return jsonResponse({ error: 'Admin required' }, 403);
+        const authHeader = request.headers.get('Authorization') || '';
+        const hasApiKey = authHeader === `Bearer ${env.PROCESSING_API_KEY}`;
+        if (!hasApiKey) {
+          const mktUser = await authenticateRequest(request, env);
+          if (!mktUser || !isSuperAdmin(mktUser.email)) {
+            return jsonResponse({ error: 'Admin required' }, 403);
+          }
         }
         if (!env.MARKETING_WORKER) {
           return jsonResponse({ error: 'Marketing service not available' }, 503);
