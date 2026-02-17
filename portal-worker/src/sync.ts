@@ -490,156 +490,28 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
       cursor.stats.clientWells.synced += response.records.length;
       cursor.stats.clientWells.updated += response.records.length;
 
-      // --- Part 2: Sync to wells table (per-record, with OCC enrichment) ---
-      for (const record of response.records) {
-        try {
-          const fields = record.fields || {};
-          const apiNumber = fields['API Number'];
-
-          if (!apiNumber) {
-            cursor.stats.wells.errors.push(`Well ${record.id}: Missing API number`);
-            continue;
-          }
-
-          const status = fields['Status']?.name || fields['Status'] || null;
-
-          // Try to update existing well in D1
-          const updateResult = await env.WELLS_DB.prepare(`
+      // --- Part 2: Batch update wells table (airtable_record_id + status) ---
+      // Batched instead of per-record to avoid Worker timeout on 1400+ individual queries
+      const wellsUpdateStmts = response.records
+        .filter(r => r.fields?.['API Number'])
+        .map(record => {
+          const status = record.fields['Status']?.name || record.fields['Status'] || null;
+          return env.WELLS_DB.prepare(`
             UPDATE wells SET
               airtable_record_id = ?,
               status = ?,
               synced_at = CURRENT_TIMESTAMP
             WHERE api_number = ?
-          `).bind(record.id, status, apiNumber).run();
+          `).bind(record.id, status, record.fields['API Number']);
+        });
 
-          if (updateResult.meta.changes > 0) {
-            cursor.stats.wells.updated++;
-          } else if (occLookupsThisTick < MAX_OCC_LOOKUPS_PER_TICK && cursor.occLookupsThisCycle < MAX_OCC_LOOKUPS_PER_TICK * 10) {
-            // Well not in D1 — fetch from OCC API (budgeted)
-            console.log(`[Sync] Well ${apiNumber} not in D1, fetching from OCC...`);
-            occLookupsThisTick++;
-            cursor.occLookupsThisCycle++;
-
-            const occData: any = await fetchWellDetailsFromOCC(apiNumber, env);
-
-            if (occData) {
-              console.log(`[Sync] Found well ${apiNumber} in OCC: ${occData.wellName}`);
-
-              const insertValues = {
-                api_number: apiNumber,
-                airtable_record_id: record.id,
-                well_name: occData.wellName || fields['Well Name'] || null,
-                well_number: null as string | null,
-                operator: occData.operator || fields.Operator || null,
-                county: occData.county || fields.County || null,
-                section: occData.section ? parseInt(String(occData.section), 10) : null,
-                township: occData.township || fields.Township || null,
-                range: occData.range || fields.Range || null,
-                meridian: occData.meridian || 'IM',
-                latitude: occData.lat || null,
-                longitude: occData.lon || null,
-                status: status,
-                well_status: occData.wellStatus || fields['Well Status'] || null,
-                well_type: occData.wellType || null,
-                spud_date: occData.spudDate || null,
-                completion_date: occData.completionDate || null,
-                bh_latitude: occData.bhLat || null,
-                bh_longitude: occData.bhLon || null,
-                lateral_length: occData.lateralLength || null,
-                formation_name: occData.formationName || null,
-                formation_depth: occData.formationDepth || null,
-                true_vertical_depth: occData.tvd || null,
-                measured_total_depth: occData.md || null,
-                ip_oil_bbl: occData.ipOil || null,
-                ip_gas_mcf: occData.ipGas || null,
-                ip_water_bbl: occData.ipWater || null
-              };
-
-              await env.WELLS_DB.prepare(`
-                INSERT INTO wells (
-                  api_number, airtable_record_id, well_name, well_number, operator,
-                  county, section, township, range, meridian, latitude, longitude,
-                  status, well_status, well_type, spud_date, completion_date,
-                  bh_latitude, bh_longitude, lateral_length,
-                  formation_name, formation_depth, true_vertical_depth, measured_total_depth,
-                  ip_oil_bbl, ip_gas_mcf, ip_water_bbl,
-                  created_at, synced_at
-                )
-                VALUES (
-                  ?, ?, ?, ?, ?, ?,
-                  CAST(? AS INTEGER), ?, ?, ?,
-                  CAST(? AS REAL), CAST(? AS REAL),
-                  ?, ?, ?, ?, ?,
-                  CAST(? AS REAL), CAST(? AS REAL), CAST(? AS INTEGER),
-                  ?, CAST(? AS INTEGER), CAST(? AS INTEGER), CAST(? AS INTEGER),
-                  CAST(? AS REAL), CAST(? AS REAL), CAST(? AS REAL),
-                  datetime('now'), CURRENT_TIMESTAMP
-                )
-              `).bind(
-                insertValues.api_number, insertValues.airtable_record_id,
-                insertValues.well_name, insertValues.well_number,
-                insertValues.operator, insertValues.county,
-                insertValues.section, insertValues.township,
-                insertValues.range, insertValues.meridian,
-                insertValues.latitude, insertValues.longitude,
-                insertValues.status, insertValues.well_status,
-                insertValues.well_type, insertValues.spud_date,
-                insertValues.completion_date,
-                insertValues.bh_latitude, insertValues.bh_longitude,
-                insertValues.lateral_length,
-                insertValues.formation_name, insertValues.formation_depth,
-                insertValues.true_vertical_depth, insertValues.measured_total_depth,
-                insertValues.ip_oil_bbl, insertValues.ip_gas_mcf,
-                insertValues.ip_water_bbl
-              ).run();
-
-              cursor.stats.wells.created++;
-            } else {
-              // Fall back to minimal insert with Airtable data
-              const fullWellName = fields['Well Name'] || '';
-              let wellName = fullWellName;
-              let wellNumber: string | null = null;
-
-              const wellMatch = fullWellName.match(/^(.+?)\s+(#\d+(?:-?\w+)?)$/);
-              if (wellMatch) {
-                wellName = wellMatch[1].trim();
-                wellNumber = wellMatch[2];
-              } else {
-                const noHashMatch = fullWellName.match(/^(.+?)\s+(\d+(?:-?\w+)?)$/);
-                if (noHashMatch) {
-                  wellName = noHashMatch[1].trim();
-                  wellNumber = `#${noHashMatch[2]}`;
-                }
-              }
-
-              await env.WELLS_DB.prepare(`
-                INSERT INTO wells (
-                  api_number, airtable_record_id, well_name, well_number, operator,
-                  county, section, township, range, meridian,
-                  status, well_status, created_at, synced_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
-              `).bind(
-                apiNumber, record.id, wellName, wellNumber,
-                fields.Operator || null, fields.County || null,
-                fields.Section ? parseInt(fields.Section, 10) : null,
-                fields.Township || null, fields.Range || null,
-                status, fields['Well Status'] || null
-              ).run();
-
-              cursor.stats.wells.created++;
-            }
-          } else {
-            // OCC budget exceeded — skip new well lookup this tick (will be picked up next time)
-            // The client_wells upsert already happened above
-          }
-
-          cursor.stats.wells.synced++;
-        } catch (error: any) {
-          cursor.stats.wells.errors.push(`Well ${record.id}: ${error.message}`);
-          console.error(`[Sync] Error syncing well ${record.id}:`, error);
+      if (wellsUpdateStmts.length > 0) {
+        for (let i = 0; i < wellsUpdateStmts.length; i += BATCH_SIZE) {
+          await env.WELLS_DB.batch(wellsUpdateStmts.slice(i, i + BATCH_SIZE));
         }
       }
+      cursor.stats.wells.synced += wellsUpdateStmts.length;
+      cursor.stats.wells.updated += wellsUpdateStmts.length;
 
       if (!response.offset) {
         // All pages fetched — run client_wells enrichment UPDATE
