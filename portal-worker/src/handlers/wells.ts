@@ -459,7 +459,7 @@ export async function handleListWellsV2(request: Request, env: Env) {
     `SELECT COUNT(*) as total FROM client_wells cw ${whereClause}`
   ).bind(...bindParams);
 
-  // Build main SELECT with all JOINs for OCC enrichment + production
+  // Base query: client_wells + wells + operators (NO production — that's a separate batch)
   const selectQuery = `
     SELECT cw.*,
       w.well_name AS occ_well_name, w.well_number,
@@ -476,24 +476,12 @@ export async function handleListWellsV2(request: Request, env: Env) {
       w.bh_latitude, w.bh_longitude,
       w.bh_section AS occ_bh_section, w.bh_township AS occ_bh_township,
       w.bh_range AS occ_bh_range,
-      o.phone AS operator_phone, o.contact_name AS operator_contact,
-      prod.otc_total_oil, prod.otc_total_gas,
-      prod.otc_last_prod_month, prod.otc_is_stale
+      o.phone AS operator_phone, o.contact_name AS operator_contact
     FROM client_wells cw
     LEFT JOIN wells w ON w.api_number = cw.api_number
     LEFT JOIN operators o
       ON UPPER(TRIM(REPLACE(REPLACE(COALESCE(w.operator, cw.operator), '.', ''), ',', '')))
          = o.operator_name_normalized
-    LEFT JOIN (
-      SELECT wpl2.api_number,
-        SUM(p.total_oil_bbl) AS otc_total_oil,
-        SUM(p.total_gas_mcf) AS otc_total_gas,
-        MAX(p.last_prod_month) AS otc_last_prod_month,
-        MIN(p.is_stale) AS otc_is_stale
-      FROM well_pun_links wpl2
-      JOIN puns p ON SUBSTR(wpl2.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
-      GROUP BY wpl2.api_number
-    ) prod ON prod.api_number = cw.api_number
     ${whereClause}
     ORDER BY cw.county, cw.township, cw.range_val, cw.section
     ${isSuperAdmin ? '' : 'LIMIT ?'}
@@ -505,6 +493,35 @@ export async function handleListWellsV2(request: Request, env: Env) {
   const total = (countResult.results as any[])[0]?.total || 0;
   const rows = selectResult.results || [];
 
+  // Batch-query production data for visible wells only (avoids full puns table scan)
+  const prodMap: Record<string, any> = {};
+  const apiNumbers = (rows as any[]).map((r: any) => r.api_number).filter(Boolean);
+  if (apiNumbers.length > 0) {
+    const PROD_BATCH = 50; // well under D1's 100-param limit
+    for (let i = 0; i < apiNumbers.length; i += PROD_BATCH) {
+      const batch = apiNumbers.slice(i, i + PROD_BATCH);
+      const ph = batch.map(() => '?').join(',');
+      try {
+        const prodResult = await env.WELLS_DB.prepare(`
+          SELECT wpl.api_number,
+            SUM(p.total_oil_bbl) AS otc_total_oil,
+            SUM(p.total_gas_mcf) AS otc_total_gas,
+            MAX(p.last_prod_month) AS otc_last_prod_month,
+            MIN(p.is_stale) AS otc_is_stale
+          FROM well_pun_links wpl
+          JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
+          WHERE wpl.api_number IN (${ph})
+          GROUP BY wpl.api_number
+        `).bind(...batch).all();
+        for (const r of prodResult.results) {
+          prodMap[(r as any).api_number] = r;
+        }
+      } catch (err) {
+        console.error('[wells-v2] Production batch error:', err);
+      }
+    }
+  }
+
   // Transform D1 rows to match the flat response format the frontend expects
   const records = (rows as any[]).map((row: any) => {
     // Combine OCC well_name + well_number for full display name
@@ -515,6 +532,9 @@ export async function handleListWellsV2(request: Request, env: Env) {
     const occMapLink = row.latitude && row.longitude
       ? generateMapLink(row.latitude, row.longitude, fullWellName || 'Well Location')
       : '#';
+
+    // Production data from separate batch query
+    const prod = prodMap[row.api_number] || {};
 
     return {
       // Record identity (airtable_id for updates/deletes)
@@ -567,11 +587,11 @@ export async function handleListWellsV2(request: Request, env: Env) {
       operator_phone: row.operator_phone || null,
       operator_contact: row.operator_contact || null,
 
-      // OTC production data (pre-aggregated in subquery)
-      otc_total_oil: row.otc_total_oil || null,
-      otc_total_gas: row.otc_total_gas || null,
-      otc_last_prod_month: row.otc_last_prod_month || null,
-      otc_is_stale: row.otc_is_stale,  // 0 is valid
+      // OTC production data (from separate batch query)
+      otc_total_oil: prod.otc_total_oil || null,
+      otc_total_gas: prod.otc_total_gas || null,
+      otc_last_prod_month: prod.otc_last_prod_month || null,
+      otc_is_stale: prod.otc_is_stale,  // 0 is valid
 
       // Generated links
       occMapLink,
