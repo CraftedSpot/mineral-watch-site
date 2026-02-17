@@ -18,7 +18,7 @@ import {
   userWantsAlert,
   getUserById
 } from '../services/airtable.js';
-import { batchGetPropertiesByLocations } from '../services/d1.js';
+import { batchGetPropertiesByLocations, isUserOverPlanLimit } from '../services/d1.js';
 import { sendAlertEmail } from '../services/email.js';
 import { sendBatchedEmails } from '../services/emailBatch.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
@@ -417,7 +417,9 @@ export async function runDailyMonitor(env, options = {}) {
   
   // Map to collect alerts by user for batching
   const userAlertMap = new Map();
-  
+  // Cache plan limit checks per run to avoid repeated D1 queries
+  const planLimitCache = new Map();
+
   try {
     // OPTIMIZATION 1: Load already-processed APIs
     const processedAPIs = await loadProcessedAPIs(env);
@@ -1028,6 +1030,17 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         continue;
       }
 
+      // Check plan limits — skip alerts for users who exceed their plan
+      const userPlan = fullUser?.fields?.Plan || 'Free';
+      if (!planLimitCache.has(userId)) {
+        planLimitCache.set(userId, await isUserOverPlanLimit(env, userId, userPlan));
+      }
+      if (planLimitCache.get(userId)) {
+        console.log(`[Permit] Skipped alert for ${alert.user.email} - over ${userPlan} plan limit`);
+        results.alertsSkipped++;
+        continue;
+      }
+
       if (!userAlertMap.has(userId)) {
         userAlertMap.set(userId, []);
       }
@@ -1488,6 +1501,17 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         continue;
       }
 
+      // Check plan limits — skip alerts for users who exceed their plan
+      const compUserPlan = fullUser?.fields?.Plan || 'Free';
+      if (!planLimitCache.has(userId)) {
+        planLimitCache.set(userId, await isUserOverPlanLimit(env, userId, compUserPlan));
+      }
+      if (planLimitCache.get(userId)) {
+        console.log(`[Completion] Skipped alert for ${alert.user.email} - over ${compUserPlan} plan limit`);
+        results.alertsSkipped++;
+        continue;
+      }
+
       if (!userAlertMap.has(userId)) {
         userAlertMap.set(userId, []);
       }
@@ -1640,6 +1664,16 @@ async function checkExpiringPermits(env) {
             const fullUser = await getUserById(env, match.user.id);
             if (fullUser && !userWantsAlert(fullUser, activityType)) {
               console.log(`[Expiration] Skipped alert for ${match.user.email} - user disabled expiration alerts`);
+              continue;
+            }
+
+            // Check plan limits — skip alerts for users who exceed their plan
+            const expPlan = fullUser?.fields?.Plan || 'Free';
+            if (!planLimitCache.has(match.user.id)) {
+              planLimitCache.set(match.user.id, await isUserOverPlanLimit(env, match.user.id, expPlan));
+            }
+            if (planLimitCache.get(match.user.id)) {
+              console.log(`[Expiration] Skipped alert for ${match.user.email} - over ${expPlan} plan limit`);
               continue;
             }
 

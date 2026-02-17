@@ -24,7 +24,8 @@ import {
   getNearbyActivity,
   getHistoricalOperators,
   getCountyActivityStats,
-  getDocketCountByCounty
+  getDocketCountByCounty,
+  isUserOverPlanLimit
 } from '../services/d1.js';
 import { parseTownship, parseRange } from '../utils/normalize.js';
 
@@ -334,6 +335,13 @@ async function processWeeklyDigest(env, pendingByUser, results) {
         continue;
       }
 
+      // Check plan limits — skip digest for users who exceed their plan
+      const wkPlan = row.plan || 'Free';
+      if (await isUserOverPlanLimit(env, userId, wkPlan)) {
+        console.log(`[Digest] Skipped weekly digest for ${userEmail} - over ${wkPlan} plan limit`);
+        continue;
+      }
+
       // Send the enhanced weekly digest
       await sendDigestEmail(env, {
         to: userEmail,
@@ -394,6 +402,13 @@ async function processWeeklyDigest(env, pendingByUser, results) {
           (userData.alerts.occFilings?.length || 0);
 
         if (totalAlerts === 0) continue;
+
+        // Check plan limits — skip digest for users who exceed their plan
+        const remPlan = user?.fields?.Plan || 'Free';
+        if (await isUserOverPlanLimit(env, userData.userId, remPlan)) {
+          console.log(`[Digest] Skipped weekly digest for ${userEmail} - over ${remPlan} plan limit`);
+          continue;
+        }
 
         await sendDigestEmail(env, {
           to: userEmail,
@@ -501,6 +516,13 @@ export async function runDailyDigest(env) {
 
         if (totalAlerts === 0) {
           console.log(`[Digest] No alerts for ${userEmail}, skipping`);
+          continue;
+        }
+
+        // Check plan limits — skip digest for users who exceed their plan
+        const dailyPlan = user?.fields?.Plan || 'Free';
+        if (await isUserOverPlanLimit(env, userId, dailyPlan)) {
+          console.log(`[Digest] Skipped daily digest for ${userEmail} - over ${dailyPlan} plan limit`);
           continue;
         }
 

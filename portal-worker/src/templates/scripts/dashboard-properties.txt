@@ -2,10 +2,16 @@
             try {
                 const res = await fetch('/api/properties/v2');
                 if (!res.ok) throw new Error('Failed to load');
-                const properties = await res.json();
-                loadedProperties = properties; // Store for filtering/sorting
+                const data = await res.json();
+                const properties = data.records || data; // backward compat
+                loadedProperties = properties;
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
+
+                // Show upgrade banner if user has more data than their plan allows
+                if (data._meta && data._meta.total > data._meta.visible) {
+                    showUpgradeBanner('propertiesContent', 'properties', data._meta);
+                }
 
                 // Render table immediately (with zero counts)
                 renderPropertiesTable();
@@ -51,11 +57,16 @@
                 // Use V2 endpoint with D1 as primary data source
                 const res = await fetch('/api/wells/v2');
                 if (!res.ok) throw new Error('Failed to load');
-                const wells = await res.json();
-                loadedWells = wells; // Store for filtering/sorting
+                const data = await res.json();
+                const wells = data.records || data; // backward compat
+                loadedWells = wells;
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
 
+                // Show upgrade banner if user has more data than their plan allows
+                if (data._meta && data._meta.total > data._meta.visible) {
+                    showUpgradeBanner('wellsContent', 'wells', data._meta);
+                }
 
                 // Render the table (handles empty state internally)
                 renderWellsTable();
@@ -84,6 +95,18 @@
             } catch (err) {
                 console.error('Failed to load well link counts:', err);
             }
+        }
+
+        function showUpgradeBanner(containerId, resourceType, meta) {
+            const existing = document.querySelector('#' + containerId + ' .upgrade-banner');
+            if (existing) existing.remove();
+            const banner = document.createElement('div');
+            banner.className = 'upgrade-banner';
+            banner.innerHTML = 'You have <strong>' + meta.total + '</strong> ' + resourceType +
+                '. Your <strong>' + meta.plan + '</strong> plan includes <strong>' + meta.limit + '</strong>.' +
+                ' <a href="/portal/upgrade">Upgrade to see all &rarr;</a>';
+            const container = document.getElementById(containerId);
+            if (container) container.insertBefore(banner, container.firstChild);
         }
 
         // Properties Search & Sort State

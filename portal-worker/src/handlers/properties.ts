@@ -4,10 +4,11 @@
  * Handles CRUD operations for user property monitoring
  */
 
-import { 
+import {
   PROPERTIES_TABLE,
   BASE_ID,
-  PLAN_LIMITS 
+  PLAN_LIMITS,
+  getPlanLimits
 } from '../constants.js';
 
 import { 
@@ -50,36 +51,43 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
 
   const organizationId = userRecord.fields.Organization?.[0];
 
-  // Query D1 directly — filter by organization_id or user_id
-  let rows: any[];
-  if (organizationId) {
-    const stmt = env.WELLS_DB.prepare(`
-      SELECT p.*,
-        (SELECT COUNT(*) FROM property_well_links pwl
-         WHERE pwl.property_airtable_id = p.airtable_record_id
-         AND pwl.status IN ('Active', 'Linked')) as linked_wells
-      FROM properties p
-      WHERE p.organization_id = ? OR p.user_id = ?
-      ORDER BY p.county, p.township, p.range, p.section
-    `);
-    const result = await stmt.bind(organizationId, user.id).all();
-    rows = result.results || [];
-  } else {
-    const stmt = env.WELLS_DB.prepare(`
-      SELECT p.*,
-        (SELECT COUNT(*) FROM property_well_links pwl
-         WHERE pwl.property_airtable_id = p.airtable_record_id
-         AND pwl.status IN ('Active', 'Linked')) as linked_wells
-      FROM properties p
-      WHERE p.user_id = ?
-      ORDER BY p.county, p.township, p.range, p.section
-    `);
-    const result = await stmt.bind(user.id).all();
-    rows = result.results || [];
-  }
+  // Determine plan limit for visibility
+  const plan = (userRecord.fields as any).Plan || 'Free';
+  const planLimits = getPlanLimits(plan);
+  const limit = planLimits.properties;
+  // Super admins impersonating bypass limits to see full data
+  const isSuperAdmin = !!(user as any).impersonating;
+
+  // Build WHERE clause
+  const whereClause = organizationId
+    ? `WHERE p.organization_id = ? OR p.user_id = ?`
+    : `WHERE p.user_id = ?`;
+  const bindParams = organizationId ? [organizationId, user.id] : [user.id];
+
+  // Run COUNT and SELECT in parallel via batch
+  const countStmt = env.WELLS_DB.prepare(
+    `SELECT COUNT(*) as total FROM properties p ${whereClause}`
+  ).bind(...bindParams);
+
+  const selectQuery = `
+    SELECT p.*,
+      (SELECT COUNT(*) FROM property_well_links pwl
+       WHERE pwl.property_airtable_id = p.airtable_record_id
+       AND pwl.status IN ('Active', 'Linked')) as linked_wells
+    FROM properties p
+    ${whereClause}
+    ORDER BY p.county, p.township, p.range, p.section
+    ${isSuperAdmin ? '' : 'LIMIT ?'}
+  `;
+  const selectParams = isSuperAdmin ? bindParams : [...bindParams, limit];
+  const selectStmt = env.WELLS_DB.prepare(selectQuery).bind(...selectParams);
+
+  const [countResult, selectResult] = await env.WELLS_DB.batch([countStmt, selectStmt]);
+  const total = (countResult.results as any[])[0]?.total || 0;
+  const rows = selectResult.results || [];
 
   // Transform D1 rows to match Airtable response format for frontend compatibility
-  const records = rows.map((row: any) => ({
+  const records = (rows as any[]).map((row: any) => ({
     // Use airtable_record_id as the record ID (frontend uses this for updates/deletes)
     id: row.airtable_record_id || row.id,
     createdTime: row.created_at || new Date().toISOString(),
@@ -110,7 +118,10 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
     _linkedWells: row.linked_wells || 0,
   }));
 
-  return jsonResponse(records);
+  return jsonResponse({
+    records,
+    _meta: { total, visible: records.length, plan, limit }
+  });
 }
 
 /**

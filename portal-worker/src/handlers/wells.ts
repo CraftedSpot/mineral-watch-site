@@ -4,10 +4,11 @@
  * Handles CRUD operations for user well monitoring with OCC API integration
  */
 
-import { 
+import {
   WELLS_TABLE,
   BASE_ID,
   PLAN_LIMITS,
+  getPlanLimits,
   OCC_CACHE_TTL
 } from '../constants.js';
 
@@ -468,7 +469,17 @@ export async function handleListWellsV2(request: Request, env: Env) {
   }
 
   // Fetch tracked wells from Airtable (returns all fields, we'll use minimal)
-  const trackedWells = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
+  let trackedWells = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
+
+  // Plan-based visibility limit — slice before D1 enrichment to save queries
+  const plan = (userRecord.fields as any).Plan || 'Free';
+  const planLimits = getPlanLimits(plan);
+  const wellLimit = planLimits.wells;
+  const totalWells = trackedWells.length;
+  const isSuperAdmin = !!(user as any).impersonating;
+  if (!isSuperAdmin && trackedWells.length > wellLimit) {
+    trackedWells = trackedWells.slice(0, wellLimit);
+  }
 
   // Extract API numbers for D1 query
   const apiNumbers = trackedWells
@@ -611,7 +622,10 @@ export async function handleListWellsV2(request: Request, env: Env) {
     };
   });
 
-  return jsonResponse(merged);
+  return jsonResponse({
+    records: merged,
+    _meta: { total: totalWells, visible: merged.length, plan, limit: wellLimit }
+  });
 }
 
 /**

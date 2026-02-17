@@ -411,6 +411,9 @@
         .btn-delete:hover { color: #DC2626; background: #FEE2E2; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
+        .upgrade-banner { background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 14px; color: #92400E; }
+        .upgrade-banner a { color: #D97706; font-weight: 600; text-decoration: none; }
+        .upgrade-banner a:hover { text-decoration: underline; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
         
         /* Ensure detail modals appear above sticky filter bars - diagnostic test */

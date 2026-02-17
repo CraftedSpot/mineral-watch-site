@@ -642,3 +642,43 @@ function transformOrgToAirtableFormat(row) {
     _d1: row
   };
 }
+
+// Plan limits for visibility gating (mirrors portal-worker/src/constants.ts)
+const PLAN_LIMITS = {
+  Free: { properties: 1, wells: 1 },
+  Starter: { properties: 10, wells: 10 },
+  Standard: { properties: 50, wells: 50 },
+  Professional: { properties: 250, wells: 250 },
+  Business: { properties: 500, wells: 500 },
+  'Enterprise 1K': { properties: 1000, wells: 1000 }
+};
+
+/**
+ * Check if a user exceeds their plan's property or well limit.
+ * Used to gate alert/digest delivery for downgraded users.
+ * @param {Object} env - Worker environment with WELLS_DB
+ * @param {string} userId - Airtable record ID (rec...)
+ * @param {string} plan - Plan name (e.g. 'Free', 'Starter')
+ * @returns {Promise<boolean>} - true if user exceeds their plan limit
+ */
+export async function isUserOverPlanLimit(env, userId, plan) {
+  const limits = PLAN_LIMITS[plan] || PLAN_LIMITS.Free;
+
+  const propCount = await env.WELLS_DB.prepare(`
+    SELECT COUNT(*) as cnt FROM properties
+    WHERE user_id = ? OR organization_id = (
+      SELECT organization_id FROM users WHERE airtable_record_id = ? AND organization_id IS NOT NULL
+    )
+  `).bind(userId, userId).first();
+
+  if (propCount.cnt > limits.properties) return true;
+
+  const wellCount = await env.WELLS_DB.prepare(`
+    SELECT COUNT(*) as cnt FROM client_wells
+    WHERE user_id = ? OR organization_id = (
+      SELECT organization_id FROM users WHERE airtable_record_id = ? AND organization_id IS NOT NULL
+    )
+  `).bind(userId, userId).first();
+
+  return wellCount.cnt > limits.wells;
+}

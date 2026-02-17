@@ -16,6 +16,7 @@ import {
 } from '../services/docketParser.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
 import { createActivityLog, getUserById } from '../services/airtable.js';
+import { isUserOverPlanLimit } from '../services/d1.js';
 import {
   getEffectiveNotificationMode,
   getDigestFrequency,
@@ -479,6 +480,8 @@ async function processDocketAlerts(env, dryRun = false) {
 
   let alertCount = 0;
   const processedIds = [];
+  // Cache plan limit checks per run to avoid repeated D1 queries
+  const planLimitCache = new Map();
 
   // Collect all matches across entries for cross-entry dedup
   // Key: userId|section-township-range|alertLevel -> first match wins
@@ -653,6 +656,16 @@ async function processDocketAlerts(env, dryRun = false) {
 
       if (notificationMode === 'None') {
         console.log(`[Docket] Skipping ${match.user.email} - notifications disabled`);
+        continue;
+      }
+
+      // Check plan limits — skip alerts for users who exceed their plan
+      const dkPlan = user?.fields?.Plan || 'Free';
+      if (!planLimitCache.has(match.user.id)) {
+        planLimitCache.set(match.user.id, await isUserOverPlanLimit(env, match.user.id, dkPlan));
+      }
+      if (planLimitCache.get(match.user.id)) {
+        console.log(`[Docket] Skipped alert for ${match.user.email} - over ${dkPlan} plan limit`);
         continue;
       }
 

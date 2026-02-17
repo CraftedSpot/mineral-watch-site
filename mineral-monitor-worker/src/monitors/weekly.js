@@ -19,7 +19,7 @@ import {
   userWantsAlert,
   getUserById
 } from '../services/airtable.js';
-import { batchGetPropertiesByLocations } from '../services/d1.js';
+import { batchGetPropertiesByLocations, isUserOverPlanLimit } from '../services/d1.js';
 import { getAdjacentSections } from '../utils/plss.js';
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
@@ -237,7 +237,9 @@ export async function runWeeklyMonitor(env, options = {}) {
     testMode: false,
     testResults: null
   };
-  
+  // Cache plan limit checks per run to avoid repeated D1 queries
+  const planLimitCache = new Map();
+
   try {
     // Test mode: simulate a transfer for a specific API
     if (options.testApi) {
@@ -545,6 +547,17 @@ async function processTransfer(transfer, env, results, recentAlerts) {
     const fullUser = await getUserById(env, alert.user.id);
     if (fullUser && !userWantsAlert(fullUser, 'Operator Transfer')) {
       console.log(`[Weekly] Skipped alert for ${alert.user.email} - user disabled operator transfer alerts`);
+      results.alertsSkipped++;
+      continue;
+    }
+
+    // Check plan limits — skip alerts for users who exceed their plan
+    const wkPlan = fullUser?.fields?.Plan || 'Free';
+    if (!planLimitCache.has(alert.user.id)) {
+      planLimitCache.set(alert.user.id, await isUserOverPlanLimit(env, alert.user.id, wkPlan));
+    }
+    if (planLimitCache.get(alert.user.id)) {
+      console.log(`[Weekly] Skipped alert for ${alert.user.email} - over ${wkPlan} plan limit`);
       results.alertsSkipped++;
       continue;
     }
