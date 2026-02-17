@@ -424,207 +424,181 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
 }
 
 /**
- * List wells for authenticated user - V2 with D1 as primary data source
- * Airtable stores only: User, Organization, API Number, Notes, Status, OCC Filing Link
- * D1 provides: All well metadata (name, operator, location, formation, dates, etc.)
+ * List wells for authenticated user - V2 (D1-first)
+ * Queries D1 directly instead of Airtable. Single query joins:
+ *   client_wells → wells → operators → production
+ * Returns data in the flat format the dashboard frontend expects.
  *
  * @param request The incoming request
  * @param env Worker environment
- * @returns JSON response with merged well data
+ * @returns JSON response with well data
  */
 export async function handleListWellsV2(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  // Get full user record to check for organization
   const userRecord = await getUserFromSession(env, user);
   if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
 
-  // Build Airtable filter formula (same as v1)
-  let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
 
-  const safeEmail2 = escapeAirtableValue(user.email);
-
-  if (organizationId) {
-    // User has organization - fetch org name and filter by it
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-
-    if (orgResponse.ok) {
-      const org = await orgResponse.json() as any;
-      const orgName = escapeAirtableValue(org.fields.Name || '');
-      const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-      const userFind = `FIND('${safeEmail2}', ARRAYJOIN({User}))`;
-      formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
-    } else {
-      formula = `FIND('${safeEmail2}', ARRAYJOIN({User})) > 0`;
-    }
-  } else {
-    formula = `FIND('${safeEmail2}', ARRAYJOIN({User})) > 0`;
-  }
-
-  // Fetch tracked wells from Airtable (returns all fields, we'll use minimal)
-  let trackedWells = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
-
-  // Plan-based visibility limit — slice before D1 enrichment to save queries
+  // Plan-based visibility limit
   const plan = (userRecord.fields as any).Plan || 'Free';
   const planLimits = getPlanLimits(plan);
   const wellLimit = planLimits.wells;
-  const totalWells = trackedWells.length;
   const isSuperAdmin = !!(user as any).impersonating;
-  if (!isSuperAdmin && trackedWells.length > wellLimit) {
-    trackedWells = trackedWells.slice(0, wellLimit);
-  }
 
-  // Extract API numbers for D1 query
-  const apiNumbers = trackedWells
-    .map((w: any) => w.fields['API Number'])
-    .filter((api: string | undefined) => api && api.length >= 10);
+  // Build WHERE clause (same pattern as Properties V2)
+  const whereClause = organizationId
+    ? `WHERE cw.organization_id = ? OR cw.user_id = ?`
+    : `WHERE cw.user_id = ?`;
+  const bindParams = organizationId ? [organizationId, user.id] : [user.id];
 
-  // Batch query D1 for well metadata
-  const d1Wells = await batchQueryD1Wells(apiNumbers, env);
+  // COUNT (no LIMIT — total records owned) + SELECT (with LIMIT) in parallel
+  const countStmt = env.WELLS_DB.prepare(
+    `SELECT COUNT(*) as total FROM client_wells cw ${whereClause}`
+  ).bind(...bindParams);
 
-  // Batch query client_wells for enterprise interest fields
-  const clientWellsMap: Record<string, any> = {};
-  if (env.WELLS_DB) {
-    const airtableIds = trackedWells.map((t: any) => t.id);
-    const BATCH = 100;
-    for (let i = 0; i < airtableIds.length; i += BATCH) {
-      const batch = airtableIds.slice(i, i + BATCH);
-      const placeholders = batch.map(() => '?').join(',');
-      try {
-        const cwResults = await env.WELLS_DB.prepare(`
-          SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri,
-                 interest_source, interest_source_doc_id, interest_source_date,
-                 wi_nri_source, wi_nri_source_doc_id, wi_nri_source_date,
-                 orri_nri_source, orri_nri_source_doc_id, orri_nri_source_date
-          FROM client_wells WHERE airtable_id IN (${placeholders})
-        `).bind(...batch).all();
-        for (const row of cwResults.results as any[]) {
-          clientWellsMap[row.airtable_id] = row;
-        }
-      } catch (e) {
-        // Fallback: source columns may not exist yet
-        try {
-          const cwResults = await env.WELLS_DB.prepare(`
-            SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri
-            FROM client_wells WHERE airtable_id IN (${placeholders})
-          `).bind(...batch).all();
-          for (const row of cwResults.results as any[]) {
-            clientWellsMap[row.airtable_id] = row;
-          }
-        } catch (e2) {
-          console.error('[WellsV2] client_wells batch query failed:', e2);
-        }
-      }
-    }
-  }
+  // Build main SELECT with all JOINs for OCC enrichment + production
+  const selectQuery = `
+    SELECT cw.*,
+      w.well_name AS occ_well_name, w.well_number,
+      w.operator AS occ_operator, w.county AS occ_county,
+      w.section AS occ_section, w.township AS occ_township,
+      w.range AS occ_range, w.meridian,
+      w.latitude, w.longitude,
+      w.well_type AS occ_well_type, w.well_status AS occ_well_status,
+      w.formation_name, w.formation_depth,
+      w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
+      w.spud_date AS occ_spud_date, w.completion_date AS occ_completion_date,
+      w.first_production_date AS occ_first_production_date,
+      w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
+      w.bh_latitude, w.bh_longitude,
+      w.bh_section AS occ_bh_section, w.bh_township AS occ_bh_township,
+      w.bh_range AS occ_bh_range,
+      o.phone AS operator_phone, o.contact_name AS operator_contact,
+      prod.otc_total_oil, prod.otc_total_gas,
+      prod.otc_last_prod_month, prod.otc_is_stale
+    FROM client_wells cw
+    LEFT JOIN wells w ON w.api_number = cw.api_number
+    LEFT JOIN operators o
+      ON UPPER(TRIM(REPLACE(REPLACE(COALESCE(w.operator, cw.operator), '.', ''), ',', '')))
+         = o.operator_name_normalized
+    LEFT JOIN (
+      SELECT wpl2.api_number,
+        SUM(p.total_oil_bbl) AS otc_total_oil,
+        SUM(p.total_gas_mcf) AS otc_total_gas,
+        MAX(p.last_prod_month) AS otc_last_prod_month,
+        MIN(p.is_stale) AS otc_is_stale
+      FROM well_pun_links wpl2
+      JOIN puns p ON SUBSTR(wpl2.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
+      GROUP BY wpl2.api_number
+    ) prod ON prod.api_number = cw.api_number
+    ${whereClause}
+    ORDER BY cw.county, cw.township, cw.range_val, cw.section
+    ${isSuperAdmin ? '' : 'LIMIT ?'}
+  `;
+  const selectParams = isSuperAdmin ? bindParams : [...bindParams, wellLimit];
+  const selectStmt = env.WELLS_DB.prepare(selectQuery).bind(...selectParams);
 
-  // Merge: D1 metadata + Airtable user data + client_wells enterprise fields
-  const merged = trackedWells.map((t: any) => {
-    const apiNumber = t.fields['API Number'];
-    const d1 = d1Wells[apiNumber] || {};
-    const cw = clientWellsMap[t.id] || {};
+  const [countResult, selectResult] = await env.WELLS_DB.batch([countStmt, selectStmt]);
+  const total = (countResult.results as any[])[0]?.total || 0;
+  const rows = selectResult.results || [];
 
-    // Combine well_name and well_number for full display name
-    // e.g., "BENTLEY" + "#1-5" = "BENTLEY #1-5"
-    const fullWellName = d1.well_name && d1.well_number
-      ? `${d1.well_name} ${d1.well_number}`.trim()
-      : d1.well_name || t.fields['Well Name'] || '';
+  // Transform D1 rows to match the flat response format the frontend expects
+  const records = (rows as any[]).map((row: any) => {
+    // Combine OCC well_name + well_number for full display name
+    const fullWellName = row.occ_well_name && row.well_number
+      ? `${row.occ_well_name} ${row.well_number}`.trim()
+      : row.occ_well_name || row.well_name || '';
 
-    // Generate OCC Map Link from D1 coordinates
-    const occMapLink = d1.latitude && d1.longitude
-      ? generateMapLink(d1.latitude, d1.longitude, fullWellName || 'Well Location')
+    const occMapLink = row.latitude && row.longitude
+      ? generateMapLink(row.latitude, row.longitude, fullWellName || 'Well Location')
       : '#';
 
     return {
-      // Airtable record info (needed for updates/deletes/links)
-      id: t.id,
-      createdTime: t.createdTime,
+      // Record identity (airtable_id for updates/deletes)
+      id: row.airtable_id || row.id,
+      createdTime: row.created_at || new Date().toISOString(),
 
-      // User data from Airtable
-      apiNumber,
-      notes: t.fields.Notes || '',
-      userStatus: t.fields.Status || 'Active',  // User's tracking status
-      occFilingLink: t.fields['OCC Filing Link'] || null,
+      // User data from client_wells
+      apiNumber: row.api_number || '',
+      notes: row.notes || '',
+      userStatus: row.status || 'Active',
+      occFilingLink: null,
 
-      // Well metadata from D1
-      well_name: fullWellName,  // Combined name + number (e.g., "BENTLEY #1-5")
-      well_number: d1.well_number || '',  // Just the number part (e.g., "#1-5")
-      operator: d1.operator || t.fields['Operator'] || '',
-      county: d1.county || t.fields['County'] || '',
-      section: d1.section || t.fields['Section'] || '',
-      township: d1.township || t.fields['Township'] || '',
-      range: d1.range || t.fields['Range'] || '',
-      meridian: d1.meridian || '',
-      well_type: d1.well_type || t.fields['Well Type'] || '',
-      well_status: d1.well_status || t.fields['Well Status'] || '',
-      latitude: d1.latitude || null,
-      longitude: d1.longitude || null,
+      // Well metadata — prefer OCC data, fallback to client_wells
+      well_name: fullWellName,
+      well_number: row.well_number || '',
+      operator: row.occ_operator || row.operator || '',
+      county: row.occ_county || row.county || '',
+      section: row.occ_section || row.section || '',
+      township: row.occ_township || row.township || '',
+      range: row.occ_range || row.range_val || '',
+      meridian: row.meridian || '',
+      well_type: row.occ_well_type || row.well_type || '',
+      well_status: row.occ_well_status || row.well_status || '',
+      latitude: row.latitude || null,
+      longitude: row.longitude || null,
 
-      // Enrichment data from D1
-      formation_name: d1.formation_name || null,
-      measured_total_depth: d1.measured_total_depth || null,
-      true_vertical_depth: d1.true_vertical_depth || null,
-      lateral_length: d1.lateral_length || null,
-      spud_date: d1.spud_date || null,
-      completion_date: d1.completion_date || null,
-      first_production_date: d1.first_production_date || null,
-      ip_oil_bbl: d1.ip_oil_bbl || null,
-      ip_gas_mcf: d1.ip_gas_mcf || null,
-      ip_water_bbl: d1.ip_water_bbl || null,
+      // Enrichment data from OCC wells table
+      formation_name: row.formation_name || null,
+      measured_total_depth: row.measured_total_depth || null,
+      true_vertical_depth: row.true_vertical_depth || null,
+      lateral_length: row.lateral_length || null,
+      spud_date: row.occ_spud_date || row.spud_date || null,
+      completion_date: row.occ_completion_date || row.completion_date || null,
+      first_production_date: row.occ_first_production_date || row.first_production_date || null,
+      ip_oil_bbl: row.ip_oil_bbl || null,
+      ip_gas_mcf: row.ip_gas_mcf || null,
+      ip_water_bbl: row.ip_water_bbl || null,
 
-      // Bottom hole location (for horizontal wells)
-      bh_latitude: d1.bh_latitude || null,
-      bh_longitude: d1.bh_longitude || null,
-      bh_section: d1.bh_section || null,
-      bh_township: d1.bh_township || null,
-      bh_range: d1.bh_range || null,
+      // Bottom hole location (horizontal wells)
+      bh_latitude: row.bh_latitude || null,
+      bh_longitude: row.bh_longitude || null,
+      bh_section: row.occ_bh_section || row.bh_section || null,
+      bh_township: row.occ_bh_township || row.bh_township || null,
+      bh_range: row.occ_bh_range || row.bh_range || null,
 
       // Formation depth
-      formation_depth: d1.formation_depth || null,
+      formation_depth: row.formation_depth || null,
 
-      // Operator contact from D1 operators table
-      operator_phone: d1.operator_phone || t.fields['Operator Phone'] || null,
-      operator_contact: d1.operator_contact || t.fields['Contact Name'] || null,
+      // Operator contact from operators table
+      operator_phone: row.operator_phone || null,
+      operator_contact: row.operator_contact || null,
 
-      // OTC production data from puns table (via well_pun_links)
-      otc_total_oil: d1.otc_total_oil || null,
-      otc_total_gas: d1.otc_total_gas || null,
-      otc_last_prod_month: d1.otc_last_prod_month || null,
-      otc_is_stale: d1.otc_is_stale,  // Don't use || null here, 0 is a valid value
+      // OTC production data (pre-aggregated in subquery)
+      otc_total_oil: row.otc_total_oil || null,
+      otc_total_gas: row.otc_total_gas || null,
+      otc_last_prod_month: row.otc_last_prod_month || null,
+      otc_is_stale: row.otc_is_stale,  // 0 is valid
 
       // Generated links
       occMapLink,
 
-      // Enterprise interest fields from client_wells (D1-only)
-      user_well_code: cw.user_well_code || null,
-      wi_nri: cw.wi_nri || null,
-      ri_nri: cw.ri_nri || null,
-      orri_nri: cw.orri_nri || null,
-      ri_nri_source: cw.interest_source || null,
-      ri_nri_source_doc_id: cw.interest_source_doc_id || null,
-      ri_nri_source_date: cw.interest_source_date || null,
-      wi_nri_source: cw.wi_nri_source || null,
-      wi_nri_source_doc_id: cw.wi_nri_source_doc_id || null,
-      wi_nri_source_date: cw.wi_nri_source_date || null,
-      orri_nri_source: cw.orri_nri_source || null,
-      orri_nri_source_doc_id: cw.orri_nri_source_doc_id || null,
-      orri_nri_source_date: cw.orri_nri_source_date || null,
+      // Enterprise interest fields from client_wells
+      user_well_code: row.user_well_code || null,
+      wi_nri: row.wi_nri || null,
+      ri_nri: row.ri_nri || null,
+      orri_nri: row.orri_nri || null,
+      ri_nri_source: row.interest_source || null,
+      ri_nri_source_doc_id: row.interest_source_doc_id || null,
+      ri_nri_source_date: row.interest_source_date || null,
+      wi_nri_source: row.wi_nri_source || null,
+      wi_nri_source_doc_id: row.wi_nri_source_doc_id || null,
+      wi_nri_source_date: row.wi_nri_source_date || null,
+      orri_nri_source: row.orri_nri_source || null,
+      orri_nri_source_doc_id: row.orri_nri_source_doc_id || null,
+      orri_nri_source_date: row.orri_nri_source_date || null,
 
-      // Flag indicating if D1 had data for this well
-      hasD1Data: !!d1.api_number
+      // Flag indicating if OCC wells table had data
+      hasD1Data: !!row.occ_well_name
     };
   });
 
   return jsonResponse({
-    records: merged,
-    _meta: { total: totalWells, visible: merged.length, plan, limit: wellLimit }
+    records,
+    _meta: { total, visible: records.length, plan, limit: wellLimit }
   });
 }
 
