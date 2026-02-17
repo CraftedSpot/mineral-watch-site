@@ -1,6 +1,55 @@
 import { Env } from "../index";
 import { jsonResponse } from "../utils/responses";
 
+/**
+ * Purge all production-related KV cache keys after OTC data changes.
+ * Clears prod:*, decimal:*, and long-TTL intelligence caches so users
+ * see fresh data immediately instead of waiting up to 24h for TTL expiry.
+ */
+async function purgeProductionCaches(env: Env): Promise<number> {
+  if (!env.OCC_CACHE) return 0;
+
+  let deleted = 0;
+
+  // Purge prod:* and decimal:* caches (per-well production summaries)
+  for (const prefix of ['prod:', 'decimal:']) {
+    let cursor: string | undefined;
+    do {
+      const listed = await env.OCC_CACHE.list({ prefix, cursor, limit: 1000 });
+      if (listed.keys.length > 0) {
+        await Promise.all(listed.keys.map(k => env.OCC_CACHE!.delete(k.name)));
+        deleted += listed.keys.length;
+      }
+      cursor = listed.list_complete ? undefined : (listed as any).cursor;
+    } while (cursor);
+  }
+
+  // Purge long-TTL intelligence caches that depend on OTC production data
+  const intelligenceKeys = [
+    'production-decline-markets', 'shut-in-markets',
+    'shut-in-research', 'decline-research',
+  ];
+  for (const key of intelligenceKeys) {
+    try {
+      // These use prefix patterns like "production-decline-markets:user123"
+      let cursor: string | undefined;
+      do {
+        const listed = await env.OCC_CACHE.list({ prefix: `${key}:`, cursor, limit: 1000 });
+        if (listed.keys.length > 0) {
+          await Promise.all(listed.keys.map(k => env.OCC_CACHE!.delete(k.name)));
+          deleted += listed.keys.length;
+        }
+        cursor = listed.list_complete ? undefined : (listed as any).cursor;
+      } while (cursor);
+    } catch {
+      // Best effort — don't fail the pipeline for cache cleanup
+    }
+  }
+
+  console.log(`[OTC] Purged ${deleted} production cache keys`);
+  return deleted;
+}
+
 interface ProductionRecord {
   county_number: number;
   product_code: number;
@@ -510,6 +559,14 @@ export async function handleComputePunRollups(
     `, [recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd]);
     const step4Changes = declineResult.meta.changes;
 
+    // Purge stale production caches so users see fresh data
+    let cachesPurged = 0;
+    try {
+      cachesPurged = await purgeProductionCaches(env);
+    } catch (purgeErr) {
+      console.error('[OTC] Cache purge failed (non-fatal):', purgeErr);
+    }
+
     const duration = Date.now() - startTime;
 
     return jsonResponse({
@@ -519,6 +576,7 @@ export async function handleComputePunRollups(
         : "PUN rollups computed successfully",
       county: county || "all",
       dataHorizon: referenceYearMonth,
+      cachesPurged,
       stats: {
         step0_new_puns_seeded: step0Seeded,
         step1_aggregates: step1Changes,
@@ -590,10 +648,19 @@ export async function handleTruncatePunProduction(
       }
     }
 
+    // Purge stale production caches
+    let cachesPurged = 0;
+    try {
+      cachesPurged = await purgeProductionCaches(env);
+    } catch (purgeErr) {
+      console.error('[OTC] Cache purge after truncate failed (non-fatal):', purgeErr);
+    }
+
     return jsonResponse({
       success: true,
       message: `otc_production table truncated in ${iterations} batches`,
       records_deleted: totalDeleted,
+      cachesPurged,
     });
   } catch (error) {
     console.error("Error truncating PUN production data:", error);

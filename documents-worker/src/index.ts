@@ -1388,6 +1388,7 @@ export default {
               headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `attachment; filename="${downloadName}"`,
+                'Cache-Control': 'private, no-store',
                 ...corsHeaders(env),
               },
             });
@@ -1402,6 +1403,7 @@ export default {
           headers: {
             'Content-Type': contentType,
             'Content-Disposition': `attachment; filename="${downloadName}"`,
+            'Cache-Control': 'private, no-store',
             ...corsHeaders(env),
           },
         });
@@ -1482,6 +1484,7 @@ export default {
               headers: {
                 'Content-Type': 'application/pdf',
                 'Content-Disposition': `inline; filename="${viewName}"`,
+                'Cache-Control': 'private, no-store',
                 ...corsHeaders(env),
               },
             });
@@ -1496,6 +1499,7 @@ export default {
           headers: {
             'Content-Type': contentType,
             'Content-Disposition': `inline; filename="${viewName}"`,
+            'Cache-Control': 'private, no-store',
             ...corsHeaders(env),
           },
         });
@@ -1924,6 +1928,7 @@ export default {
           headers: {
             'Content-Type': contentType,
             'Content-Disposition': `attachment; filename="${downloadName}"`,
+            'Cache-Control': 'private, no-store',
             ...corsHeaders(env),
           },
         });
