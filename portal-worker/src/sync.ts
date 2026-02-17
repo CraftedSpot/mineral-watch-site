@@ -514,9 +514,10 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
       cursor.stats.wells.updated += wellsUpdateStmts.length;
 
       if (!response.offset) {
-        // All pages fetched — run client_wells enrichment UPDATE
+        // All pages fetched
         console.log(`[Sync] Wells phase complete: ${cursor.stats.wells.synced} wells, ${cursor.stats.clientWells.synced} client wells`);
-        await enrichClientWells(env);
+        // Enrichment temporarily skipped — V2 handler LEFT JOINs wells table directly
+        // await enrichClientWells(env);
         return true;
       }
 
