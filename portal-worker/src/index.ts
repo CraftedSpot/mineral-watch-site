@@ -279,6 +279,20 @@ var index_default = {
       return jsonResponse({ version: "2025-02-06-v3", deployed: new Date().toISOString() });
     }
 
+    // Temporary manual sync trigger (auth-protected)
+    if (path === "/api/admin/trigger-sync" && request.method === "POST") {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        return jsonResponse({ error: "Unauthorized" }, 401);
+      }
+      try {
+        const result = await syncAirtableData(env);
+        return jsonResponse({ success: true, result });
+      } catch (error: any) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
     // Block search engine crawling of portal subdomain
     if (path === "/robots.txt") {
       return new Response("User-agent: *\nDisallow: /\n", {

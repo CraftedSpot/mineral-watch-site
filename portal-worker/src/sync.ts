@@ -468,7 +468,23 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
       // --- Part 1: Upsert to client_wells (batch, always) ---
       const clientWellStatements = response.records.map(record => buildClientWellUpsert(env, record));
       for (let i = 0; i < clientWellStatements.length; i += BATCH_SIZE) {
-        await env.WELLS_DB.batch(clientWellStatements.slice(i, i + BATCH_SIZE));
+        const batchSlice = clientWellStatements.slice(i, i + BATCH_SIZE);
+        try {
+          await env.WELLS_DB.batch(batchSlice);
+          console.log(`[Sync] client_wells batch ${i}..${i + batchSlice.length} succeeded`);
+        } catch (batchErr: any) {
+          console.error(`[Sync] client_wells batch ${i}..${i + batchSlice.length} FAILED:`, batchErr?.message || batchErr);
+          // Try individual statements to find the problem
+          for (let j = 0; j < batchSlice.length; j++) {
+            try {
+              await batchSlice[j].run();
+            } catch (singleErr: any) {
+              const rec = response.records[i + j];
+              console.error(`[Sync] client_wells INDIVIDUAL FAIL record=${rec?.id} api=${rec?.fields?.['API Number']}: ${singleErr?.message}`);
+              cursor.stats.clientWells.errors.push(`Record ${rec?.id}: ${singleErr?.message}`);
+            }
+          }
+        }
       }
       cursor.collectedIds.client_wells.push(...response.records.map(r => r.id));
       cursor.stats.clientWells.synced += response.records.length;
