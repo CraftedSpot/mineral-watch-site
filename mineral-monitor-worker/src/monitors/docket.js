@@ -14,9 +14,17 @@ import {
   parseFromText,
   filterRelevantEntries
 } from '../services/docketParser.js';
-import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
+import { findMatchingWells } from '../services/matching.js';
 import { createActivityLog, getUserById } from '../services/airtable.js';
-import { isUserOverPlanLimit } from '../services/d1.js';
+import {
+  isUserOverPlanLimit,
+  batchGetPropertiesByLocations,
+  batchGetUsers,
+  getOrganizationById as getD1OrgById,
+  getOrganizationMembers
+} from '../services/d1.js';
+import { normalizeSection } from '../utils/normalize.js';
+import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.js';
 import {
   getEffectiveNotificationMode,
   getDigestFrequency,
@@ -466,6 +474,198 @@ function deduplicateMatches(entry, matches) {
 }
 
 /**
+ * Batch load all properties needed for docket alert matching.
+ * Collects all TRS locations (primary + additional + adjacent sections)
+ * from all entries and queries D1 in batches instead of per-entry.
+ */
+async function batchLoadDocketProperties(entries, env) {
+  const sectionsToLoad = new Set();
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+
+  for (const entry of entries) {
+    if (!entry.section || !entry.township || !entry.range) continue;
+
+    const meridian = entry.meridian ||
+      (panhandleCounties.includes(entry.county?.toUpperCase()) ? 'CM' : 'IM');
+    const normalizedSec = normalizeSection(entry.section);
+    const useExtendedGrid = entry.relief_type === 'HORIZONTAL_WELL';
+
+    // Primary location
+    sectionsToLoad.add(`${normalizedSec}|${entry.township}|${entry.range}|${meridian}`);
+
+    // Adjacent sections for primary location
+    const adjacents = useExtendedGrid
+      ? getExtendedAdjacentSections(parseInt(normalizedSec, 10), entry.township, entry.range)
+      : getAdjacentSections(parseInt(normalizedSec, 10), entry.township, entry.range);
+    for (const adj of adjacents) {
+      sectionsToLoad.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${meridian}`);
+    }
+
+    // Additional sections (multi-section orders)
+    if (entry.additional_sections) {
+      let addlSections = [];
+      try {
+        addlSections = typeof entry.additional_sections === 'string'
+          ? JSON.parse(entry.additional_sections)
+          : entry.additional_sections;
+      } catch (e) { /* ignore parse errors */ }
+
+      for (const addl of addlSections) {
+        const addlMeridian = addl.meridian || entry.meridian || meridian;
+        const addlNormSec = normalizeSection(addl.section);
+        sectionsToLoad.add(`${addlNormSec}|${addl.township}|${addl.range}|${addlMeridian}`);
+
+        const addlAdj = useExtendedGrid
+          ? getExtendedAdjacentSections(parseInt(addlNormSec, 10), addl.township, addl.range)
+          : getAdjacentSections(parseInt(addlNormSec, 10), addl.township, addl.range);
+        for (const adj of addlAdj) {
+          sectionsToLoad.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${addlMeridian}`);
+        }
+      }
+    }
+  }
+
+  console.log(`[Docket] Batch loading properties for ${sectionsToLoad.size} unique sections`);
+
+  const locations = Array.from(sectionsToLoad).map(key => {
+    const [section, township, range, meridian] = key.split('|');
+    return { section, township, range, meridian };
+  });
+
+  const properties = await batchGetPropertiesByLocations(env, locations);
+
+  // Index by section key for O(1) lookup
+  const propertyMap = new Map();
+  for (const prop of properties) {
+    const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
+    if (!propertyMap.has(key)) {
+      propertyMap.set(key, []);
+    }
+    propertyMap.get(key).push(prop);
+  }
+
+  console.log(`[Docket] Loaded ${properties.length} properties across ${propertyMap.size} sections from D1`);
+  return propertyMap;
+}
+
+/**
+ * Collect all unique user IDs from a preloaded property map for batch user loading.
+ */
+function collectDocketUserIds(propertyMap) {
+  const userIds = new Set();
+  for (const properties of propertyMap.values()) {
+    for (const prop of properties) {
+      if (prop._user && prop._user.id) {
+        userIds.add(prop._user.id);
+      }
+    }
+  }
+  return Array.from(userIds);
+}
+
+/**
+ * Find matches using preloaded property map and user/org caches.
+ * Equivalent to findMatchingProperties() but O(1) map lookups instead of D1 queries.
+ * Handles both individual users and organization members.
+ */
+async function findDocketMatchesInMap(location, propertyMap, userCache, orgCache, env, options = {}) {
+  const { section, township, range, meridian, county } = location;
+  const normalizedSec = normalizeSection(section);
+
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const effectiveMeridian = meridian ||
+    (county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM');
+
+  const matches = [];
+  const seenUsers = new Set();
+
+  // Helper to add matches for a property (handles individual + org users)
+  async function addMatchesForProp(prop, alertLevel, matchedSection, permitSection) {
+    // Case 1: Individual user linked to property
+    if (prop._user && prop._user.id) {
+      const userId = prop._user.id;
+      if (!seenUsers.has(userId)) {
+        const user = userCache.get(userId);
+        if (user && user.fields.Status === 'Active') {
+          seenUsers.add(userId);
+          const match = {
+            property: prop,
+            user: { id: user.id, email: user.fields.Email, name: user.fields.Name },
+            alertLevel,
+            matchedSection
+          };
+          if (permitSection) match.permitSection = permitSection;
+          matches.push(match);
+        }
+      }
+    }
+
+    // Case 2: Organization linked to property — get all org members
+    const orgIds = prop.fields.Organization;
+    if (orgIds && orgIds.length > 0) {
+      const orgId = orgIds[0];
+
+      // Lazy-load org data into cache (typically only 1-5 unique orgs)
+      if (!orgCache.has(orgId)) {
+        const org = await getD1OrgById(env, orgId);
+        const members = org ? await getOrganizationMembers(env, orgId) : [];
+        orgCache.set(orgId, { org, members });
+      }
+
+      const { org, members } = orgCache.get(orgId);
+      if (org) {
+        for (const orgUser of members) {
+          if (!seenUsers.has(orgUser.id)) {
+            seenUsers.add(orgUser.id);
+            const match = {
+              property: prop,
+              user: { id: orgUser.id, email: orgUser.fields.Email, name: orgUser.fields.Name },
+              alertLevel,
+              matchedSection,
+              organizationId: orgId,
+              viaOrganization: org.fields.Name
+            };
+            if (permitSection) match.permitSection = permitSection;
+            matches.push(match);
+          }
+        }
+      }
+    }
+  }
+
+  // Direct property matches
+  const directKey = `${normalizedSec}|${township}|${range}|${effectiveMeridian}`;
+  const directProperties = propertyMap.get(directKey) || [];
+
+  for (const prop of directProperties) {
+    await addMatchesForProp(prop, 'YOUR PROPERTY', `${normalizedSec}-${township}-${range}`, null);
+  }
+
+  // Adjacent section matches
+  const adjacentSections = options.useExtendedGrid
+    ? getExtendedAdjacentSections(parseInt(normalizedSec, 10), township, range)
+    : getAdjacentSections(parseInt(normalizedSec, 10), township, range);
+
+  for (const adj of adjacentSections) {
+    const adjKey = `${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${effectiveMeridian}`;
+    const adjProperties = propertyMap.get(adjKey) || [];
+
+    for (const prop of adjProperties) {
+      if (!prop.fields['Monitor Adjacent']) continue;
+
+      await addMatchesForProp(
+        prop,
+        'ADJACENT SECTION',
+        `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`,
+        `${normalizedSec}-${township}-${range}`
+      );
+    }
+  }
+
+  return matches;
+}
+
+/**
  * Process alerts for new docket entries
  */
 async function processDocketAlerts(env, dryRun = false) {
@@ -477,6 +677,14 @@ async function processDocketAlerts(env, dryRun = false) {
   }
 
   console.log(`[Docket] Processing alerts for ${entries.length} entries`);
+
+  // PRELOAD: Batch load all properties and users for O(1) matching
+  // Replaces per-entry D1 queries with a single batch load upfront
+  const propertyMap = await batchLoadDocketProperties(entries, env);
+  const preloadUserIds = collectDocketUserIds(propertyMap);
+  const userCache = await batchGetUsers(env, preloadUserIds);
+  const orgCache = new Map(); // Lazily populated per org on first encounter
+  console.log(`[Docket] Preloaded ${propertyMap.size} sections, ${userCache.size} users for matching`);
 
   let alertCount = 0;
   const processedIds = [];
@@ -501,7 +709,7 @@ async function processDocketAlerts(env, dryRun = false) {
       section: entry.section,
       township: entry.township,
       range: entry.range,
-      meridian: entry.meridian || null,  // Let findMatchingProperties infer from county for panhandle
+      meridian: entry.meridian || null,  // findDocketMatchesInMap infers from county for panhandle
       county: entry.county
     };
 
@@ -521,8 +729,8 @@ async function processDocketAlerts(env, dryRun = false) {
     // Standard 3x3 grid (8 adjacent) for all other relief types
     const useExtendedGrid = entry.relief_type === 'HORIZONTAL_WELL';
 
-    // Find matching properties for primary location
-    let rawMatches = await findMatchingProperties(primaryLocation, env, { useExtendedGrid });
+    // Find matching properties for primary location (uses preloaded map)
+    let rawMatches = await findDocketMatchesInMap(primaryLocation, propertyMap, userCache, orgCache, env, { useExtendedGrid });
 
     // Also check additional sections (multi-section orders)
     if (additionalSections.length > 0) {
@@ -533,11 +741,11 @@ async function processDocketAlerts(env, dryRun = false) {
           section: addlSection.section,
           township: addlSection.township,
           range: addlSection.range,
-          meridian: addlSection.meridian || entry.meridian || null,  // Let findMatchingProperties infer from county
+          meridian: addlSection.meridian || entry.meridian || null,
           county: addlSection.county || entry.county
         };
 
-        const addlMatches = await findMatchingProperties(addlLocation, env, { useExtendedGrid });
+        const addlMatches = await findDocketMatchesInMap(addlLocation, propertyMap, userCache, orgCache, env, { useExtendedGrid });
         rawMatches = rawMatches.concat(addlMatches);
       }
     }
