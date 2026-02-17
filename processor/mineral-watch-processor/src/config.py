@@ -18,7 +18,7 @@ class Config:
     MAX_RETRIES: int = int(os.environ.get("MAX_RETRIES", "3"))
     
     # Claude model
-    CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-5-20250929")
+    CLAUDE_MODEL: str = os.environ.get("CLAUDE_MODEL", "claude-sonnet-4-6-20250514")
     CLAUDE_ENHANCED_MODEL: str = os.environ.get("CLAUDE_ENHANCED_MODEL", "claude-opus-4-6")
     
     # Image conversion

@@ -235,7 +235,7 @@ export class CountyRecordExtractionService {
       r2_path: r2Key,
       page_count: images.length,
       credits_charged: credits_required,
-      extraction_model: 'claude-sonnet-4-20250514',
+      extraction_model: 'claude-sonnet-4-6-20250514',
     };
   }
 
@@ -337,7 +337,7 @@ export class CountyRecordExtractionService {
       r2_path: originalDoc.r2_key as string,
       page_count: originalDoc.page_count as number,
       credits_charged: credits_required,
-      extraction_model: 'claude-sonnet-4-20250514',
+      extraction_model: 'claude-sonnet-4-6-20250514',
     };
   }
 
@@ -409,7 +409,7 @@ export class CountyRecordExtractionService {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6-20250514',
         max_tokens: 8192,
         messages: [{
           role: 'user',
