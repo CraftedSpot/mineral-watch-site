@@ -20,6 +20,8 @@ import {
   getUserFromSession,
   countUserProperties,
   checkDuplicateProperty,
+  checkDuplicatePropertyD1,
+  countUserPropertiesD1,
   fetchAllAirtableRecords
 } from '../services/airtable.js';
 
@@ -197,10 +199,9 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
   const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
-  
-  // Count properties for user or organization
-  const { countPropertiesForUserOrOrg } = await import('../services/airtable.js');
-  const propertiesCount = await countPropertiesForUserOrOrg(env, userRecord);
+
+  // Count properties for user or organization (D1 indexed query)
+  const propertiesCount = await countUserPropertiesD1(env, user.id, userOrganization);
   
   if (propertiesCount >= planLimits.properties) {
     return jsonResponse({ 
@@ -246,7 +247,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   if (!meridian) {
     meridian = panhandleCounties.includes(body.COUNTY) ? "CM" : "IM";
   }
-  const isDuplicate = await checkDuplicateProperty(env, user.email, body.COUNTY, section, township, range);
+  const isDuplicate = await checkDuplicatePropertyD1(env, user.id, userOrganization, body.COUNTY, section, township, range);
   if (isDuplicate) {
     return jsonResponse({ error: "You are already monitoring this property." }, 409);
   }

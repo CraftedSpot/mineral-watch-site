@@ -20,7 +20,9 @@ import {
   getUserById,
   getUserFromSession,
   countUserWells,
+  countUserWellsD1,
   checkDuplicateWell,
+  checkDuplicateWellD1,
   fetchAllAirtableRecords
 } from '../services/airtable.js';
 
@@ -662,9 +664,9 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     }, 403);
   }
   
-  // Count wells for user or organization
-  const { countWellsForUserOrOrg } = await import('../services/airtable.js');
-  const wellsCount = await countWellsForUserOrOrg(env, userRecord);
+  // Count wells for user or organization (D1 indexed query)
+  const organizationId = userRecord?.fields.Organization?.[0];
+  const wellsCount = await countUserWellsD1(env, user.id, organizationId);
   
   if (wellsCount >= planLimits.wells) {
     return jsonResponse({ 
@@ -672,8 +674,8 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     }, 403);
   }
   
-  // Check for duplicate well API for this user
-  const isDuplicate = await checkDuplicateWell(env, user.email, cleanApi);
+  // Check for duplicate well API for this user (D1 indexed query)
+  const isDuplicate = await checkDuplicateWellD1(env, user.id, organizationId, cleanApi);
   if (isDuplicate) {
     return jsonResponse({ error: "You are already monitoring this well API." }, 409);
   }
@@ -691,9 +693,6 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
   }
   
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
-
-  // Get user's organization if they have one
-  const organizationId = userRecord?.fields.Organization?.[0];
 
   // Build minimal fields for Airtable - D1 is now the source for well metadata
   // Airtable only stores: User relationship, tracking status, and user notes
@@ -742,8 +741,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     if (newRecord.id && ctx) {
       console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
       
-      const organizationId = userRecord?.fields.Organization?.[0] || undefined;
-      const matchPromise = matchSingleWell(newRecord.id, user.id, organizationId, env)
+      const matchPromise = matchSingleWell(newRecord.id, user.id, organizationId || undefined, env)
         .then(result => {
           console.log(`[WellCreate] Auto-match complete:`, result);
           if (result.linksCreated > 0) {

@@ -25,8 +25,11 @@ import {
 import {
   getUserById,
   countUserProperties,
+  countUserPropertiesD1,
   countUserWells,
-  fetchUserWells
+  countUserWellsD1,
+  fetchUserWells,
+  fetchUserWellsD1
 } from '../services/airtable.js';
 
 // fetchWellDetailsFromOCC still needed for validation (checking well exists)
@@ -521,7 +524,7 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   const planLimits = getPlanLimits(rawPlan);
   const isAdminOverride = !!(user as any).impersonating;
 
-  const propertiesCount = await countUserProperties(env, user.email);
+  const propertiesCount = await countUserPropertiesD1(env, user.id, organizationId);
   const currentPropertyCount = propertiesCount;
 
   // Track keys seen within this batch for intra-batch duplicate detection
@@ -657,7 +660,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   if (ctxResult instanceof Response) return ctxResult;
   const { targetUserId, targetOrgId: userOrganization, targetEmail, plan, planLimits, isAdminOverride } = ctxResult;
 
-  const propertiesCount = await countUserProperties(env, targetEmail);
+  const propertiesCount = await countUserPropertiesD1(env, targetUserId, userOrganization);
 
   // Skip plan limits for admin override
   if (!isAdminOverride && propertiesCount + properties.length > planLimits.properties) {
@@ -1445,17 +1448,18 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = getPlanLimits(plan);
   const isAdminOverride = !!(user as any).impersonating;
-  
+  const validateOrgId = userRecord?.fields.Organization?.[0];
+
   if (planLimits.wells === 0) {
-    return jsonResponse({ 
-      error: `Your ${plan} plan does not include well monitoring. Please upgrade to add wells.` 
+    return jsonResponse({
+      error: `Your ${plan} plan does not include well monitoring. Please upgrade to add wells.`
     }, 403);
   }
-  
-  // Get user's existing wells for duplicate checking
-  const existingWells = await fetchUserWells(env, user.email);
+
+  // Get user's existing wells for duplicate checking (D1 indexed query)
+  const existingWells = await fetchUserWellsD1(env, user.id, validateOrgId);
   const existingSet = new Set(existingWells.map(w => w.apiNumber));
-  
+
   const wellsCount = existingWells.length;
   
   // Process each well - either validate API or search by fields
@@ -1786,7 +1790,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       }, 403);
     }
 
-    const wellsCount = await countUserWells(env, targetEmail);
+    const wellsCount = await countUserWellsD1(env, targetUserId, userOrganization);
 
     if (wellsCount + wells.length > planLimits.wells) {
       return jsonResponse({
@@ -1796,7 +1800,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   }
 
   // Get existing wells for duplicate check - CRITICAL for preventing partial import duplicates
-  const existingWells = await fetchUserWells(env, targetEmail);
+  const existingWells = await fetchUserWellsD1(env, targetUserId, userOrganization);
   const existingSet = new Set(existingWells.map(w => w.apiNumber));
 
   console.log(`[BulkUpload] User has ${existingWells.length} existing wells${isAdminOverride ? ` (admin: ${user.email} acting as ${targetEmail})` : ''}`);

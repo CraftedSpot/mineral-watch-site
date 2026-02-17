@@ -18,7 +18,9 @@ import {
 import {
   getUserById,
   countUserWells,
-  checkDuplicateWell
+  countUserWellsD1,
+  checkDuplicateWell,
+  checkDuplicateWellD1
 } from '../services/airtable.js';
 
 import {
@@ -311,10 +313,10 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       
       const userEmail = userRecord.fields.Email;
       const userOrganization = userRecord.fields.Organization?.[0]; // Get user's organization if they have one
-      
-      // Check for duplicate well API for this user
+
+      // Check for duplicate well API for this user (D1 indexed query)
       console.log(`[Track Well] Checking for duplicate well: ${cleanApi} for ${userEmail}`);
-      const isDuplicate = await checkDuplicateWell(env, userEmail, cleanApi);
+      const isDuplicate = await checkDuplicateWellD1(env, userId, userOrganization, cleanApi);
       if (isDuplicate) {
         console.log(`[Track Well] Well already tracked: ${cleanApi}`);
         return new Response(generateTrackWellSuccessPage(cleanApi, true), {
@@ -333,7 +335,7 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
         });
       }
       
-      const wellsCount = await countUserWells(env, userEmail);
+      const wellsCount = await countUserWellsD1(env, userId, userOrganization);
       if (wellsCount >= planLimits.wells) {
         return new Response(generateTrackWellErrorPage(`Well limit reached (${planLimits.wells} wells on ${plan} plan). You have ${wellsCount} wells.`, true), {
           headers: { 'Content-Type': 'text/html' },
