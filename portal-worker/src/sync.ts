@@ -467,28 +467,39 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
 
       // --- Part 1: Upsert to client_wells (batch, always) ---
       const clientWellStatements = response.records.map(record => buildClientWellUpsert(env, record));
+      const successfulClientWellIds: string[] = [];
+
       for (let i = 0; i < clientWellStatements.length; i += BATCH_SIZE) {
         const batchSlice = clientWellStatements.slice(i, i + BATCH_SIZE);
+        const batchRecords = response.records.slice(i, i + batchSlice.length);
         try {
           await env.WELLS_DB.batch(batchSlice);
+          // Entire batch succeeded — all IDs are valid
+          successfulClientWellIds.push(...batchRecords.map(r => r.id));
           console.log(`[Sync] client_wells batch ${i}..${i + batchSlice.length} succeeded`);
         } catch (batchErr: any) {
           console.error(`[Sync] client_wells batch ${i}..${i + batchSlice.length} FAILED:`, batchErr?.message || batchErr);
-          // Try individual statements to find the problem
+          // Try individual statements — only track IDs that actually succeed
+          let batchFailCount = 0;
           for (let j = 0; j < batchSlice.length; j++) {
             try {
               await batchSlice[j].run();
+              successfulClientWellIds.push(batchRecords[j].id);
             } catch (singleErr: any) {
-              const rec = response.records[i + j];
+              batchFailCount++;
+              const rec = batchRecords[j];
               console.error(`[Sync] client_wells INDIVIDUAL FAIL record=${rec?.id} api=${rec?.fields?.['API Number']}: ${singleErr?.message}`);
               cursor.stats.clientWells.errors.push(`Record ${rec?.id}: ${singleErr?.message}`);
             }
           }
+          if (batchFailCount > 0) {
+            console.warn(`[Sync] client_wells: ${batchFailCount} records failed both batch and individual insert`);
+          }
         }
       }
-      cursor.collectedIds.client_wells.push(...response.records.map(r => r.id));
-      cursor.stats.clientWells.synced += response.records.length;
-      cursor.stats.clientWells.updated += response.records.length;
+      cursor.collectedIds.client_wells.push(...successfulClientWellIds);
+      cursor.stats.clientWells.synced += successfulClientWellIds.length;
+      cursor.stats.clientWells.updated += successfulClientWellIds.length;
 
       // --- Part 2: Batch update wells table (airtable_record_id + status) ---
       // Batched instead of per-record to avoid Worker timeout on 1400+ individual queries
