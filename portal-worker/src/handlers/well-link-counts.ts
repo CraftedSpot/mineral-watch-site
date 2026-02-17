@@ -345,12 +345,14 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
   const start = Date.now();
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+  const tAuth = Date.now();
 
   const counts: LinkCounts = {};
 
   try {
     const userRecord = await getUserFromSession(env, user);
     if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+    const tSession = Date.now();
 
     // Build cache key and filter
     const organizationId = userRecord.fields.Organization?.[0];
@@ -377,10 +379,12 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     } else {
       wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
+    const tOrgLookup = Date.now();
 
     // Get wells (cached or fresh)
     const wells = await getCachedWells(env, cacheKey, wellsFilter);
-    console.log('[WellLinkCounts] Found', wells?.length || 0, 'wells');
+    const tWellsFetch = Date.now();
+    console.log(`[WellLinkCounts timing] auth=${tAuth-start}ms session=${tSession-tAuth}ms orgLookup=${tOrgLookup-tSession}ms wellsFetch=${tWellsFetch-tOrgLookup}ms (${wells?.length || 0} wells)`);
 
     if (!wells || wells.length === 0) {
       return jsonResponse(counts);
@@ -450,11 +454,13 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     }
 
     // Run all three query types in parallel
+    const tD1Start = Date.now();
     const [propertyCounts, docCounts, filingCounts] = await Promise.all([
       fetchPropertyCounts(env, wellIds),
       fetchDocumentCounts(env, apiNumbers, apiToWellId),
       fetchOCCFilingCounts(env, wellSTRs)
     ]);
+    const tD1End = Date.now();
 
     // Merge results into counts
     for (const wellId of wellIds) {
@@ -467,7 +473,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     const withProperties = Object.entries(counts).filter(([_, c]) => c.properties > 0);
     const withDocs = Object.entries(counts).filter(([_, c]) => c.documents > 0);
     const withFilings = Object.entries(counts).filter(([_, c]) => c.filings > 0);
-    console.log(`[WellLinkCounts] Done in ${Date.now() - start}ms. Properties: ${withProperties.length}, Docs: ${withDocs.length}, Filings: ${withFilings.length}`);
+    console.log(`[WellLinkCounts timing] d1Queries=${tD1End-tD1Start}ms TOTAL=${Date.now()-start}ms. Properties: ${withProperties.length}, Docs: ${withDocs.length}, Filings: ${withFilings.length}`);
 
     return jsonResponse(counts);
 

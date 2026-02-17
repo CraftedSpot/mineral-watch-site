@@ -362,12 +362,14 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
   const start = Date.now();
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+  const tAuth = Date.now();
 
   const counts: LinkCounts = {};
 
   try {
     const userRecord = await getUserFromSession(env, user);
     if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+    const tSession = Date.now();
 
     // Build cache key and filter
     const organizationId = userRecord.fields.Organization?.[0];
@@ -396,10 +398,12 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     } else {
       propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
+    const tOrgLookup = Date.now();
 
     // Get properties (cached or fresh)
     const properties = await getCachedProperties(env, cacheKey, propertiesFilter);
-    console.log('[LinkCounts] Found', properties?.length || 0, 'properties');
+    const tPropsFetch = Date.now();
+    console.log(`[PropLinkCounts timing] auth=${tAuth-start}ms session=${tSession-tAuth}ms orgLookup=${tOrgLookup-tSession}ms propsFetch=${tPropsFetch-tOrgLookup}ms (${properties?.length || 0} props)`);
 
     if (!properties || properties.length === 0) {
       return jsonResponse(counts);

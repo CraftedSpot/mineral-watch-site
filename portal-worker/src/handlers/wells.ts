@@ -436,11 +436,14 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
  * @returns JSON response with well data
  */
 export async function handleListWellsV2(request: Request, env: Env) {
+  const t0 = Date.now();
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  const tAuth = Date.now();
 
   const userRecord = await getUserFromSession(env, user);
   if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
+  const tSession = Date.now();
 
   const organizationId = userRecord.fields.Organization?.[0];
 
@@ -494,35 +497,43 @@ export async function handleListWellsV2(request: Request, env: Env) {
   const [countResult, selectResult] = await env.WELLS_DB.batch([countStmt, selectStmt]);
   const total = (countResult.results as any[])[0]?.total || 0;
   const rows = selectResult.results || [];
+  const tD1Query = Date.now();
 
   // Batch-query production data for visible wells only (avoids full puns table scan)
   const prodMap: Record<string, any> = {};
   const apiNumbers = (rows as any[]).map((r: any) => r.api_number).filter(Boolean);
   if (apiNumbers.length > 0) {
     const PROD_BATCH = 50; // well under D1's 100-param limit
+    const prodPromises: Promise<void>[] = [];
     for (let i = 0; i < apiNumbers.length; i += PROD_BATCH) {
       const batch = apiNumbers.slice(i, i + PROD_BATCH);
       const ph = batch.map(() => '?').join(',');
-      try {
-        const prodResult = await env.WELLS_DB.prepare(`
-          SELECT wpl.api_number,
-            SUM(p.total_oil_bbl) AS otc_total_oil,
-            SUM(p.total_gas_mcf) AS otc_total_gas,
-            MAX(p.last_prod_month) AS otc_last_prod_month,
-            MIN(p.is_stale) AS otc_is_stale
-          FROM well_pun_links wpl
-          JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
-          WHERE wpl.api_number IN (${ph})
-          GROUP BY wpl.api_number
-        `).bind(...batch).all();
-        for (const r of prodResult.results) {
-          prodMap[(r as any).api_number] = r;
+      prodPromises.push((async () => {
+        try {
+          const prodResult = await env.WELLS_DB.prepare(`
+            SELECT wpl.api_number,
+              SUM(p.total_oil_bbl) AS otc_total_oil,
+              SUM(p.total_gas_mcf) AS otc_total_gas,
+              MAX(p.last_prod_month) AS otc_last_prod_month,
+              MIN(p.is_stale) AS otc_is_stale
+            FROM well_pun_links wpl
+            JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
+            WHERE wpl.api_number IN (${ph})
+            GROUP BY wpl.api_number
+          `).bind(...batch).all();
+          for (const r of prodResult.results) {
+            prodMap[(r as any).api_number] = r;
+          }
+        } catch (err) {
+          console.error('[wells-v2] Production batch error:', err);
         }
-      } catch (err) {
-        console.error('[wells-v2] Production batch error:', err);
-      }
+      })());
     }
+    await Promise.all(prodPromises);
   }
+  const tProd = Date.now();
+
+  console.log(`[wells-v2 timing] auth=${tAuth-t0}ms session=${tSession-tAuth}ms d1Query=${tD1Query-tSession}ms prod=${tProd-tD1Query}ms (${apiNumbers.length} wells, ${Math.ceil(apiNumbers.length/50)} batches) total=${tProd-t0}ms`);
 
   // Transform D1 rows to match the flat response format the frontend expects
   const records = (rows as any[]).map((row: any) => {
