@@ -4124,18 +4124,19 @@
             }
         }
         
-        // Fetch user properties from API
+        // Fetch user properties from API (V2 D1-first endpoint)
         async function fetchUserProperties() {
             try {
                 console.log('[Properties] Fetching user properties...');
-                const response = await fetch('/api/properties', { credentials: 'include' });
+                const response = await fetch('/api/properties/v2', { credentials: 'include' });
                 console.log('[Properties] Response status:', response.status, response.statusText);
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('[Properties] Error response:', errorText);
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
-                const properties = await response.json();
+                const data = await response.json();
+                const properties = data.records || [];
                 console.log(`[Properties] Loaded ${properties.length} properties:`, properties.slice(0, 2));
                 return properties;
             } catch (error) {
