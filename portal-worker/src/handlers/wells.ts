@@ -500,36 +500,39 @@ export async function handleListWellsV2(request: Request, env: Env) {
   const tD1Query = Date.now();
 
   // Batch-query production data for visible wells only (avoids full puns table scan)
+  // Uses D1 batch() to send all queries in ONE round trip (not sequential awaits)
   const prodMap: Record<string, any> = {};
   const apiNumbers = (rows as any[]).map((r: any) => r.api_number).filter(Boolean);
   if (apiNumbers.length > 0) {
     const PROD_BATCH = 50; // well under D1's 100-param limit
-    const prodPromises: Promise<void>[] = [];
+    const prodStmts: any[] = [];
     for (let i = 0; i < apiNumbers.length; i += PROD_BATCH) {
       const batch = apiNumbers.slice(i, i + PROD_BATCH);
       const ph = batch.map(() => '?').join(',');
-      prodPromises.push((async () => {
-        try {
-          const prodResult = await env.WELLS_DB.prepare(`
-            SELECT wpl.api_number,
-              SUM(p.total_oil_bbl) AS otc_total_oil,
-              SUM(p.total_gas_mcf) AS otc_total_gas,
-              MAX(p.last_prod_month) AS otc_last_prod_month,
-              MIN(p.is_stale) AS otc_is_stale
-            FROM well_pun_links wpl
-            JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
-            WHERE wpl.api_number IN (${ph})
-            GROUP BY wpl.api_number
-          `).bind(...batch).all();
-          for (const r of prodResult.results) {
-            prodMap[(r as any).api_number] = r;
-          }
-        } catch (err) {
-          console.error('[wells-v2] Production batch error:', err);
-        }
-      })());
+      prodStmts.push(
+        env.WELLS_DB.prepare(`
+          SELECT wpl.api_number,
+            SUM(p.total_oil_bbl) AS otc_total_oil,
+            SUM(p.total_gas_mcf) AS otc_total_gas,
+            MAX(p.last_prod_month) AS otc_last_prod_month,
+            MIN(p.is_stale) AS otc_is_stale
+          FROM well_pun_links wpl
+          JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
+          WHERE wpl.api_number IN (${ph})
+          GROUP BY wpl.api_number
+        `).bind(...batch)
+      );
     }
-    await Promise.all(prodPromises);
+    try {
+      const batchResults = await env.WELLS_DB.batch(prodStmts);
+      for (const result of batchResults) {
+        for (const r of (result.results || [])) {
+          prodMap[(r as any).api_number] = r;
+        }
+      }
+    } catch (err) {
+      console.error('[wells-v2] Production batch error:', err);
+    }
   }
   const tProd = Date.now();
 
