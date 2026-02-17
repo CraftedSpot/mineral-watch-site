@@ -442,7 +442,7 @@ async function syncPropertiesChunked(env: any, cursor: SyncCursor, tickStart: nu
   } catch (error: any) {
     cursor.stats.properties.errors.push(`Properties sync failed: ${error.message}`);
     console.error('[Sync] Properties sync error:', error);
-    return true; // Move to next phase even on error
+    return false; // Pause — retry this phase on next tick
   }
 }
 
@@ -542,7 +542,7 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
     cursor.stats.wells.errors.push(`Wells sync failed: ${error.message}`);
     cursor.stats.clientWells.errors.push(`Client wells sync failed: ${error.message}`);
     console.error('[Sync] Wells combined sync error:', error);
-    return true; // Move to next phase
+    return false; // Pause — retry this phase on next tick
   }
 }
 
@@ -625,7 +625,7 @@ async function syncLinksChunked(env: any, cursor: SyncCursor, tickStart: number)
   } catch (error: any) {
     cursor.stats.links.errors.push(`Links sync failed: ${error.message}`);
     console.error('[Sync] Links sync error:', error);
-    return true;
+    return false; // Pause — retry this phase on next tick
   }
 }
 
@@ -958,18 +958,31 @@ export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<
     console.log(`[Sync] Cycle complete in ${result.duration}ms: ${cursor.stats.properties.synced} props, ${cursor.stats.clientWells.synced} wells, ${cursor.stats.links.synced} links`);
 
     if (cursor.syncLogId) {
+      // Collect any phase errors for the sync log
+      const allErrors = [
+        ...cursor.stats.properties.errors,
+        ...cursor.stats.wells.errors,
+        ...cursor.stats.clientWells.errors,
+        ...cursor.stats.links.errors,
+      ];
+      const status = allErrors.length > 0 ? 'completed_with_errors' : 'completed';
+      const errorMsg = allErrors.length > 0 ? allErrors.join('; ').slice(0, 500) : null;
+
       await env.WELLS_DB.prepare(
         `UPDATE sync_log
          SET completed_at = datetime('now'),
              records_synced = ?,
              records_created = ?,
              records_updated = ?,
-             status = 'completed'
+             error_message = ?,
+             status = ?
          WHERE id = ?`
       ).bind(
         cursor.stats.properties.synced + cursor.stats.wells.synced + cursor.stats.clientWells.synced + cursor.stats.links.synced,
         cursor.stats.properties.created + cursor.stats.wells.created + cursor.stats.clientWells.created + cursor.stats.links.created,
         cursor.stats.properties.updated + cursor.stats.wells.updated + cursor.stats.clientWells.updated + cursor.stats.links.updated,
+        errorMsg,
+        status,
         cursor.syncLogId
       ).run();
     }

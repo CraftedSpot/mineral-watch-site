@@ -340,7 +340,13 @@ export async function runWeeklyMonitor(env, options = {}) {
     }
     
     // OPTIMIZATION: Preload recent alerts for dedup
-    const recentAlerts = await preloadRecentAlerts(env);
+    let recentAlerts;
+    try {
+      recentAlerts = await preloadRecentAlerts(env);
+    } catch (err) {
+      console.warn('[Weekly] Failed to preload recent alerts, continuing without dedup:', err.message);
+      recentAlerts = null;
+    }
     
     // Process each transfer - match by API Number against Client Wells
     for (const transfer of newTransfers) {

@@ -170,7 +170,11 @@ async function runForumMonitor(env) {
 
     // 7. Mark all fetched topics as seen (even if we failed to write them)
     // This prevents re-processing on the next run
-    await markTopicsSeen(env.FORUM_CACHE, Array.from(newTopicIds));
+    try {
+      await markTopicsSeen(env.FORUM_CACHE, Array.from(newTopicIds));
+    } catch (err) {
+      console.error(`[ForumMonitor] Failed to mark topics as seen (may reprocess next run): ${err.message}`);
+    }
 
     const duration = Date.now() - startTime;
     console.log(

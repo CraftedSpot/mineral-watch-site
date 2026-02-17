@@ -483,11 +483,23 @@ export async function runDailyMonitor(env, options = {}) {
       }
     } else {
       // Normal operation: fetch from OCC
-      permits = await fetchOCCFile('itd', env);
-      console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
+      try {
+        permits = await fetchOCCFile('itd', env);
+        console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
+      } catch (err) {
+        console.error('[Daily] Failed to fetch permits:', err.message);
+        results.errors.push({ type: 'fetch_permits', error: err.message });
+        permits = [];
+      }
 
-      completions = await fetchOCCFile('completions', env);
-      console.log(`[Daily] Fetched ${completions.length} completions`);
+      try {
+        completions = await fetchOCCFile('completions', env);
+        console.log(`[Daily] Fetched ${completions.length} completions`);
+      } catch (err) {
+        console.error('[Daily] Failed to fetch completions:', err.message);
+        results.errors.push({ type: 'fetch_completions', error: err.message });
+        completions = [];
+      }
 
       // Check data freshness and alert if stale (more than 3 days old)
       const permitFreshness = await checkDataFreshness(permits, 'itd', env, 3);
@@ -559,15 +571,35 @@ export async function runDailyMonitor(env, options = {}) {
     }
     
     // OPTIMIZATION 2: Preload recent alerts for dedup checking
-    const recentAlerts = await preloadRecentAlerts(env);
-    
+    let recentAlerts;
+    try {
+      recentAlerts = await preloadRecentAlerts(env);
+    } catch (err) {
+      console.warn('[Daily] Failed to preload recent alerts, continuing without dedup:', err.message);
+      recentAlerts = null;
+    }
+
     // Batch load all properties we'll need to check (only for new records)
-    const propertyMap = await batchLoadProperties(newPermits, newCompletions, env);
-    
+    let propertyMap;
+    try {
+      propertyMap = await batchLoadProperties(newPermits, newCompletions, env);
+    } catch (err) {
+      console.error('[Daily] Failed to load properties — cannot match, aborting:', err.message);
+      results.errors.push({ type: 'property_load', error: err.message });
+      return results;
+    }
+
     // OPTIMIZATION 3: Batch load all users referenced in properties
-    const userIds = collectUserIdsFromProperties(propertyMap);
-    const userCache = await batchGetUsers(env, userIds);
-    console.log(`[Daily] Batch loaded ${userCache.size} users for property matching`);
+    let userCache;
+    try {
+      const userIds = collectUserIdsFromProperties(propertyMap);
+      userCache = await batchGetUsers(env, userIds);
+      console.log(`[Daily] Batch loaded ${userCache.size} users for property matching`);
+    } catch (err) {
+      console.error('[Daily] Failed to load users — cannot send alerts, aborting:', err.message);
+      results.errors.push({ type: 'user_load', error: err.message });
+      return results;
+    }
     
     // Process permits with the optimizations
     for (let i = 0; i < newPermits.length; i++) {
