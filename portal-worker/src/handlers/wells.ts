@@ -388,14 +388,14 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
       LEFT JOIN (
         -- Aggregate production by base_pun to capture all PUN variants
         SELECT
-          SUBSTR(p.pun, 1, 10) as base_pun,
+          p.base_pun,
           SUM(p.total_oil_bbl) as otc_total_oil,
           SUM(p.total_gas_mcf) as otc_total_gas,
           MAX(p.last_prod_month) as otc_last_prod_month,
           MIN(p.is_stale) as otc_is_stale  -- 0 if ANY variant is active
         FROM puns p
-        GROUP BY SUBSTR(p.pun, 1, 10)
-      ) prod ON SUBSTR(wpl.pun, 1, 10) = prod.base_pun
+        GROUP BY p.base_pun
+      ) prod ON wpl.base_pun = prod.base_pun
       WHERE w.api_number IN (${placeholders})
     `;
 
@@ -517,7 +517,7 @@ export async function handleListWellsV2(request: Request, env: Env) {
             MAX(p.last_prod_month) AS otc_last_prod_month,
             MIN(p.is_stale) AS otc_is_stale
           FROM well_pun_links wpl
-          JOIN puns p ON SUBSTR(wpl.pun, 1, 10) = SUBSTR(p.pun, 1, 10)
+          JOIN puns p ON wpl.base_pun = p.base_pun
           WHERE wpl.api_number IN (${ph})
           GROUP BY wpl.api_number
         `).bind(...batch)
