@@ -80,7 +80,7 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
       }
     });
 
@@ -169,7 +169,7 @@ export async function handleGetTownships(request: Request, env: Env): Promise<Re
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
       }
     });
 
@@ -364,7 +364,7 @@ export async function handleGetPoolingRates(request: Request, env: Env): Promise
             headers: {
               'Content-Type': 'application/json',
               'Cache-Control': 'public, max-age=3600',
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
               'X-Cache': 'HIT'
             }
           });
@@ -411,7 +411,7 @@ export async function handleGetPoolingRates(request: Request, env: Env): Promise
     if (!result.results || result.results.length === 0) {
       const empty = JSON.stringify({ type: "FeatureCollection", features: [] });
       return new Response(empty, {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com' }
       });
     }
 
@@ -459,7 +459,7 @@ export async function handleGetPoolingRates(request: Request, env: Env): Promise
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=3600',
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
         'X-Cache': 'MISS'
       }
     });

@@ -1,39 +1,48 @@
 # Mineral Watch - System Architecture Guide
 
-Last updated: 2026-01-27
+Last updated: 2026-02-17
 
 ## Overview
 
 Mineral Watch is an Oklahoma mineral rights monitoring platform. Users upload properties (defined by PLSS legal descriptions) and track wells. The system monitors OCC (Oklahoma Corporation Commission) filings daily and alerts users to activity affecting their interests.
 
-The platform runs entirely on Cloudflare Workers with a D1 (SQLite) database as the primary data store, Airtable as a secondary input interface for user data, and R2 for document/file storage.
+The platform runs entirely on Cloudflare Workers with a **D1 (SQLite) database as the sole source of truth for all detail data**, R2 for document/file storage, and Airtable limited to user/organization ownership records only (synced one-way to D1 every 15 minutes).
+
+### D1-First Architecture (Migrated Feb 2026)
+
+All API reads come from D1 — no Airtable calls for properties, wells, or links. V2 endpoints (`/api/properties/v2`, `/api/wells/v2`) query D1 directly. Airtable is only used for:
+- User records (auth, billing, plan tier)
+- Organization records (membership, plan)
+- One-way sync TO D1 (Airtable → D1, never the reverse for detail data)
+
+Enterprise fields (property codes, interest decimals, section allocations) exist **only in D1** — they are never written to Airtable.
 
 ---
 
 ## Workers and Their Roles
 
 ### portal-worker (primary API + UI)
-- **Purpose:** Main API server and portal UI. Handles all user-facing API requests, serves the portal SPA, and runs the 15-minute Airtable sync.
-- **Cron:** `*/15 * * * *` (Airtable sync every 15 minutes)
+- **Purpose:** Main API server and portal UI. Handles all user-facing API requests, serves the portal SPA, and runs the 15-minute Airtable→D1 sync.
+- **Cron:** `*/15 * * * *` (Airtable sync), `0 8 * * *` (OTC trigger)
 - **Bindings:**
   - D1: `WELLS_DB` (oklahoma-wells)
   - KV: `AUTH_TOKENS`, `OCC_CACHE`, `COMPLETIONS_CACHE`
-  - Services: `AUTH_WORKER`, `DOCUMENTS_WORKER`, `OCC_FETCHER`
-- **Key files:** `src/index.ts` (router), `src/sync.ts` (Airtable sync), `src/handlers/` (API handlers), `src/templates/dashboard-builder.ts` (dashboard composition)
+  - Services: `AUTH_WORKER`, `DOCUMENTS_WORKER`, `MARKETING_WORKER`, `OCC_FETCHER`
+- **Key files:** `src/index.ts` (router, ~1750 lines), `src/sync.ts` (time-budgeted phase machine sync), `src/handlers/` (API handlers), `src/templates/dashboard-builder.ts` (dashboard composition), `src/utils/auth.ts` (authenticateRequest, isSuperAdmin, impersonation), `src/constants.ts` (plan limits, CORS, Stripe price IDs)
 - **Dashboard:** The portal dashboard is assembled at build time from 18 component files — see "Portal Dashboard Architecture" section below
 
-### mineral-monitor-worker (alert engine)
-- **Purpose:** Processes OCC Excel files daily, detects new permits/completions/transfers, finds matching users, creates alerts, sends emails.
-- **Cron:** Daily 8AM CT (permits/completions), Sunday 8AM CT (transfers), Mon-Fri noon CT (dockets), Daily 6PM CT (digest emails)
+### mineral-monitor-worker (alert engine, 5min CPU limit)
+- **Purpose:** Daily OCC permit/completion monitoring, docket filings (Mon-Fri), digest emails, regional summaries.
+- **Cron:** Daily 7am/8am CT (permits/completions), Sunday 8AM CT (transfers), Mon-Fri noon CT (dockets), Daily 6PM CT (digest emails)
 - **Bindings:**
   - D1: `WELLS_DB` (shared)
   - KV: `MINERAL_CACHE`, `COMPLETIONS_CACHE` (shared)
   - R2: `RBDMS_BUCKET`
-- **Key files:** `src/monitors/daily.js`, `src/monitors/weekly.js`, `src/services/d1.js`
-- **Migration status:** Reads from D1 for properties/users/wells. Writes alerts to D1 `activity_log`. Still uses Airtable for some user preference lookups.
+- **Key files:** `src/monitors/daily.js`, `src/monitors/weekly.js`, `src/monitors/docket.js` (live daily OCC docket monitor), `src/backfill/dockets.js` (historical docket backfill + gap-filler), `src/services/d1.js`
+- **Email:** Resend API
 
 ### documents-worker (document processing)
-- **Purpose:** Handles document uploads, AI extraction of legal descriptions, and document-to-property/well linking.
+- **Purpose:** Document upload (R2 storage), county record extraction, AI extraction via Claude Sonnet 4.6 (standard) or Claude Opus 4.6 (enhanced, 2 credits). Multi-well document linking, credit usage tracking.
 - **Bindings:**
   - D1: `WELLS_DB` (shared)
   - R2: `UPLOADS_BUCKET`, `LOCKER_BUCKET`
@@ -41,20 +50,32 @@ The platform runs entirely on Cloudflare Workers with a D1 (SQLite) database as 
 - **Key endpoint:** `POST /api/processing/relink-all` — re-matches ALL documents to properties/wells by legal description. Called automatically after every sync.
 
 ### auth-worker (authentication)
-- **Purpose:** Handles login, magic links, session verification.
-- **Minimal bindings:** Uses Airtable API directly for user lookup. Plans to migrate to D1.
+- **Purpose:** Magic link authentication, JWT session management.
+- **Flow:** Sends magic links via Postmark email, sets HttpOnly session cookies on verify.
+- **Cookie:** `mw_session_v4`, 30-day expiry, HttpOnly, Secure, SameSite=Lax.
+- **Session invalidation:** Per-user revocation via `sess_valid_after:{userId}` in KV.
+- **Bindings:** Uses Airtable API directly for user lookup (Users/Organizations tables).
 
 ### occ-fetcher (OCC API proxy)
 - **Purpose:** Proxies requests to OCC ArcGIS REST API for well data, completion reports, docket searches.
 - **Bindings:** R2 `UPLOADS_BUCKET`, KV `OCC_CACHE`, Service `DOCUMENTS_WORKER`
 
-### puns-harvester (DISABLED)
-- **Purpose:** Harvests PUN (Permanent Unit Number) data from OCC. Currently disabled awaiting OTC re-import with 6-digit PUN format.
+### stripe-webhook
+- **Purpose:** Stripe webhook signature verification (HMAC-SHA256, constant-time comparison, 5min replay protection, KV dedup). Updates Airtable User records with plan changes. Creates org records for Professional+ plans.
+
+### tools-worker
+- **Purpose:** Revenue estimator, commodity prices from EIA API (6hr KV cache).
+
+### forum-monitor
+- **Purpose:** Monitors Mineral Rights Forum 4x daily, matches TRS locations, alerts users.
+- **Email:** Resend API
+
+### marketing-worker
+- **Purpose:** Metrics dashboard (Stripe, GA4, YouTube), lead tracking, content calendar.
 
 ### Other workers
 - **mineralwatch-contact:** Contact form handler
 - **mineral-watch-webhooks:** Generic webhook handler
-- **stripe-webhook:** Stripe payment event handler
 
 ---
 
@@ -148,29 +169,38 @@ All JS runs in global scope (concatenated into one `<script>` block). Key shared
 
 ## D1 Database (oklahoma-wells)
 
-### OCC/OTC Data (Source of Truth - NOT from Airtable)
+### OCC/OTC Data (Source of Truth — NOT from Airtable)
 
 | Table | Records | Source | Purpose |
 |-------|---------|--------|---------|
 | `wells` | ~453k | OCC SFTP monthly | Full Oklahoma well registry. Surface/BH locations, operator, status, formations |
-| `otc_production` | ~6.6M | OTC SFTP monthly | Monthly production volumes by PUN |
+| `otc_production` | ~7.7M | OTC SFTP monthly | Monthly production volumes by PUN (~2.5GB) |
 | `puns` | ~185k | OTC data | PUN rollup summaries |
-| `well_pun_links` | ~430k | OTC data | API number <-> PUN mapping |
-| `occ_docket_entries` | varies | OCC scraping | Regulatory orders and docket items |
+| `well_pun_links` | ~430k | OTC data | API number ↔ PUN mapping |
+| `county_production_monthly` | varies | Rollup from otc_production | County-level production aggregates for map choropleth |
+| `occ_docket_entries` | varies | OCC scraping daily Mon-Fri | Regulatory orders and docket items |
+| `pooling_orders` | varies | OCC docket extraction | Pooling order details with bonus rates |
+| `pooling_election_options` | varies | OCC docket extraction | Per-order election options (bonus/acre, royalty fraction) |
 | `plss_sections` | ~70k | GeoJSON import | Section boundaries with center_lat/center_lng for geocoding |
 | `statewide_activity` | ~500 | OCC scraping | Recent permits/completions for heatmap display |
 | `counties` | 77 | GeoJSON import | County boundaries |
 | `townships` | varies | GeoJSON import | Township boundaries |
+| `documents` | varies | Upload + county records | Document metadata (files in R2) |
 
 ### User Data (Synced from Airtable every 15 min)
 
 | Table | Records | Source | Purpose |
 |-------|---------|--------|---------|
-| `properties` | ~500-1k | Airtable sync | User-uploaded mineral properties (Section/Township/Range) |
-| `client_wells` | ~850 | Airtable sync | Wells users track (via upload, enrichment, or track button) |
-| `property_well_links` | varies | Airtable sync | Links between properties and wells (auto-matched or manual) |
+| `properties` | ~340+ | Airtable sync → D1 | User-uploaded mineral properties (Section/Township/Range) |
+| `client_wells` | ~287+ | Airtable sync → D1 | Wells users track (via upload, enrichment, or track button) |
+| `property_well_links` | varies | Airtable sync → D1 | Links between properties and wells (auto-matched or manual) |
 
-### User/Auth Data (D1 native, created in Migration 007)
+**D1-only enterprise fields** (never in Airtable):
+- **properties:** `property_code`, `ri_decimal`, `wi_decimal`, `orri_acres`, `orri_decimal`, `mi_acres`, `mi_decimal`, `total_acres`
+- **client_wells:** `user_well_code`, `wi_nri`, `ri_nri`, `orri_nri`, `interest_source`, `interest_source_doc_id`, `interest_source_date`
+- **property_well_links:** `section_allocation_pct`, `allocation_source`, `allocation_source_doc_id`
+
+### User/Auth Data
 
 | Table | Records | Source | Purpose |
 |-------|---------|--------|---------|
@@ -191,6 +221,16 @@ All JS runs in global scope (concatenated into one `<script>` block). Key shared
 - **plss_sections format:** township = `270N` (number * 10 + direction), range = `9W` (no leading zeros), meridian = `indian` or `cimarron`
 - **wells format:** township = `27N`, range = `09W` (with leading zeros), meridian = `IM` or `CM`
 
+### D1 Schema Migrations
+
+| Migration | Purpose |
+|-----------|---------|
+| `001-create_tables.sql` | Original tables (properties, client_wells, occ_wells, etc.) |
+| `002-add_property_well_links.sql` | Links table |
+| `003-enterprise-d1-first.sql` | Enterprise fields + well_interests + interest_discrepancies |
+| `007-*` | Users, organizations, activity_log, sessions, invites, audit_log |
+| `013_section_allocation.sql` | section_allocation_pct, allocation_source on property_well_links |
+
 ---
 
 ## Data Flow
@@ -206,29 +246,33 @@ mineral-monitor-worker (daily cron)
     +---> Parse permits, completions, status changes, transfers
     +---> Match against user properties/wells in D1
     +---> Write alerts to D1 activity_log
-    +---> Send alert emails via Postmark
+    +---> Send alert emails via Resend API
 ```
 
 The main `wells` table (453k records) is loaded from OCC data. This is NOT touched by the Airtable sync.
 
-### 2. Airtable Sync (Every 15 Minutes)
+### 2. Airtable → D1 Sync (Every 15 Minutes)
+
+The sync is a **time-budgeted phase machine with KV cursor** (`sync:cursor` in OCC_CACHE). At small scale (<500 records), it completes in a single cron tick (~8s). At 10K+ records, it chunks across multiple 15-minute ticks, resuming from the saved cursor.
 
 ```
-Airtable (user-entered data)
+Airtable (user/property/well ownership only)
     |
     v
-portal-worker cron (syncAirtableData)
+portal-worker cron (syncAirtableData) — time-budgeted phase machine
     |
-    +---> syncProperties() -----> D1 properties (upsert + orphan cleanup)
-    +---> syncWells() ----------> D1 wells (updates airtable_record_id on matching API#)
-    +---> syncClientWells() ----> D1 client_wells (upsert + orphan cleanup + enrichment)
-    +---> syncPropertyWellLinks() -> D1 property_well_links (upsert + orphan cleanup)
-    |
-    +---> Trigger documents-worker relink-all (matches docs by legal description)
-    +---> Auto-geocode BH coordinates (fills in section_center coords for new wells)
+    Phase 1: syncProperties ---------> D1 properties (upsert + orphan cleanup)
+    Phase 2: syncWellsCombined ------> D1 client_wells + wells (SINGLE Airtable fetch)
+    Phase 3: syncPropertyWellLinks --> D1 property_well_links (upsert + orphan cleanup)
+    Phase 4: cleanup ----------------> Orphan removal (safety: skipped if synced/existing < 90%)
+    Phase 5: post_sync --------------> Document re-linking, BH geocoding, auto-matching
 ```
 
-**Orphan cleanup:** After each sync function upserts all Airtable records, it queries D1 for any rows whose `airtable_record_id` is NOT in the Airtable set and deletes them. This handles record deletions in Airtable being reflected in D1.
+**Key improvement (Feb 2026):** `syncWellsCombined` merges the old `syncWells` + `syncClientWells` into a single Airtable fetch, halving API calls. Each page is upserted immediately to D1 (no accumulating all records in memory). OCC lookups for new wells are budgeted at 20 per tick.
+
+**Orphan cleanup:** After all pages are fetched, collected Airtable record IDs are compared against D1. D1 rows not in the Airtable set are deleted. Safety guard: cleanup is skipped if the synced/existing ratio drops below 90% (prevents mass deletion from Airtable API errors).
+
+**D1-only enterprise fields are preserved automatically** — they are not in the ON CONFLICT UPDATE clause, so syncing from Airtable never overwrites them.
 
 ### 3. Client Wells Enrichment (During Sync)
 
@@ -241,16 +285,16 @@ After syncing client_wells from Airtable, the sync copies OCC data from the main
 
 After sync completes, `geocodeBhFromSectionCenters()` runs:
 - Finds wells with `bh_section`/`bh_township`/`bh_range` but no `bh_latitude`
-- Converts formats: wells `27N`/`09W`/`IM` -> plss `270N`/`9W`/`indian`
+- Converts formats: wells `27N`/`09W`/`IM` → plss `270N`/`9W`/`indian`
 - Looks up section center from `plss_sections` table
 - Sets `bh_coordinate_source = 'section_center'`
 - Processes up to 500 wells per cycle
 
 ### 5. Property-Well Matching
 
-When properties are uploaded (bulk upload), `runFullPropertyWellMatching` runs in Airtable:
+When properties are uploaded (bulk upload), `runFullPropertyWellMatching` runs:
 - **Exact TRS match only** — matches on Section/Township/Range
-- Checks: Surface Location match -> Lateral Path (Sections Affected) match -> Bottom Hole match
+- Checks: Surface Location match → Lateral Path (Sections Affected) match → Bottom Hole match
 - Creates links in Airtable `property_well_links` table
 - Links sync to D1 on next 15-minute cycle
 
@@ -278,30 +322,36 @@ Production data comes from the Oklahoma Tax Commission via SFTP, not from OCC.
 ### Key Concepts
 - **PUN (Production Unit Number):** OTC's unique ID for a taxable production unit. Format: `CCC-LLLLLL-S-MMMM` (county-lease-sub-merge)
 - **Relationship:** Many-to-many. One PUN can have multiple wells (unit wells), one well can have multiple PUNs (horizontal allocations)
+- **base_pun:** First 10 chars of PUN (county-lease). Production summary queries use `WHERE base_pun IN (...)`.
 
 ### Data Flow
 ```
 OTC SFTP (otcmft.tax.ok.gov)
     |
     v
-Fly.io Download Script (monthly)
+Fly.io machine (mineral-watch-otc-fetch.fly.dev)
     |
-    +---> Parse fixed-width .dat files
-    +---> Stream to D1 via portal-worker upload endpoints
+    +---> fetch_production.sh downloads .dat files
+    +---> process_production.py parses fixed-width, pre-aggregates
+    +---> Batched upload to portal-worker /api/otc-sync/upload-pun-production
+    |     (Bearer token auth: PROCESSING_API_KEY)
     |
     v
-D1 Tables: otc_production (6.6M), puns (185k), well_pun_links (430k)
+D1 Tables: otc_production (7.7M+, ~2.5GB), puns (185k), well_pun_links (430k)
     |
     v
-Portal Worker API --> UI production charts
+Portal Worker API --> UI production charts (KV-cached: prod:{api10}, 24h TTL)
 ```
 
 ### OTC Files
-| File | Size | Content |
-|------|------|---------|
-| `exp_gph_reports_36*.dat` | ~1.9GB | Current production (rolling 36 months) |
-| `exp_gph_reports_gtr36*.dat` | ~6.5GB | Historical archive (>36 months) |
-| `exp_gplease*.dat` | ~110MB | Lease/PUN metadata, well names, TRS |
+| File | Size | Content | RAM needed |
+|------|------|---------|------------|
+| `exp_gph_reports_36*.dat` | ~1.9GB | Current production (rolling 36 months) | 2GB |
+| `exp_gph_reports_gtr36*.dat` | ~6.5GB | Historical archive (>36 months) | 8GB |
+| `exp_gplease*.dat` | ~110MB | Lease/PUN metadata, well names, TRS | 2GB |
+
+### Post-Upload Checklist
+After new OTC data loads: (1) verify base_pun populated, (2) county-by-county rollups to `county_production_monthly`, (3) purge `prod:*` from OCC_CACHE KV, (4) verify production summaries in UI.
 
 **See:** `Repo Skill and Instructions/OTC-PRODUCTION-DATA-GUIDE.md` for full parsing specs, schema, and loading procedures.
 
@@ -412,7 +462,7 @@ User enters email → auth-worker generates HMAC token → Postmark sends magic 
     → User clicks link to /portal/verify?token=...
     → Portal redirects to /api/auth/set-session
     → set-session calls auth-worker /api/auth/verify
-    → Auth-worker verifies token, sets session cookie
+    → Auth-worker verifies token, sets HttpOnly session cookie (mw_session_v4, 30-day)
     → User redirected to dashboard
 ```
 
@@ -420,8 +470,25 @@ User enters email → auth-worker generates HMAC token → Postmark sends magic 
 ```
 Admin invites email → portal-worker generates hex token, stores in KV
     → Postmark sends invite link → Same /portal/verify flow
-    → portal-worker verifies KV token, creates session
+    → portal-worker verifies KV token
+    → POST /api/auth/set-session-cookie sets HttpOnly cookie server-side
+    → Redirect to dashboard
 ```
+
+### Session Details
+- **Cookie:** `mw_session_v4`, HttpOnly, Secure, SameSite=Lax, 30-day expiry
+- **Per-user revocation:** `sess_valid_after:{userId}` in AUTH_TOKENS KV
+- **Super admin:** `SUPER_ADMIN_EMAILS` in `constants.ts` — only `james@mymineralwatch.com`
+- **Impersonation:** `?act_as=recXXX` on any dashboard URL. `authenticateRequest()` returns target user's session with `impersonating` metadata. Frontend fetch interceptor appends `act_as` to all `/api/` calls.
+
+### Security (Audited Feb 2026)
+- CORS restricted to `https://portal.mymineralwatch.com` (no wildcard)
+- All D1 queries use parameterized `.bind()` — no SQL injection
+- Stripe webhooks: HMAC-SHA256 signature verification, 5min replay protection, KV dedup
+- Plan enforcement on every feature-addition endpoint
+- OTC sync endpoints: Bearer token auth (`PROCESSING_API_KEY`)
+- Docket matching: `json_each()` + `json_extract()` for precise JSON array matching (no LIKE)
+- CSP with X-Frame-Options: DENY, nosniff, strict referrer policy
 
 ---
 
@@ -429,17 +496,20 @@ Admin invites email → portal-worker generates hex token, stores in KV
 
 **Base:** Mineral Watch Oklahoma (`app3j3X29Uvp5stza`)
 
-| Table | Table ID | D1 Equivalent |
-|-------|----------|---------------|
-| Users | `tblmb8sZtfn2EW900` | `users` |
-| Organization | `tblqP3BK0zSuaJJ8P` | `organizations` |
-| Client Properties | `tblbexFvBkow2ErYm` | `properties` |
-| Client Wells | `tblqWp3rb7rT3p9SA` | `client_wells` |
-| Activity | `tblhBZNR5pDr620NY` | `activity_log` |
-| Well Locations | `tblAvTwkBjU8Qwlm7` | (deprecated) |
-| Statewide Activity | `tblbM8kwkRyFS9eaj` | `statewide_activity` |
+**Important:** Airtable's role is now **limited to user/org ownership records**. All detail reads come from D1. Airtable is NOT the source of truth for property/well detail data — D1 is. The 15-minute sync pushes Airtable ownership data TO D1. Enterprise fields (interests, allocations, property codes) exist **only in D1**.
 
-**Key records:** James's user = `recEpgbS88AbuzAH8`, Price Oil & Gas org = `recXvUmWkcgOC04nN`
+| Table | Table ID | D1 Equivalent | Role |
+|-------|----------|---------------|------|
+| Users | `tblmb8sZtfn2EW900` | `users` | Auth, billing, plan tier |
+| Organization | `tblqP3BK0zSuaJJ8P` | `organizations` | Team membership |
+| Client Properties | `tblbexFvBkow2ErYm` | `properties` | Ownership → synced to D1 |
+| Client Wells | `tblqWp3rb7rT3p9SA` | `client_wells` | Ownership → synced to D1 |
+| Property-Well Links | `tblcLilnMgeXvxXKT` | `property_well_links` | Links → synced to D1 |
+| Activity | `tblhBZNR5pDr620NY` | `activity_log` | Legacy (dual-write) |
+| Well Locations | `tblAvTwkBjU8Qwlm7` | — | Deprecated |
+| Statewide Activity | `tblbM8kwkRyFS9eaj` | `statewide_activity` | Legacy |
+
+**Key records:** James's user = `recEpgbS88AbuzAH8`, Price Oil & Gas org = `recXvUmWkcgOC04nN`, HHD user = `recdFkQaUWINCbxsG` (John Stobb, jcs@hhdinc.com), HHD org = `recNktWjeZshSUd6N`
 
 ---
 
@@ -484,16 +554,34 @@ For deeper dives, see `Repo Skill and Instructions/`:
 
 ## Key Endpoints
 
-### Portal Worker API
-- `POST /api/admin/sync` — Trigger Airtable sync (requires SYNC_API_KEY)
+### Portal Worker API — V2 (D1-first, current)
+- `GET /api/properties/v2` — List user's properties (D1 only)
+- `GET /api/wells/v2` — List user's tracked wells (D1 only, with production)
+- `GET /api/property-link-counts` — Grid counter (wells/docs/filings) for properties
+- `GET /api/well-link-counts` — Grid counter for wells
+- `GET /api/docket-entries` — OCC filings modal data
+- `GET /api/completion-reports/:apiNumber` — Production summary (batched D1)
+- `GET /api/map/counties` — County GeoJSON boundaries
+- `GET /api/map/townships` — Township GeoJSON boundaries
+- `GET /api/map/county-production` — Choropleth production data
+- `GET /api/map/pooling-rates` — Pooling bonus rates by township
+- `POST /api/auth/set-session-cookie` — Set HttpOnly cookie server-side
+
+### Portal Worker API — Admin
+- `POST /api/admin/sync` — Trigger Airtable sync
+- `GET /api/admin/impersonate-info?user_id=recXXX` — Impersonation banner info
 - `POST /api/admin/backfill-section-centers` — Compute PLSS section centroids
 - `POST /api/admin/backfill-bh-coordinates` — Geocode BH coords from section centers
+
+### Portal Worker API — Bulk & Matching
+- `POST /api/bulk/validate-properties` / `upload-properties` — Bulk property upload (D1-first)
+- `POST /api/bulk/validate-wells` / `upload-wells` — Bulk well upload (D1-first)
 - `POST /api/match-property-wells` — Run property-well matching
-- `POST /api/bulk/validate-properties` / `upload-properties` — Bulk property upload
-- `POST /api/bulk/validate-wells` / `upload-wells` — Bulk well upload
-- `GET /api/wells` — List user's tracked wells
-- `GET /api/properties` — List user's properties
-- `GET /api/well-enrichment/:apiNumber` — Get OCC enrichment data for a well
+
+### Portal Worker API — OTC Sync (Bearer token auth)
+- `POST /api/otc-sync/upload-pun-production` — Batched production upload from Fly
+- `POST /api/otc-sync/upload-pun-metadata` — PUN lease metadata upload
+- `POST /api/otc-sync/upload-well-pun-links` — Well-PUN link upload
 
 ### Documents Worker API
 - `POST /api/processing/relink-all` — Re-link all documents to current properties/wells
@@ -503,52 +591,74 @@ For deeper dives, see `Repo Skill and Instructions/`:
 
 ## Subscription Plans
 
-| Feature | Free | Pro | Team |
-|---------|------|-----|------|
-| Properties | 5 | 50 | Unlimited |
-| Wells | 10 | 100 | Unlimited |
-| Adjacent monitoring | No | Yes | Yes |
-| Document storage | No | Yes | Yes |
-| Organization/sharing | No | No | Yes |
+| Plan | Properties | Wells | Key Features |
+|------|-----------|-------|--------------|
+| Free | 1 | 1 | Basic monitoring |
+| Starter | 10 | 10 | Adjacent monitoring, documents |
+| Standard | 50 | 50 | Full monitoring, bulk upload |
+| Professional | 250 | 250 | Organization support, team sharing |
+| Business | 500 | 500 | Full enterprise features |
+| Enterprise 1K | 1,000 | 1,000 | Custom (HHD account) |
 
 ---
+
+## Important Limits
+
+- **D1 bound parameters:** 100 per prepared statement. STR queries use 3 params each → max 33 STR combos per query. `BATCH_SIZE_D1 = 30` in link-counts handlers.
+- **D1 batch:** 500 statements per batch.
+- **D1 CPU time:** Never inline full-table subqueries on large tables (7.7M rows). Query in batches of 50 with `WHERE ... IN (...)`.
+- **SQLite type comparison:** `INTEGER 7 ≠ TEXT '7'` — always use `String()` when binding to TEXT columns.
+- **Airtable:** 10 records per API call, 500ms delay between batches.
+- **OTC Fly machine:** Default `shared-cpu-1x:2048MB`. Scale to 8GB for gtr36 processing.
+- **OTC PUN batches:** `PUN_API_BATCH_SIZE=5000` (Python), `BATCH_SIZE=500` (upload handler).
+- **Production KV cache:** `prod:{api10}` in OCC_CACHE, 24h TTL. Must purge after data loads.
 
 ## Environment and Deployment
 
 - **Platform:** Cloudflare Workers (all workers)
 - **Database:** Cloudflare D1 (oklahoma-wells, shared across portal-worker, monitor-worker, documents-worker)
 - **Storage:** Cloudflare R2 (uploads, digital locker, RBDMS cache)
-- **Cache:** Cloudflare KV (OCC cache, completions cache, auth tokens)
-- **Email:** Postmark
-- **Payments:** Stripe
-- **User data input:** Airtable (synced to D1 every 15 min)
+- **Cache:** Cloudflare KV (OCC_CACHE, COMPLETIONS_CACHE, AUTH_TOKENS)
+- **Email:** Postmark (magic links via auth-worker), Resend (alerts/digests via monitor-worker, forum-monitor)
+- **Payments:** Stripe (checkout, subscriptions, credit packs)
+- **AI:** Anthropic Claude (Sonnet 4.6 standard, Opus 4.6 enhanced) via documents-worker
+- **Commodity prices:** EIA API via tools-worker (6hr KV cache)
+- **User ownership data:** Airtable (synced one-way to D1 every 15 min)
+- **Production data:** OTC via Fly.io machine (daily automated pipeline)
 - **Domain:** portal.mymineralwatch.com (portal-worker), auth.mymineralwatch.com (auth-worker)
 - **Deploy:** `npx wrangler deploy` from each worker directory
 
 ---
 
-## Migration Status (as of Jan 2026)
+## Migration Status (as of Feb 2026)
 
-### Completed
-- Migration 007: Created D1 tables for users, organizations, activity_log, sessions, invites, audit_log
+### Completed (D1-First Migration)
+- **V2 endpoints**: `/api/properties/v2` and `/api/wells/v2` read exclusively from D1 — zero Airtable calls
+- **Wells V2**: Single D1 query joins `client_wells → wells → operators`, separate batched production query
+- **Enterprise fields in D1 only**: property codes, interest decimals, section allocations
+- **Time-budgeted sync**: Phase machine with KV cursor, merged wells double-fetch, 90% safety guard
+- **Bulk import D1-first**: CSV → D1 (all fields) → Airtable (ownership only) → auto-match
+- Migration 007: D1 tables for users, organizations, activity_log, sessions, invites, audit_log
 - Backfilled users (19) and organizations (2) from Airtable to D1
-- Monitor worker reads properties/users/wells from D1 (not Airtable)
-- Monitor worker writes alerts to D1 activity_log (not Airtable)
-- Sync enriches client_wells from main wells table (is_horizontal, BH location, lateral_length)
-- PLSS section centers computed (70,030 sections)
-- BH coordinates backfilled from section centers (17,730 wells)
-- Auto-geocoding runs every sync cycle for new wells
-- Orphan cleanup in sync (deletes D1 records removed from Airtable)
+- Monitor worker reads properties/users/wells from D1, writes alerts to D1 activity_log
+- OTC production pipeline: 7.7M+ records via Fly.io automated daily sync
+- Security audit (Feb 2026): CORS restricted, HttpOnly cookies, json_extract docket matching
 - Dashboard decomposed from 20,107-line monolith into 18 build-time components (Jan 2026)
+- PLSS section centers computed (70,030 sections), BH coordinates backfilled (17,730 wells)
+- Auto-geocoding runs every sync cycle for new wells
+- Document AI extraction: Claude Sonnet 4.6 (standard) / Opus 4.6 (enhanced, 2 credits)
+- Multi-well document linking with alphanumeric-only name normalization
+- Section allocation for horizontals (division order extraction → property_well_links)
+- Revenue estimator modal with multi-interest display
+- Pooling rates choropleth map layer
 
-### Still Using Airtable
-- User data entry (properties, wells) — users interact with Airtable, synced to D1
-- Property-well matching — runs in Airtable after bulk upload
-- Auth worker — still looks up users in Airtable directly
-- Some user preference lookups in monitor worker
+### Still Using Airtable (Limited)
+- **Users & Organizations**: Auth, billing, plan tier, org membership — Airtable is source of truth
+- **Ownership records**: Properties, wells, links synced FROM Airtable TO D1 (one-way)
+- Auth worker: looks up users in Airtable directly
+- Property-well matching: still creates links in Airtable (synced to D1)
 
 ### Future Migration Targets
 - Auth worker: migrate user lookup from Airtable to D1
 - Property-well matching: move matching logic to D1 (eliminate Airtable dependency)
-- User data entry: build portal UI for direct property/well management (bypass Airtable)
-- Organization activity log: fix isolation issue (currently filters by user, not org)
+- Direct property/well CRUD in D1 (bypass Airtable for data entry)

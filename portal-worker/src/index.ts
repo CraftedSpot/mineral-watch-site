@@ -504,6 +504,27 @@ var index_default = {
         });
       }
 
+      // Server-side cookie setter — sets HttpOnly cookie that JS can't access
+      if (path === "/api/auth/set-session-cookie" && request.method === "POST") {
+        try {
+          const body: any = await request.json();
+          const token = body?.sessionToken;
+          if (!token || typeof token !== 'string') {
+            return jsonResponse({ error: 'Missing sessionToken' }, 400);
+          }
+          return new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/json',
+              'Set-Cookie': `${COOKIE_NAME}=${token}; Path=/; Secure; SameSite=Lax; HttpOnly; Max-Age=2592000`,
+              ...CORS_HEADERS,
+            }
+          });
+        } catch {
+          return jsonResponse({ error: 'Invalid request body' }, 400);
+        }
+      }
+
       // Safari-compatible session setting endpoint - MUST come before auth proxy
       if (path === "/api/auth/set-session" && request.method === "GET") {
         const token = url.searchParams.get("token");
@@ -681,15 +702,22 @@ var index_default = {
                 if (data.success && data.sessionToken) {
                   // Clear timeout since we succeeded
                   clearTimeout(timeoutId);
-                  // Set the session token as cookie
-                  document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
-                  console.log('Set session cookie for invite verification');
-                  
-                  // Redirect after small delay (longer for mobile)
-                  const redirectDelay = isMobile ? 500 : 100;
-                  setTimeout(() => {
+                  // Set the session token via server-side HttpOnly cookie
+                  fetch('/api/auth/set-session-cookie', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionToken: data.sessionToken })
+                  }).then(() => {
+                    console.log('Set HttpOnly session cookie for invite verification');
+                    const redirectDelay = isMobile ? 500 : 100;
+                    setTimeout(() => {
+                      window.location.href = redirectPath;
+                    }, redirectDelay);
+                  }).catch(err => {
+                    console.error('Failed to set session cookie:', err);
                     window.location.href = redirectPath;
-                  }, redirectDelay);
+                  });
                 } else {
                   // Verification failed - redirect to login with error
                   window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");

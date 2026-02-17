@@ -31,6 +31,18 @@ import {
 import type { Env } from '../types/env.js';
 
 /**
+ * Escape HTML special characters to prevent XSS
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Generate OCC map link with coordinates and title
  * @param lat Latitude
  * @param lon Longitude  
@@ -145,12 +157,12 @@ export function generateTrackWellSuccessPage(apiNumber: string, alreadyTracking:
                 <h3>Well Information</h3>
                 <div class="well-detail">
                     <span class="label">API Number:</span>
-                    <span class="value">${apiNumber}</span>
+                    <span class="value">${escapeHtml(apiNumber)}</span>
                 </div>
                 ${wellName ? `
                 <div class="well-detail">
                     <span class="label">Well Name:</span>
-                    <span class="value">${wellName}</span>
+                    <span class="value">${escapeHtml(wellName)}</span>
                 </div>
                 ` : ''}
                 <div class="well-detail">
@@ -204,7 +216,7 @@ export function generateTrackWellErrorPage(message: string, showUpgrade: boolean
         <div class="card">
             <div class="error-icon">⚠️</div>
             <h1>Unable to Track Well</h1>
-            <p class="message">${message}</p>
+            <p class="message">${escapeHtml(message)}</p>
             
             <div class="buttons">
                 ${showUpgrade 

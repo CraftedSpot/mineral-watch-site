@@ -147,9 +147,12 @@ function collectUserIdsFromProperties(propertyMap) {
  * @returns {Array} - Matching properties with user info
  */
 function findMatchesInMap(location, propertyMap, userCache) {
-  const { section, township, range, meridian } = location;
+  const { section, township, range, meridian, county } = location;
   const normalizedSec = normalizeSection(section);
-  const effectiveMeridian = meridian || 'IM';
+  // Default meridian to IM, but use CM for panhandle counties (Cimarron, Texas, Beaver)
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const effectiveMeridian = meridian ||
+    (county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM');
   
   const matches = [];
   const seenUsers = new Set();

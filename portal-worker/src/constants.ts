@@ -51,10 +51,13 @@ export const OCC_CACHE_TTL = 86400; // 24 hours in seconds
 export const MAX_NOTES_LENGTH = 1000;
 
 // CORS Headers
+// Restricted to portal domain. For same-origin calls (portal serving its own API),
+// CORS headers are ignored by browsers. This prevents cross-origin data reads.
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
+  "Access-Control-Allow-Origin": "https://portal.mymineralwatch.com",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Credentials": "true"
 } as const;
 
 // Security Headers

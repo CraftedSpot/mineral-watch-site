@@ -81,7 +81,7 @@ async function storeDocketEntries(db, entries) {
         entry.section,
         entry.township,
         entry.range,
-        entry.meridian || 'IM',
+        entry.meridian || (['CIMARRON', 'TEXAS', 'BEAVER'].includes(entry.county?.toUpperCase()) ? 'CM' : 'IM'),
         additionalSectionsJson,
         apiNumbersJson,
         entry.hearing_date,
@@ -501,7 +501,7 @@ async function processDocketAlerts(env, dryRun = false) {
       section: entry.section,
       township: entry.township,
       range: entry.range,
-      meridian: entry.meridian || 'IM',
+      meridian: entry.meridian || null,  // Let findMatchingProperties infer from county for panhandle
       county: entry.county
     };
 
@@ -533,7 +533,7 @@ async function processDocketAlerts(env, dryRun = false) {
           section: addlSection.section,
           township: addlSection.township,
           range: addlSection.range,
-          meridian: addlSection.meridian || entry.meridian || 'IM',
+          meridian: addlSection.meridian || entry.meridian || null,  // Let findMatchingProperties infer from county
           county: addlSection.county || entry.county
         };
 

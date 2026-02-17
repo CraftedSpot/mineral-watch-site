@@ -144,6 +144,20 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
 
       console.log(`[Impersonate] ${sessionPayload.email} acting as ${targetUser.fields.Email} (${actAs})`);
 
+      // Audit trail: write to KV with 90-day TTL
+      if (env.OCC_CACHE) {
+        const auditKey = `impersonate:${Date.now()}:${sessionPayload.id}`;
+        const auditEntry = JSON.stringify({
+          adminEmail: sessionPayload.email,
+          adminId: sessionPayload.id,
+          targetUserId: actAs,
+          targetEmail: targetUser.fields.Email,
+          path: url.pathname,
+          timestamp: new Date().toISOString()
+        });
+        env.OCC_CACHE.put(auditKey, auditEntry, { expirationTtl: 7776000 }); // 90 days
+      }
+
       return {
         id: targetUser.id,
         email: targetUser.fields.Email,

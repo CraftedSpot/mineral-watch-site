@@ -298,9 +298,12 @@ function deduplicateAlertsByUser(alerts) {
  * @returns {Array} - Matching properties with user info
  */
 async function findMatchesInMap(location, propertyMap, userCache, env) {
-  const { section, township, range, meridian } = location;
+  const { section, township, range, meridian, county } = location;
   const normalizedSec = normalizeSection(section);
-  const effectiveMeridian = meridian || 'IM';
+  // Default meridian to IM, but use CM for panhandle counties (Cimarron, Texas, Beaver)
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const effectiveMeridian = meridian ||
+    (county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM');
   
   const matches = [];
   const seenUsers = new Set();
@@ -724,7 +727,8 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         section: permit.Section,
         township: permit.Township,
         range: permit.Range,
-        meridian: permit.PM
+        meridian: permit.PM,
+        county: permit.County
       }, propertyMap, userCache, env)
     : await findMatchingProperties({
         section: permit.Section,
@@ -772,7 +776,8 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
               section: pathSection.section,
               township: pathSection.township,
               range: pathSection.range,
-              meridian: permit.PM
+              meridian: permit.PM,
+              county: permit.County
             }, propertyMap, userCache, env)
           : await findMatchingProperties({
               section: pathSection.section,
@@ -1133,7 +1138,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         section: completion.Section,
         township: completion.Township,
         range: completion.Range,
-        meridian: completion.PM
+        meridian: completion.PM,
+        county: completion.County
       }, propertyMap, userCache, env)
     : await findMatchingProperties({
         section: completion.Section,
@@ -1160,7 +1166,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
           section: completion.BH_Section,
           township: completion.BH_Township,
           range: completion.BH_Range,
-          meridian: completion.BH_PM || completion.PM
+          meridian: completion.BH_PM || completion.PM,
+          county: completion.County
         }, propertyMap, userCache, env)
       : await findMatchingProperties({
           section: completion.BH_Section,
@@ -1218,7 +1225,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
               section: pathSection.section,
               township: pathSection.township,
               range: pathSection.range,
-              meridian: completion.PM
+              meridian: completion.PM,
+              county: completion.County
             }, propertyMap, userCache, env)
           : await findMatchingProperties({
               section: pathSection.section,

@@ -122,6 +122,9 @@ export async function findMatchingDocketEntries(
   // Query for primary section match OR additional_sections JSON match
   // The additional_sections field contains JSON like:
   // [{"section":"2","township":"12N","range":"12E","county":"McClain","meridian":"IM"}]
+  //
+  // Uses json_each() + json_extract() for precise matching instead of LIKE,
+  // which can false-match when multiple sections share substring patterns.
   const query = `
     SELECT id, case_number, relief_type, docket_date, section, township, range,
            county, applicant, additional_sections, api_numbers
@@ -131,9 +134,16 @@ export async function findMatchingDocketEntries(
       (CAST(section AS INTEGER) = CAST(? AS INTEGER)
        AND UPPER(TRIM(township)) = ?
        AND UPPER(TRIM(range)) = ?)
-      -- OR additional sections match (search JSON array)
+      -- OR additional sections match (iterate JSON array elements)
       OR (additional_sections IS NOT NULL
-          AND additional_sections LIKE ?)
+          AND additional_sections != ''
+          AND additional_sections != '[]'
+          AND EXISTS (
+            SELECT 1 FROM json_each(additional_sections) AS je
+            WHERE CAST(json_extract(je.value, '$.section') AS INTEGER) = CAST(? AS INTEGER)
+              AND UPPER(TRIM(json_extract(je.value, '$.township'))) = ?
+              AND UPPER(TRIM(json_extract(je.value, '$.range'))) = ?
+          ))
     )
     AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
                         'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
@@ -141,13 +151,9 @@ export async function findMatchingDocketEntries(
     LIMIT 100
   `;
 
-  // Build pattern to match in additional_sections JSON
-  // Match: "section":"14","township":"7N","range":"4W"
-  const jsonPattern = `%"section":"${sec}"%"township":"${twn}"%"range":"${rng}"%`;
-
   try {
     const result = await env.WELLS_DB.prepare(query)
-      .bind(sec, twn, rng, jsonPattern)
+      .bind(sec, twn, rng, sec, twn, rng)
       .all<DocketEntry>();
 
     return result.results || [];
@@ -180,18 +186,25 @@ export async function findDocketEntriesByAPI(
 
   // Search for API number in the api_numbers JSON array field
   // Format: ["049-24518", "035-20123"]
+  // Uses json_each() for exact element matching instead of LIKE substring.
   const query = `
     SELECT id, case_number, relief_type, docket_date, section, township, range,
            county, applicant, additional_sections, api_numbers
     FROM occ_docket_entries
-    WHERE api_numbers LIKE ?
+    WHERE api_numbers IS NOT NULL
+      AND api_numbers != ''
+      AND api_numbers != '[]'
+      AND EXISTS (
+        SELECT 1 FROM json_each(api_numbers) AS je
+        WHERE je.value = ?
+      )
     ORDER BY docket_date DESC
     LIMIT 50
   `;
 
   try {
     const result = await env.WELLS_DB.prepare(query)
-      .bind(`%${normalizedAPI}%`)
+      .bind(normalizedAPI)
       .all<DocketEntry>();
 
     return result.results || [];

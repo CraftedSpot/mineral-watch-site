@@ -116,7 +116,7 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
         entry.section,
         entry.township,
         entry.range,
-        entry.meridian || 'IM',
+        entry.meridian || (['CIMARRON', 'TEXAS', 'BEAVER'].includes(entry.county?.toUpperCase()) ? 'CM' : 'IM'),
         additionalSectionsJson,
         apiNumbersJson,
         entry.hearing_date,

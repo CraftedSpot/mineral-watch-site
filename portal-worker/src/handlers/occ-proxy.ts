@@ -45,7 +45,7 @@ export async function handleOccProxy(request: Request, env: Env) {
             'Content-Type': 'application/json',
             'Cache-Control': 'public, max-age=3600',
             'X-Cache': 'HIT',
-            'Access-Control-Allow-Origin': '*'
+            'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
           }
         });
       }
@@ -83,7 +83,7 @@ export async function handleOccProxy(request: Request, env: Env) {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=3600',
         'X-Cache': 'MISS',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
       }
     });
     
@@ -91,11 +91,7 @@ export async function handleOccProxy(request: Request, env: Env) {
     console.error('OCC Proxy error:', error);
     console.error('Target URL was:', targetUrl);
     return jsonResponse(
-      { 
-        error: 'Failed to fetch from OCC API',
-        details: error.message,
-        targetUrl: targetUrl
-      }, 
+      { error: 'Failed to fetch from OCC API' },
       500
     );
   }
@@ -107,7 +103,7 @@ export async function handleOccProxy(request: Request, env: Env) {
 export function handleOccProxyOptions() {
   return new Response(null, {
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
       'Access-Control-Max-Age': '86400'
