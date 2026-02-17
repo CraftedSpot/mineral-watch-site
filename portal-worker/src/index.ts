@@ -200,7 +200,7 @@ import {
   handleCountyRecordsRetrieve
 } from './handlers/index.js';
 
-import { rateLimit } from './utils/rate-limit.js';
+import { rateLimit, rateLimitUser } from './utils/rate-limit.js';
 import type { Env } from './types/env.js';
 import { syncAirtableData } from './sync.js';
 
@@ -1293,6 +1293,8 @@ var index_default = {
         return handleBulkValidateProperties(request, env);
       }
       if (path === "/api/bulk-upload-properties" && request.method === "POST") {
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600);
+        if (rlResp) return rlResp;
         return handleBulkUploadProperties(request, env, ctx);
       }
       
@@ -1301,6 +1303,8 @@ var index_default = {
         return handleBulkValidateWells(request, env);
       }
       if (path === "/api/bulk-upload-wells" && request.method === "POST") {
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600);
+        if (rlResp) return rlResp;
         return handleBulkUploadWells(request, env, ctx);
       }
 
@@ -1377,6 +1381,8 @@ var index_default = {
         return handleCountyRecordsInstrumentTypes(request, env);
       }
       if (path === "/api/county-records/search" && request.method === "POST") {
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'county-search', 30, 3600);
+        if (rlResp) return rlResp;
         return handleCountyRecordsSearch(request, env, ctx);
       }
       if (path === "/api/county-records/retrieve" && request.method === "POST") {
@@ -1390,6 +1396,11 @@ var index_default = {
           const authHeader = request.headers.get('Authorization');
           if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
             return jsonResponse({ error: 'Unauthorized' }, 401);
+          }
+          // Rate limit by API key (100/hr)
+          const rl = await rateLimit(env.AUTH_TOKENS, 'otc-sync', 'api-key', 100, 3600);
+          if (!rl.allowed) {
+            return jsonResponse({ error: 'Too many requests.' }, 429, { 'Retry-After': '3600' });
           }
         }
 
@@ -1507,7 +1518,11 @@ var index_default = {
         return handleSyncPermitToWell(syncPermitMatch[1], request, env);
       }
 
-      // Intelligence API endpoints
+      // Intelligence API endpoints (rate limited: 120/hr per user)
+      if (path.startsWith("/api/intelligence/") && request.method === "GET") {
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'intelligence', 120, 3600);
+        if (rlResp) return rlResp;
+      }
       if (path === "/api/intelligence/data" && request.method === "GET") {
         const { handleGetIntelligenceData } = await import('./handlers/intelligence.js');
         return handleGetIntelligenceData(request, env);
