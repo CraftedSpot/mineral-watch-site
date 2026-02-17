@@ -1954,7 +1954,7 @@ export default {
         await ensureLinkColumns(env.WELLS_DB);
       } catch (columnError) {
         console.error('Failed to ensure processing columns:', columnError);
-        return errorResponse('Database column check failed: ' + (columnError instanceof Error ? columnError.message : String(columnError)), 500, env);
+        return errorResponse('Database column check failed', 500, env);
       }
 
       let data: any;
@@ -2689,7 +2689,7 @@ export default {
         console.error('Error details:', error instanceof Error ? error.message : String(error));
         console.error('Document ID:', docId);
         console.error('Data received:', JSON.stringify(data).slice(0, 500));
-        return errorResponse('Failed to update document: ' + (error instanceof Error ? error.message : String(error)), 500, env);
+        return errorResponse('Failed to update document', 500, env);
       }
     }
 
@@ -3289,7 +3289,7 @@ export default {
 
       } catch (error) {
         console.error('[External Upload] Error:', error);
-        return errorResponse('Upload failed: ' + (error as Error).message, 500, env);
+        return errorResponse('Upload failed', 500, env);
       }
     }
 
@@ -3396,7 +3396,7 @@ export default {
 
       } catch (error) {
         console.error('[External Register] Error:', error);
-        return errorResponse('Registration failed: ' + (error as Error).message, 500, env);
+        return errorResponse('Registration failed', 500, env);
       }
     }
 
@@ -3523,7 +3523,7 @@ export default {
 
       } catch (error) {
         console.error('[OCC Fetch] Error:', error);
-        return errorResponse('Failed to fetch OCC document: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to fetch OCC document', 500, env);
       }
     }
 
@@ -3664,7 +3664,7 @@ export default {
 
       } catch (error) {
         console.error('[1002A Fetch] Error:', error);
-        return errorResponse('Failed to fetch 1002A document: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to fetch 1002A document', 500, env);
       }
     }
 
@@ -3802,7 +3802,7 @@ export default {
 
       } catch (error) {
         console.error('[1000 Fetch] Error:', error);
-        return errorResponse('Failed to fetch Form 1000 document: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to fetch Form 1000 document', 500, env);
       }
     }
 
@@ -3860,7 +3860,7 @@ export default {
 
       } catch (error) {
         console.error('[County Record Extraction] Error:', error);
-        return errorResponse('Failed to extract county record: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to extract county record', 500, env);
       }
     }
 
@@ -3934,7 +3934,7 @@ export default {
 
       } catch (error) {
         console.error('[Pooling Reextract] Candidates error:', error);
-        return errorResponse('Failed to list candidates: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to list candidates', 500, env);
       }
     }
 
@@ -4008,7 +4008,7 @@ export default {
 
         } catch (error) {
           console.error('[Pooling Reextract All] Error:', error);
-          return errorResponse('Failed to reextract all: ' + (error as Error).message, 500, env);
+          return errorResponse('Failed to reextract all', 500, env);
         }
       }
 
@@ -4022,7 +4022,7 @@ export default {
         return jsonResponse(result, result.success ? 200 : 500, env);
       } catch (error) {
         console.error('[Pooling Reextract] Error:', error);
-        return errorResponse('Failed to reextract: ' + (error as Error).message, 500, env);
+        return errorResponse('Failed to reextract', 500, env);
       }
     }
 

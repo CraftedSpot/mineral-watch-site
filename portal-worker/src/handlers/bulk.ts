@@ -758,7 +758,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
     } catch (err: any) {
       console.error(`[BulkPropertyUpload] D1 batch ${Math.floor(i / d1Batch) + 1} failed:`, err.message);
       results.failed += chunk.length;
-      results.errors.push(`D1 batch ${Math.floor(i / d1Batch) + 1} failed: ${err.message}`);
+      results.errors.push(`D1 batch ${Math.floor(i / d1Batch) + 1} failed`);
     }
   }
 
@@ -821,11 +821,11 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
         const err = await response.text();
         console.error(`[BulkPropertyUpload] Airtable batch ${Math.floor(i / airtableBatchSize) + 1} failed:`, err);
         // D1 records still exist — they'll get linked on next sync
-        results.errors.push(`Airtable batch failed (D1 records OK, will link on sync): ${err}`);
+        results.errors.push(`Airtable batch failed (D1 records OK, will link on sync)`);
       }
     } catch (err: any) {
       console.error(`[BulkPropertyUpload] Airtable batch error:`, err.message);
-      results.errors.push(`Airtable batch error: ${err.message}`);
+      results.errors.push(`Airtable batch error`);
     }
 
     // Small delay between batches to avoid Airtable rate limits
@@ -1718,7 +1718,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         normalized: null,
         matchStatus: 'not_found' as const,
         searchResults: null,
-        errors: [`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        errors: ['Processing error'],
         warnings: [],
         isDuplicate: false,
         isValid: false,
@@ -1987,7 +1987,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       const err = await response.text();
       console.error(`[BulkUpload] Batch create wells failed:`, err.message);
       results.failed += batch.length;
-      results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${err}`);
+      results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed`);
     }
 
     // Small delay between batches

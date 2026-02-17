@@ -778,9 +778,8 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     return jsonResponse(newRecord, 201);
   } catch (error) {
     console.error("Error in handleAddWell:", error);
-    return jsonResponse({ 
-      error: "Internal server error", 
-      message: error.message 
+    return jsonResponse({
+      error: "Internal server error"
     }, 500);
   }
 }
@@ -1227,9 +1226,8 @@ export async function handleSearchWells(request: Request, env: Env) {
     
   } catch (error) {
     console.error('[SearchWells] Error:', error);
-    return jsonResponse({ 
-      error: 'Failed to search wells',
-      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    return jsonResponse({
+      error: 'Failed to search wells'
     }, 500);
   }
 }

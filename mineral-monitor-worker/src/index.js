@@ -363,8 +363,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -411,8 +410,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -446,8 +444,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -554,8 +551,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -589,8 +585,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -625,8 +620,7 @@ export default {
       } catch (error) {
         return jsonResponse({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, 500);
       }
     }
@@ -716,8 +710,7 @@ export default {
       } catch (error) {
         return new Response(JSON.stringify({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, null, 2), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -747,8 +740,7 @@ export default {
       } catch (error) {
         return jsonResponse({
           success: false,
-          error: error.message,
-          stack: error.stack
+          error: error.message
         }, 500);
       }
     }
@@ -921,7 +913,7 @@ export default {
         const result = await backfillNewProperty(env, propertyId);
         return jsonResponse(result);
       } catch (error) {
-        return jsonResponse({ error: error.message, stack: error.stack }, 500);
+        return jsonResponse({ error: error.message }, 500);
       }
     }
 
@@ -949,7 +941,7 @@ export default {
         const result = await backfillUserProperties(env, userId);
         return jsonResponse(result);
       } catch (error) {
-        return jsonResponse({ error: error.message, stack: error.stack }, 500);
+        return jsonResponse({ error: error.message }, 500);
       }
     }
 
