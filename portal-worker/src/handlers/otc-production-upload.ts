@@ -357,6 +357,24 @@ export async function handleComputePunRollups(
       return env.WELLS_DB!.prepare(sql).run();
     };
 
+    // Step 0: Seed any new PUNs from otc_production that don't exist in puns yet
+    console.log(`${logPrefix} Step 0: Seeding new PUNs...`);
+    const seedResult = await runQuery(`
+      INSERT OR IGNORE INTO puns (pun, base_pun)
+      SELECT DISTINCT pun, SUBSTR(pun, 1, 10)
+      FROM otc_production
+      WHERE pun NOT IN (SELECT pun FROM puns)
+      ${countyCondition}
+    `);
+    const step0Seeded = seedResult.meta.changes;
+    // Also backfill base_pun on any existing puns rows where it's NULL
+    await runQuery(`
+      UPDATE puns SET base_pun = SUBSTR(pun, 1, 10)
+      WHERE base_pun IS NULL
+      ${countyCondition}
+    `);
+    console.log(`${logPrefix} Step 0: Seeded ${step0Seeded} new PUNs`);
+
     // Step 1: Update first/last production months and totals
     console.log(`${logPrefix} Step 1: Updating first/last months and totals...`);
     const aggregateResult = await runQuery(`
@@ -502,6 +520,7 @@ export async function handleComputePunRollups(
       county: county || "all",
       dataHorizon: referenceYearMonth,
       stats: {
+        step0_new_puns_seeded: step0Seeded,
         step1_aggregates: step1Changes,
         step2_peak_month: step2Changes,
         step3_staleness: step3Changes,

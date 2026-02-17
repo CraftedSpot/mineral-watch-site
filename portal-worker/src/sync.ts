@@ -734,6 +734,11 @@ async function syncLinksChunked(env: any, cursor: SyncCursor, tickStart: number)
 // ============================================================================
 
 async function runCleanup(env: any, cursor: SyncCursor): Promise<void> {
+  // DISABLED: Orphan cleanup was deleting valid records because upserts
+  // were failing silently. Re-enable once upsert bug is fixed and verified.
+  console.log('[Sync] Orphan cleanup DISABLED — skipping');
+  return;
+
   console.log('[Sync] Running orphan cleanup...');
 
   if (cursor.collectedIds.properties.length > 0) {
