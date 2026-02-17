@@ -3101,6 +3101,11 @@
             return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
         }
 
+        // Zero-pad section number to match OCC GIS API format (e.g. "3" → "03")
+        function occSection(section) {
+            return String(section).padStart(2, '0');
+        }
+
         function getMatchReasonStyle(reason) {
             switch(reason) {
                 case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
@@ -4092,10 +4097,8 @@
             const { id: plssId, meridian } = plssData;
             console.log(`🔍 Fallback: fetching Section ${section} from OCC with PLSS ID: ${plssId}`);
 
-            const paddedSection = section.toString().padStart(2, '0');
-
             const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
-                `where=frstdivno='${paddedSection}' AND plssid='${plssId}'` +
+                `where=frstdivno='${occSection(section)}' AND plssid='${plssId}'` +
                 `&outFields=frstdivno,frstdivlab,gisacre,plssid,survtyptxt` +
                 `&f=geojson` +
                 `&outSR=4326`;
@@ -6980,7 +6983,7 @@
                 }
             }
             const locationStr = section && township && range
-                ? `T${township} R${range} ${section.toString().padStart(2, '0')}`
+                ? `T${township} R${range} ${occSection(section)}`
                 : (location || 'Location not available');
 
             // Activity badge
@@ -7255,8 +7258,8 @@
             const ipGas = wellData.ip_gas_mcf || null;
             
             // Format location string to match Tracked Wells (T10N R07W 06 format)
-            const locationStr = section && township && range 
-                ? `T${township} R${range} ${section.toString().padStart(2, '0')}` 
+            const locationStr = section && township && range
+                ? `T${township} R${range} ${occSection(section)}`
                 : 'Location not available';
             
             // Status badge color
@@ -7610,7 +7613,7 @@
                 
                 // Fetch each PLSS group
                 for (const [plssId, props] of Object.entries(plssGroups)) {
-                    const sections = props.map(p => p.section.padStart(2, '0')).join("','");
+                    const sections = props.map(p => occSection(p.section)).join("','");
                     
                     const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
                         `where=plssid='${plssId}' AND frstdivno IN ('${sections}')` +
@@ -7629,7 +7632,7 @@
                             // Match features back to properties
                             data.features?.forEach(feature => {
                                 const sectionNum = feature.properties.frstdivno;
-                                const matchingProp = props.find(p => p.section.padStart(2, '0') === sectionNum);
+                                const matchingProp = props.find(p => occSection(p.section) === sectionNum);
                                 if (matchingProp) {
                                     results.push({
                                         property: matchingProp.property,
