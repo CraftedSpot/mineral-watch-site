@@ -778,26 +778,24 @@
         function createTrackedWellMarker(well, coords) {
             const wellStatus = well.well_status || 'Unknown';
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
-            const operatorColor = getOperatorColor(well.operator || '');
+            const isPlugged = wellStatus === 'PA';
 
-            // Fixed-size pin marker for tracked wells (same size as nearby wells)
-            const markerSize = 14;
-            const markerH = markerSize * 1.4;
+            // Glowing dot — larger than nearby wells, with colored ring for operator
+            const dotSize = 12;
+            const glowColor = statusColor.replace('#', '');
+            const r = parseInt(glowColor.substring(0,2), 16);
+            const g = parseInt(glowColor.substring(2,4), 16);
+            const b = parseInt(glowColor.substring(4,6), 16);
+            const glow = isPlugged ? 'none' : `0 0 8px 3px rgba(${r},${g},${b},0.55)`;
 
             const icon = L.divIcon({
-                className: 'tracked-well-pin',
-                html: `
-                    <svg width="${markerSize}" height="${markerH}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
-                              fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
-                        <circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>
-                    </svg>
-                `,
-                iconSize: [markerSize, markerH],
-                iconAnchor: [markerSize/2, markerH],
-                popupAnchor: [0, -markerH]
+                className: 'tw-dot',
+                html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${statusColor};border:2px solid #fff;box-shadow:${glow};opacity:${isPlugged ? 0.55 : 1};"></div>`,
+                iconSize: [dotSize, dotSize],
+                iconAnchor: [dotSize / 2, dotSize / 2],
+                popupAnchor: [0, -dotSize / 2]
             });
-            
+
             const marker = L.marker([coords.lat, coords.lon], { icon: icon });
             
             // Create popup content

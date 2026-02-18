@@ -592,17 +592,26 @@
             // Collect lateral data separately — drawn only when zoomed in
             const lateralData = [];
 
-            // Determine marker color based on well type and status
-            function nearbyMarkerColor(well) {
+            // Determine marker color + glow based on well type and status
+            function nearbyMarkerStyle(well) {
                 const isPlugged = well.well_status === 'PA';
                 const wt = (well.well_type || '').toLowerCase();
-                if (wt.includes('gas')) return isPlugged ? '#FCA5A5' : '#EF4444'; // red
-                if (wt.includes('oil')) return isPlugged ? '#86EFAC' : '#22C55E'; // green
-                if (wt.includes('injection') || wt.includes('swd')) return isPlugged ? '#93C5FD' : '#3B82F6'; // blue
-                return isPlugged ? '#D1D5DB' : '#9CA3AF'; // gray
+                let color, glow;
+                if (wt.includes('gas')) {
+                    color = isPlugged ? '#F87171' : '#EF4444';
+                    glow = isPlugged ? 'none' : '0 0 6px 2px rgba(239,68,68,0.5)';
+                } else if (wt.includes('injection') || wt.includes('swd')) {
+                    color = isPlugged ? '#93C5FD' : '#3B82F6';
+                    glow = isPlugged ? 'none' : '0 0 6px 2px rgba(59,130,246,0.45)';
+                } else {
+                    // Oil + default = green (matches cover image)
+                    color = isPlugged ? '#6EE7B7' : '#22C55E';
+                    glow = isPlugged ? 'none' : '0 0 6px 2px rgba(34,197,94,0.5)';
+                }
+                return { color, glow, opacity: isPlugged ? 0.45 : 1 };
             }
 
-            // Add filtered wells to map — lightweight circle dots instead of SVG pins
+            // Add filtered wells to map — glowing circle dots
             wells.forEach(well => {
                 if (well.api_number) {
                     window.nearbyWellsData[well.api_number] = well;
@@ -610,14 +619,15 @@
                 if (!well.latitude || !well.longitude) return;
 
                 const isExtendedLateral = well.isExtendedLateral;
-                const fillColor = isExtendedLateral ? '#F59E0B' : nearbyMarkerColor(well);
-                const isPlugged = well.well_status === 'PA';
-                const dotSize = 7;
+                const style = isExtendedLateral
+                    ? { color: '#F59E0B', glow: '0 0 6px 2px rgba(245,158,11,0.5)', opacity: 1 }
+                    : nearbyMarkerStyle(well);
+                const dotSize = 9;
 
                 const marker = L.marker([well.latitude, well.longitude], {
                     icon: L.divIcon({
                         className: 'nw-dot',
-                        html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${fillColor};border:1.5px solid #fff;opacity:${isPlugged ? 0.5 : 0.85};"></div>`,
+                        html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${style.color};border:1.5px solid rgba(255,255,255,0.9);box-shadow:${style.glow};opacity:${style.opacity};"></div>`,
                         iconSize: [dotSize, dotSize],
                         iconAnchor: [dotSize / 2, dotSize / 2],
                         popupAnchor: [0, -dotSize / 2]

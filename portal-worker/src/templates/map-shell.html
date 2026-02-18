@@ -2467,11 +2467,16 @@
             font-size: 16px;
         }
         
-        /* Lightweight nearby well dot markers */
-        .nw-dot {
-            z-index: 600 !important;
+        /* Lightweight glowing dot markers */
+        .nw-dot, .tw-dot {
             background: transparent !important;
             border: none !important;
+        }
+        .nw-dot {
+            z-index: 600 !important;
+        }
+        .tw-dot {
+            z-index: 700 !important;
         }
         .nearby-well-marker {
             z-index: 600 !important;
