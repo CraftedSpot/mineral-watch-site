@@ -71,10 +71,44 @@
                     createCountyLabels();
                 }
             } catch (e) { /* counties not loaded yet — will pick up dark mode when they load */ }
+            // Toggle legend dark mode
+            const legend = document.getElementById('legendStrip');
+            if (legend) {
+                if (mapDarkMode) legend.classList.add('legend-dark');
+                else legend.classList.remove('legend-dark');
+            }
         }
 
         // Apply saved preference on load
         if (mapDarkMode) applyMapDarkMode();
+
+        // Fullscreen toggle
+        let mapFullscreen = false;
+        function toggleMapFullscreen() {
+            const container = document.querySelector('.map-container');
+            const btn = document.getElementById('fullscreenBtn');
+            if (!container) return;
+
+            mapFullscreen = !mapFullscreen;
+            if (mapFullscreen) {
+                container.classList.add('map-fullscreen');
+                if (btn) btn.textContent = '✕';
+                document.body.style.overflow = 'hidden';
+            } else {
+                container.classList.remove('map-fullscreen');
+                if (btn) btn.textContent = '⛶';
+                document.body.style.overflow = '';
+            }
+            // Let Leaflet recalculate size
+            setTimeout(() => map.invalidateSize(), 50);
+        }
+
+        // Esc key exits fullscreen
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && mapFullscreen) {
+                toggleMapFullscreen();
+            }
+        });
         
         
         // Map click handler for location identification - DISABLED

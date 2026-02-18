@@ -2471,6 +2471,21 @@
         }
         
         /* Dark mode map overrides */
+        /* Fullscreen mode */
+        .map-container.map-fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 99999;
+            border-radius: 0;
+            margin: 0;
+        }
+        .map-container.map-fullscreen #map {
+            height: 100vh !important;
+        }
+
         .map-dark { background: #0F172A; }
         .map-dark .leaflet-tile-pane { filter: brightness(0.65); }
 
@@ -2523,12 +2538,15 @@
         .map-dark .popup-tag.tracked-well { background: #164E63 !important; color: #22D3EE !important; }
         .map-dark .popup-btn { background: #334155; color: #CBD5E1; border-color: #475569; }
         .map-dark .popup-btn:hover { background: #475569; }
-        .map-dark ~ .legend-strip,
-        .map-dark + * .legend-strip { background: #1E293B; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
-        .map-dark ~ .legend-strip .legend-group-title { color: #CBD5E1; }
-        .map-dark ~ .legend-strip .legend-text { color: #94A3B8; }
-        .map-dark ~ .legend-strip .legend-subtitle { color: #64748B; }
-        .map-dark ~ .legend-strip .legend-color { border-color: rgba(255,255,255,0.15); }
+        .legend-strip.legend-dark { background: #1E293B; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        .legend-strip.legend-dark .legend-group-title { color: #CBD5E1; }
+        .legend-strip.legend-dark .legend-text { color: #94A3B8; }
+        .legend-strip.legend-dark .legend-subtitle { color: #64748B; }
+        .legend-strip.legend-dark .legend-color { border-color: rgba(255,255,255,0.15); }
+        .map-dark .pooling-legend { background: rgba(30,41,59,0.95); border-color: #334155; }
+        .map-dark .pooling-legend-title { color: #CBD5E1; }
+        .map-dark .pooling-legend-item { color: #94A3B8; }
+        .map-dark .pooling-legend-note { color: #64748B; }
 
         /* Lightweight glowing dot markers */
         .nw-dot, .tw-dot {
@@ -2756,6 +2774,9 @@
                         </select>
                         <button id="darkModeBtn" class="layer-select" onclick="toggleMapDarkMode()" title="Toggle dark basemap" style="cursor:pointer;text-align:center;min-width:auto;padding:4px 10px;">
                             ☀️
+                        </button>
+                        <button id="fullscreenBtn" class="layer-select" onclick="toggleMapFullscreen()" title="Toggle fullscreen" style="cursor:pointer;text-align:center;min-width:auto;padding:4px 10px;">
+                            ⛶
                         </button>
                     </div>
 
