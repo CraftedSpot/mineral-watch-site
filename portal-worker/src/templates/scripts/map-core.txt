@@ -47,6 +47,7 @@
                 if (!map.hasLayer(darkBase)) darkBase.addTo(map);
                 darkBase.bringToBack();
                 document.getElementById('map').classList.add('map-dark');
+                document.querySelector('.map-container').classList.add('map-dark');
                 if (btn) btn.textContent = '🌙';
             } else {
                 map.removeLayer(darkBase);
@@ -54,6 +55,7 @@
                 if (!map.hasLayer(lightRef)) lightRef.addTo(map);
                 lightBase.bringToBack();
                 document.getElementById('map').classList.remove('map-dark');
+                document.querySelector('.map-container').classList.remove('map-dark');
                 if (btn) btn.textContent = '☀️';
             }
             // Restyle county boundaries for dark/light (guard: may not be loaded yet)
@@ -133,6 +135,8 @@
         function toggleMapFullscreen() {
             const container = document.querySelector('.map-container');
             const btn = document.getElementById('fullscreenBtn');
+            const searchBox = document.querySelector('.map-search-container');
+            const pageHeader = document.querySelector('.page-header');
             if (!container) return;
 
             mapFullscreen = !mapFullscreen;
@@ -140,10 +144,17 @@
                 container.classList.add('map-fullscreen');
                 if (btn) btn.textContent = '\u2715';
                 document.body.style.overflow = 'hidden';
+                // Move search into the map container
+                if (searchBox) container.appendChild(searchBox);
             } else {
                 container.classList.remove('map-fullscreen');
                 if (btn) btn.textContent = '\u26F6';
                 document.body.style.overflow = '';
+                // Move search back to page header
+                if (searchBox && pageHeader) {
+                    const h1 = pageHeader.querySelector('h1');
+                    if (h1) h1.after(searchBox);
+                }
             }
             setTimeout(() => map.invalidateSize(), 50);
         }

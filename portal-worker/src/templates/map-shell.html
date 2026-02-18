@@ -2485,6 +2485,30 @@
         .map-container.map-fullscreen #map {
             height: 100vh !important;
         }
+        .map-container.map-fullscreen > .map-search-container {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 100001;
+            max-width: 350px;
+            width: 350px;
+        }
+        .map-container.map-fullscreen > .map-search-container .map-search-input {
+            background: rgba(255,255,255,0.95);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .map-container.map-fullscreen > .map-search-container .map-search-results {
+            z-index: 100002;
+        }
+        .map-container.map-dark.map-fullscreen > .map-search-container .map-search-input {
+            background: rgba(30,41,59,0.95);
+            color: #E2E8F0;
+            border-color: #334155;
+        }
+        .map-container.map-dark.map-fullscreen > .map-search-container .map-search-results {
+            background: #1E293B;
+            border-color: #334155;
+        }
 
         .leaflet-control-fullscreen,
         .leaflet-control-darkmode {
@@ -2802,9 +2826,9 @@
                         </label>
                         <select id="nearby-wells-select" class="layer-select" title="Explore wells near your properties">
                             <option value="off">Nearby Wells</option>
-                            <option value="AC">Active Only</option>
-                            <option value="PRODUCING">Producing</option>
-                            <option value="ALL">All Statuses</option>
+                            <option value="PRODUCING">Actively Producing</option>
+                            <option value="AC">(AC) OCC Status</option>
+                            <option value="ALL">All Wells</option>
                         </select>
                         <div class="heatmap-dropdown">
                             <button class="heatmap-btn" id="heatmapBtn" title="Statewide drilling activity within 90 days">
