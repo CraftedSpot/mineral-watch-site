@@ -71,6 +71,13 @@
                     createCountyLabels();
                 }
             } catch (e) { /* counties not loaded yet — will pick up dark mode when they load */ }
+            // Re-render section labels so they pick up dark/light colors
+            try {
+                if (typeof updateSectionLines === 'function') {
+                    sectionBounds = null; // Force refresh
+                    updateSectionLines();
+                }
+            } catch (e) { /* section lines not loaded yet */ }
             // Toggle legend dark mode
             const legend = document.getElementById('legendStrip');
             if (legend) {

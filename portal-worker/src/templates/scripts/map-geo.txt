@@ -323,21 +323,22 @@
                         // Scale font size based on zoom
                         const fontSize = zoom < 13 ? '10px' : zoom < 15 ? '12px' : '14px';
                         
+                        const isDark = typeof mapDarkMode !== 'undefined' && mapDarkMode;
+                        const lblColor = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(180, 83, 9, 0.95)';
+                        const lblShadow = isDark
+                            ? '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8)'
+                            : '-1px -1px 0 rgba(255,255,255,0.9), 1px -1px 0 rgba(255,255,255,0.9), -1px 1px 0 rgba(255,255,255,0.9), 1px 1px 0 rgba(255,255,255,0.9)';
                         const sectionLabel = L.divIcon({
                             className: 'section-number-label',
                             html: `<div style="
-                                color: rgba(180, 83, 9, 0.95);
+                                color: ${lblColor};
                                 font-family: 'Inter', sans-serif;
                                 font-size: ${fontSize};
                                 font-weight: 700;
                                 text-align: center;
                                 white-space: nowrap;
                                 pointer-events: none;
-                                text-shadow: 
-                                    -1px -1px 0 rgba(255,255,255,0.9),
-                                    1px -1px 0 rgba(255,255,255,0.9),
-                                    -1px 1px 0 rgba(255,255,255,0.9),
-                                    1px 1px 0 rgba(255,255,255,0.9);
+                                text-shadow: ${lblShadow};
                             ">${sectionNum}</div>`,
                             iconSize: [24, 16],
                             iconAnchor: [12, 8]
