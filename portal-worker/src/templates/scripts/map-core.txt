@@ -81,6 +81,7 @@
         let sectionLayer = L.featureGroup();
         let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
         let nearbyWellsLayer = null; // Initialize later after map is ready
+        let nearbyLateralsLayer = L.featureGroup(); // Separate layer for nearby well laterals (zoom-gated)
         let lateralsLayer = L.featureGroup(); // Layer for horizontal well laterals
         let activityHeatmapLayer = null; // Will be created as heat layer
         let poolingRateLayer = null; // Choropleth: pooling bonus rates by township

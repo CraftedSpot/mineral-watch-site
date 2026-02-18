@@ -2467,7 +2467,12 @@
             font-size: 16px;
         }
         
-        /* Hide nearby well markers to avoid z-index issues */
+        /* Lightweight nearby well dot markers */
+        .nw-dot {
+            z-index: 600 !important;
+            background: transparent !important;
+            border: none !important;
+        }
         .nearby-well-marker {
             z-index: 600 !important;
         }

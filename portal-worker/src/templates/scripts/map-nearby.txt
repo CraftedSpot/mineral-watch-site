@@ -21,6 +21,9 @@
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
+                if (nearbyLateralsLayer && map.hasLayer(nearbyLateralsLayer)) {
+                    map.removeLayer(nearbyLateralsLayer);
+                }
                 if (countDiv) countDiv.style.display = 'none';
                 if (separatorDiv) separatorDiv.style.display = 'none';
                 const filterPanel = document.getElementById('wellsFilterPanel');
@@ -585,156 +588,141 @@
             // Update nearby wells count
             document.getElementById('nearbyWellCount').textContent = wells.length;
 
-            // Fixed size for nearby wells - 60% of tracked well base size
-            // No zoom-dependent scaling so they're consistent regardless of when you turn them on
-            const nearbyWellSize = 14; // 60% of tracked wells (24px base)
-
             // Store wells data globally for popup access
             window.nearbyWellsData = {};
 
-            // Track lateral statistics
-            let lateralStats = {
-                total: 0,
-                drawn: 0,
-                filteredOut: 0
-            };
+            // Collect lateral data separately — drawn only when zoomed in
+            const lateralData = [];
 
-            // Add filtered wells to map
+            // Determine marker color based on well type and status
+            function nearbyMarkerColor(well) {
+                const isPlugged = well.well_status === 'PA';
+                const wt = (well.well_type || '').toLowerCase();
+                if (wt.includes('gas')) return isPlugged ? '#FCA5A5' : '#EF4444'; // red
+                if (wt.includes('oil')) return isPlugged ? '#86EFAC' : '#22C55E'; // green
+                if (wt.includes('injection') || wt.includes('swd')) return isPlugged ? '#93C5FD' : '#3B82F6'; // blue
+                return isPlugged ? '#D1D5DB' : '#9CA3AF'; // gray
+            }
+
+            // Add filtered wells to map — lightweight circle dots instead of SVG pins
             wells.forEach(well => {
-                // Store well data by API number
                 if (well.api_number) {
                     window.nearbyWellsData[well.api_number] = well;
                 }
-                if (well.latitude && well.longitude) {
-                    // Different styling for extended lateral wells
-                    const isExtendedLateral = well.isExtendedLateral;
-                    const markerColor = isExtendedLateral ? '#F59E0B' : '#9CA3AF'; // Amber for extended laterals
-                    const strokeColor = isExtendedLateral ? '#D97706' : '#6B7280';
-                    const centerColor = isExtendedLateral ? '#D97706' : '#6B7280';
+                if (!well.latitude || !well.longitude) return;
 
-                    // Create marker
-                    const marker = L.marker([well.latitude, well.longitude], {
-                        icon: L.divIcon({
-                            className: 'nearby-well-marker' + (isExtendedLateral ? ' extended-lateral' : ''),
-                            html: `
-                                <svg width="${nearbyWellSize}" height="${nearbyWellSize * 1.4}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
-                                          fill="${markerColor}" stroke="${strokeColor}" stroke-width="2"/>
-                                    <circle cx="12" cy="12" r="4.5" fill="${centerColor}"/>
-                                    ${isExtendedLateral ? '<text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">L</text>' : ''}
-                                </svg>
-                            `,
-                            iconSize: [nearbyWellSize, nearbyWellSize * 1.4],
-                            iconAnchor: [nearbyWellSize/2, nearbyWellSize * 1.4],
-                            popupAnchor: [0, -nearbyWellSize * 1.4]
-                        })
-                    });
+                const isExtendedLateral = well.isExtendedLateral;
+                const fillColor = isExtendedLateral ? '#F59E0B' : nearbyMarkerColor(well);
+                const isPlugged = well.well_status === 'PA';
+                const dotSize = 7;
 
-                    // Create small popup similar to tracked wells
-                    const wellBaseName = well.well_name || 'Unnamed Well';
-                    const wellNumber = well.well_number || '';
-                    const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
-                    const operator = toTitleCase(well.operator || 'Unknown');
-                    const operatorPhone = well.phone || well.operator_phone || '';
-                    const contactName = toTitleCase(well.contact_name || '');
+                const marker = L.marker([well.latitude, well.longitude], {
+                    icon: L.divIcon({
+                        className: 'nw-dot',
+                        html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${fillColor};border:1.5px solid #fff;opacity:${isPlugged ? 0.5 : 0.85};"></div>`,
+                        iconSize: [dotSize, dotSize],
+                        iconAnchor: [dotSize / 2, dotSize / 2],
+                        popupAnchor: [0, -dotSize / 2]
+                    })
+                });
 
-                    // Debug: Log first few wells to check operator data
-                    if (Object.keys(window.nearbyWellsData).length < 3 && (operatorPhone || contactName)) {
-                        console.log(`Nearby well ${well.api_number} operator data:`, {
-                            operator: well.operator,
-                            phone: well.phone,
-                            operator_phone: well.operator_phone,
-                            contact_name: well.contact_name
-                        });
-                    }
-                    const wellStatus = getStatusLabel(well.well_status);
-                    const statusColor = WELL_STATUS_COLORS[well.well_status] || WELL_STATUS_COLORS.default;
-                    const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
+                const wellBaseName = well.well_name || 'Unnamed Well';
+                const wellNumber = well.well_number || '';
+                const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
+                const operator = toTitleCase(well.operator || 'Unknown');
+                const wellStatus = getStatusLabel(well.well_status);
+                const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
 
-                    // Store well data for the expand function
-                    marker.wellData = well;
+                marker.wellData = well;
 
-                    const popupContent = `
-                        <div class="popup-header">
-                            <span class="popup-tag" style="background: ${isExtendedLateral ? '#FEF3C7' : '#E5E7EB'}; color: ${isExtendedLateral ? '#92400E' : '#374151'};">
-                                ${isExtendedLateral ? 'Extended Lateral' : 'Nearby Well'}
-                            </span>
-                        </div>
-                        <div class="popup-well-name">${wellName}</div>
-                        <div class="popup-details">
-                            ${operator}<br>
-                            S${well.section} T${well.township} R${well.range} • ${toTitleCase(well.county || 'Unknown')}<br>
-                            Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
-                            ${isExtendedLateral && well.lateral_length ? `<br>Lateral: ${(well.lateral_length / 5280).toFixed(1)} miles` : ''}
-                        </div>
-                        <div class="popup-actions">
-                            <button class="popup-btn popup-btn-secondary" data-api="${well.api_number}" onclick="expandNearbyWellCard(nearbyWellsData['${well.api_number}']); return false;">More →</button>
-                        </div>
-                    `;
+                const popupContent = `
+                    <div class="popup-header">
+                        <span class="popup-tag" style="background: ${isExtendedLateral ? '#FEF3C7' : '#E5E7EB'}; color: ${isExtendedLateral ? '#92400E' : '#374151'};">
+                            ${isExtendedLateral ? 'Extended Lateral' : 'Nearby Well'}
+                        </span>
+                    </div>
+                    <div class="popup-well-name">${wellName}</div>
+                    <div class="popup-details">
+                        ${operator}<br>
+                        S${well.section} T${well.township} R${well.range} • ${toTitleCase(well.county || 'Unknown')}<br>
+                        Status: ${wellStatus}${formation ? ' \u2022 ' + formation : ''}
+                        ${isExtendedLateral && well.lateral_length ? '<br>Lateral: ' + (well.lateral_length / 5280).toFixed(1) + ' miles' : ''}
+                    </div>
+                    <div class="popup-actions">
+                        <button class="popup-btn popup-btn-secondary" data-api="${well.api_number}" onclick="expandNearbyWellCard(nearbyWellsData['${well.api_number}']); return false;">More \u2192</button>
+                    </div>
+                `;
 
-                    marker.bindPopup(popupContent, {
-                        maxWidth: 350,
-                        className: 'high-z-popup'
-                    });
+                marker.bindPopup(popupContent, { maxWidth: 350, className: 'high-z-popup' });
+                nearbyWellsLayer.addLayer(marker);
 
-                    nearbyWellsLayer.addLayer(marker);
-
-                    // Check if this well has bottom hole coordinates for lateral drawing
-                    if (well.bh_latitude && well.bh_longitude &&
-                        (well.bh_latitude !== well.latitude || well.bh_longitude !== well.longitude)) {
-
-                        lateralStats.total++;
-
-                        // Calculate approximate distance to filter out bad data
-                        const latDiff = Math.abs(well.bh_latitude - well.latitude);
-                        const lngDiff = Math.abs(well.bh_longitude - well.longitude);
-                        const approxDistanceMiles = (latDiff + lngDiff) * 69; // Very rough approximation
-
-                        // Only draw laterals that are reasonable length (< 3 miles)
-                        if (approxDistanceMiles < 3) {
-                            // Draw lateral line
-                            const lateralPath = drawLateralPath(
-                                { lat: well.latitude, lng: well.longitude },
-                                { lat: well.bh_latitude, lng: well.bh_longitude },
-                                {
-                                    well_name: well.well_name,
-                                    api_number: well.api_number,
-                                    operator: well.operator,
-                                    well_status: well.well_status,
-                                    well_type: well.well_type,
-                                    formation_name: well.formation_name
-                                },
-                                'nearby'
-                            );
-
-                            if (lateralPath) {
-                                // Add lateral to the same layer group as the wells
-                                nearbyWellsLayer.addLayer(lateralPath);
-                                lateralStats.drawn++;
-                            }
-                        } else {
-                            lateralStats.filteredOut++;
-                            if (lateralStats.filteredOut <= 5) {  // Log first few filtered wells
-                                console.log(`Filtered out lateral for ${well.well_name} (${well.api_number}): ~${approxDistanceMiles.toFixed(1)} miles`);
-                            }
-                        }
+                // Collect lateral data (don't draw yet — zoom-gated)
+                if (well.bh_latitude && well.bh_longitude &&
+                    (well.bh_latitude !== well.latitude || well.bh_longitude !== well.longitude)) {
+                    const latDiff = Math.abs(well.bh_latitude - well.latitude);
+                    const lngDiff = Math.abs(well.bh_longitude - well.longitude);
+                    if ((latDiff + lngDiff) * 69 < 3) {
+                        lateralData.push(well);
                     }
                 }
             });
 
-            // Ensure layers are on map
+            // Ensure marker layer is on map
             if (!map.hasLayer(nearbyWellsLayer) && nearbyWellsLayer.getLayers().length > 0) {
                 map.addLayer(nearbyWellsLayer);
             }
 
-            // Log lateral statistics
-            if (lateralStats.total > 0) {
-                console.log(`Lateral lines: ${lateralStats.drawn} drawn, ${lateralStats.filteredOut} filtered out (too long), ${lateralStats.total} total with BH coords`);
+            // Build lateral lines in a separate layer (shown only at zoom >= 12)
+            nearbyLateralsLayer.clearLayers();
+            function buildNearbyLaterals() {
+                nearbyLateralsLayer.clearLayers();
+                lateralData.forEach(well => {
+                    const wt = (well.well_type || '').toLowerCase();
+                    const pathColor = wt.includes('gas') ? '#EF4444' : '#22C55E';
+                    const line = L.polyline(
+                        [[well.latitude, well.longitude], [well.bh_latitude, well.bh_longitude]],
+                        { color: pathColor, weight: 3, opacity: 0.7 }
+                    );
+                    const lateralLength = well.lateral_length
+                        ? Number(well.lateral_length).toLocaleString() + ' ft'
+                        : '~' + Math.round(map.distance([well.latitude, well.longitude], [well.bh_latitude, well.bh_longitude]) * 3.28084).toLocaleString() + ' ft';
+                    line.bindPopup(`
+                        <div style="font-weight:600;margin-bottom:4px;">${toTitleCase(well.well_name || 'Unknown')}</div>
+                        <div style="font-size:12px;color:#64748B;">${toTitleCase(well.operator || 'Unknown')}<br>Lateral: ${lateralLength}</div>
+                    `, { maxWidth: 250, className: 'high-z-popup' });
+                    nearbyLateralsLayer.addLayer(line);
+                });
             }
 
-            ensureLayerOrder();
+            // Show laterals only when zoomed in enough to see them
+            const LATERAL_MIN_ZOOM = 12;
+            function updateLateralVisibility() {
+                const zoom = map.getZoom();
+                if (zoom >= LATERAL_MIN_ZOOM && lateralData.length > 0) {
+                    if (nearbyLateralsLayer.getLayers().length === 0) {
+                        buildNearbyLaterals();
+                    }
+                    if (!map.hasLayer(nearbyLateralsLayer)) {
+                        map.addLayer(nearbyLateralsLayer);
+                    }
+                } else {
+                    if (map.hasLayer(nearbyLateralsLayer)) {
+                        map.removeLayer(nearbyLateralsLayer);
+                    }
+                }
+            }
 
-            // Rebuild search index to include/exclude nearby wells
+            // Remove previous zoom handler if any, then add new one
+            if (window._nearbyZoomHandler) {
+                map.off('zoomend', window._nearbyZoomHandler);
+            }
+            window._nearbyZoomHandler = updateLateralVisibility;
+            map.on('zoomend', updateLateralVisibility);
+            updateLateralVisibility(); // Apply immediately
+
+            console.log(`${wells.length} nearby wells rendered, ${lateralData.length} laterals (zoom >= ${LATERAL_MIN_ZOOM})`);
+
+            ensureLayerOrder();
             updateSearchIndex();
         }
 
