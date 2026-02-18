@@ -162,7 +162,8 @@ export {
   handleGetTownships,
   handleGetCountyStats,
   handleGetCountyProduction,
-  handleGetPoolingRates
+  handleGetPoolingRates,
+  handleGetPoolingOrders
 } from './map-data.js';
 
 // Map data version handler

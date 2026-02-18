@@ -607,17 +607,23 @@
             }
 
             // Create popup content with dual-tag system
+            const twp = fields.TWN || fields.Township || '';
+            const rng = fields.RNG || fields.Range || '';
+            const poolingBtn = (typeof poolingRateLayer !== 'undefined' && poolingRateLayer && map.hasLayer(poolingRateLayer))
+                ? `<div style="margin-top:8px;"><button class="popup-btn popup-btn-secondary" onclick="openTownshipPoolingModal('${twp}','${rng}'); return false;">View Pooling Orders \u2192</button></div>`
+                : '';
             const popupContent = `
                 <div class="popup-header">
                     <span class="popup-tag your-property">Your Property</span>
                 </div>
                 <div class="popup-well-name">${toTitleCase(fields.COUNTY || fields.County || 'Unknown')} County</div>
                 <div class="popup-details">
-                    <strong>S${fields.SEC || fields.Section} T${fields.TWN || fields.Township} R${fields.RNG || fields.Range}</strong><br>
+                    <strong>S${fields.SEC || fields.Section} T${twp} R${rng}</strong><br>
                     ${ownershipText}<br>
                     ${(riAcres > 0 || wiAcres > 0) ? `<em>Your ownership: ${riAcres > 0 ? riAcres + ' RI' : ''}${(riAcres > 0 && wiAcres > 0) ? ' + ' : ''}${wiAcres > 0 ? wiAcres + ' WI' : ''} acres</em><br>` : ''}
                     ${fields.Notes ? `<em>"${fields.Notes}"</em><br>` : ''}
                 </div>
+                ${poolingBtn}
             `;
 
             layer.bindPopup(popupContent, {

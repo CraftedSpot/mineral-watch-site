@@ -2543,6 +2543,51 @@
         .legend-strip.legend-dark .legend-text { color: #94A3B8; }
         .legend-strip.legend-dark .legend-subtitle { color: #64748B; }
         .legend-strip.legend-dark .legend-color { border-color: rgba(255,255,255,0.15); }
+        /* Pooling Township Modal Table */
+        .pooling-modal-stats {
+            display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px;
+            padding: 12px 16px; background: #FFFBEB; border-radius: 8px; border: 1px solid #FDE68A;
+        }
+        .pooling-modal-stat { text-align: center; flex: 1; min-width: 80px; }
+        .pooling-modal-stat-value { font-size: 18px; font-weight: 700; color: #92400E; }
+        .pooling-modal-stat-label { font-size: 11px; color: #78716C; text-transform: uppercase; letter-spacing: 0.3px; }
+        .pooling-modal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .pooling-modal-table th {
+            text-align: left; padding: 8px 10px; font-size: 11px; font-weight: 600;
+            color: #78716C; text-transform: uppercase; letter-spacing: 0.3px;
+            border-bottom: 2px solid #E5E7EB; background: #F9FAFB;
+        }
+        .pooling-modal-table td { padding: 10px; border-bottom: 1px solid #F3F4F6; vertical-align: top; }
+        .pooling-modal-table tr.pm-order-row { cursor: pointer; transition: background 0.15s; }
+        .pooling-modal-table tr.pm-order-row:hover { background: #FFFBEB; }
+        .pm-expand-row { display: none; }
+        .pm-expand-row.open { display: table-row; }
+        .pm-expand-row td { padding: 12px 16px; background: #FAFAF9; }
+        .pm-options-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+        .pm-options-table th { text-align: left; padding: 6px 8px; font-size: 10px; font-weight: 600; color: #78716C; border-bottom: 1px solid #E5E7EB; }
+        .pm-options-table td { padding: 6px 8px; border-bottom: 1px solid #F3F4F6; }
+        .pm-formation-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #FEF3C7; color: #92400E; margin-right: 4px; }
+        .pm-bonus { font-weight: 600; color: #166534; }
+        .pm-meta { display: flex; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+        .pm-meta-item { font-size: 12px; color: #64748B; }
+        .pm-meta-item strong { color: #1E293B; }
+        .pm-no-orders { text-align: center; padding: 40px; color: #94A3B8; }
+
+        /* Dark mode for pooling modal */
+        .map-dark .pooling-modal-stats { background: #1C1917; border-color: #44403C; }
+        .map-dark .pooling-modal-stat-value { color: #FBBF24; }
+        .map-dark .pooling-modal-stat-label { color: #A8A29E; }
+        .map-dark .pooling-modal-table th { background: #292524; color: #A8A29E; border-color: #44403C; }
+        .map-dark .pooling-modal-table td { border-color: #292524; color: #D6D3D1; }
+        .map-dark .pooling-modal-table tr.pm-order-row:hover { background: #1C1917; }
+        .map-dark .pm-expand-row td { background: #1C1917; }
+        .map-dark .pm-options-table th { color: #A8A29E; border-color: #44403C; }
+        .map-dark .pm-options-table td { border-color: #292524; color: #D6D3D1; }
+        .map-dark .pm-formation-tag { background: #44403C; color: #FBBF24; }
+        .map-dark .pm-bonus { color: #4ADE80; }
+        .map-dark .pm-meta-item { color: #A8A29E; }
+        .map-dark .pm-meta-item strong { color: #E7E5E4; }
+
         .map-dark .pooling-legend { background: rgba(30,41,59,0.95); border-color: #334155; }
         .map-dark .pooling-legend-title { color: #CBD5E1; }
         .map-dark .pooling-legend-item { color: #94A3B8; }
@@ -3183,6 +3228,22 @@
             <input type="hidden" id="wellModalOriginalNotes">
             <input type="hidden" id="wellModalLat">
             <input type="hidden" id="wellModalLon">
+        </div>
+    </div>
+
+    <!-- POOLING TOWNSHIP MODAL -->
+    <div class="well-modal-overlay" id="poolingTownshipModal">
+        <div class="well-modal" style="max-width: 800px;">
+            <div class="well-modal-header" style="background: linear-gradient(135deg, #92400E 0%, #B45309 100%);">
+                <div style="flex: 1;">
+                    <h3 class="well-modal-title" id="poolingModalTitle">Pooling Orders</h3>
+                    <div class="well-modal-subtitle" id="poolingModalSubtitle">—</div>
+                </div>
+                <button class="well-modal-close" onclick="closePoolingTownshipModal()">&times;</button>
+            </div>
+            <div class="well-modal-body" id="poolingModalBody">
+                <div style="text-align: center; padding: 40px; color: var(--slate-blue);">Loading...</div>
+            </div>
         </div>
     </div>
 

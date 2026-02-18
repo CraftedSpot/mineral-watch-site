@@ -472,3 +472,111 @@ export async function handleGetPoolingRates(request: Request, env: Env): Promise
     }, 500);
   }
 }
+
+/**
+ * GET /api/map/pooling-orders?township=09N&range=05W
+ * Returns all pooling orders for a specific township with election options.
+ */
+export async function handleGetPoolingOrders(request: Request, env: Env): Promise<Response> {
+  try {
+    if (!env.WELLS_DB) {
+      return jsonResponse({ error: 'Database not configured' }, 503);
+    }
+
+    const url = new URL(request.url);
+    const township = url.searchParams.get('township');
+    const range = url.searchParams.get('range');
+
+    if (!township || !range) {
+      return jsonResponse({ error: 'township and range parameters required' }, 400);
+    }
+
+    const result = await env.WELLS_DB.prepare(`
+      SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
+             po.proposed_well_name, po.section, po.township, po.range, po.county,
+             po.well_type, po.formations, po.unit_size_acres, po.response_deadline,
+             peo.option_number, peo.option_type, peo.bonus_per_acre,
+             peo.royalty_fraction, peo.royalty_decimal
+      FROM pooling_orders po
+      LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+      WHERE po.township = ? AND po.range = ?
+      ORDER BY po.order_date DESC, peo.option_number ASC
+    `).bind(township, range).all();
+
+    // Group rows by order ID → orders with nested electionOptions
+    const ordersMap = new Map<string, any>();
+    for (const row of (result.results as any[])) {
+      if (!ordersMap.has(row.id)) {
+        let formations: any[] = [];
+        try { formations = row.formations ? JSON.parse(row.formations) : []; } catch {}
+        ordersMap.set(row.id, {
+          id: row.id,
+          caseNumber: row.case_number,
+          orderNumber: row.order_number,
+          orderDate: row.order_date,
+          operator: row.operator,
+          wellName: row.proposed_well_name,
+          section: row.section,
+          township: row.township,
+          range: row.range,
+          county: row.county,
+          wellType: row.well_type,
+          formations,
+          unitSizeAcres: row.unit_size_acres,
+          responseDeadline: row.response_deadline,
+          electionOptions: []
+        });
+      }
+      if (row.option_number != null) {
+        ordersMap.get(row.id)!.electionOptions.push({
+          optionNumber: row.option_number,
+          optionType: row.option_type,
+          bonusPerAcre: row.bonus_per_acre,
+          royaltyFraction: row.royalty_fraction,
+          royaltyDecimal: row.royalty_decimal
+        });
+      }
+    }
+
+    const orders = Array.from(ordersMap.values());
+
+    // Compute summary stats
+    const bonuses = orders.map(o => {
+      const maxOpt = o.electionOptions.reduce((max: any, opt: any) =>
+        (opt.bonusPerAcre || 0) > (max.bonusPerAcre || 0) ? opt : max, { bonusPerAcre: 0 });
+      return maxOpt.bonusPerAcre || 0;
+    }).filter((b: number) => b > 0);
+
+    const avgBonus = bonuses.length > 0 ? Math.round(bonuses.reduce((a: number, b: number) => a + b, 0) / bonuses.length) : 0;
+    const minBonus = bonuses.length > 0 ? Math.round(Math.min(...bonuses)) : 0;
+    const maxBonus = bonuses.length > 0 ? Math.round(Math.max(...bonuses)) : 0;
+
+    const operatorCounts = new Map<string, number>();
+    for (const o of orders) {
+      if (o.operator) operatorCounts.set(o.operator, (operatorCounts.get(o.operator) || 0) + 1);
+    }
+    const topOperators = Array.from(operatorCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name]) => name);
+
+    return jsonResponse({
+      success: true,
+      township,
+      range,
+      orderCount: orders.length,
+      avgBonus,
+      minBonus,
+      maxBonus,
+      topOperators,
+      orders
+    });
+
+  } catch (error) {
+    console.error('[MapData] Error fetching pooling orders:', error);
+    return jsonResponse({
+      error: 'Failed to fetch pooling orders',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}

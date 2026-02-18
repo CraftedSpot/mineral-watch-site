@@ -302,6 +302,10 @@
                         layer.on('mouseout', function() {
                             poolingRateLayer.resetStyle(this);
                         });
+                        layer.on('click', function(e) {
+                            L.DomEvent.stopPropagation(e);
+                            openTownshipPoolingModal(p.township, p.range);
+                        });
                     }
                 });
 
@@ -324,6 +328,114 @@
                 console.error('Failed to load pooling rates:', error);
                 updateStatus('Map ready');
             }
+        }
+
+        // Township Pooling Modal
+        async function openTownshipPoolingModal(township, range) {
+            const modal = document.getElementById('poolingTownshipModal');
+            const titleEl = document.getElementById('poolingModalTitle');
+            const subtitleEl = document.getElementById('poolingModalSubtitle');
+            const bodyEl = document.getElementById('poolingModalBody');
+            if (!modal) return;
+
+            titleEl.textContent = 'Pooling Orders';
+            subtitleEl.textContent = township + ' ' + range;
+            bodyEl.innerHTML = '<div style="text-align:center;padding:40px;color:#94A3B8;">Loading pooling orders...</div>';
+            modal.classList.add('active');
+
+            try {
+                const res = await fetch('/api/map/pooling-orders?township=' + encodeURIComponent(township) + '&range=' + encodeURIComponent(range), { credentials: 'include' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+
+                if (!data.success || !data.orders || data.orders.length === 0) {
+                    bodyEl.innerHTML = '<div class="pm-no-orders">No pooling orders found for this township.</div>';
+                    return;
+                }
+
+                titleEl.textContent = data.orderCount + ' Pooling Order' + (data.orderCount !== 1 ? 's' : '');
+                renderPoolingModalBody(data, bodyEl);
+            } catch (err) {
+                console.error('Error loading pooling orders:', err);
+                bodyEl.innerHTML = '<div class="pm-no-orders">Failed to load pooling orders.</div>';
+            }
+        }
+
+        function closePoolingTownshipModal() {
+            const modal = document.getElementById('poolingTownshipModal');
+            if (modal) modal.classList.remove('active');
+        }
+
+        function renderPoolingModalBody(data, container) {
+            const bonusRange = data.minBonus !== data.maxBonus
+                ? '$' + data.minBonus.toLocaleString() + ' – $' + data.maxBonus.toLocaleString()
+                : '$' + data.avgBonus.toLocaleString();
+
+            let html = '<div class="pooling-modal-stats">'
+                + '<div class="pooling-modal-stat"><div class="pooling-modal-stat-value">' + data.orderCount + '</div><div class="pooling-modal-stat-label">Orders</div></div>'
+                + '<div class="pooling-modal-stat"><div class="pooling-modal-stat-value">$' + data.avgBonus.toLocaleString() + '</div><div class="pooling-modal-stat-label">Avg Bonus/Acre</div></div>'
+                + '<div class="pooling-modal-stat"><div class="pooling-modal-stat-value">' + bonusRange + '</div><div class="pooling-modal-stat-label">Bonus Range</div></div>'
+                + '<div class="pooling-modal-stat"><div class="pooling-modal-stat-value">' + (data.topOperators.slice(0, 3).join(', ') || '—') + '</div><div class="pooling-modal-stat-label">Top Operators</div></div>'
+                + '</div>';
+
+            html += '<table class="pooling-modal-table"><thead><tr>'
+                + '<th>Date</th><th>Operator</th><th>Well Name</th><th>Formation</th><th>Sec</th><th>Best Bonus</th><th>Type</th>'
+                + '</tr></thead><tbody>';
+
+            data.orders.forEach(function(order, idx) {
+                const rowId = 'pm-row-' + idx;
+                const bestBonus = order.electionOptions.reduce(function(max, o) { return (o.bonusPerAcre || 0) > max ? (o.bonusPerAcre || 0) : max; }, 0);
+                const formations = (order.formations || []).map(function(f) {
+                    return '<span class="pm-formation-tag">' + (f.name || f) + '</span>';
+                }).join('') || '—';
+                const date = order.orderDate || '—';
+                const wellType = (order.wellType || '').charAt(0).toUpperCase() + (order.wellType || '').slice(1);
+
+                html += '<tr class="pm-order-row" onclick="togglePmRow(\'' + rowId + '\')">'
+                    + '<td>' + date + '</td>'
+                    + '<td>' + (order.operator || '—') + '</td>'
+                    + '<td>' + (order.wellName || '—') + '</td>'
+                    + '<td>' + formations + '</td>'
+                    + '<td>' + (order.section || '—') + '</td>'
+                    + '<td class="pm-bonus">' + (bestBonus > 0 ? '$' + bestBonus.toLocaleString() : '—') + '</td>'
+                    + '<td>' + (wellType || '—') + '</td>'
+                    + '</tr>';
+
+                // Expandable detail row
+                html += '<tr class="pm-expand-row" id="' + rowId + '"><td colspan="7">';
+                html += '<div class="pm-meta">';
+                if (order.caseNumber) html += '<div class="pm-meta-item"><strong>Case:</strong> ' + order.caseNumber + '</div>';
+                if (order.orderNumber) html += '<div class="pm-meta-item"><strong>Order:</strong> ' + order.orderNumber + '</div>';
+                if (order.county) html += '<div class="pm-meta-item"><strong>County:</strong> ' + order.county + '</div>';
+                if (order.unitSizeAcres) html += '<div class="pm-meta-item"><strong>Unit:</strong> ' + order.unitSizeAcres + ' acres</div>';
+                if (order.responseDeadline) html += '<div class="pm-meta-item"><strong>Deadline:</strong> ' + order.responseDeadline + '</div>';
+                html += '</div>';
+
+                if (order.electionOptions && order.electionOptions.length > 0) {
+                    html += '<table class="pm-options-table"><thead><tr><th>#</th><th>Type</th><th>Bonus/Acre</th><th>Royalty</th></tr></thead><tbody>';
+                    order.electionOptions.forEach(function(opt) {
+                        const typeName = (opt.optionType || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+                        html += '<tr>'
+                            + '<td>' + (opt.optionNumber || '') + '</td>'
+                            + '<td>' + typeName + '</td>'
+                            + '<td class="pm-bonus">' + (opt.bonusPerAcre ? '$' + opt.bonusPerAcre.toLocaleString() : '—') + '</td>'
+                            + '<td>' + (opt.royaltyFraction || (opt.royaltyDecimal ? (opt.royaltyDecimal * 100).toFixed(2) + '%' : '—')) + '</td>'
+                            + '</tr>';
+                    });
+                    html += '</tbody></table>';
+                } else {
+                    html += '<div style="color:#94A3B8;font-size:12px;">No election options extracted.</div>';
+                }
+                html += '</td></tr>';
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function togglePmRow(rowId) {
+            const row = document.getElementById(rowId);
+            if (row) row.classList.toggle('open');
         }
 
         // Enrich/revert property tooltips with pooling rate context

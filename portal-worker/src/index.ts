@@ -155,6 +155,7 @@ import {
   handleGetCountyStats,
   handleGetCountyProduction,
   handleGetPoolingRates,
+  handleGetPoolingOrders,
   handleGetMapDataVersion,
   // Docket heatmap handler
   handleGetDocketHeatmap,
@@ -1271,6 +1272,9 @@ var index_default = {
       }
       if (path === "/api/map/pooling-rates" && request.method === "GET") {
         return handleGetPoolingRates(request, env);
+      }
+      if (path === "/api/map/pooling-orders" && request.method === "GET") {
+        return handleGetPoolingOrders(request, env);
       }
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);
