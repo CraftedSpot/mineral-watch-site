@@ -2470,6 +2470,57 @@
             font-size: 16px;
         }
         
+        /* Dark mode map overrides */
+        .map-dark .map-controls-bar {
+            background: #1E293B;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+        }
+        .map-dark .controls-toggle,
+        .map-dark .collapse-x-btn { color: #E2E8F0; }
+        .map-dark .toggle-btn { background: #334155; color: #CBD5E1; border-color: #475569; }
+        .map-dark .toggle-btn.active { background: #164E63; color: #22D3EE; border-color: #0E7490; }
+        .map-dark .layer-select,
+        .map-dark .heatmap-btn,
+        .map-dark .overlays-btn {
+            background: #334155; color: #CBD5E1; border-color: #475569;
+        }
+        .map-dark .layer-select.active { background: #164E63; color: #22D3EE; border-color: #0E7490; }
+        .map-dark .heatmap-menu,
+        .map-dark .overlays-menu { background: #1E293B; border-color: #334155; }
+        .map-dark .overlay-option label { color: #CBD5E1; }
+        .map-dark .heatmap-section-divider { color: #64748B; border-color: #334155; }
+        .map-dark .map-search-container input {
+            background: #1E293B; color: #E2E8F0; border-color: #475569;
+        }
+        .map-dark .map-search-container input::placeholder { color: #64748B; }
+        .map-dark .search-results { background: #1E293B; border-color: #334155; }
+        .map-dark .search-results li { color: #CBD5E1; }
+        .map-dark .search-results li:hover { background: #334155; }
+        .map-dark .leaflet-control-zoom a {
+            background: #1E293B;
+            color: #E2E8F0;
+            border-color: #334155;
+        }
+        .map-dark .leaflet-control-zoom a:hover {
+            background: #334155;
+        }
+        .map-dark .leaflet-control-attribution {
+            background: rgba(15,23,42,0.7);
+            color: #94A3B8;
+        }
+        .map-dark .leaflet-control-attribution a { color: #94A3B8; }
+        .map-dark .leaflet-popup-content-wrapper {
+            background: #1E293B;
+            color: #E2E8F0;
+        }
+        .map-dark .leaflet-popup-tip { background: #1E293B; }
+        .map-dark .popup-details { color: #94A3B8; }
+        .map-dark .popup-well-name { color: #F1F5F9; }
+        .map-dark .popup-tag { background: #334155 !important; color: #CBD5E1 !important; }
+        .map-dark .popup-tag.tracked-well { background: #164E63 !important; color: #22D3EE !important; }
+        .map-dark .popup-btn { background: #334155; color: #CBD5E1; border-color: #475569; }
+        .map-dark .popup-btn:hover { background: #475569; }
+
         /* Lightweight glowing dot markers */
         .nw-dot, .tw-dot {
             background: transparent !important;
@@ -2694,6 +2745,9 @@
                             <option value="oil">Oil</option>
                             <option value="gas">Gas</option>
                         </select>
+                        <button id="darkModeBtn" class="layer-select" onclick="toggleMapDarkMode()" title="Toggle dark basemap" style="cursor:pointer;text-align:center;min-width:auto;padding:4px 10px;">
+                            🌙
+                        </button>
                     </div>
 
                     <div class="overlays-dropdown">

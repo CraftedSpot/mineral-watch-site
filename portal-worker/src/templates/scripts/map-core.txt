@@ -13,18 +13,53 @@
             }
         }, 100);
         
-        // Add Esri Light Gray Canvas basemap - perfect for data visualization
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+        // Basemap layers — light (default) and dark mode
+        const lightBase = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri',
             maxZoom: 19
         }).addTo(map);
-        
-        // Add Esri reference overlay (place names, etc.) with subtle opacity
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+
+        const lightRef = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
             attribution: '',
             maxZoom: 19,
             opacity: 0.8
         }).addTo(map);
+
+        const darkBase = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+            maxZoom: 20,
+            subdomains: 'abcd'
+        });
+
+        let mapDarkMode = localStorage.getItem('mw_map_dark') === '1';
+
+        function toggleMapDarkMode() {
+            mapDarkMode = !mapDarkMode;
+            localStorage.setItem('mw_map_dark', mapDarkMode ? '1' : '0');
+            applyMapDarkMode();
+        }
+
+        function applyMapDarkMode() {
+            const btn = document.getElementById('darkModeBtn');
+            if (mapDarkMode) {
+                map.removeLayer(lightBase);
+                map.removeLayer(lightRef);
+                if (!map.hasLayer(darkBase)) darkBase.addTo(map);
+                darkBase.bringToBack();
+                document.getElementById('map').classList.add('map-dark');
+                if (btn) btn.textContent = '☀️';
+            } else {
+                map.removeLayer(darkBase);
+                if (!map.hasLayer(lightBase)) lightBase.addTo(map);
+                if (!map.hasLayer(lightRef)) lightRef.addTo(map);
+                lightBase.bringToBack();
+                document.getElementById('map').classList.remove('map-dark');
+                if (btn) btn.textContent = '🌙';
+            }
+        }
+
+        // Apply saved preference on load
+        if (mapDarkMode) applyMapDarkMode();
         
         
         // Map click handler for location identification - DISABLED
