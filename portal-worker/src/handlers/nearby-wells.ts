@@ -190,6 +190,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         w.true_vertical_depth, w.measured_total_depth,
         w.lateral_length,
         w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
+        w.last_prod_month,
         o.phone, o.contact_name
       FROM wells w
       LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
@@ -353,7 +354,8 @@ export async function handleSurroundingWells(request: Request, env: Env): Promis
         well_type,
         well_status,
         spud_date,
-        completion_date
+        completion_date,
+        last_prod_month
       FROM wells
       WHERE township = ?1 
         AND range = ?2 

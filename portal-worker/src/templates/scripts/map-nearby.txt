@@ -592,9 +592,39 @@
             // Collect lateral data separately — drawn only when zoomed in
             const lateralData = [];
 
-            // Determine marker color + glow based on well type and status
+            // Compute production data horizon from nearby wells (same logic as dashboard)
+            let nearbyProdHorizon = null;
+            const allProdMonths = wells.map(w => w.last_prod_month).filter(Boolean).sort();
+            if (allProdMonths.length > 0) {
+                // Use the most recent month with substantial data
+                const monthCounts = {};
+                allProdMonths.forEach(m => { monthCounts[m] = (monthCounts[m] || 0) + 1; });
+                const sorted = Object.entries(monthCounts).sort((a, b) => b[0].localeCompare(a[0]));
+                // Pick the first month with at least 10 wells (or just the latest)
+                nearbyProdHorizon = sorted[0][0];
+                for (const [month, count] of sorted) {
+                    if (count >= 10) { nearbyProdHorizon = month; break; }
+                }
+            }
+            // 3 months before horizon
+            let nearbyProdCutoff = null;
+            if (nearbyProdHorizon) {
+                let y = parseInt(nearbyProdHorizon.substring(0, 4));
+                let m = parseInt(nearbyProdHorizon.substring(4, 6)) - 3;
+                if (m <= 0) { m += 12; y -= 1; }
+                nearbyProdCutoff = '' + y + String(m).padStart(2, '0');
+            }
+
+            // Check if a well is actively producing
+            function isProducing(well) {
+                if (!well.last_prod_month || !nearbyProdCutoff) return false;
+                return well.last_prod_month >= nearbyProdCutoff;
+            }
+
+            // Determine marker color + glow based on well type, status, and production
             function nearbyMarkerStyle(well) {
                 const isPlugged = well.well_status === 'PA';
+                const producing = !isPlugged && isProducing(well);
                 const wt = (well.well_type || '').toLowerCase();
                 let color, glow;
                 if (wt.includes('gas')) {
@@ -604,11 +634,16 @@
                     color = isPlugged ? '#93C5FD' : '#3B82F6';
                     glow = isPlugged ? 'none' : '0 0 6px 2px rgba(59,130,246,0.45)';
                 } else {
-                    // Oil + default = green (matches cover image)
+                    // Oil + default = green
                     color = isPlugged ? '#6EE7B7' : '#22C55E';
                     glow = isPlugged ? 'none' : '0 0 6px 2px rgba(34,197,94,0.5)';
                 }
-                return { color, glow, opacity: isPlugged ? 0.45 : 1 };
+                // Non-producing active wells: dimmer, no glow
+                if (!isPlugged && !producing && well.well_status === 'AC') {
+                    glow = 'none';
+                    return { color, glow, opacity: 0.55, producing: false };
+                }
+                return { color, glow, opacity: isPlugged ? 0.45 : 1, producing };
             }
 
             // Add filtered wells to map — glowing circle dots
@@ -640,14 +675,21 @@
                 const operator = toTitleCase(well.operator || 'Unknown');
                 const wellStatus = getStatusLabel(well.well_status);
                 const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
+                const producing = style.producing;
 
                 marker.wellData = well;
+
+                const prodBadge = (well.well_status === 'AC' && !isExtendedLateral)
+                    ? (producing
+                        ? '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#DCFCE7;color:#166534;">Producing</span>'
+                        : '<span style="display:inline-block;margin-left:6px;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:600;background:#FEF3C7;color:#92400E;">No Recent Prod</span>')
+                    : '';
 
                 const popupContent = `
                     <div class="popup-header">
                         <span class="popup-tag" style="background: ${isExtendedLateral ? '#FEF3C7' : '#E5E7EB'}; color: ${isExtendedLateral ? '#92400E' : '#374151'};">
                             ${isExtendedLateral ? 'Extended Lateral' : 'Nearby Well'}
-                        </span>
+                        </span>${prodBadge}
                     </div>
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
