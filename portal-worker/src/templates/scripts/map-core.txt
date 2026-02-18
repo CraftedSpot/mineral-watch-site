@@ -86,11 +86,50 @@
             }
         }
 
+        // Dark mode toggle — Leaflet control next to zoom buttons
+        const DarkModeControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const container = L.DomUtil.create('div', 'leaflet-control-darkmode leaflet-bar');
+                const link = L.DomUtil.create('a', '', container);
+                link.id = 'darkModeBtn';
+                link.href = '#';
+                link.title = 'Toggle dark mode';
+                link.textContent = mapDarkMode ? '\uD83C\uDF19' : '\u2600\uFE0F';
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.on(link, 'click', function(e) {
+                    L.DomEvent.preventDefault(e);
+                    toggleMapDarkMode();
+                });
+                return container;
+            }
+        });
+        map.addControl(new DarkModeControl());
+
         // Apply saved preference on load
         if (mapDarkMode) applyMapDarkMode();
 
-        // Fullscreen toggle
+        // Fullscreen toggle — Leaflet control next to zoom buttons
         let mapFullscreen = false;
+        const FullscreenControl = L.Control.extend({
+            options: { position: 'topleft' },
+            onAdd: function() {
+                const container = L.DomUtil.create('div', 'leaflet-control-fullscreen leaflet-bar');
+                const link = L.DomUtil.create('a', '', container);
+                link.id = 'fullscreenBtn';
+                link.href = '#';
+                link.title = 'Toggle fullscreen';
+                link.textContent = '\u26F6';
+                L.DomEvent.disableClickPropagation(container);
+                L.DomEvent.on(link, 'click', function(e) {
+                    L.DomEvent.preventDefault(e);
+                    toggleMapFullscreen();
+                });
+                return container;
+            }
+        });
+        map.addControl(new FullscreenControl());
+
         function toggleMapFullscreen() {
             const container = document.querySelector('.map-container');
             const btn = document.getElementById('fullscreenBtn');
@@ -99,18 +138,16 @@
             mapFullscreen = !mapFullscreen;
             if (mapFullscreen) {
                 container.classList.add('map-fullscreen');
-                if (btn) btn.textContent = '✕';
+                if (btn) btn.textContent = '\u2715';
                 document.body.style.overflow = 'hidden';
             } else {
                 container.classList.remove('map-fullscreen');
-                if (btn) btn.textContent = '⛶';
+                if (btn) btn.textContent = '\u26F6';
                 document.body.style.overflow = '';
             }
-            // Let Leaflet recalculate size
             setTimeout(() => map.invalidateSize(), 50);
         }
 
-        // Esc key exits fullscreen
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape' && mapFullscreen) {
                 toggleMapFullscreen();
