@@ -47,14 +47,28 @@
                 if (!map.hasLayer(darkBase)) darkBase.addTo(map);
                 darkBase.bringToBack();
                 document.getElementById('map').classList.add('map-dark');
-                if (btn) btn.textContent = '🌙'; // Moon = you're in dark mode
+                if (btn) btn.textContent = '🌙';
             } else {
                 map.removeLayer(darkBase);
                 if (!map.hasLayer(lightBase)) lightBase.addTo(map);
                 if (!map.hasLayer(lightRef)) lightRef.addTo(map);
                 lightBase.bringToBack();
                 document.getElementById('map').classList.remove('map-dark');
-                if (btn) btn.textContent = '☀️'; // Sun = you're in light mode
+                if (btn) btn.textContent = '☀️';
+            }
+            // Restyle county boundaries for dark/light
+            if (countyLayer) {
+                countyLayer.setStyle({
+                    color: mapDarkMode ? 'rgba(255,255,255,0.6)' : '#1C2B36',
+                    weight: mapDarkMode ? 1.5 : 3,
+                    opacity: mapDarkMode ? 0.5 : 0.8,
+                    fillOpacity: 0,
+                    fillColor: 'transparent'
+                });
+            }
+            // Rebuild county labels with correct colors
+            if (typeof createCountyLabels === 'function') {
+                createCountyLabels();
             }
         }
 

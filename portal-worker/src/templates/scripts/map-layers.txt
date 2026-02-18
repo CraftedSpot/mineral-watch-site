@@ -490,10 +490,16 @@
 
                 if (!centroid) return;
 
+                const isDark = typeof mapDarkMode !== 'undefined' && mapDarkMode;
+                const labelColor = isDark ? 'rgba(255,255,255,0.9)' : 'rgba(28, 43, 54, 0.85)';
+                const labelShadow = isDark
+                    ? '-1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8), -1px 1px 0 rgba(0,0,0,0.8), 1px 1px 0 rgba(0,0,0,0.8), 0 0 6px rgba(0,0,0,0.6)'
+                    : '-1px -1px 0 rgba(255,255,255,0.95), 1px -1px 0 rgba(255,255,255,0.95), -1px 1px 0 rgba(255,255,255,0.95), 1px 1px 0 rgba(255,255,255,0.95), 0 0 4px rgba(255,255,255,0.9)';
+
                 const label = L.divIcon({
                     className: 'county-label',
                     html: `<div style="
-                        color: rgba(28, 43, 54, 0.85);
+                        color: ${labelColor};
                         font-family: 'Inter', sans-serif;
                         font-size: ${fontSize};
                         font-weight: 600;
@@ -502,12 +508,7 @@
                         text-align: center;
                         white-space: nowrap;
                         pointer-events: none;
-                        text-shadow:
-                            -1px -1px 0 rgba(255,255,255,0.95),
-                            1px -1px 0 rgba(255,255,255,0.95),
-                            -1px 1px 0 rgba(255,255,255,0.95),
-                            1px 1px 0 rgba(255,255,255,0.95),
-                            0 0 4px rgba(255,255,255,0.9);
+                        text-shadow: ${labelShadow};
                     ">${countyName}</div>`,
                     iconSize: [120, 20],
                     iconAnchor: [60, 10]
