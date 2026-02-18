@@ -499,7 +499,7 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<Enr
 
   if (allApiNumbers.length > 0) {
     // Query D1 in batches for ALL well data (surface + BH)
-    const BATCH = 90; // D1 limit is 100 bind params per query
+    const BATCH = 99; // D1 limit is 100 bind params per query
     const uniqueApis = [...new Set(allApiNumbers)];
     for (let i = 0; i < uniqueApis.length; i += BATCH) {
       const batch = uniqueApis.slice(i, i + BATCH);
@@ -1106,7 +1106,7 @@ export async function runFullPropertyWellMatching(
   // Get existing links from D1 using actual property IDs (not user_id which may be NULL)
   const propertyIds = properties.map((p: any) => p.id);
   let existingLinks: any[] = [];
-  const LINK_BATCH = 90; // D1 limit is 100 bind params per query
+  const LINK_BATCH = 99; // D1 limit is 100 bind params per query
   for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
     const batch = propertyIds.slice(i, i + LINK_BATCH);
     const placeholders = batch.map(() => '?').join(',');
@@ -1134,7 +1134,7 @@ export async function runFullPropertyWellMatching(
   const processedWells = processWells(wells);
 
   // Find matches — streaming flush every FLUSH_SIZE to cap memory usage
-  const FLUSH_SIZE = 500;
+  const FLUSH_SIZE = 1000;
   let buffer: any[] = [];
   let totalCreated = 0;
   let totalFailed = 0;

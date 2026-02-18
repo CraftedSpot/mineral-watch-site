@@ -830,7 +830,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
 
     // Small delay between batches to avoid Airtable rate limits
     if (i + airtableBatchSize < successfulD1.length) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
@@ -1992,10 +1992,10 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
 
     // Small delay between batches
     if (i + batchSize < toCreate.length) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  
+
   console.log(`Bulk wells upload complete: ${results.successful} created, ${results.failed} failed, ${results.skipped} skipped`);
 
   // Enrich well_pun_links with any new PUN→API mappings from user's data
@@ -2010,9 +2010,9 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
             ON CONFLICT(api_number, pun) DO NOTHING
           `).bind(w.apiNumber, w.pun)
         );
-        // Batch in groups of 100
-        for (let i = 0; i < punStmts.length; i += 100) {
-          await env.WELLS_DB.batch(punStmts.slice(i, i + 100));
+        // Batch in groups of 500 (D1 batch limit)
+        for (let i = 0; i < punStmts.length; i += 500) {
+          await env.WELLS_DB.batch(punStmts.slice(i, i + 500));
         }
         console.log(`[BulkUpload] Enriched well_pun_links with ${punMappings.length} user-provided PUN mappings`);
       } catch (punErr: any) {
