@@ -275,7 +275,10 @@
                             }
                             
                             // Format: "S12 • 21N 18W • IM"
-                            const sectionInfo = `S${sectionNum} • ${township} ${range} • ${meridian}`;
+                            const padTwn = township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                            const padRng = range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                            const padSec = sectionNum.toString().padStart(2, '0');
+                            const sectionInfo = `${padTwn}-${padRng}-${padSec} • ${meridian}`;
                             layer.bindTooltip(sectionInfo, {
                                 sticky: true,
                                 opacity: 0.9
@@ -808,22 +811,22 @@
                 <div class="popup-well-name">${wellName}</div>
                 <div class="popup-details">
                     ${operator}<br>
-                    ${well.section ? `S${well.section} T${well.township} R${well.range} • ` : ''}${well.county || 'Unknown'}<br>
+                    ${well.section ? `${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${well.section.toString().padStart(2, '0')} • ` : ''}${well.county || 'Unknown'}<br>
                     Status: ${wellStatusLabel}${formation ? ` • ${formation}` : ''}
                 </div>
                 <div class="popup-actions">
                     <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">More →</button>
                 </div>
             `;
-            
-            marker.bindPopup(popupContent, { 
+
+            marker.bindPopup(popupContent, {
                 maxWidth: 300,
                 className: 'high-z-popup'
             });
-            
+
             return marker;
         }
-        
+
         // Create clustered marker for multiple wells at same location (with lateral paths) - LEGACY, keeping for reference
         function createClusteredWellMarker(wellsAtLocation) {
             const firstWell = wellsAtLocation[0];
@@ -841,9 +844,9 @@
             const dominantStatus = dominantWell.well_status || 'Unknown';
             const statusColor = WELL_STATUS_COLORS[dominantStatus] || WELL_STATUS_COLORS.default;
             const operatorColor = getOperatorColor(dominantWell.operator || '');
-            
+
             let marker;
-            
+
             // Fixed-size pin marker (same as nearby wells; slightly larger for clusters)
             const markerSize = count === 1 ? 14 : 18;
             const markerH = markerSize * 1.4;
@@ -878,7 +881,7 @@
                 popupAnchor: [0, -markerH]
             });
             marker = L.marker([coords.lat, coords.lon], { icon: icon });
-            
+
             // Create popup content for clustered wells
             let popupContent;
             if (count === 1) {
@@ -896,7 +899,7 @@
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
                         ${operator}<br>
-                        ${well.section ? `S${well.section} T${well.township} R${well.range} • ` : ''}${well.county || 'Unknown'}<br>
+                        ${well.section ? `${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${well.section.toString().padStart(2, '0')} • ` : ''}${well.county || 'Unknown'}<br>
                         Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                     </div>
                     <div class="popup-actions">
@@ -906,7 +909,7 @@
             } else {
                 // Multiple wells popup - show location context
                 const locationStr = firstWell.section
-                    ? `S${firstWell.section} T${firstWell.township} R${firstWell.range}`
+                    ? `${(firstWell.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(firstWell.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${firstWell.section.toString().padStart(2, '0')}`
                     : (firstWell.county || 'this location');
                 
                 popupContent = `

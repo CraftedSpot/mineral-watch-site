@@ -503,9 +503,9 @@
             // Detect if horizontal based on well name pattern
             const isHorizontal = detectHorizontalWell(wellName);
 
-            // Format location string (T10N R07W 06 format)
+            // Format location string (22N-13W-07 dashed format)
             const locationStr = section && township && range
-                ? `T${township} R${range} ${section}`
+                ? `${township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${section.toString().padStart(2, '0')}`
                 : 'Location not available';
 
             // Store state in hidden fields

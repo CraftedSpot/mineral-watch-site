@@ -183,7 +183,7 @@
 
                                         const countyParam = urlParams.get('county');
                                         highlightLayer.bindPopup(
-                                            `<b>Section ${sectionParam}</b><br>T${townshipParam} R${rangeParam}` +
+                                            `<b>${townshipParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${rangeParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${sectionParam.padStart(2, '0')}</b>` +
                                             (countyParam ? `<br>${countyParam} County` : '')
                                         ).openPopup();
                                     }
@@ -218,7 +218,7 @@
                 userProperties.forEach(prop => {
                     allSearchableItems.push({
                         type: 'property',
-                        name: `S${prop.fields.SEC} T${prop.fields.TWN} R${prop.fields.RNG}`,
+                        name: `${(prop.fields.TWN||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.RNG||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.SEC||'').toString().padStart(2, '0')}`,
                         details: `${prop.fields.COUNTY || ''} County${prop.fields.Notes ? ' • ' + prop.fields.Notes : ''}`,
                         data: prop,
                         searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
@@ -247,7 +247,7 @@
                     allSearchableItems.push({
                         type: 'nearby',
                         name: wellName || `API ${well.api_number || 'Unknown'}`,
-                        details: `${well.operator || 'Unknown'} • S${well.section || '?'} T${well.township || '?'} R${well.range || '?'}`,
+                        details: `${well.operator || 'Unknown'} • ${(well.township||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'?').toString().padStart(2, '0')}`,
                         data: { id: well.api_number, lat: well.latitude, lng: well.longitude },
                         searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''}`.toLowerCase()
                     });

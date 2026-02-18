@@ -652,7 +652,7 @@
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
                         ${operator}<br>
-                        S${well.section} T${well.township} R${well.range} • ${toTitleCase(well.county || 'Unknown')}<br>
+                        ${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'').toString().padStart(2, '0')} • ${toTitleCase(well.county || 'Unknown')}<br>
                         Status: ${wellStatus}${formation ? ' \u2022 ' + formation : ''}
                         ${isExtendedLateral && well.lateral_length ? '<br>Lateral: ' + (well.lateral_length / 5280).toFixed(1) + ' miles' : ''}
                     </div>

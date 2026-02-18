@@ -1,14 +1,14 @@
 
-        // Format location for modal display (T10N R07W 06 instead of S06 T10N R07W)
+        // Format location for modal display (10N-07W-06 dashed format)
         function formatLocationForModal(location) {
             if (!location) return '';
             // Extract parts from location string like "S06 T10N R07W"
-            const match = location.match(/S?(\d+)\s+(T\d+[NS])\s+(R\d+[EW])/i);
+            const match = location.match(/S?(\d+)\s+T?(\d+[NS])\s+R?(\d+[EW])/i);
             if (match) {
-                const section = match[1];
-                const township = match[2];
-                const range = match[3];
-                return `${township} ${range} ${section}`;
+                const sec = match[1].padStart(2, '0');
+                const twn = match[2].replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                const rng = match[3].replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+                return `${twn}-${rng}-${sec}`;
             }
             return location;
         }
@@ -307,9 +307,9 @@
             const ipOil = wellData.ip_oil_bbl || null;
             const ipGas = wellData.ip_gas_mcf || null;
 
-            // Format location string to match Tracked Wells (T10N R07W 06 format)
+            // Format location string (22N-13W-07 dashed format)
             const locationStr = section && township && range
-                ? `T${township} R${range} ${section.toString().padStart(2, '0')}`
+                ? `${township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${section.toString().padStart(2, '0')}`
                 : 'Location not available';
 
             // Status badge color
@@ -618,7 +618,7 @@
                 </div>
                 <div class="popup-well-name">${toTitleCase(fields.COUNTY || fields.County || 'Unknown')} County</div>
                 <div class="popup-details">
-                    <strong>S${fields.SEC || fields.Section} T${twp} R${rng}</strong><br>
+                    <strong>${(twp || '').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(rng || '').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(fields.SEC || fields.Section || '').toString().padStart(2, '0')}</strong><br>
                     ${ownershipText}<br>
                     ${(riAcres > 0 || wiAcres > 0) ? `<em>Your ownership: ${riAcres > 0 ? riAcres + ' RI' : ''}${(riAcres > 0 && wiAcres > 0) ? ' + ' : ''}${wiAcres > 0 ? wiAcres + ' WI' : ''} acres</em><br>` : ''}
                     ${fields.Notes ? `<em>"${fields.Notes}"</em><br>` : ''}
