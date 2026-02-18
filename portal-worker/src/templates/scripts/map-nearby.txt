@@ -913,13 +913,21 @@
                 // Prevent Leaflet from swallowing clicks on the legend
                 L.DomEvent.disableClickPropagation(el);
                 L.DomEvent.disableScrollPropagation(el);
+                // Event delegation for operator clicks
+                el.addEventListener('click', function(e) {
+                    const item = e.target.closest('.operator-legend-item[data-operator]');
+                    if (item) {
+                        e.stopPropagation();
+                        openOperatorModal(item.getAttribute('data-operator'));
+                    }
+                });
             }
 
             let html = `<div class="operator-legend-title">Operators in View <span style="font-weight:400;color:#94A3B8;">(${visibleWells.length})</span></div>`;
             topN.forEach(([op, count]) => {
                 const color = operatorColorMap[op] || '#6B7280';
                 const display = toTitleCase(op);
-                html += `<div class="operator-legend-item" onclick="openOperatorModal('${op.replace(/'/g, "\\'")}')">
+                html += `<div class="operator-legend-item" data-operator="${op.replace(/"/g, '&quot;')}">
                     <div class="operator-legend-dot" style="background:${color};"></div>
                     <div class="operator-legend-name">${display}</div>
                     <div class="operator-legend-count">${count}</div>
