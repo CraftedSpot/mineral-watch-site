@@ -339,7 +339,9 @@
             if (!modal) return;
 
             titleEl.textContent = 'Pooling Orders';
-            subtitleEl.textContent = township + ' ' + range;
+            const padT = township.replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
+            const padR = range.replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
+            subtitleEl.textContent = padT + '-' + padR;
             bodyEl.innerHTML = '<div style="text-align:center;padding:40px;color:#94A3B8;">Loading pooling orders...</div>';
             modal.classList.add('active');
 
@@ -379,26 +381,36 @@
                 + '</div>';
 
             html += '<table class="pooling-modal-table"><thead><tr>'
-                + '<th>Date</th><th>Operator</th><th>Well Name</th><th>Formation</th><th>Sec</th><th>Best Bonus</th><th>Type</th>'
+                + '<th></th><th>Date</th><th>Operator / Well</th><th>Formation</th><th>TRS</th><th>Best Bonus</th><th>Top Royalty</th>'
                 + '</tr></thead><tbody>';
 
             data.orders.forEach(function(order, idx) {
                 const rowId = 'pm-row-' + idx;
                 const bestBonus = order.electionOptions.reduce(function(max, o) { return (o.bonusPerAcre || 0) > max ? (o.bonusPerAcre || 0) : max; }, 0);
+                const bestRoyalty = order.electionOptions.reduce(function(best, o) {
+                    const dec = o.royaltyDecimal || 0;
+                    return dec > (best.royaltyDecimal || 0) ? o : best;
+                }, {});
+                const royaltyStr = bestRoyalty.royaltyFraction || (bestRoyalty.royaltyDecimal ? (bestRoyalty.royaltyDecimal * 100).toFixed(2) + '%' : '—');
                 const formations = (order.formations || []).map(function(f) {
                     return '<span class="pm-formation-tag">' + (f.name || f) + '</span>';
                 }).join('') || '—';
                 const date = order.orderDate || '—';
-                const wellType = (order.wellType || '').charAt(0).toUpperCase() + (order.wellType || '').slice(1);
+                const operatorCell = order.operator || order.applicant || '—';
+                const wellLine = order.wellName ? '<div style="font-size:11px;color:#78716C;margin-top:2px;">' + order.wellName + '</div>' : '';
+                const oTwn = (order.township || '').replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
+                const oRng = (order.range || '').replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
+                const oSec = (order.section || '').toString().replace(/^(\d+)$/, function(_, n) { return n.padStart(2, '0'); });
+                const trsStr = oSec ? oTwn + '-' + oRng + '-' + oSec : '—';
 
-                html += '<tr class="pm-order-row" onclick="togglePmRow(\'' + rowId + '\')">'
+                html += '<tr class="pm-order-row" id="pm-hdr-' + idx + '" onclick="togglePmRow(\'' + rowId + '\',' + idx + ')">'
+                    + '<td><span class="pm-chevron">&#9654;</span></td>'
                     + '<td>' + date + '</td>'
-                    + '<td>' + (order.operator || '—') + '</td>'
-                    + '<td>' + (order.wellName || '—') + '</td>'
+                    + '<td>' + operatorCell + wellLine + '</td>'
                     + '<td>' + formations + '</td>'
-                    + '<td>' + (order.section || '—') + '</td>'
+                    + '<td style="white-space:nowrap;">' + trsStr + '</td>'
                     + '<td class="pm-bonus">' + (bestBonus > 0 ? '$' + bestBonus.toLocaleString() : '—') + '</td>'
-                    + '<td>' + (wellType || '—') + '</td>'
+                    + '<td>' + royaltyStr + '</td>'
                     + '</tr>';
 
                 // Expandable detail row
@@ -433,9 +445,11 @@
             container.innerHTML = html;
         }
 
-        function togglePmRow(rowId) {
+        function togglePmRow(rowId, idx) {
             const row = document.getElementById(rowId);
+            const hdr = document.getElementById('pm-hdr-' + idx);
             if (row) row.classList.toggle('open');
+            if (hdr) hdr.classList.toggle('expanded');
         }
 
         // Enrich/revert property tooltips with pooling rate context

@@ -493,7 +493,7 @@ export async function handleGetPoolingOrders(request: Request, env: Env): Promis
 
     const result = await env.WELLS_DB.prepare(`
       SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
-             po.proposed_well_name, po.section, po.township, po.range, po.county,
+             po.applicant, po.proposed_well_name, po.section, po.township, po.range, po.county,
              po.well_type, po.formations, po.unit_size_acres, po.response_deadline,
              peo.option_number, peo.option_type, peo.bonus_per_acre,
              peo.royalty_fraction, peo.royalty_decimal
@@ -515,6 +515,7 @@ export async function handleGetPoolingOrders(request: Request, env: Env): Promis
           orderNumber: row.order_number,
           orderDate: row.order_date,
           operator: row.operator,
+          applicant: row.applicant,
           wellName: row.proposed_well_name,
           section: row.section,
           township: row.township,
