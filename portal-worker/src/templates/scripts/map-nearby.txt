@@ -104,7 +104,9 @@
                     console.log('Nearby wells is off, not loading');
                     return;
                 }
-                const statusText = statusFilter === 'AC' ? 'active' : 'all';
+                // PRODUCING uses AC on the API side, then filters client-side
+                const apiStatus = statusFilter === 'PRODUCING' ? 'AC' : statusFilter;
+                const statusText = statusFilter === 'AC' ? 'active' : statusFilter === 'PRODUCING' ? 'producing' : 'all';
                 const cacheKey = getWellsCacheKey(statusFilter);
 
                 // Check cache first
@@ -182,7 +184,7 @@
                     },
                     body: JSON.stringify({
                         trs: allSections,
-                        status: statusFilter.toLowerCase(),
+                        status: apiStatus.toLowerCase(),
                         limit: 25000
                     })
                 });
@@ -214,9 +216,31 @@
                 });
 
                 // Remove duplicates
-                const uniqueWells = Array.from(
+                let uniqueWells = Array.from(
                     new Map(filteredAllWells.map(w => [w.api_number, w])).values()
                 );
+                // If "Producing" filter, remove wells without recent production
+                if (statusFilter === 'PRODUCING') {
+                    // Compute cutoff from data in this batch
+                    const prodMonths = uniqueWells.map(w => w.last_prod_month).filter(Boolean).sort();
+                    if (prodMonths.length > 0) {
+                        let horizon = prodMonths[prodMonths.length - 1];
+                        const mc = {};
+                        prodMonths.forEach(m => { mc[m] = (mc[m] || 0) + 1; });
+                        const sorted = Object.entries(mc).sort((a, b) => b[0].localeCompare(a[0]));
+                        for (const [month, count] of sorted) {
+                            if (count >= 10) { horizon = month; break; }
+                        }
+                        let cy = parseInt(horizon.substring(0, 4));
+                        let cm = parseInt(horizon.substring(4, 6)) - 3;
+                        if (cm <= 0) { cm += 12; cy -= 1; }
+                        const cutoff = '' + cy + String(cm).padStart(2, '0');
+                        const before = uniqueWells.length;
+                        uniqueWells = uniqueWells.filter(w => w.last_prod_month && w.last_prod_month >= cutoff);
+                        console.log(`Producing filter: ${before} → ${uniqueWells.length} (cutoff ${cutoff})`);
+                    }
+                }
+
                 console.log(`${uniqueWells.length} unique wells after filtering`);
 
                 // Cache the results
