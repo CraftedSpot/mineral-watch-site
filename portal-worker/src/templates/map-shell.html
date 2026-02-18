@@ -2523,6 +2523,12 @@
         .map-dark .popup-tag.tracked-well { background: #164E63 !important; color: #22D3EE !important; }
         .map-dark .popup-btn { background: #334155; color: #CBD5E1; border-color: #475569; }
         .map-dark .popup-btn:hover { background: #475569; }
+        .map-dark ~ .legend-strip,
+        .map-dark + * .legend-strip { background: #1E293B; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        .map-dark ~ .legend-strip .legend-group-title { color: #CBD5E1; }
+        .map-dark ~ .legend-strip .legend-text { color: #94A3B8; }
+        .map-dark ~ .legend-strip .legend-subtitle { color: #64748B; }
+        .map-dark ~ .legend-strip .legend-color { border-color: rgba(255,255,255,0.15); }
 
         /* Lightweight glowing dot markers */
         .nw-dot, .tw-dot {
@@ -2841,7 +2847,7 @@
             </div>
             
             <!-- Legend Strip -->
-            <div class="legend-strip">
+            <div class="legend-strip" id="legendStrip">
                 <div class="legend-group">
                     <div class="legend-group-title">Monitoring</div>
                     <div class="legend-items">
@@ -2850,24 +2856,34 @@
                             <span class="legend-text">My Property</span>
                         </div>
                         <div class="legend-item">
-                            <svg width="16" height="20" viewBox="-2 -1 28 36" xmlns="http://www.w3.org/2000/svg" style="margin: 2px 4px;">
-                                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
-                                      fill="#22C55E" stroke="#16A34A" stroke-width="2"/>
-                                <circle cx="12" cy="12" r="4.5" fill="#16A34A"/>
-                            </svg>
+                            <div style="width:12px;height:12px;border-radius:50%;background:#fff;border:2.5px solid #06B6D4;box-shadow:0 0 6px 2px rgba(6,182,212,0.45);flex-shrink:0;"></div>
                             <span class="legend-text">Tracked Well</span>
-                        </div>
-                        <div class="legend-item">
-                            <svg width="14" height="18" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg" style="margin: 2px 5px;">
-                                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
-                                      fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
-                                <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
-                            </svg>
-                            <span class="legend-text">Nearby Well</span>
                         </div>
                     </div>
                 </div>
-                
+
+                <div class="legend-group">
+                    <div class="legend-group-title">Nearby Wells</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div style="width:9px;height:9px;border-radius:50%;background:#22C55E;box-shadow:0 0 5px 2px rgba(34,197,94,0.5);flex-shrink:0;"></div>
+                            <span class="legend-text">Oil</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width:9px;height:9px;border-radius:50%;background:#EF4444;box-shadow:0 0 5px 2px rgba(239,68,68,0.5);flex-shrink:0;"></div>
+                            <span class="legend-text">Gas</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width:9px;height:9px;border-radius:50%;background:#3B82F6;box-shadow:0 0 5px 2px rgba(59,130,246,0.45);flex-shrink:0;"></div>
+                            <span class="legend-text">Injection/SWD</span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width:9px;height:9px;border-radius:50%;background:#6EE7B7;opacity:0.45;flex-shrink:0;"></div>
+                            <span class="legend-text">Plugged</span>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="legend-group">
                     <div class="legend-group-title">Activity Type</div>
                     <div class="legend-items">
@@ -2889,7 +2905,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="legend-group">
                     <div class="legend-group-title">Heat Map</div>
                     <div class="legend-items">

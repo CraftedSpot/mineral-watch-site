@@ -984,12 +984,14 @@
         function resetCountyChoropleth() {
             if (!countyLayer) return;
 
+            const isDark = typeof mapDarkMode !== 'undefined' && mapDarkMode;
             countyLayer.eachLayer(function(layer) {
                 layer.setStyle({
-                    fillColor: '#3498db',
-                    fillOpacity: 0.1,
-                    color: '#1C2B36',
-                    weight: 3
+                    fillColor: 'transparent',
+                    fillOpacity: 0,
+                    color: isDark ? 'rgba(255,255,255,0.6)' : '#1C2B36',
+                    weight: isDark ? 1.5 : 3,
+                    opacity: isDark ? 0.5 : 0.8
                 });
                 // Remove any production popup
                 layer.unbindPopup();
@@ -1060,10 +1062,11 @@
                     const volume = prodData ? prodData.volume : 0;
                     const fillColor = getColor(volume);
 
+                    const isDark = typeof mapDarkMode !== 'undefined' && mapDarkMode;
                     layer.setStyle({
                         fillColor: fillColor,
                         fillOpacity: 0.7,
-                        color: '#1C2B36',
+                        color: isDark ? 'rgba(255,255,255,0.6)' : '#1C2B36',
                         weight: 2
                     });
 

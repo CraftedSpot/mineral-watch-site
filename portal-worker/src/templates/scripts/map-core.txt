@@ -56,20 +56,21 @@
                 document.getElementById('map').classList.remove('map-dark');
                 if (btn) btn.textContent = '☀️';
             }
-            // Restyle county boundaries for dark/light
-            if (countyLayer) {
-                countyLayer.setStyle({
-                    color: mapDarkMode ? 'rgba(255,255,255,0.6)' : '#1C2B36',
-                    weight: mapDarkMode ? 1.5 : 3,
-                    opacity: mapDarkMode ? 0.5 : 0.8,
-                    fillOpacity: 0,
-                    fillColor: 'transparent'
-                });
-            }
-            // Rebuild county labels with correct colors
-            if (typeof createCountyLabels === 'function') {
-                createCountyLabels();
-            }
+            // Restyle county boundaries for dark/light (guard: may not be loaded yet)
+            try {
+                if (typeof countyLayer !== 'undefined' && countyLayer) {
+                    countyLayer.setStyle({
+                        color: mapDarkMode ? 'rgba(255,255,255,0.6)' : '#1C2B36',
+                        weight: mapDarkMode ? 1.5 : 3,
+                        opacity: mapDarkMode ? 0.5 : 0.8,
+                        fillOpacity: 0,
+                        fillColor: 'transparent'
+                    });
+                }
+                if (typeof createCountyLabels === 'function') {
+                    createCountyLabels();
+                }
+            } catch (e) { /* counties not loaded yet — will pick up dark mode when they load */ }
         }
 
         // Apply saved preference on load
