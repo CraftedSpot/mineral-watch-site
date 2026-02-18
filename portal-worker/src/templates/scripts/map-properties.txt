@@ -640,31 +640,66 @@
             propertyMarkers[property.id] = layer;
         }
 
-        // Batch fetch geometries for multiple sections
+        // Batch fetch geometries — D1 first (instant), OCC fallback for misses
         async function batchFetchGeometries(propertyBatch) {
-            const batchSize = 20; // OCC API can handle ~20 sections per request
             const results = [];
 
-            for (let i = 0; i < propertyBatch.length; i += batchSize) {
-                const batch = propertyBatch.slice(i, i + batchSize);
+            document.querySelector('.loading-text').textContent =
+                `Loading ${propertyBatch.length} property boundaries...`;
 
-                // Update progress
-                const progress = Math.min(i + batchSize, propertyBatch.length);
+            // Step 1: Try D1 batch endpoint (all sections in 1 request, up to 500)
+            const sectionsPayload = propertyBatch.map(p => ({
+                section: p.section,
+                township: p.township,
+                range: p.range
+            }));
+
+            const d1Misses = [];
+            try {
+                const res = await fetch('/api/plss-sections/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sections: sectionsPayload })
+                });
+
+                if (res.ok) {
+                    const d1Results = await res.json();
+
+                    for (const prop of propertyBatch) {
+                        const cacheKey = `${prop.section}-${prop.township}-${prop.range}`;
+                        if (d1Results[cacheKey]) {
+                            results.push({ property: prop.property, geometry: d1Results[cacheKey] });
+                            geometryCache[cacheKey] = d1Results[cacheKey];
+                            localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(d1Results[cacheKey]));
+                        } else {
+                            d1Misses.push(prop);
+                        }
+                    }
+                    console.log(`D1 batch: ${propertyBatch.length - d1Misses.length} found, ${d1Misses.length} misses`);
+                } else {
+                    // D1 batch failed — fall back to OCC for all
+                    console.warn('D1 batch failed, falling back to OCC:', res.status);
+                    d1Misses.push(...propertyBatch);
+                }
+            } catch (err) {
+                console.warn('D1 batch error, falling back to OCC:', err);
+                d1Misses.push(...propertyBatch);
+            }
+
+            // Step 2: Fall back to OCC API for any D1 misses (batched by PLSS ID)
+            if (d1Misses.length > 0) {
                 document.querySelector('.loading-text').textContent =
-                    `Loading property boundaries... (${progress}/${propertyBatch.length})`;
+                    `Fetching ${d1Misses.length} remaining boundaries from OCC...`;
 
-                // Group by PLSS ID (township/range) for efficient querying
                 const plssGroups = {};
-                batch.forEach(prop => {
+                d1Misses.forEach(prop => {
                     const { plssId } = prop;
                     if (!plssGroups[plssId]) plssGroups[plssId] = [];
                     plssGroups[plssId].push(prop);
                 });
 
-                // Fetch each PLSS group
                 for (const [plssId, props] of Object.entries(plssGroups)) {
                     const sections = props.map(p => p.section).join("','");
-
                     const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
                         `where=plssid='${plssId}' AND frstdivno IN ('${sections}')` +
                         `&outFields=frstdivno,frstdivlab,gisacre,plssid,survtyptxt` +
@@ -673,36 +708,23 @@
 
                     try {
                         const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
-                        console.log(`Batch fetching ${props.length} sections for ${plssId}`);
                         const response = await fetch(proxyUrl);
-
                         if (response.ok) {
                             const data = await response.json();
-
-                            // Match features back to properties
                             data.features?.forEach(feature => {
                                 const sectionNum = feature.properties.frstdivno;
                                 const matchingProp = props.find(p => p.section === sectionNum);
                                 if (matchingProp) {
-                                    results.push({
-                                        property: matchingProp.property,
-                                        geometry: feature
-                                    });
-
-                                    // Cache individually for future single requests
+                                    results.push({ property: matchingProp.property, geometry: feature });
                                     const cacheKey = `${sectionNum}-${matchingProp.township}-${matchingProp.range}`;
                                     geometryCache[cacheKey] = feature;
                                     localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
                                 }
                             });
-                        } else {
-                            console.warn(`Batch request failed for ${plssId}:`, response.status);
                         }
                     } catch (error) {
-                        console.warn(`Error in batch request for ${plssId}:`, error);
+                        console.warn(`OCC fallback error for ${plssId}:`, error);
                     }
-
-                    // Small delay between batches
                     await new Promise(resolve => setTimeout(resolve, 100));
                 }
             }

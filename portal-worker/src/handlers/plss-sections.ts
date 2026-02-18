@@ -97,11 +97,14 @@ export async function handleGetPlssSectionsBatch(request: Request, env: Env): Pr
       return jsonResponse({ error: "Missing sections array in request body" }, 400);
     }
 
-    // Limit batch size
-    const sections = body.sections.slice(0, 50);
+    // Limit batch size to 500 (D1 batch limit)
+    const sections = body.sections.slice(0, 500);
     const results: Record<string, unknown> = {};
 
-    // Query each section (could optimize with IN clause but keeping simple for now)
+    // Build all statements for D1 batch execution (1 round-trip instead of N)
+    const stmtMeta: Array<{ cacheKey: string }> = [];
+    const stmts: any[] = [];
+
     for (const s of sections) {
       const paddedSection = s.section.toString().padStart(2, "0");
       const cacheKey = `${s.section}-${s.township}-${s.range}`;
@@ -112,25 +115,37 @@ export async function handleGetPlssSectionsBatch(request: Request, env: Env): Pr
         ? `${parseInt(twnMatch[1]) * 10}${twnMatch[2].toUpperCase()}`
         : s.township;
 
-      const result = await env.WELLS_DB.prepare(`
-        SELECT id, section, township, range, meridian, acres, geometry
-        FROM plss_sections
-        WHERE section = ? AND township = ? AND range = ?
-        LIMIT 1
-      `).bind(paddedSection, plssTownship, s.range).first();
+      stmtMeta.push({ cacheKey });
+      stmts.push(
+        env.WELLS_DB.prepare(`
+          SELECT id, section, township, range, meridian, acres, geometry
+          FROM plss_sections
+          WHERE section = ? AND township = ? AND range = ?
+          LIMIT 1
+        `).bind(paddedSection, plssTownship, s.range)
+      );
+    }
 
-      if (result) {
-        const geometry = JSON.parse(result.geometry as string);
-        results[cacheKey] = {
-          type: "Feature",
-          properties: {
-            frstdivno: result.section,
-            plssid: result.id,
-            gisacre: result.acres,
-            meridian: result.meridian,
-          },
-          geometry,
-        };
+    // Execute all queries in a single D1 batch call
+    if (stmts.length > 0) {
+      const batchResults = await env.WELLS_DB.batch(stmts);
+
+      for (let i = 0; i < batchResults.length; i++) {
+        const rows = batchResults[i].results as any[];
+        if (rows && rows.length > 0) {
+          const row = rows[0];
+          const geometry = JSON.parse(row.geometry as string);
+          results[stmtMeta[i].cacheKey] = {
+            type: "Feature",
+            properties: {
+              frstdivno: row.section,
+              plssid: row.id,
+              gisacre: row.acres,
+              meridian: row.meridian,
+            },
+            geometry,
+          };
+        }
       }
     }
 
