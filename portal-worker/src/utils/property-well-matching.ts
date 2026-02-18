@@ -2,7 +2,7 @@
  * Shared utilities for property-well matching
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
 import { fetchAllAirtableRecords } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 import { escapeAirtableValue } from './airtable-escape.js';
@@ -734,60 +734,83 @@ export async function getLinksForWell(
 }
 
 /**
- * Create links in batches
+ * Create links directly in D1 (no Airtable dependency).
+ * D1-first links have airtable_record_id = NULL, so orphan cleanup ignores them.
+ * Uses D1 batch API — up to 500 statements per round trip.
  */
 export async function createLinksInBatches(
   env: Env,
   links: any[]
 ): Promise<{ created: number; failed: number }> {
+  if (links.length === 0) return { created: 0, failed: 0 };
+
   let created = 0;
   let failed = 0;
-  const batchSize = 10;
-  
-  for (let i = 0; i < links.length; i += batchSize) {
-    const batch = links.slice(i, i + batchSize);
-    
-    // Debug log the batch
-    console.log(`[CreateLinks] Sending batch ${i/batchSize + 1}:`, JSON.stringify(batch, null, 2));
-    
+  const D1_BATCH = 500; // D1 batch limit
+
+  for (let i = 0; i < links.length; i += D1_BATCH) {
+    const batch = links.slice(i, i + D1_BATCH);
+
     try {
-      const response = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ records: batch })
+      const statements = batch.map(link => {
+        const fields = link.fields;
+        const id = `pwl_${crypto.randomUUID()}`;
+        const propertyId = Array.isArray(fields[LINK_FIELDS.PROPERTY]) ? fields[LINK_FIELDS.PROPERTY][0] : fields[LINK_FIELDS.PROPERTY];
+        const wellId = Array.isArray(fields[LINK_FIELDS.WELL]) ? fields[LINK_FIELDS.WELL][0] : fields[LINK_FIELDS.WELL];
+        const userId = Array.isArray(fields[LINK_FIELDS.USER]) ? fields[LINK_FIELDS.USER][0] : fields[LINK_FIELDS.USER] || null;
+        const orgId = Array.isArray(fields[LINK_FIELDS.ORGANIZATION]) ? fields[LINK_FIELDS.ORGANIZATION][0] : fields[LINK_FIELDS.ORGANIZATION] || null;
+
+        return env.WELLS_DB!.prepare(`
+          INSERT INTO property_well_links (
+            id, property_airtable_id, well_airtable_id,
+            match_reason, status, user_id, organization_id,
+            link_name, link_type, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(
+          id,
+          propertyId,
+          wellId,
+          fields[LINK_FIELDS.MATCH_REASON] || 'Auto',
+          fields[LINK_FIELDS.STATUS] || 'Active',
+          userId,
+          orgId,
+          fields[LINK_FIELDS.LINK_NAME] || null,
+          fields[LINK_FIELDS.LINK_TYPE] || 'Auto'
+        );
+      });
+
+      await env.WELLS_DB!.batch(statements);
+      created += batch.length;
+      console.log(`[CreateLinks] D1 batch ${Math.floor(i / D1_BATCH) + 1}: ${batch.length} links created`);
+
+      // Increment denormalized well_count on properties
+      try {
+        const propCounts = new Map<string, number>();
+        for (const link of batch) {
+          const fields = link.fields;
+          const propId = Array.isArray(fields[LINK_FIELDS.PROPERTY]) ? fields[LINK_FIELDS.PROPERTY][0] : fields[LINK_FIELDS.PROPERTY];
+          if (propId) {
+            propCounts.set(propId, (propCounts.get(propId) || 0) + 1);
+          }
         }
-      );
-      
-      if (response.ok) {
-        const result = await response.json();
-        created += batch.length;
-        console.log(`[CreateLinks] Batch created successfully:`, result.records?.map(r => ({
-          id: r.id,
-          property: r.fields.Property,
-          well: r.fields.Well
-        })));
-      } else {
-        const error = await response.text();
-        console.error(`[CreateLinks] Batch create failed:`, error);
-        console.error(`[CreateLinks] Failed batch data:`, JSON.stringify(batch, null, 2));
-        failed += batch.length;
-      }
-      
-      // Rate limit protection
-      if (i + batchSize < links.length) {
-        await new Promise(resolve => setTimeout(resolve, 200));
+        const updateStmts = Array.from(propCounts.entries()).map(([propId, count]) =>
+          env.WELLS_DB!.prepare(
+            `UPDATE properties SET well_count = well_count + ? WHERE airtable_record_id = ?`
+          ).bind(count, propId)
+        );
+        if (updateStmts.length > 0) {
+          await env.WELLS_DB!.batch(updateStmts);
+        }
+      } catch (countErr) {
+        // Non-fatal — reconciliation will correct within 15 min
+        console.error(`[CreateLinks] well_count increment error (non-fatal):`, countErr);
       }
     } catch (error) {
-      console.error(`[CreateLinks] Batch create error:`, error);
+      console.error(`[CreateLinks] D1 batch error:`, error);
       failed += batch.length;
     }
   }
-  
+
   return { created, failed };
 }
 
@@ -1110,29 +1133,26 @@ export async function runFullPropertyWellMatching(
   const processedProperties = processProperties(properties);
   const processedWells = processWells(wells);
 
-  // Find matches
-  const linksToCreate: any[] = [];
-  
+  // Find matches — streaming flush every FLUSH_SIZE to cap memory usage
+  const FLUSH_SIZE = 500;
+  let buffer: any[] = [];
+  let totalCreated = 0;
+  let totalFailed = 0;
+
   for (const property of processedProperties) {
     for (const well of processedWells) {
       const linkKey = `${property.id}-${well.id}`;
-      
-      // Skip if link already exists
-      if (existingLinkKeys.has(linkKey)) {
-        continue;
-      }
-      
-      // Check for match
+      if (existingLinkKeys.has(linkKey)) continue;
+
       const { matched, reason } = findBestMatch(property, well);
       if (matched) {
-        // Create link name
         const wellName = well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown Well';
-        const propLocation = property.location 
+        const propLocation = property.location
           ? `S${property.location.section}-T${property.location.township}-R${property.location.range}`
           : 'Unknown Location';
         const linkName = `${wellName} → ${propLocation}`;
-        
-        const linkRecord = {
+
+        const linkRecord: any = {
           fields: {
             [LINK_FIELDS.LINK_NAME]: linkName,
             [LINK_FIELDS.PROPERTY]: [property.id],
@@ -1143,24 +1163,34 @@ export async function runFullPropertyWellMatching(
             [LINK_FIELDS.USER]: [userId]
           }
         };
-        
-        // Add organization if exists
         if (organizationId) {
           linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
         }
-        
-        linksToCreate.push(linkRecord);
+
+        buffer.push(linkRecord);
+
+        // Flush when buffer is full
+        if (buffer.length >= FLUSH_SIZE) {
+          const { created, failed } = await createLinksInBatches(env, buffer);
+          totalCreated += created;
+          totalFailed += failed;
+          buffer = [];
+        }
       }
     }
   }
-  
-  // Create links in batches
-  const { created } = await createLinksInBatches(env, linksToCreate);
-  
-  return { 
-    linksCreated: created, 
-    propertiesProcessed: properties.length, 
-    wellsProcessed: wells.length 
+
+  // Flush remaining
+  if (buffer.length > 0) {
+    const { created, failed } = await createLinksInBatches(env, buffer);
+    totalCreated += created;
+    totalFailed += failed;
+  }
+
+  return {
+    linksCreated: totalCreated,
+    propertiesProcessed: properties.length,
+    wellsProcessed: wells.length
   };
 }
 

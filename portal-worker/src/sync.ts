@@ -713,9 +713,196 @@ async function safeCleanup(
   await cleanupOrphans(env, tableName, airtableIdColumn, validIds);
 }
 
+// Document types that count for property document_count (matches property-documents-d1.ts)
+const PROPERTY_DOC_TYPES = [
+  'mineral_deed', 'royalty_deed', 'assignment_of_interest', 'warranty_deed', 'quitclaim_deed',
+  'oil_gas_lease', 'extension_agreement', 'amendment', 'ratification', 'release',
+  'affidavit', 'probate', 'power_of_attorney', 'judgment',
+  'division_order', 'transfer_order', 'revenue_statement', 'check_stub',
+  'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order',
+  'unitization_order', 'multi_unit_horizontal_order', 'change_of_operator_order', 'well_transfer'
+];
+
+/**
+ * Reconcile denormalized link counts on the properties table.
+ * Runs per-owner to stay within CPU time limits. Logs drift warnings.
+ */
+async function reconcileLinkCounts(env: any): Promise<void> {
+  const start = Date.now();
+  const RECONCILE_BUDGET_MS = 120_000; // 2 minutes max for reconciliation
+
+  // Get distinct owners
+  const owners = await env.WELLS_DB.prepare(`
+    SELECT DISTINCT user_id, organization_id FROM properties
+    WHERE user_id IS NOT NULL OR organization_id IS NOT NULL
+  `).all();
+
+  if (!owners.results || owners.results.length === 0) {
+    console.log('[Reconcile] No properties to reconcile');
+    return;
+  }
+
+  console.log(`[Reconcile] Reconciling counts for ${owners.results.length} owner(s)`);
+
+  const docTypeList = PROPERTY_DOC_TYPES.map(t => `'${t}'`).join(',');
+  let totalUpdated = 0;
+  let totalDrift = 0;
+
+  for (const owner of owners.results as any[]) {
+    // Time budget check
+    if (Date.now() - start > RECONCILE_BUDGET_MS) {
+      console.warn(`[Reconcile] Time budget exceeded after ${totalUpdated} properties, will continue next cycle`);
+      break;
+    }
+
+    const userId = owner.user_id;
+    const orgId = owner.organization_id;
+
+    // Build owner WHERE clause
+    const ownerWhere = orgId
+      ? `(p.organization_id = ? OR p.user_id = ?)`
+      : `p.user_id = ?`;
+    const ownerParams = orgId ? [orgId, userId] : [userId];
+
+    try {
+      // Get current properties with their stored counts
+      const props = await env.WELLS_DB.prepare(`
+        SELECT id, airtable_record_id, section, township, range,
+               well_count, document_count, filing_count
+        FROM properties p
+        WHERE ${ownerWhere}
+      `).bind(...ownerParams).all();
+
+      if (!props.results || props.results.length === 0) continue;
+
+      const propIds = (props.results as any[]).map((p: any) => p.airtable_record_id || p.id);
+      const propMap = new Map<string, any>();
+      for (const p of props.results as any[]) {
+        propMap.set(p.airtable_record_id || p.id, p);
+      }
+
+      // 1. Well counts — use owner filter on links table
+      const wellMap = new Map<string, number>();
+      const ownerLinkWhere = orgId
+        ? `(organization_id = ? OR user_id = ?)`
+        : `user_id = ?`;
+      const wellResult = await env.WELLS_DB.prepare(`
+        SELECT property_airtable_id, COUNT(*) as cnt
+        FROM property_well_links
+        WHERE status IN ('Active', 'Linked') AND ${ownerLinkWhere}
+        GROUP BY property_airtable_id
+      `).bind(...ownerParams).all();
+      for (const r of wellResult.results as any[]) {
+        wellMap.set(r.property_airtable_id, r.cnt);
+      }
+
+      // 2. Document counts — subquery for owner's property IDs
+      const docMap = new Map<string, number>();
+      if (propIds.length > 0) {
+        // Batch in groups of 30 to stay within param limit
+        for (let i = 0; i < propIds.length; i += 30) {
+          const batch = propIds.slice(i, i + 30);
+          const placeholders = batch.map(() => '?').join(',');
+          const docResult = await env.WELLS_DB.prepare(`
+            SELECT property_id, COUNT(*) as cnt
+            FROM documents
+            WHERE property_id IN (${placeholders})
+              AND (deleted_at IS NULL OR deleted_at = '')
+              AND doc_type IN (${docTypeList})
+            GROUP BY property_id
+          `).bind(...batch).all();
+          for (const r of docResult.results as any[]) {
+            docMap.set(r.property_id, r.cnt);
+          }
+        }
+      }
+
+      // 3. Filing counts (direct STR match) — scoped to owner's properties
+      const filingMap = new Map<string, number>();
+      const filingResult = await env.WELLS_DB.prepare(`
+        SELECT p.airtable_record_id as prop_id,
+               COUNT(*) as cnt
+        FROM properties p
+        INNER JOIN occ_docket_entries ode
+          ON CAST(ode.section AS INTEGER) = CAST(p.section AS INTEGER)
+          AND UPPER(ode.township) = UPPER(p.township)
+          AND UPPER(ode.range) = UPPER(p.range)
+        WHERE p.section IS NOT NULL AND ${ownerWhere}
+        GROUP BY p.airtable_record_id
+      `).bind(...ownerParams).all();
+      for (const r of filingResult.results as any[]) {
+        filingMap.set(r.prop_id, (filingMap.get(r.prop_id) || 0) + r.cnt);
+      }
+
+      // 4. Additional sections via junction table
+      const addlResult = await env.WELLS_DB.prepare(`
+        SELECT p.airtable_record_id as prop_id,
+               COUNT(DISTINCT des.case_number) as cnt
+        FROM properties p
+        INNER JOIN docket_entry_sections des
+          ON des.section = CAST(p.section AS TEXT)
+          AND des.township = p.township
+          AND des.range = p.range
+        WHERE p.section IS NOT NULL AND ${ownerWhere}
+        GROUP BY p.airtable_record_id
+      `).bind(...ownerParams).all();
+      for (const r of addlResult.results as any[]) {
+        filingMap.set(r.prop_id, (filingMap.get(r.prop_id) || 0) + r.cnt);
+      }
+
+      // Build UPDATE statements — only update rows that changed
+      const stmts: any[] = [];
+      for (const [propId, prop] of propMap) {
+        const newWells = wellMap.get(propId) || 0;
+        const newDocs = docMap.get(propId) || 0;
+        const newFilings = filingMap.get(propId) || 0;
+
+        const currentWells = prop.well_count || 0;
+        const currentDocs = prop.document_count || 0;
+        const currentFilings = prop.filing_count || 0;
+
+        // Skip if nothing changed
+        if (newWells === currentWells && newDocs === currentDocs && newFilings === currentFilings) {
+          continue;
+        }
+
+        // Drift detection
+        if (Math.abs(newWells - currentWells) > 5) {
+          console.warn(`[Reconcile] Drift: prop=${propId} well_count was ${currentWells}, now ${newWells}`);
+          totalDrift++;
+        }
+
+        stmts.push(
+          env.WELLS_DB.prepare(
+            `UPDATE properties SET well_count = ?, document_count = ?, filing_count = ? WHERE id = ?`
+          ).bind(newWells, newDocs, newFilings, prop.id)
+        );
+      }
+
+      // Execute in D1 batches of 500
+      for (let i = 0; i < stmts.length; i += 500) {
+        await env.WELLS_DB.batch(stmts.slice(i, i + 500));
+      }
+
+      totalUpdated += stmts.length;
+    } catch (err) {
+      console.error(`[Reconcile] Error for owner user=${userId} org=${orgId}:`, err);
+    }
+  }
+
+  console.log(`[Reconcile] Done in ${Date.now() - start}ms. Updated ${totalUpdated} properties, ${totalDrift} drift warnings`);
+}
+
 async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
   const totalSynced = cursor.stats.properties.synced + cursor.stats.wells.synced +
     cursor.stats.clientWells.synced + cursor.stats.links.synced;
+
+  // Reconcile denormalized link counts
+  try {
+    await reconcileLinkCounts(env);
+  } catch (error) {
+    console.error('[Sync] Link count reconciliation error:', error);
+  }
 
   // Document re-linking
   if (env.DOCUMENTS_WORKER && totalSynced > 0) {
@@ -749,7 +936,8 @@ async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
     console.error('[Sync] BH geocoding error:', error);
   }
 
-  // Auto-match properties to wells
+  // Auto-match properties to wells (capped to avoid CPU time limit on large sync cycles)
+  const MAX_AUTOMATCH_USERS = 5;
   if (cursor.stats.properties.synced > 0) {
     try {
       const usersWithUnlinked = await env.WELLS_DB.prepare(`
@@ -760,10 +948,12 @@ async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
         JOIN users u ON u.airtable_record_id = p.owner
         WHERE pwl.id IS NULL
         GROUP BY p.owner
-      `).all();
+        ORDER BY unlinked ASC
+        LIMIT ?
+      `).bind(MAX_AUTOMATCH_USERS).all();
 
       if (usersWithUnlinked.results.length > 0) {
-        console.log(`[Sync] Found ${usersWithUnlinked.results.length} user(s) with unlinked properties, running auto-match`);
+        console.log(`[Sync] Found ${usersWithUnlinked.results.length} user(s) with unlinked properties (max ${MAX_AUTOMATCH_USERS}), running auto-match`);
         for (const row of usersWithUnlinked.results as any[]) {
           try {
             const matchResult = await runFullPropertyWellMatching(

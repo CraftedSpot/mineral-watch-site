@@ -73,10 +73,7 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
   ).bind(...bindParams);
 
   const selectQuery = `
-    SELECT p.*,
-      (SELECT COUNT(*) FROM property_well_links pwl
-       WHERE pwl.property_airtable_id = p.airtable_record_id
-       AND pwl.status IN ('Active', 'Linked')) as linked_wells
+    SELECT p.*
     FROM properties p
     ${whereClause}
     ORDER BY p.county, p.township, p.range, p.section
@@ -118,7 +115,12 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
     },
     // Extra metadata (not in Airtable format but useful)
     _d1Id: row.id,
-    _linkedWells: row.linked_wells || 0,
+    _linkedWells: row.well_count || 0,
+    _linkCounts: {
+      wells: row.well_count || 0,
+      documents: row.document_count || 0,
+      filings: row.filing_count || 0,
+    },
   }));
 
   return jsonResponse({

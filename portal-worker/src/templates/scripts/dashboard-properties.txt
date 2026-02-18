@@ -16,8 +16,8 @@
                 // Render table immediately (with zero counts)
                 renderPropertiesTable();
 
-                // Fetch link counts in background and re-render when ready
-                if (properties.length > 0) {
+                // Fetch link counts — skip if V2 already returned them inline
+                if (properties.length > 0 && !properties[0]._linkCounts) {
                     fetchPropertyLinkCounts();
                 }
             } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }

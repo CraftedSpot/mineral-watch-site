@@ -18,7 +18,9 @@
                 showSuperAdminNav();
 
                 // Dashboard-specific: plan badge and limits
-                document.getElementById('planBadge').textContent = currentUser.plan || 'FREE';
+                const planBadge = document.getElementById('planBadge');
+                planBadge.textContent = currentUser.plan || 'FREE';
+                planBadge.style.visibility = 'visible';
                 const limits = planConfigs[currentUser.plan] || { properties: 1, wells: 0 };
                 document.getElementById('propLimit').textContent = limits.properties === Infinity ? '∞' : limits.properties;
                 document.getElementById('wellLimit').textContent = limits.wells === Infinity ? '∞' : limits.wells;
@@ -98,7 +100,21 @@
                 initWellsControls();
                 initPropertiesControls();
                 initDocumentsControls();
-            } catch (err) { console.error('Dashboard init error:', err); window.location.href = '/portal/login'; }
+            } catch (err) {
+                console.error('Dashboard init error:', err);
+                if (!window.currentUser) {
+                    // Auth actually failed — redirect to login
+                    window.location.href = '/portal/login';
+                } else {
+                    // Auth succeeded but something else broke — show error, don't redirect
+                    const msg = (err && err.message) ? err.message : String(err);
+                    console.error('Post-auth init error (NOT redirecting):', msg);
+                    const banner = document.createElement('div');
+                    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#e53e3e;color:#fff;padding:12px 16px;text-align:center;font-size:14px;';
+                    banner.textContent = 'Dashboard init error: ' + msg;
+                    document.body.prepend(banner);
+                }
+            }
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {

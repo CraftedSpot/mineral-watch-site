@@ -22,7 +22,7 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 
 [[services]]
 binding = "AUTH_WORKER"
-service = "auth-worker"
+service = "portal-worker"
 
 [[services]]
 binding = "OCC_FETCHER"

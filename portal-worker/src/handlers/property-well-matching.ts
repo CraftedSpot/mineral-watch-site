@@ -4,12 +4,12 @@
  * Automatically creates links between properties and wells based on location matching
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
-import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected } from '../utils/property-well-matching.js';
+import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected, createLinksInBatches } from '../utils/property-well-matching.js';
 import type { LateralLocation } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
 
@@ -494,103 +494,9 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       console.log('[PropertyWellMatch] Unlinked wells (first 10):', JSON.stringify(unlinkedWells.slice(0, 10)));
     }
     
-    // Create links in batches
-    let created = 0;
-    let failed = 0;
-    const batchSize = 10;
-    const createdRecords: any[] = [];
-
-    for (let i = 0; i < linksToCreate.length; i += batchSize) {
-      const batch = linksToCreate.slice(i, i + batchSize);
-
-      try {
-        const response = await fetch(
-          `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ records: batch })
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json() as any;
-          created += batch.length;
-          if (data.records) {
-            createdRecords.push(...data.records);
-          }
-        } else {
-          const error = await response.text();
-          console.error(`[PropertyWellMatch] Batch create failed:`, error);
-          failed += batch.length;
-        }
-
-        // Rate limit protection
-        if (i + batchSize < linksToCreate.length) {
-          await new Promise(resolve => setTimeout(resolve, 200));
-        }
-      } catch (error) {
-        console.error(`[PropertyWellMatch] Batch create error:`, error);
-        failed += batch.length;
-      }
-    }
-
-    // Sync newly created links to D1 for immediate dashboard visibility
-    let d1Synced = 0;
-    if (createdRecords.length > 0) {
-      try {
-        console.log(`[PropertyWellMatch] Syncing ${createdRecords.length} new links to D1...`);
-
-        const statements = createdRecords.map(record => {
-          const fields = record.fields || {};
-          const propertyId = fields['Property']?.[0] || null;
-          const wellId = fields['Well']?.[0] || null;
-          const linkUserId = fields['User']?.[0] || null;
-          const orgId = fields['Organization']?.[0] || null;
-
-          if (!propertyId || !wellId) return null;
-
-          return env.WELLS_DB.prepare(`
-            INSERT OR REPLACE INTO property_well_links (
-              id, airtable_record_id, property_airtable_id, well_airtable_id,
-              match_reason, status, confidence_score,
-              user_id, organization_id,
-              link_name, link_type,
-              created_at, rejected_date, synced_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-          `).bind(
-            `link_${record.id}`,
-            record.id,
-            propertyId,
-            wellId,
-            fields['Match Reason'] || 'Manual',
-            fields['Status'] || 'Linked',
-            null,
-            linkUserId,
-            orgId,
-            fields['Link Name'] || null,
-            fields['Link Type'] || 'Auto',
-            record.createdTime ? new Date(record.createdTime).toISOString().split('T')[0] : null,
-            null
-          );
-        }).filter((stmt): stmt is NonNullable<typeof stmt> => stmt !== null);
-
-        // Execute in D1 batches of 500
-        for (let i = 0; i < statements.length; i += 500) {
-          const chunk = statements.slice(i, i + 500);
-          await env.WELLS_DB.batch(chunk);
-        }
-
-        d1Synced = statements.length;
-        console.log(`[PropertyWellMatch] Synced ${d1Synced} links to D1`);
-      } catch (d1Error) {
-        console.error('[PropertyWellMatch] D1 sync failed (links in Airtable, will sync on next cron):', d1Error);
-      }
-    }
+    // Create links directly in D1 (D1-first — no Airtable dependency)
+    const { created, failed } = await createLinksInBatches(env, linksToCreate);
+    const d1Synced = created; // Links written directly to D1
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 

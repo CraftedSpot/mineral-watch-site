@@ -321,10 +321,10 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     const ownerCol = userOrgId ? 'organization_id' : 'user_id';
     const ownerVal = userOrgId || user.id;
     const linkCheck = await env.WELLS_DB.prepare(`
-      SELECT id FROM property_well_links
+      SELECT id, property_airtable_id FROM property_well_links
       WHERE (id = ? OR airtable_record_id = ?)
         AND ${ownerCol} = ?
-    `).bind(linkId, airtableRecordId, ownerVal).first();
+    `).bind(linkId, airtableRecordId, ownerVal).first() as any;
 
     if (!linkCheck) {
       return jsonResponse({ error: "Link not found" }, 404);
@@ -339,6 +339,13 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
       `).bind(new Date().toISOString(), linkId, airtableRecordId).run();
 
       console.log(`[UnlinkWell] D1 update result: ${d1Result.meta.changes} rows changed`);
+
+      // Decrement denormalized well_count
+      if (linkCheck.property_airtable_id) {
+        await env.WELLS_DB.prepare(
+          `UPDATE properties SET well_count = MAX(0, well_count - 1) WHERE airtable_record_id = ?`
+        ).bind(linkCheck.property_airtable_id).run();
+      }
     } catch (d1Error) {
       console.error('[UnlinkWell] D1 update failed:', d1Error);
       // Continue to try Airtable even if D1 fails
@@ -406,10 +413,10 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
     const ownerCol = userOrgId ? 'organization_id' : 'user_id';
     const ownerVal = userOrgId || user.id;
     const linkCheck = await env.WELLS_DB.prepare(`
-      SELECT id FROM property_well_links
+      SELECT id, property_airtable_id FROM property_well_links
       WHERE (id = ? OR airtable_record_id = ?)
         AND ${ownerCol} = ?
-    `).bind(linkId, airtableRecordId, ownerVal).first();
+    `).bind(linkId, airtableRecordId, ownerVal).first() as any;
 
     if (!linkCheck) {
       return jsonResponse({ error: "Link not found" }, 404);
@@ -424,6 +431,13 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
       `).bind(linkId, airtableRecordId).run();
 
       console.log(`[RelinkWell] D1 update result: ${d1Result.meta.changes} rows changed`);
+
+      // Increment denormalized well_count
+      if (linkCheck.property_airtable_id) {
+        await env.WELLS_DB.prepare(
+          `UPDATE properties SET well_count = well_count + 1 WHERE airtable_record_id = ?`
+        ).bind(linkCheck.property_airtable_id).run();
+      }
     } catch (d1Error) {
       console.error('[RelinkWell] D1 update failed:', d1Error);
     }
