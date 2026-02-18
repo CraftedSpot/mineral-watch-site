@@ -2,7 +2,7 @@
  * Debug handler to inspect Airtable table structure
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, LINKS_TABLE, PROPERTIES_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
@@ -28,7 +28,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
       
       // Fetch some sample links
       const linksResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🔗 Property-Well Links')}?maxRecords=10${propertyId ? `&filterByFormula=${encodeURIComponent(`FIND('${escapeAirtableValue(propertyId)}', ARRAYJOIN({Property})) > 0`)}` : ''}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?maxRecords=10${propertyId ? `&filterByFormula=${encodeURIComponent(`FIND('${escapeAirtableValue(propertyId)}', ARRAYJOIN({Property})) > 0`)}` : ''}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
@@ -63,7 +63,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
     
     for (const filter of testFilters) {
       const propertyResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('📍 Client Properties')}?maxRecords=3&filterByFormula=${encodeURIComponent(filter)}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?maxRecords=3&filterByFormula=${encodeURIComponent(filter)}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
@@ -80,7 +80,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
     
     // Also test without filter
     const noFilterResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('📍 Client Properties')}?maxRecords=1`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?maxRecords=1`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }

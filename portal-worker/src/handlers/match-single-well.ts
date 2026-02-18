@@ -2,14 +2,12 @@
  * Handler for matching a single well against all user's properties
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, ORGANIZATION_TABLE, PROPERTIES_TABLE, WELLS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import {
-  PROPERTIES_TABLE,
-  WELLS_TABLE,
   LINK_FIELDS,
   processProperty,
   processWell,
@@ -76,7 +74,7 @@ export async function handleMatchSingleWell(wellId: string, request: Request, en
     if (organizationId) {
       // Get org name for filtering
       const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }

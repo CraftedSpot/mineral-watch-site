@@ -12,41 +12,11 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtable.js';
-import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, BATCH_SIZE_D1, ORGANIZATION_TABLE } from '../constants.js';
 import { getAdjacentLocations } from '../utils/property-well-matching.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
 import type { Env } from '../index';
-
-/**
- * Normalize township format for comparison
- * "7N" -> "7N", "7 N" -> "7N", "07N" -> "7N"
- */
-function normalizeTownship(twn: string | null): string | null {
-  if (!twn) return null;
-  const match = twn.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([NS])$/);
-  return match ? `${parseInt(match[1], 10)}${match[2]}` : twn.toUpperCase();
-}
-
-/**
- * Normalize range format for comparison
- * "4W" -> "4W", "4 W" -> "4W", "04W" -> "4W"
- */
-function normalizeRange(rng: string | null): string | null {
-  if (!rng) return null;
-  const match = rng.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([EW])$/);
-  return match ? `${parseInt(match[1], 10)}${match[2]}` : rng.toUpperCase();
-}
-
-/**
- * Normalize section to integer
- */
-function normalizeSection(sec: string | number | null): number | null {
-  if (sec === null || sec === undefined) return null;
-  const num = parseInt(sec.toString(), 10);
-  return isNaN(num) ? null : num;
-}
-
-const BATCH_SIZE_D1 = 30; // D1 limit: 100 bound params; STR queries use 3 per item
 
 // Document types that show on property modals (same as property-documents-d1.ts)
 const PROPERTY_DOC_TYPES = [
@@ -71,14 +41,6 @@ interface PropertySTR {
   sec: number;
   twn: string;
   rng: string;
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
 }
 
 const PROPERTIES_CACHE_TTL = 300; // 5 minutes in seconds
@@ -376,7 +338,7 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
     if (organizationId) {
       const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
       );
 

@@ -2,18 +2,13 @@
  * Shared utilities for property-well matching
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
 import { fetchAllAirtableRecords } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 import { escapeAirtableValue } from './airtable-escape.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
 export const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
-
-// Table names
-export const PROPERTIES_TABLE = '📍 Client Properties';
-export const WELLS_TABLE = '🛢️ Client Wells';
-export const LINKS_TABLE = '🔗 Property-Well Links';
 
 // Field names
 export const PROPERTY_FIELDS = {
@@ -837,7 +832,7 @@ export async function matchSingleProperty(
   
   if (organizationId) {
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -953,7 +948,7 @@ export async function matchSingleWell(
   
   if (organizationId) {
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -1059,7 +1054,7 @@ export async function runFullPropertyWellMatching(
   if (organizationId) {
     // Organization user - get org name for filtering
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }

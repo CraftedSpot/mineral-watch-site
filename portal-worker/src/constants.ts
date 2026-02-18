@@ -16,8 +16,12 @@ export const USERS_TABLE = "👤 Users";
 export const ORGANIZATION_TABLE = "🏢 Organization";
 export const PROPERTIES_TABLE = "📍 Client Properties";
 export const WELLS_TABLE = "🛢️ Client Wells";
+export const LINKS_TABLE = "🔗 Property-Well Links";
 export const ACTIVITY_TABLE = "📋 Activity Log";
 export const WELL_LOCATIONS_TABLE = "📍 Well Locations";
+
+// D1 Query Limits
+export const BATCH_SIZE_D1 = 30; // D1 limit: 100 bound params; STR queries use 3 per item
 
 // Application URLs
 export const BASE_URL = "https://portal.mymineralwatch.com";

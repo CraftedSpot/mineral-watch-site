@@ -13,39 +13,12 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtable.js';
-import { BASE_ID, WELLS_TABLE } from '../constants.js';
+import { BASE_ID, WELLS_TABLE, BATCH_SIZE_D1, ORGANIZATION_TABLE } from '../constants.js';
 import { getAdjacentLocations } from '../utils/property-well-matching.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
 import type { Env } from '../index';
 
-/**
- * Normalize township format
- */
-function normalizeTownship(twn: string | null): string | null {
-  if (!twn) return null;
-  const match = twn.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([NS])$/);
-  return match ? `${parseInt(match[1], 10)}${match[2]}` : twn.toUpperCase();
-}
-
-/**
- * Normalize range format
- */
-function normalizeRange(rng: string | null): string | null {
-  if (!rng) return null;
-  const match = rng.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([EW])$/);
-  return match ? `${parseInt(match[1], 10)}${match[2]}` : rng.toUpperCase();
-}
-
-/**
- * Normalize section to integer
- */
-function normalizeSection(sec: string | number | null): number | null {
-  if (sec === null || sec === undefined) return null;
-  const num = parseInt(sec.toString(), 10);
-  return isNaN(num) ? null : num;
-}
-
-const BATCH_SIZE_D1 = 30; // D1 limit: 100 bound params; STR queries use 3 per item
 const WELLS_CACHE_TTL = 300; // 5 minutes
 
 // Document types that show on well modals (keep in sync with property-documents-d1.ts WELL_DOC_TYPES)
@@ -69,14 +42,6 @@ interface WellSTR {
   sec: number;
   twn: string;
   rng: string;
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) {
-    chunks.push(arr.slice(i, i + size));
-  }
-  return chunks;
 }
 
 /**
@@ -378,7 +343,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
     if (organizationId) {
       const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
       );
 

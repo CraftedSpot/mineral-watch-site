@@ -8,7 +8,8 @@ import {
   PROPERTIES_TABLE,
   BASE_ID,
   PLAN_LIMITS,
-  getPlanLimits
+  getPlanLimits,
+  ORGANIZATION_TABLE
 } from '../constants.js';
 
 import { 
@@ -148,7 +149,7 @@ export async function handleListProperties(request: Request, env: Env) {
   if (organizationId) {
     // User has organization - need to get org name for the filter
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }

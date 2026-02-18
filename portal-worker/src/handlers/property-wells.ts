@@ -4,16 +4,11 @@
  * Handles API endpoints for managing property-well relationships
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
-
-// Table names
-const PROPERTIES_TABLE = '📍 Client Properties';
-const WELLS_TABLE = '🛢️ Client Wells';
-const LINKS_TABLE = '🔗 Property-Well Links';
 
 /**
  * Get linked wells for a property

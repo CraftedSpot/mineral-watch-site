@@ -5,11 +5,12 @@
  * Provides functions for user management, property tracking, and well monitoring
  */
 
-import { 
-  BASE_ID, 
-  USERS_TABLE, 
-  PROPERTIES_TABLE, 
-  WELLS_TABLE 
+import {
+  BASE_ID,
+  USERS_TABLE,
+  PROPERTIES_TABLE,
+  WELLS_TABLE,
+  ORGANIZATION_TABLE
 } from '../constants.js';
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
@@ -194,7 +195,7 @@ export async function countPropertiesForUserOrOrg(env: Env, userRecord: Airtable
   if (organizationId) {
     // Fetch organization name
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -233,7 +234,7 @@ export async function countWellsForUserOrOrg(env: Env, userRecord: AirtableUser)
   if (organizationId) {
     // Fetch organization name
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }

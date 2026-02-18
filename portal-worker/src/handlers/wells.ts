@@ -9,7 +9,8 @@ import {
   BASE_ID,
   PLAN_LIMITS,
   getPlanLimits,
-  OCC_CACHE_TTL
+  OCC_CACHE_TTL,
+  ORGANIZATION_TABLE
 } from '../constants.js';
 
 import { 
@@ -321,7 +322,7 @@ export async function handleListWells(request: Request, env: Env) {
   if (organizationId) {
     // User has organization - fetch org name and filter by it
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }

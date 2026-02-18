@@ -28,6 +28,11 @@ const CREDIT_PACK_PRICES: Record<string, { credits: number; name: string; price:
   'price_1SpVCK9OfJmRCDOqNVkGVLVQ': { credits: 10000, name: 'Operations Pack', price: 249900 },
 };
 
+// Upload limits
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+const MAX_TOTAL_UPLOAD_SIZE = 500 * 1024 * 1024; // 500MB total per upload
+const MAX_FILES_PER_UPLOAD = 500;
+
 // Helper to ensure CORS headers
 function corsHeaders(env: Env) {
   return {
@@ -926,7 +931,7 @@ export default {
           return errorResponse('Only PDF, JPEG, PNG, and TIFF files are allowed', 400, env);
         }
 
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit
+        if (file.size > MAX_FILE_SIZE) {
           return errorResponse('File too large. Maximum size is 50MB', 400, env);
         }
 
@@ -1014,15 +1019,14 @@ export default {
         }
 
         // Limit number of files
-        if (files.length > 500) {
-          return errorResponse('Maximum 500 files can be uploaded at once', 400, env);
+        if (files.length > MAX_FILES_PER_UPLOAD) {
+          return errorResponse(`Maximum ${MAX_FILES_PER_UPLOAD} files can be uploaded at once`, 400, env);
         }
-        
-        // Check total size limit (500MB)
+
+        // Check total size limit
         const totalSize = files.reduce((sum, file) => sum + file.size, 0);
-        const maxTotalSize = 500 * 1024 * 1024; // 500MB
-        
-        if (totalSize > maxTotalSize) {
+
+        if (totalSize > MAX_TOTAL_UPLOAD_SIZE) {
           return errorResponse(`Total file size exceeds 500MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(1)}MB`, 400, env);
         }
 
@@ -1037,7 +1041,7 @@ export default {
 
         // Server-side credit check before accepting upload
         const creditsPerDoc = enhanced ? 2 : 1;
-        const validFiles = files.filter(f => isAllowedFileType(f.type) && f.size <= 50 * 1024 * 1024);
+        const validFiles = files.filter(f => isAllowedFileType(f.type) && f.size <= MAX_FILE_SIZE);
         const creditsNeeded = validFiles.length * creditsPerDoc;
         const usageService = new UsageTrackingService(env.WELLS_DB);
         const creditUserId = userOrg || user.id;
@@ -1063,7 +1067,7 @@ export default {
               continue;
             }
 
-            if (file.size > 50 * 1024 * 1024) { // 50MB limit
+            if (file.size > MAX_FILE_SIZE) {
               errors.push({
                 filename: file.name,
                 error: 'File too large. Maximum size is 50MB'
@@ -3220,7 +3224,7 @@ export default {
           return errorResponse('Only PDF, JPEG, PNG, and TIFF files are allowed', 400, env);
         }
 
-        if (file.size > 50 * 1024 * 1024) {
+        if (file.size > MAX_FILE_SIZE) {
           return errorResponse('File too large. Maximum size is 50MB', 400, env);
         }
 

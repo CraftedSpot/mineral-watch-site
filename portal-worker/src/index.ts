@@ -13,10 +13,11 @@ import {
   WELL_LOCATIONS_TABLE,
   BASE_URL, 
   PLAN_LIMITS,
-  OCC_CACHE_TTL, 
+  OCC_CACHE_TTL,
   CORS_HEADERS,
   PRICE_IDS,
-  PRICE_TO_PLAN
+  PRICE_TO_PLAN,
+  ORGANIZATION_TABLE
 } from './constants.js';
 
 import { 
@@ -1221,7 +1222,7 @@ var index_default = {
         if (orgId) {
           try {
             const orgRes = await fetch(
-              `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`,
+              `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${orgId}`,
               { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
             );
             if (orgRes.ok) {

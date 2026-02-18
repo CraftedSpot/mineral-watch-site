@@ -4,7 +4,7 @@
  * Automatically creates links between properties and wells based on location matching
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
@@ -15,11 +15,6 @@ import type { Env } from '../types/env.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
 const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
-
-// Table IDs
-const PROPERTIES_TABLE = '📍 Client Properties';
-const WELLS_TABLE = '🛢️ Client Wells';
-const LINKS_TABLE = '🔗 Property-Well Links';
 
 // Use human-readable field names (Airtable API returns these, not field IDs)
 const PROPERTY_FIELDS = {
@@ -302,7 +297,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     if (organizationId) {
       // Organization user - get org name for filtering
       const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
