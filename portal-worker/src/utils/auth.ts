@@ -5,9 +5,13 @@
  * for the Portal Worker authentication system
  */
 
-import { COOKIE_NAME, SUPER_ADMIN_EMAILS } from '../constants.js';
+import { COOKIE_NAME, SUPER_ADMIN_EMAILS, BASE_ID, ORGANIZATION_TABLE, SESSION_EXPIRY } from '../constants.js';
 import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
+
+// Per-Worker-instance dedup for D1 user upserts.
+// Idempotent by design (ON CONFLICT DO UPDATE) — the Set is a perf optimization, not correctness.
+const recentlyUpsertedUsers = new Set<string>();
 
 /**
  * Check if a user is a super admin (can act on behalf of other users/orgs)
@@ -57,82 +61,71 @@ export function getCookieValue(cookieString: string, name: string): string | nul
 }
 
 /**
- * Authenticate a request by verifying the session cookie with auth-worker
- * @param request The incoming request
- * @param env Worker environment
- * @returns User session payload or null if not authenticated
+ * Authenticate a request by verifying the session cookie locally (no service binding).
+ * Verifies HMAC token, fetches fresh user data from Airtable, ensures user exists in D1.
  */
 export async function authenticateRequest(request: Request, env: Env): Promise<SessionPayload | null> {
-  // Get the session cookie from the request
   const cookie = request.headers.get("Cookie") || "";
-  
-  // Use service binding if available, otherwise fall back to HTTP
+
   try {
-    let authResponse: Response;
-    
-    if (env.AUTH_WORKER) {
-      // Use service binding (faster, no request limits)
-      const authRequest = new Request('https://auth-worker/api/auth/me', {
-        headers: {
-          'Cookie': cookie
-        }
-      });
-      authResponse = await env.AUTH_WORKER.fetch(authRequest);
-    } else {
-      // Fallback to HTTP
-      console.warn('AUTH_WORKER service binding not configured, using HTTP');
-      authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/me', {
-        headers: {
-          'Cookie': cookie
-        }
-      });
-    }
-    
-    if (!authResponse.ok) {
+    // 1. Extract session cookie
+    const sessionToken = getCookieValue(cookie, COOKIE_NAME);
+    if (!sessionToken) return null;
+
+    // 2. Verify HMAC signature locally — no network call
+    let payload: any;
+    try {
+      payload = await verifySessionToken(env, sessionToken);
+    } catch {
       return null;
     }
-    
-    const userData = await authResponse.json() as any;
 
-    // Convert auth-worker response to SessionPayload format
-    const sessionPayload: SessionPayload = {
-      id: userData.id,
-      email: userData.email,
-      name: userData.name,
-      exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // Session valid for 30 days
-      airtableUser: userData.airtableUser
-    };
+    // 3. Check expiry
+    if (Date.now() > payload.exp) {
+      return null;
+    }
 
-    // Session revocation check: compare session iat against per-user revocation timestamp
-    if (env.AUTH_TOKENS && sessionPayload.id) {
-      const revokedAfter = await env.AUTH_TOKENS.get(`sess_valid_after:${sessionPayload.id}`);
+    // 4. Session revocation check (KV)
+    if (env.AUTH_TOKENS && payload.id) {
+      const revokedAfter = await env.AUTH_TOKENS.get(`sess_valid_after:${payload.id}`);
       if (revokedAfter) {
-        // Decode cookie to extract iat from the session token
-        const sessionCookie = getCookieValue(cookie, COOKIE_NAME);
-        let sessionIat = 0;
-        if (sessionCookie) {
-          try {
-            const [dataB64] = sessionCookie.split('.');
-            const padded = dataB64.replace(/-/g, '+').replace(/_/g, '/');
-            const decoded = JSON.parse(atob(padded));
-            sessionIat = decoded.iat || 0;
-          } catch { /* old token format without iat */ }
-        }
-        // Reject if session was issued before revocation (or has no iat)
+        const sessionIat = payload.iat || 0;
         if (sessionIat < parseInt(revokedAfter, 10)) {
-          console.log(`[Auth] Session revoked for user ${sessionPayload.id}: iat=${sessionIat} < valid_after=${revokedAfter}`);
+          console.log(`[Auth] Session revoked for user ${payload.id}: iat=${sessionIat} < valid_after=${revokedAfter}`);
           return null;
         }
       }
     }
 
-    // Super admin impersonation: ?act_as=recXXX
+    // 5. Fetch fresh user data from Airtable (direct record fetch by ID — fast)
+    const userRecord = await getUserById(env, payload.id);
+    if (!userRecord) return null;
+
+    // 6. Construct SessionPayload (same shape as before — all handlers work unchanged)
+    const sessionPayload: SessionPayload = {
+      id: userRecord.id,
+      email: userRecord.fields.Email,
+      name: userRecord.fields.Name,
+      exp: payload.exp,
+      airtableUser: userRecord as any
+    };
+
+    // 7. JIT D1 user sync (deduped per Worker instance)
+    if (env.WELLS_DB && !recentlyUpsertedUsers.has(payload.id)) {
+      try {
+        await ensureUserInD1(env, userRecord);
+        recentlyUpsertedUsers.add(payload.id);
+      } catch (e) {
+        console.error('[Auth] D1 user sync failed (non-fatal):', e);
+      }
+    }
+
+    // 8. Super admin impersonation: ?act_as=recXXX
     const url = new URL(request.url);
     const actAs = url.searchParams.get('act_as');
 
     if (actAs) {
       if (!isSuperAdmin(sessionPayload.email)) {
-        // Non-admin tried act_as — silently ignore
         return sessionPayload;
       }
 
@@ -144,7 +137,6 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
 
       console.log(`[Impersonate] ${sessionPayload.email} acting as ${targetUser.fields.Email} (${actAs})`);
 
-      // Audit trail: write to KV with 90-day TTL
       if (env.OCC_CACHE) {
         const auditKey = `impersonate:${Date.now()}:${sessionPayload.id}`;
         const auditEntry = JSON.stringify({
@@ -155,7 +147,17 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
           path: url.pathname,
           timestamp: new Date().toISOString()
         });
-        env.OCC_CACHE.put(auditKey, auditEntry, { expirationTtl: 7776000 }); // 90 days
+        env.OCC_CACHE.put(auditKey, auditEntry, { expirationTtl: 7776000 });
+      }
+
+      // Also ensure impersonated user is in D1
+      if (env.WELLS_DB && !recentlyUpsertedUsers.has(actAs)) {
+        try {
+          await ensureUserInD1(env, targetUser);
+          recentlyUpsertedUsers.add(actAs);
+        } catch (e) {
+          console.error('[Auth] D1 target user sync failed (non-fatal):', e);
+        }
       }
 
       return {
@@ -207,33 +209,18 @@ export async function verifyToken(env: Env, token: string): Promise<any> {
   return data;
 }
 
-// Note: Session verification is now handled by auth-worker
-// The generateToken and verifyToken functions below are still used
-// for the Track This Well feature, not for user authentication
-
 /**
- * Generate a session token compatible with auth-worker
- * This creates the same HMAC-based token format that auth-worker expects
+ * Sign an arbitrary payload with HMAC-SHA256 using AUTH_SECRET.
+ * Returns URL-safe base64: `{dataBase64}.{signatureBase64}`
+ * Used for both magic link tokens and session tokens.
  */
-export async function generateSessionToken(env: Env, email: string, userId: string): Promise<string> {
-  const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
-  
-  const payload = {
-    email: email,
-    id: userId,
-    iat: Date.now(),
-    exp: Date.now() + SESSION_EXPIRY
-  };
-  
-  // Use the same secret as auth-worker
+export async function signPayload(env: Env, payload: object): Promise<string> {
   const secret = env.AUTH_SECRET;
   if (!secret) throw new Error('AUTH_SECRET not configured');
-  
-  // Create the token in the same format as auth-worker
+
   const data = JSON.stringify(payload);
   const encoder = new TextEncoder();
-  
-  // Import the secret for HMAC
+
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -241,25 +228,120 @@ export async function generateSessionToken(env: Env, email: string, userId: stri
     false,
     ['sign']
   );
-  
-  // Create signature
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(data)
-  );
-  
-  // Use URL-safe base64 encoding to prevent mobile email client issues
+
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+
   const dataBase64 = btoa(data)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
-  
+
   const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=/g, '');
-  
-  // Return in the format expected by auth-worker
+
   return `${dataBase64}.${sigBase64}`;
+}
+
+/**
+ * Verify an HMAC-SHA256 signed token. Returns the parsed payload.
+ * Throws on invalid format, bad signature, or decode errors.
+ */
+export async function verifySessionToken(env: Env, token: string): Promise<any> {
+  const [dataBase64, sigBase64] = token.split('.');
+  if (!dataBase64 || !sigBase64) {
+    throw new Error('Invalid token format');
+  }
+
+  const encoder = new TextEncoder();
+
+  // Convert URL-safe base64 → standard base64 → decode
+  let data: string;
+  try {
+    const standardData = dataBase64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(dataBase64.length + (4 - dataBase64.length % 4) % 4, '=');
+    data = atob(standardData);
+  } catch {
+    throw new Error('Invalid token encoding');
+  }
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(env.AUTH_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['verify']
+  );
+
+  let signature: Uint8Array;
+  try {
+    const standardSig = sigBase64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(sigBase64.length + (4 - sigBase64.length % 4) % 4, '=');
+    signature = Uint8Array.from(atob(standardSig), (c) => c.charCodeAt(0));
+  } catch {
+    throw new Error('Invalid signature encoding');
+  }
+
+  const valid = await crypto.subtle.verify('HMAC', key, signature, encoder.encode(data));
+  if (!valid) {
+    throw new Error('Invalid signature');
+  }
+
+  return JSON.parse(data);
+}
+
+/**
+ * Generate a 30-day session token for a user.
+ * Delegates to signPayload() for HMAC signing.
+ */
+export async function generateSessionToken(env: Env, email: string, userId: string): Promise<string> {
+  return signPayload(env, {
+    email,
+    id: userId,
+    iat: Date.now(),
+    exp: Date.now() + SESSION_EXPIRY
+  });
+}
+
+/**
+ * JIT D1 user sync — upserts user record on login/auth.
+ * Uses ON CONFLICT DO UPDATE to keep D1 fresh while preserving D1-only fields
+ * (last_login, total_logins, cancellation fields, etc.).
+ */
+export async function ensureUserInD1(env: Env, user: any): Promise<void> {
+  if (!env.WELLS_DB) return;
+
+  const id = `user_${user.id}`;
+  const fields = user.fields || {};
+
+  await env.WELLS_DB.prepare(`
+    INSERT INTO users (
+      id, airtable_record_id, email, name, plan, status,
+      organization_id, role, stripe_customer_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(airtable_record_id) DO UPDATE SET
+      email = excluded.email,
+      name = excluded.name,
+      plan = excluded.plan,
+      status = excluded.status,
+      organization_id = excluded.organization_id,
+      role = excluded.role,
+      stripe_customer_id = excluded.stripe_customer_id,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(
+    id,
+    user.id,
+    fields.Email || null,
+    fields.Name || null,
+    fields.Plan || 'Free',
+    fields.Status || 'Active',
+    fields.Organization?.[0] || null,
+    fields.Role || 'Viewer',
+    fields['Stripe Customer ID'] || null
+  ).run();
 }

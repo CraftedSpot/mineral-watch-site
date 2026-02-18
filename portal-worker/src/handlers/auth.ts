@@ -22,11 +22,16 @@ import {
 import {
   authenticateRequest,
   generateToken,
-  verifyToken
+  verifyToken,
+  signPayload,
+  verifySessionToken,
+  ensureUserInD1,
+  getCookieValue
 } from '../utils/auth.js';
 
 import {
-  findUserByEmail
+  findUserByEmail,
+  getUserById
 } from '../services/airtable.js';
 
 import {
@@ -38,34 +43,312 @@ import {
 import type { Env } from '../types/env.js';
 
 /**
- * Send a magic link email for user authentication
- * Delegates to auth-worker for processing
- * @param request The incoming request with email
- * @param env Worker environment
- * @returns JSON response confirming email sent
+ * Send a magic link email for user authentication.
+ * Generates HMAC token locally and sends via Resend API.
  */
 export async function handleSendMagicLink(request: Request, env: Env) {
-  // Forward the request to auth-worker
-  const authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/send-magic-link', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: await request.text() // Pass through the raw body
-  });
-  
-  // Return the auth-worker response directly
-  return new Response(await authResponse.text(), {
-    status: authResponse.status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...CORS_HEADERS
+  try {
+    const body: any = await request.json();
+    const email = body?.email;
+
+    if (!email || !email.includes('@')) {
+      return jsonResponse({ error: 'Valid email required' }, 400);
     }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const user = await findUserByEmail(env, normalizedEmail);
+
+    // Silent success if user doesn't exist or is inactive (prevents email enumeration)
+    if (!user || user.fields.Status !== 'Active') {
+      if (!user) console.log(`[Auth] Login attempt for unknown email: ${normalizedEmail}`);
+      else console.log(`[Auth] Login attempt for inactive user: ${normalizedEmail}`);
+      return jsonResponse({ success: true });
+    }
+
+    // Generate HMAC-signed magic link token (15 min expiry)
+    const token = await signPayload(env, {
+      email: normalizedEmail,
+      id: user.id,
+      exp: Date.now() + TOKEN_EXPIRY,
+      iat: Date.now()
+    });
+
+    const magicLink = `${BASE_URL}/portal/verify?token=${encodeURIComponent(token)}`;
+
+    // Send via Resend API
+    const emailResponse = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: normalizedEmail,
+        subject: 'Your Mineral Watch Login Link',
+        html: `
+          <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
+            <h2 style="color: #1C2B36;">Log in to Mineral Watch</h2>
+            <p style="color: #334E68; font-size: 16px;">Hi ${user.fields.Name || 'there'},</p>
+            <p style="color: #334E68; font-size: 16px;">Click the button below to log in to your account. This link expires in 15 minutes.</p>
+            <div style="margin: 30px 0;">
+              <a href="${magicLink}" style="background-color: #C05621; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: 600; display: inline-block;">Log In to Mineral Watch</a>
+            </div>
+            <p style="color: #718096; font-size: 14px;">If you didn't request this link, you can safely ignore this email.</p>
+            <p style="color: #718096; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="color: #718096; font-size: 12px; word-break: break-all;">${magicLink}</p>
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+            <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
+          </div>
+        `
+      })
+    });
+
+    if (!emailResponse.ok) {
+      const err = await emailResponse.text();
+      console.error('[Auth] Resend error:', err);
+      return jsonResponse({ error: 'Failed to send login email' }, 500);
+    }
+
+    console.log(`[Auth] Magic link sent to: ${normalizedEmail}`);
+    return jsonResponse({ success: true });
+  } catch (error) {
+    console.error('[Auth] Send magic link error:', error);
+    return jsonResponse({ error: 'Failed to send login email' }, 500);
+  }
+}
+
+/**
+ * Verify magic link token, create session, upsert user to D1.
+ * This is the core login endpoint — the JIT D1 sync happens here.
+ */
+export async function handleVerifyMagicLink(request: Request, env: Env, url: URL) {
+  let token = url.searchParams.get('token');
+
+  const acceptHeader = request.headers.get('Accept');
+  const origin = request.headers.get('Origin');
+  const wantsJson = (acceptHeader && acceptHeader.includes('application/json')) || url.pathname.includes('/api/') || !!origin;
+
+  if (!token) {
+    if (wantsJson) return jsonResponse({ error: 'Missing token', success: false }, 400);
+    return redirectWithError('Missing token');
+  }
+
+  // Handle mobile email client space→+ conversion
+  if (token.includes(' ') && !token.includes('+')) {
+    token = token.replace(/ /g, '+');
+  }
+
+  let payload: any;
+  try {
+    payload = await verifySessionToken(env, token);
+    console.log(`[Auth] Token verified successfully for: ${payload.email}`);
+  } catch (err) {
+    console.error('[Auth] Token verification failed:', (err as Error).message);
+    if (wantsJson) return jsonResponse({ error: 'Invalid or expired link. Please request a new one.', success: false }, 401);
+    return redirectWithError('Invalid or expired link. Please request a new one.');
+  }
+
+  if (Date.now() > payload.exp) {
+    if (wantsJson) return jsonResponse({ error: 'This link has expired. Please request a new one.', success: false }, 401);
+    return redirectWithError('This link has expired. Please request a new one.');
+  }
+
+  // Create 30-day session token
+  const sessionToken = await signPayload(env, {
+    email: payload.email,
+    id: payload.id,
+    iat: Date.now(),
+    exp: Date.now() + SESSION_EXPIRY
+  });
+
+  // JIT D1 user sync — fetch full user record and upsert before setting cookie
+  try {
+    const userRecord = await getUserById(env, payload.id);
+    if (userRecord) {
+      await ensureUserInD1(env, userRecord);
+    }
+  } catch (e) {
+    console.error('[Auth] D1 user sync at login failed (non-fatal):', e);
+  }
+
+  // Update login tracking (non-blocking — don't delay the login response)
+  updateLoginTracking(env, payload.id).catch(e =>
+    console.error('[Auth] Login tracking failed (non-fatal):', e)
+  );
+
+  // Build Set-Cookie headers (clear old + set new)
+  const cookieHeaders = [
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`,
+    `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+  ];
+
+  if (wantsJson) {
+    const response = new Response(JSON.stringify({ success: true, sessionToken, redirect: '/portal' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS }
+    });
+    for (const cookie of cookieHeaders) {
+      response.headers.append('Set-Cookie', cookie);
+    }
+    return response;
+  }
+
+  // Direct browser request — redirect with cookie
+  const response = new Response(null, {
+    status: 302,
+    headers: { 'Location': `${BASE_URL}/portal` }
+  });
+  for (const cookie of cookieHeaders) {
+    response.headers.append('Set-Cookie', cookie);
+  }
+  console.log(`[Auth] User logged in: ${payload.email}`);
+  return response;
+}
+
+/**
+ * Get current user from session cookie — fresh Airtable lookup + org preferences.
+ * Called by frontend on every page load and by authenticateRequest middleware.
+ */
+export async function handleGetCurrentUser(request: Request, env: Env) {
+  const cookie = request.headers.get('Cookie') || '';
+  const sessionToken = getCookieValue(cookie, COOKIE_NAME);
+
+  if (!sessionToken) {
+    return jsonResponse({ error: 'Not authenticated' }, 401);
+  }
+
+  let payload: any;
+  try {
+    payload = await verifySessionToken(env, sessionToken);
+  } catch {
+    return jsonResponse({ error: 'Invalid session' }, 401);
+  }
+
+  if (Date.now() > payload.exp) {
+    return jsonResponse({ error: 'Session expired' }, 401);
+  }
+
+  // Fresh Airtable lookup
+  const user = await findUserByEmail(env, payload.email);
+  if (!user) {
+    return jsonResponse({ error: 'User not found' }, 401);
+  }
+
+  // Fetch org notification preferences if user has an organization
+  let orgDefaultNotificationMode: string | null = null;
+  let orgAllowOverride = true;
+  const organizationId = user.fields.Organization ? user.fields.Organization[0] : null;
+
+  if (organizationId) {
+    try {
+      const orgResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+      );
+      if (orgResponse.ok) {
+        const org: any = await orgResponse.json();
+        orgDefaultNotificationMode = org.fields['Default Notification Mode'] || 'Instant';
+        orgAllowOverride = org.fields['Allow User Override'] !== false;
+      }
+    } catch (err) {
+      console.error('[Auth] Error fetching organization:', err);
+    }
+  }
+
+  return jsonResponse({
+    id: user.id,
+    email: user.fields.Email,
+    name: user.fields.Name,
+    plan: user.fields.Plan,
+    status: user.fields.Status,
+    role: user.fields.Role || null,
+    organizationId,
+    stripeCustomerId: user.fields['Stripe Customer ID'] || null,
+    alertPermits: user.fields['Alert Permits'] !== false,
+    alertCompletions: user.fields['Alert Completions'] !== false,
+    alertStatusChanges: user.fields['Alert Status Changes'] !== false,
+    alertExpirations: user.fields['Alert Expirations'] !== false,
+    alertOperatorTransfers: user.fields['Alert Operator Transfers'] !== false,
+    expirationWarningDays: user.fields['Expiration Warning Days'] || 30,
+    notificationOverride: user.fields['Notification Override'] || null,
+    orgDefaultNotificationMode,
+    orgAllowOverride,
+    airtableUser: user
   });
 }
 
-// Note: handleVerifyToken, handleLogout, and handleGetCurrentUser
-// have been moved to auth-worker for better separation of concerns
+/**
+ * Logout — clears session cookies across all domain variants.
+ * Includes legacy mw_session_v3 cleanup.
+ */
+export async function handleLogout() {
+  const response = new Response(JSON.stringify({ success: true }), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  // Clear all cookie variations (current v4 + legacy v3)
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=portal.mymineralwatch.com; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0`);
+  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+
+  return response;
+}
+
+/**
+ * Update login tracking in Airtable + D1. Non-fatal — errors are logged but don't block login.
+ */
+async function updateLoginTracking(env: Env, userId: string): Promise<void> {
+  try {
+    // GET current login count from Airtable
+    const userResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/tblmb8sZtfn2EW900/${userId}`,
+      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+    );
+
+    if (!userResponse.ok) {
+      console.error('[Auth] Failed to fetch user for login tracking');
+      return;
+    }
+
+    const userData: any = await userResponse.json();
+    const currentLoginCount = userData.fields['Total Logins'] || 0;
+
+    // PATCH Airtable with updated stats
+    await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/tblmb8sZtfn2EW900/${userId}`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: {
+            'Last Login': new Date().toISOString(),
+            'Total Logins': currentLoginCount + 1
+          }
+        })
+      }
+    );
+
+    // Also update D1 login stats
+    if (env.WELLS_DB) {
+      await env.WELLS_DB.prepare(
+        `UPDATE users SET last_login = CURRENT_TIMESTAMP, total_logins = COALESCE(total_logins, 0) + 1 WHERE airtable_record_id = ?`
+      ).bind(userId).run();
+    }
+
+    console.log(`[Auth] Login tracking updated for ${userId}: login #${currentLoginCount + 1}`);
+  } catch (error) {
+    console.error('[Auth] Login tracking error:', error);
+  }
+}
 
 /**
  * Register a new user account
@@ -128,28 +411,60 @@ export async function handleRegister(request: Request, env: Env) {
     }
     
     console.log("User created successfully in Airtable");
-    const newUser = await response.json();
+    const newUser: any = await response.json();
     console.log(`New Free user registered: ${normalizedEmail}`);
-    
-    // Delegate magic link generation to auth-worker
-    // This ensures consistent token format and handling
-    const magicLinkResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/send-magic-link', {
+
+    // JIT D1 user sync — ensure new user exists in D1 before anything else
+    try {
+      await ensureUserInD1(env, newUser);
+    } catch (e) {
+      console.error('[Register] D1 user sync failed (non-fatal):', e);
+    }
+
+    // Generate magic link locally (no auth-worker dependency)
+    const token = await signPayload(env, {
+      email: normalizedEmail,
+      id: newUser.id,
+      exp: Date.now() + TOKEN_EXPIRY,
+      iat: Date.now()
+    });
+
+    const magicLink = `${BASE_URL}/portal/verify?token=${encodeURIComponent(token)}`;
+
+    const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        email: normalizedEmail
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: normalizedEmail,
+        subject: 'Welcome to Mineral Watch - Verify Your Account',
+        html: `
+          <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
+            <h2 style="color: #1C2B36;">Welcome to Mineral Watch!</h2>
+            <p style="color: #334E68; font-size: 16px;">Hi ${name || 'there'},</p>
+            <p style="color: #334E68; font-size: 16px;">Your account has been created. Click the button below to verify your email and log in. This link expires in 15 minutes.</p>
+            <div style="margin: 30px 0;">
+              <a href="${magicLink}" style="background-color: #C05621; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: 600; display: inline-block;">Verify & Log In</a>
+            </div>
+            <p style="color: #718096; font-size: 14px;">If the button doesn't work, copy and paste this link into your browser:</p>
+            <p style="color: #718096; font-size: 12px; word-break: break-all;">${magicLink}</p>
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+            <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
+          </div>
+        `
       })
     });
-    
-    if (!magicLinkResponse.ok) {
-      console.error('Failed to generate magic link via auth-worker');
-      return jsonResponse({ error: 'Failed to send verification email' }, 500);
+
+    if (!emailResponse.ok) {
+      const err = await emailResponse.text();
+      console.error('[Register] Resend error:', err);
+      return jsonResponse({ error: 'Account created but failed to send verification email. Please use the login page to request a new link.' }, 500);
     }
-    
-    // Auth-worker has already sent the magic link email
-    console.log(`Magic link sent via auth-worker to: ${normalizedEmail}`);
+
+    console.log(`[Register] Magic link sent to: ${normalizedEmail}`);
     
     return jsonResponse({ 
       success: true, 

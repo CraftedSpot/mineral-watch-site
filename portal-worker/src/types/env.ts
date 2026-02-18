@@ -15,7 +15,7 @@ export interface Env {
   COMPLETIONS_CACHE: KVNamespace;
 
   // Service Bindings
-  AUTH_WORKER: Fetcher;
+  AUTH_WORKER?: Fetcher; // Deprecated — auth consolidated into portal-worker
   DOCUMENTS_WORKER?: Fetcher;
   OCC_FETCHER?: Fetcher;
   MARKETING_WORKER?: Fetcher;

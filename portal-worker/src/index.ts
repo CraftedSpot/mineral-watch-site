@@ -269,7 +269,7 @@ var index_default = {
     // Debug logging
     console.log(`[Portal] Incoming request: ${request.method} ${path}`);
     console.log(`[Portal] Full URL: ${url.href}`);
-    console.log(`[Portal] AUTH_WORKER binding available: ${!!env.AUTH_WORKER}`);
+    console.log(`[Portal] D1 binding available: ${!!env.WELLS_DB}`);
     
     if (request.method === "OPTIONS") {
       return corsResponse();
@@ -826,7 +826,7 @@ var index_default = {
         return handleUpdatePreferences(request, env);
       }
 
-      // Rate limit magic link requests before proxying to auth-worker
+      // Auth endpoints — handled directly (no auth-worker dependency)
       if (path === "/api/auth/send-magic-link" && request.method === "POST") {
         const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
         const rl = await rateLimit(env.AUTH_TOKENS, 'magic-link', ip, 5, 60);
@@ -834,108 +834,23 @@ var index_default = {
           return jsonResponse({ error: 'Too many requests. Please try again later.' }, 429,
             { 'Retry-After': '60' });
         }
-        // Fall through to auth proxy below
+        const { handleSendMagicLink } = await import('./handlers/auth.js');
+        return handleSendMagicLink(request, env);
       }
 
-      // Proxy auth endpoints to auth-worker
-      if (path.startsWith("/api/auth/")) {
-        console.log(`[Portal] Proxying auth request: ${path}`);
-        console.log(`[Portal] AUTH_WORKER binding available: ${!!env.AUTH_WORKER}`);
-        try {
-          let authResponse: Response;
-          
-          if (env.AUTH_WORKER) {
-            // Use service binding (faster, more reliable)
-            console.log(`[Portal] Using service binding to auth-worker`);
-            const authRequest = new Request(`https://auth-worker${path}${url.search}`, {
-              method: request.method,
-              headers: request.headers,
-              body: request.body,
-              redirect: 'manual' // Don't follow redirects automatically
-            });
-            authResponse = await env.AUTH_WORKER.fetch(authRequest);
-          } else {
-            // Fallback to HTTP
-            console.warn('AUTH_WORKER service binding not configured, using HTTP');
-            const authUrl = `https://auth-worker.photog12.workers.dev${path}${url.search}`;
-            authResponse = await fetch(authUrl, {
-              method: request.method,
-              headers: request.headers,
-              body: request.body,
-              redirect: 'manual' // Don't follow redirects automatically
-            });
-          }
-          
-          // Only handle redirects if it's not a JSON response
-          const contentType = authResponse.headers.get('Content-Type');
-          const isJsonResponse = contentType && contentType.includes('application/json');
-          
-          if (!isJsonResponse && (authResponse.status === 302 || authResponse.status === 301)) {
-            const location = authResponse.headers.get('Location');
-            if (location) {
-              // If it's a relative redirect, make it absolute
-              const absoluteLocation = location.startsWith('http') 
-                ? location 
-                : `https://portal.mymineralwatch.com${location}`;
-              
-              // Create new headers without duplicating Location
-              const responseHeaders = new Headers();
+      if (path === "/api/auth/verify" && (request.method === "GET" || request.method === "HEAD")) {
+        const { handleVerifyMagicLink } = await import('./handlers/auth.js');
+        return handleVerifyMagicLink(request, env, url);
+      }
 
-              // Copy all headers except Location and Set-Cookie
-              authResponse.headers.forEach((value, key) => {
-                if (key.toLowerCase() !== 'location' && key.toLowerCase() !== 'set-cookie') {
-                  responseHeaders.set(key, value);
-                }
-              });
-              // Preserve all Set-Cookie headers (getAll supported in CF Workers)
-              const redirectCookies = (authResponse.headers as any).getAll('set-cookie');
-              for (const cookie of redirectCookies) {
-                responseHeaders.append('set-cookie', cookie);
-              }
-              
-              // Set the corrected Location
-              responseHeaders.set('Location', absoluteLocation);
-              
-              // Add CORS headers
-              Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-                responseHeaders.set(key, value);
-              });
-              
-              // Return the redirect
-              return new Response(null, {
-                status: authResponse.status,
-                headers: responseHeaders
-              });
-            }
-          }
-          
-          // Return auth-worker response with CORS headers
-          // Use Headers object to preserve multiple Set-Cookie headers
-          // (Object.fromEntries deduplicates them, breaking logout)
-          const respHeaders = new Headers();
-          for (const [key, value] of authResponse.headers.entries()) {
-            if (key.toLowerCase() !== 'set-cookie') {
-              respHeaders.set(key, value);
-            }
-          }
-          // getAll('set-cookie') is supported in Cloudflare Workers
-          const setCookies = (authResponse.headers as any).getAll('set-cookie');
-          for (const cookie of setCookies) {
-            respHeaders.append('set-cookie', cookie);
-          }
-          Object.entries(CORS_HEADERS).forEach(([key, value]) => {
-            respHeaders.set(key, value as string);
-          });
-          return new Response(await authResponse.text(), {
-            status: authResponse.status,
-            headers: respHeaders
-          });
-        } catch (error) {
-          console.error('Auth proxy error:', error);
-          return jsonResponse({ 
-            error: 'Authentication service temporarily unavailable. Please try again later.' 
-          }, 503);
-        }
+      if (path === "/api/auth/me" && request.method === "GET") {
+        const { handleGetCurrentUser } = await import('./handlers/auth.js');
+        return handleGetCurrentUser(request, env);
+      }
+
+      if (path === "/api/auth/logout" && request.method === "POST") {
+        const { handleLogout } = await import('./handlers/auth.js');
+        return handleLogout();
       }
       
       // Proxy marketing endpoints to marketing-worker (super-admin or API key)

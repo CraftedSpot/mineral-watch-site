@@ -18,11 +18,6 @@ id = "0988b6413183413bb4f1d1731ced4ed8"
 binding = "COMPLETIONS_CACHE"
 id = "d39109ffa98d4f4d999ee37098d0c13e"
 
-# Service binding to auth-worker
-[[services]]
-binding = "AUTH_WORKER"
-service = "auth-worker"
-
 # Service binding to documents-worker
 [[services]]
 binding = "DOCUMENTS_WORKER"

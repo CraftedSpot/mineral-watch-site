@@ -11,34 +11,15 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
     // Extract session from cookie if present
     let isAuthenticated = false;
     if (cookieHeader) {
-      const cookies = Object.fromEntries(
-        cookieHeader.split('; ').map(c => c.split('='))
-      );
-      if (cookies.mw_session) {
-        // Verify session with auth worker
-        try {
-          const verifyResponse = await env.AUTH_WORKER.fetch(
-            new Request('https://auth-worker/api/auth/verify', {
-              method: 'GET',
-              headers: {
-                'Cookie': `mw_session=${cookies.mw_session}`
-              }
-            })
-          );
-          
-          if (verifyResponse.ok) {
-            const userData = await verifyResponse.json();
-            if (userData.user) {
-              isAuthenticated = true;
-              
-              // Optional: Check if user is admin
-              // For now, any authenticated user can sync
-              // Later you might want to check userData.user.role === 'admin'
-            }
-          }
-        } catch (error) {
-          console.error('Auth verification error:', error);
+      // Verify session locally (no auth-worker dependency)
+      try {
+        const { authenticateRequest } = await import('../utils/auth.js');
+        const user = await authenticateRequest(request, env);
+        if (user) {
+          isAuthenticated = true;
         }
+      } catch (error) {
+        console.error('Auth verification error:', error);
       }
     }
     

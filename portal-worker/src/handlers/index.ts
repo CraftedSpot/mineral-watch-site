@@ -57,9 +57,13 @@ export {
   handleBulkWellEnrichment
 } from './well-enrichment-bulk.js';
 
-// Auth handlers - most moved to auth-worker, keeping only registration
+// Auth handlers — all consolidated into portal-worker
 export {
-  handleRegister
+  handleRegister,
+  handleSendMagicLink,
+  handleVerifyMagicLink,
+  handleGetCurrentUser,
+  handleLogout
 } from './auth.js';
 
 // Sync handler
