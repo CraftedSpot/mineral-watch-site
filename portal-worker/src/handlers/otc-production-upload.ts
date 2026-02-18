@@ -559,6 +559,26 @@ export async function handleComputePunRollups(
     `, [recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd]);
     const step4Changes = declineResult.meta.changes;
 
+    // Step 5: Propagate last_prod_month to wells table for efficient nearby-wells queries
+    console.log(`${logPrefix} Step 5: Propagating last_prod_month to wells table...`);
+    const wellsProdResult = await env.WELLS_DB!.prepare(`
+      UPDATE wells SET last_prod_month = (
+        SELECT MAX(p.last_prod_month)
+        FROM well_pun_links wpl
+        JOIN puns p ON wpl.base_pun = p.base_pun
+        WHERE wpl.api_number = wells.api_number
+        AND p.last_prod_month IS NOT NULL
+      )
+      WHERE api_number IN (
+        SELECT DISTINCT wpl.api_number FROM well_pun_links wpl
+        JOIN puns p ON wpl.base_pun = p.base_pun
+        WHERE p.last_prod_month IS NOT NULL
+        ${county ? "AND wpl.base_pun LIKE ?" : ""}
+      )
+    `).bind(...(county ? [`${county}%`] : [])).run();
+    const step5Changes = wellsProdResult.meta.changes;
+    console.log(`${logPrefix} Step 5: Updated ${step5Changes} wells with last_prod_month`);
+
     // Purge stale production caches so users see fresh data
     let cachesPurged = 0;
     try {
@@ -583,6 +603,7 @@ export async function handleComputePunRollups(
         step2_peak_month: step2Changes,
         step3_staleness: step3Changes,
         step4_decline_rate: step4Changes,
+        step5_wells_prod_month: step5Changes,
         duration_ms: duration,
       },
     });
