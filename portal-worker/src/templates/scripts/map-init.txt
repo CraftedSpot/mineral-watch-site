@@ -221,7 +221,7 @@
                         name: `${(prop.fields.TWN||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.RNG||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.SEC||'').toString().padStart(2, '0')}`,
                         details: `${prop.fields.COUNTY || ''} County${prop.fields.Notes ? ' • ' + prop.fields.Notes : ''}`,
                         data: prop,
-                        searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
+                        searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${(prop.fields.TWN||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.RNG||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.SEC||'').toString().padStart(2, '0')} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
                     });
                 });
             }
@@ -249,7 +249,7 @@
                         name: wellName || `API ${well.api_number || 'Unknown'}`,
                         details: `${well.operator || 'Unknown'} • ${(well.township||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'?').toString().padStart(2, '0')}`,
                         data: { id: well.api_number, lat: well.latitude, lng: well.longitude },
-                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''}`.toLowerCase()
+                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''} ${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'').toString().padStart(2, '0')}`.toLowerCase()
                     });
                 });
             }
