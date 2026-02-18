@@ -134,7 +134,7 @@
                 showMapLoadingOverlay(`Loading ${statusText} wells...`);
                 updateStatus('Loading nearby wells...');
 
-                // Get TRS sections for all user properties and their 3x3 neighbors
+                // Get TRS sections for all user properties — 3x3 core + 5x5 extended in one pass
                 const propertySections = await getPropertyNearbySections();
 
                 if (propertySections.length === 0) {
@@ -143,61 +143,9 @@
                     return;
                 }
 
-                console.log(`Loading ${statusText} wells for ${propertySections.length} sections (3x3 around properties)`);
-                console.log('First 5 property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
-                console.log('Sample TRS format:', propertySections[0]); // Show exact format
-
-                // No limit needed - backend handles chunking
-                const sectionsToQuery = propertySections;
-
-                // Make single POST request with all TRS values
-                const requestBody = {
-                    trs: sectionsToQuery,
-                    status: statusFilter.toLowerCase(), // Send 'ac', 'pa', or 'all'
-                    limit: 20000 // Higher limit to get all wells
-                };
-
-                console.log('Sending POST request with body:', requestBody);
-
-                const response = await fetch('/api/nearby-wells', {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: {
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-
-                if (!response.ok) {
-                    hideMapLoadingOverlay();
-                    const errorText = await response.text();
-                    console.error('Failed to load wells:', response.status, response.statusText, errorText);
-                    updateStatus('Failed to load wells');
-                    return;
-                }
-
-                const result = await response.json();
-                console.log('API response:', result);
-                const allWells = result.data?.wells || [];
-                console.log(`Received ${allWells.length} wells from API (3x3 search)`);
-
-                // Debug: Log first few wells to see exact field names
-                if (allWells.length > 0) {
-                    console.log('First well structure:', allWells[0]);
-                    console.log('First well keys:', Object.keys(allWells[0]));
-                }
-
-                // Debug: Check if operator data exists in response
-                const wellsWithOperatorInfo = allWells.filter(w => w.phone || w.operator_phone || w.contact_name);
-                console.log(`Wells with operator info: ${wellsWithOperatorInfo.length}/${allWells.length}`);
-                if (wellsWithOperatorInfo.length > 0) {
-                    console.log('Sample well with operator info:', wellsWithOperatorInfo[0]);
-                }
-
-                // Additional search: Look for long lateral wells in a wider area (5x5)
-                // This catches wells that start further away but might extend into properties
-                const extendedSections = new Set();
+                // Build combined TRS set: 3x3 core + 5x5 outer ring (for long laterals)
+                const coreSections = new Set(propertySections);
+                const extendedOnlySections = new Set();
 
                 for (const property of userProperties) {
                     const fields = property.fields || property;
@@ -209,68 +157,64 @@
                     const meridian = fields.MERIDIAN || 'IM';
 
                     if (section && township && range) {
-                        // Get 5x5 sections for wells with long laterals
                         const extendedNearbySections = get5x5Sections(section, township, range, meridian);
                         extendedNearbySections.forEach(trs => {
-                            // Only add if not already in our 3x3 search
-                            if (!sectionsToQuery.includes(trs)) {
-                                extendedSections.add(trs);
+                            if (!coreSections.has(trs)) {
+                                extendedOnlySections.add(trs);
                             }
                         });
                     }
                 }
 
-                if (extendedSections.size > 0) {
-                    console.log(`Searching additional ${extendedSections.size} sections for long lateral wells...`);
-                    updateStatus('Searching for extended lateral wells...');
+                // Single API call with all sections (core + extended)
+                const allSections = [...propertySections, ...extendedOnlySections];
+                console.log(`Loading ${statusText} wells: ${propertySections.length} core + ${extendedOnlySections.size} extended = ${allSections.length} sections`);
 
-                    try {
-                        const extendedRequestBody = {
-                            trs: Array.from(extendedSections),
-                            status: statusFilter.toLowerCase(),
-                            limit: 5000,
-                            lateralOnly: true // We'll filter for long laterals on the frontend
-                        };
+                const response = await fetch('/api/nearby-wells', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        trs: allSections,
+                        status: statusFilter.toLowerCase(),
+                        limit: 25000
+                    })
+                });
 
-                        const extendedResponse = await fetch('/api/nearby-wells', {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: {
-                                'Accept': 'application/json',
-                                'Content-Type': 'application/json'
-                            },
-                            body: JSON.stringify(extendedRequestBody)
-                        });
-
-                        if (extendedResponse.ok) {
-                            const extendedResult = await extendedResponse.json();
-                            const extendedWells = (extendedResult.data?.wells || []).filter(well => {
-                                // Only include wells with significant laterals (> 1 mile = 5280 ft)
-                                return well.lateral_length && well.lateral_length > 5280 &&
-                                       well.bh_latitude && well.bh_longitude;
-                            });
-
-                            console.log(`Found ${extendedWells.length} wells with long laterals in extended area`);
-
-                            // Mark these wells so we can style them differently
-                            extendedWells.forEach(well => {
-                                well.isExtendedLateral = true;
-                            });
-
-                            // Combine with existing wells
-                            allWells.push(...extendedWells);
-                        }
-                    } catch (error) {
-                        console.warn('Error loading extended lateral wells:', error);
-                        // Continue without extended wells
-                    }
+                if (!response.ok) {
+                    hideMapLoadingOverlay();
+                    console.error('Failed to load wells:', response.status);
+                    updateStatus('Failed to load wells');
+                    return;
                 }
 
-                // Remove duplicates (wells might appear in multiple sections)
+                const result = await response.json();
+                const allWells = result.data?.wells || [];
+                console.log(`Received ${allWells.length} wells in ${result.data?.query?.executionTime}ms`);
+
+                // Tag wells from extended-only sections as extended laterals
+                // (only keep them if they have long laterals > 1 mile with BH coords)
+                const filteredAllWells = allWells.filter(well => {
+                    const trs = `${well.section}-${well.township}-${well.range}-${well.meridian}`;
+                    if (extendedOnlySections.has(trs)) {
+                        if (well.lateral_length && well.lateral_length > 5280 &&
+                            well.bh_latitude && well.bh_longitude) {
+                            well.isExtendedLateral = true;
+                            return true;
+                        }
+                        return false; // Drop non-lateral wells from extended ring
+                    }
+                    return true; // Keep all core wells
+                });
+
+                // Remove duplicates
                 const uniqueWells = Array.from(
-                    new Map(allWells.map(w => [w.api_number, w])).values()
+                    new Map(filteredAllWells.map(w => [w.api_number, w])).values()
                 );
-                console.log(`After removing duplicates: ${uniqueWells.length} unique wells`);
+                console.log(`${uniqueWells.length} unique wells after filtering`);
 
                 // Cache the results
                 try {
@@ -278,18 +222,13 @@
                         wells: uniqueWells,
                         timestamp: Date.now()
                     }));
-                    console.log(`Cached ${uniqueWells.length} ${statusText} wells`);
                 } catch (e) {
-                    console.error('Failed to cache wells:', e);
                     // Clear old cache if storage is full
                     try {
-                        const keys = Object.keys(localStorage);
-                        keys.filter(k => k.startsWith('mw_nearby_wells_')).forEach(k => {
+                        Object.keys(localStorage).filter(k => k.startsWith('mw_nearby_wells_')).forEach(k => {
                             localStorage.removeItem(k);
                         });
-                    } catch (clearError) {
-                        console.error('Failed to clear old cache:', clearError);
-                    }
+                    } catch (clearError) { /* ignore */ }
                 }
 
                 // Store wells for filtering

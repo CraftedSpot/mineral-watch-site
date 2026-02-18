@@ -172,133 +172,55 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       });
     }
 
-    console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
-    console.log(`[NearbyWells] Will filter for well_status = '${status}' (${status === 'ALL' ? 'showing all statuses' : 'filtering by status'})`);
-    
-    // Log first 5 parsed TRS values to verify parsing
-    console.log(`[NearbyWells] First 5 parsed TRS values:`);
-    trsValues.slice(0, 5).forEach((trs, idx) => {
-      console.log(`  [${idx + 1}] section=${trs.section}, township=${trs.township}, range=${trs.range}, meridian=${trs.meridian}`);
-    });
+    console.log(`[NearbyWells] ${trsValues.length} TRS locations, status=${status}`);
     
     const startTime = Date.now();
 
-    // Query each TRS individually - proven to work correctly
+    // Build all D1 statements and execute in a single batch (1 round-trip)
+    const statusFilter = status === 'ALL' ? '' : ' AND well_status = ?';
+    const query = `
+      SELECT
+        w.api_number, w.well_name, w.well_number,
+        w.section, w.township, w.range, w.meridian,
+        w.county, w.latitude, w.longitude,
+        w.operator, w.well_type, w.well_status,
+        w.spud_date, w.completion_date,
+        w.bh_latitude, w.bh_longitude,
+        w.formation_name, w.formation_depth,
+        w.true_vertical_depth, w.measured_total_depth,
+        w.lateral_length,
+        w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
+        o.phone, o.contact_name
+      FROM wells w
+      LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
+      WHERE section = ? AND township = ? AND range = ? AND meridian = ?${statusFilter}
+      ORDER BY well_name
+    `;
+
     const allWells: any[] = [];
-    
-    // Process TRS values in batches for parallel execution, but query each one individually
-    const PARALLEL_BATCH = 10; // Process 10 TRS values at a time in parallel
-    
-    for (let i = 0; i < trsValues.length; i += PARALLEL_BATCH) {
-      const batch = trsValues.slice(i, Math.min(i + PARALLEL_BATCH, trsValues.length));
-      
-      console.log(`[NearbyWells] Processing batch ${Math.floor(i / PARALLEL_BATCH) + 1} of ${Math.ceil(trsValues.length / PARALLEL_BATCH)} (${batch.length} TRS values)`);
-      
-      // Query each TRS in this batch in parallel
-      const batchPromises = batch.map(async (trs, idx) => {
-        const trsIndex = i + idx;
-        
-        // Build query for single TRS
-        const statusFilter = status === 'ALL' ? '' : ' AND well_status = ?';
-        const query = `
-          SELECT 
-            w.api_number,
-            w.well_name,
-            w.well_number,
-            w.section,
-            w.township,
-            w.range,
-            w.meridian,
-            w.county,
-            w.latitude,
-            w.longitude,
-            w.operator,
-            w.well_type,
-            w.well_status,
-            w.spud_date,
-            w.completion_date,
-            -- New completion data fields
-            w.bh_latitude,
-            w.bh_longitude,
-            w.formation_name,
-            w.formation_depth,
-            w.true_vertical_depth,
-            w.measured_total_depth,
-            w.lateral_length,
-            w.ip_oil_bbl,
-            w.ip_gas_mcf,
-            w.ip_water_bbl,
-            -- Operator info from operators table
-            o.phone,
-            o.contact_name
-          FROM wells w
-          LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
-          WHERE section = ? AND township = ? AND range = ? AND meridian = ?${statusFilter}
-          ORDER BY well_name
-        `;
-        
-        // Parameters for this single TRS
-        const params = status === 'ALL' 
+
+    // D1 batch limit is 500 statements per call
+    const D1_BATCH = 500;
+    for (let i = 0; i < trsValues.length; i += D1_BATCH) {
+      const chunk = trsValues.slice(i, i + D1_BATCH);
+      const stmts = chunk.map(trs => {
+        const params = status === 'ALL'
           ? [trs.section, trs.township, trs.range, trs.meridian]
           : [trs.section, trs.township, trs.range, trs.meridian, status];
-        
-        try {
-          // Log first few queries for debugging
-          if (trsIndex < 3) {
-            console.log(`[NearbyWells] TRS ${trsIndex + 1}: section=${trs.section}, township=${trs.township}, range=${trs.range}, meridian=${trs.meridian}`);
-          }
-          
-          const queryStart = Date.now();
-          const result = await env.WELLS_DB.prepare(query)
-            .bind(...params)
-            .all();
-          
-          const queryTime = Date.now() - queryStart;
-          
-          // Log if this TRS has wells
-          if (result.results.length > 0) {
-            console.log(`[NearbyWells] TRS ${trsIndex + 1} (${trs.section}-${trs.township}-${trs.range}-${trs.meridian}): found ${result.results.length} wells in ${queryTime}ms`);
-            
-            // Debug: Check operator data in first well of first TRS
-            if (trsIndex === 0 && result.results[0]) {
-              const firstWell = result.results[0];
-              console.log(`[NearbyWells] First well raw data keys:`, Object.keys(firstWell));
-              console.log(`[NearbyWells] First well operator data:`, {
-                api: firstWell.api_number,
-                operator: firstWell.operator,
-                operator_phone: firstWell.operator_phone,
-                contact_name: firstWell.contact_name,
-                phone: firstWell.phone,
-                contact: firstWell.contact
-              });
-              
-              // Also check if any wells in this batch have operator data
-              const wellsWithPhone = result.results.filter(w => w.phone).length;
-              const wellsWithContact = result.results.filter(w => w.contact_name).length;
-              console.log(`[NearbyWells] First TRS batch: ${wellsWithPhone}/${result.results.length} wells have phone, ${wellsWithContact} have contact_name`);
-            }
-          }
-          
-          
-          return result.results;
-        } catch (error) {
-          console.error(`[NearbyWells] Query failed for TRS ${trsIndex + 1}:`, error);
-          return [];
+        return env.WELLS_DB!.prepare(query).bind(...params);
+      });
+
+      const batchResults = await env.WELLS_DB!.batch(stmts);
+      for (const result of batchResults) {
+        const rows = (result as any).results as any[];
+        if (rows && rows.length > 0) {
+          allWells.push(...rows);
         }
-      });
-      
-      // Wait for this batch to complete
-      const batchResults = await Promise.all(batchPromises);
-      
-      // Add all wells from this batch to our results
-      batchResults.forEach(wells => {
-        allWells.push(...wells);
-      });
-      
-      console.log(`[NearbyWells] Batch complete. Total wells so far: ${allWells.length}`);
+      }
+      console.log(`[NearbyWells] D1 batch ${Math.floor(i / D1_BATCH) + 1}: ${chunk.length} TRS queried, ${allWells.length} wells so far`);
     }
-    
-    console.log(`[NearbyWells] All queries complete. Total wells found: ${allWells.length}`);
+
+    console.log(`[NearbyWells] ${trsValues.length} TRS queried in ${Date.now() - startTime}ms, ${allWells.length} wells found`);
 
     // Remove duplicates (wells might appear in multiple batches)
     const uniqueWells = Array.from(
@@ -318,29 +240,10 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     
     const paginatedWells = sortedWells.slice(offset, offset + limit);
     
-    console.log(`[NearbyWells] Total unique wells found: ${uniqueWells.length}, returning ${paginatedWells.length} after pagination`);
-    
-    // Log operator info stats
-    const wellsWithPhone = paginatedWells.filter(w => w.phone).length;
-    const wellsWithContact = paginatedWells.filter(w => w.contact_name).length;
-    console.log(`[NearbyWells] Final response stats: ${wellsWithPhone}/${paginatedWells.length} wells have phone, ${wellsWithContact} have contact_name`);
-    
-    // Log sample well with operator info
-    const sampleWellWithInfo = paginatedWells.find(w => w.phone || w.contact_name);
-    if (sampleWellWithInfo) {
-      console.log(`[NearbyWells] Sample well with operator info:`, {
-        api: sampleWellWithInfo.api_number,
-        operator: sampleWellWithInfo.operator,
-        phone: sampleWellWithInfo.phone,
-        contact_name: sampleWellWithInfo.contact_name
-      });
-    }
-
-    // For POST requests with many TRS values, the total count is the unique wells count
     const totalCount = uniqueWells.length;
     const totalTime = Date.now() - startTime;
+    console.log(`[NearbyWells] ${totalCount} unique wells, returning ${paginatedWells.length} in ${totalTime}ms`);
 
-    // Format response
     const response = {
       success: true,
       data: {
@@ -352,9 +255,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
           hasMore: offset + limit < totalCount
         },
         query: {
-          trs: trsValues.map(t => `${t.section}-${t.township}-${t.range}-${t.meridian}`),
           trsCount: trsValues.length,
-          batchesProcessed: Math.ceil(trsValues.length / PARALLEL_BATCH),
           executionTime: totalTime
         }
       }
