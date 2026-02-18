@@ -47,14 +47,14 @@
                 if (!map.hasLayer(darkBase)) darkBase.addTo(map);
                 darkBase.bringToBack();
                 document.getElementById('map').classList.add('map-dark');
-                if (btn) btn.textContent = '☀️';
+                if (btn) btn.textContent = '🌙'; // Moon = you're in dark mode
             } else {
                 map.removeLayer(darkBase);
                 if (!map.hasLayer(lightBase)) lightBase.addTo(map);
                 if (!map.hasLayer(lightRef)) lightRef.addTo(map);
                 lightBase.bringToBack();
                 document.getElementById('map').classList.remove('map-dark');
-                if (btn) btn.textContent = '🌙';
+                if (btn) btn.textContent = '☀️'; // Sun = you're in light mode
             }
         }
 

@@ -2471,6 +2471,9 @@
         }
         
         /* Dark mode map overrides */
+        .map-dark { background: #0F172A; }
+        .map-dark .leaflet-tile-pane { filter: brightness(0.65); }
+
         .map-dark .map-controls-bar {
             background: #1E293B;
             box-shadow: 0 2px 12px rgba(0,0,0,0.4);
@@ -2746,7 +2749,7 @@
                             <option value="gas">Gas</option>
                         </select>
                         <button id="darkModeBtn" class="layer-select" onclick="toggleMapDarkMode()" title="Toggle dark basemap" style="cursor:pointer;text-align:center;min-width:auto;padding:4px 10px;">
-                            🌙
+                            ☀️
                         </button>
                     </div>
 
