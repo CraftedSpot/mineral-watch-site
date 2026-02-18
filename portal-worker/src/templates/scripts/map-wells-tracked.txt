@@ -165,70 +165,63 @@
                     }
                 }
                 
-                // Now create lateral paths for wells with BH data and add them to wellsLayer
-                console.log('Creating lateral paths for wells with BH data...');
+                // Create lateral paths in the dedicated lateralsLayer (not the cluster group)
+                lateralsLayer.clearLayers();
                 let lateralPathCount = 0;
-                
+
                 for (const well of wells) {
                     const apiNumber = well.apiNumber;
-
-                    // Get surface coordinates
                     const coords = parseOccMapLink(well.occMapLink);
                     if (!coords) continue;
 
-                    // First check D1 data for bottom hole coordinates
                     const d1Data = d1LateralData[apiNumber];
                     if (d1Data && d1Data.has_lateral && d1Data.bottom_hole_location) {
                         const bhLat = d1Data.bottom_hole_location.latitude;
                         const bhLng = d1Data.bottom_hole_location.longitude;
-                        
-                        // Apply same distance filtering as nearby wells
+
                         const latDiff = Math.abs(bhLat - coords.lat);
                         const lngDiff = Math.abs(bhLng - coords.lon);
-                        const approxDistanceMiles = (latDiff + lngDiff) * 69;
-                        
-                        if (approxDistanceMiles < 3) {
-                            const lateralPath = drawLateralPath(
-                                coords,
-                                { lat: bhLat, lng: bhLng },
-                                well,
-                                'tracked'
-                            );
-                            
+                        if ((latDiff + lngDiff) * 69 < 3) {
+                            const lateralPath = drawLateralPath(coords, { lat: bhLat, lng: bhLng }, well, 'tracked');
                             if (lateralPath) {
-                                wellsLayer.addLayer(lateralPath);
+                                lateralsLayer.addLayer(lateralPath);
                                 lateralPathCount++;
                             }
                         }
-                    }
-                    // Fall back to BH Section/Township/Range if no D1 data
-                    else if (well.bh_section && well.bh_township && well.bh_range) {
+                    } else if (well.bh_section && well.bh_township && well.bh_range) {
                         const bhCacheKey = `${well.bh_section}-${well.bh_township}-${well.bh_range}`;
                         const bhGeometry = geometryCache[bhCacheKey];
-                        
+
                         if (bhGeometry && bhGeometry.geometry) {
-                            // Calculate center from cached geometry
                             const bounds = L.geoJSON(bhGeometry).getBounds();
                             const bhCenter = bounds.getCenter();
-                            
-                            const lateralPath = drawLateralPath(
-                                coords,
-                                { lat: bhCenter.lat, lng: bhCenter.lng },
-                                well,
-                                'tracked'
-                            );
-                            
+                            const lateralPath = drawLateralPath(coords, { lat: bhCenter.lat, lng: bhCenter.lng }, well, 'tracked');
                             if (lateralPath) {
-                                // Add lateral path to the wells layer instead of a separate layer
-                                wellsLayer.addLayer(lateralPath);
+                                lateralsLayer.addLayer(lateralPath);
                                 lateralPathCount++;
                             }
                         }
                     }
                 }
-                
+
+                // Show tracked laterals only when zoomed in
+                const TRACKED_LATERAL_ZOOM = 10;
+                function updateTrackedLateralVisibility() {
+                    if (map.getZoom() >= TRACKED_LATERAL_ZOOM && lateralsLayer.getLayers().length > 0) {
+                        if (!map.hasLayer(lateralsLayer)) map.addLayer(lateralsLayer);
+                    } else {
+                        if (map.hasLayer(lateralsLayer)) map.removeLayer(lateralsLayer);
+                    }
+                }
+                if (window._trackedLateralZoomHandler) {
+                    map.off('zoomend', window._trackedLateralZoomHandler);
+                }
+                window._trackedLateralZoomHandler = updateTrackedLateralVisibility;
+                map.on('zoomend', updateTrackedLateralVisibility);
+                updateTrackedLateralVisibility();
+
                 if (lateralPathCount > 0) {
-                    console.log(`✅ Created ${lateralPathCount} lateral paths`);
+                    console.log(`${lateralPathCount} tracked lateral paths (zoom >= ${TRACKED_LATERAL_ZOOM})`);
                 }
                 
                 console.log(`Added ${addedWells} wells to cluster layer`);
