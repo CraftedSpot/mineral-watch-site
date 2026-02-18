@@ -2488,10 +2488,11 @@
         .map-container.map-fullscreen > .map-search-container {
             position: absolute;
             top: 12px;
-            right: 12px;
+            left: 50%;
+            transform: translateX(-50%);
             z-index: 100001;
-            max-width: 350px;
-            width: 350px;
+            max-width: 400px;
+            width: 400px;
         }
         .map-container.map-fullscreen > .map-search-container .map-search-input {
             background: rgba(255,255,255,0.95);
@@ -2562,6 +2563,13 @@
         .map-dark .overlays-menu { background: #1E293B; border-color: #334155; }
         .map-dark .overlay-option label { color: #CBD5E1; }
         .map-dark .heatmap-section-divider { color: #64748B; border-color: #334155; }
+        .map-dark .map-search-results { background: #1E293B; border-color: #334155; }
+        .map-dark .search-result-item { border-color: #334155; }
+        .map-dark .search-result-item:hover { background: #334155; }
+        .map-dark .search-result-name { color: #F1F5F9; }
+        .map-dark .search-result-details { color: #94A3B8; }
+        .map-dark .search-result-type.type-nearby { background: #334155; color: #CBD5E1; }
+        .map-dark .search-no-results { color: #64748B; }
         .map-dark .map-search-container input {
             background: #1E293B; color: #E2E8F0; border-color: #475569;
         }
@@ -2646,6 +2654,94 @@
         .map-dark .pm-bonus { color: #4ADE80; }
         .map-dark .pm-meta-item { color: #A8A29E; }
         .map-dark .pm-meta-item strong { color: #E7E5E4; }
+
+        /* Operator color toggle button */
+        #colorByOperatorBtn.active {
+            background: #1E40AF !important;
+            color: #fff !important;
+            border-color: #1E40AF !important;
+        }
+        .map-dark #colorByOperatorBtn.active {
+            background: #3B82F6 !important;
+            border-color: #3B82F6 !important;
+        }
+
+        /* Operator legend (dynamic) */
+        .operator-legend {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255,255,255,0.95);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            min-width: 160px;
+        }
+        .operator-legend-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #64748B;
+            margin-bottom: 8px;
+        }
+        .operator-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 4px 0;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .operator-legend-item:hover { opacity: 0.7; }
+        .operator-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .operator-legend-name {
+            flex: 1;
+            font-weight: 500;
+            color: #1E293B;
+        }
+        .operator-legend-count {
+            font-size: 11px;
+            color: #94A3B8;
+            font-weight: 600;
+        }
+        .map-dark .operator-legend {
+            background: rgba(30,41,59,0.95);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .map-dark .operator-legend-title { color: #94A3B8; }
+        .map-dark .operator-legend-name { color: #E2E8F0; }
+        .map-dark .operator-legend-count { color: #64748B; }
+
+        /* Operator modal stats */
+        .op-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+        .op-stat { text-align: center; flex: 1; min-width: 70px; padding: 10px; background: #F0F9FF; border-radius: 8px; border: 1px solid #BAE6FD; }
+        .op-stat-value { font-size: 20px; font-weight: 700; color: #1E40AF; }
+        .op-stat-label { font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; }
+        .op-section { margin-bottom: 16px; }
+        .op-section-title { font-size: 12px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 8px; border-bottom: 1px solid #E5E7EB; padding-bottom: 4px; }
+        .op-wells-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .op-wells-table th { text-align: left; padding: 6px 8px; font-size: 11px; font-weight: 600; color: #64748B; border-bottom: 1px solid #E5E7EB; }
+        .op-wells-table td { padding: 6px 8px; border-bottom: 1px solid #F3F4F6; }
+        .op-wells-table tr:hover { background: #F0F9FF; }
+        .op-wells-table .clickable { cursor: pointer; color: #1E40AF; }
+        .op-wells-table .clickable:hover { text-decoration: underline; }
+        .map-dark .op-stat { background: #1E293B; border-color: #334155; }
+        .map-dark .op-stat-value { color: #60A5FA; }
+        .map-dark .op-section-title { color: #94A3B8; border-color: #334155; }
+        .map-dark .op-wells-table th { color: #94A3B8; border-color: #334155; }
+        .map-dark .op-wells-table td { color: #D6D3D1; border-color: #292524; }
+        .map-dark .op-wells-table tr:hover { background: #1C1917; }
+        .map-dark .op-wells-table .clickable { color: #60A5FA; }
 
         .map-dark .pooling-legend { background: rgba(30,41,59,0.95); border-color: #334155; }
         .map-dark .pooling-legend-title { color: #CBD5E1; }
@@ -2830,6 +2926,9 @@
                             <option value="AC">(AC) OCC Status</option>
                             <option value="ALL">All Wells</option>
                         </select>
+                        <button id="colorByOperatorBtn" class="layer-select" onclick="toggleColorByOperator()" title="Color wells by operator" style="display:none;cursor:pointer;text-align:center;min-width:auto;padding:4px 10px;font-size:11px;">
+                            By Operator
+                        </button>
                         <div class="heatmap-dropdown">
                             <button class="heatmap-btn" id="heatmapBtn" title="Statewide drilling activity within 90 days">
                                 <span>Heat Map</span>
@@ -3300,6 +3399,22 @@
                 <button class="well-modal-close" onclick="closePoolingTownshipModal()">&times;</button>
             </div>
             <div class="well-modal-body" id="poolingModalBody">
+                <div style="text-align: center; padding: 40px; color: var(--slate-blue);">Loading...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- OPERATOR DETAIL MODAL -->
+    <div class="well-modal-overlay" id="operatorModal">
+        <div class="well-modal" style="max-width: 700px;">
+            <div class="well-modal-header" style="background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 100%);">
+                <div style="flex: 1;">
+                    <h3 class="well-modal-title" id="operatorModalTitle">Operator</h3>
+                    <div class="well-modal-subtitle" id="operatorModalSubtitle">—</div>
+                </div>
+                <button class="well-modal-close" onclick="closeOperatorModal()">&times;</button>
+            </div>
+            <div class="well-modal-body" id="operatorModalBody">
                 <div style="text-align: center; padding: 40px; color: var(--slate-blue);">Loading...</div>
             </div>
         </div>

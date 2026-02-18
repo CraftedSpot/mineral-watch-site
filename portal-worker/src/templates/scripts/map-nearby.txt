@@ -1,3 +1,55 @@
+        // Color by operator state
+        let colorByOperator = false;
+        let operatorColorMap = {};
+
+        // Generate a distinct color for any operator using hash
+        function hashOperatorColor(name) {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            // Use golden ratio to spread hues evenly
+            const hue = ((hash & 0xFFFFFF) * 137.508) % 360;
+            return `hsl(${Math.round(hue)}, 70%, 50%)`;
+        }
+
+        // Build operator color map from well data
+        function buildOperatorColorMap(wells) {
+            const counts = {};
+            wells.forEach(w => {
+                const op = (w.operator || 'Unknown').toUpperCase().trim();
+                counts[op] = (counts[op] || 0) + 1;
+            });
+            // Sort by count descending
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            const map = {};
+            // Top operators get manually-assigned vibrant colors for best distinction
+            const palette = [
+                '#1E40AF', '#DC2626', '#059669', '#7C3AED', '#F59E0B',
+                '#0891B2', '#EC4899', '#84CC16', '#F97316', '#06B6D4',
+                '#8B5CF6', '#10B981', '#EF4444', '#6366F1', '#14B8A6',
+                '#F43F5E', '#A855F7', '#22C55E', '#E11D48', '#0EA5E9'
+            ];
+            sorted.forEach(([op, count], i) => {
+                map[op] = i < palette.length ? palette[i] : hashOperatorColor(op);
+            });
+            return map;
+        }
+
+        function toggleColorByOperator() {
+            colorByOperator = !colorByOperator;
+            const btn = document.getElementById('colorByOperatorBtn');
+            if (btn) {
+                if (colorByOperator) btn.classList.add('active');
+                else btn.classList.remove('active');
+            }
+            // Re-render with existing data
+            if (allNearbyWells && allNearbyWells.length > 0) {
+                const filteredWells = filterWellsData(allNearbyWells);
+                displayFilteredWells(filteredWells);
+            }
+        }
+
         // Toggle nearby wells from D1 database
         function toggleNearbyWells() {
             console.log('toggleNearbyWells called');
@@ -9,11 +61,14 @@
             console.log('Nearby wells select value:', value);
             console.log('User properties count:', userProperties.length);
 
+            const opBtn = document.getElementById('colorByOperatorBtn');
+
             // Update active state based on selection
             if (value !== 'off') {
                 select.classList.add('active');
                 if (countDiv) countDiv.style.display = 'flex';
                 if (separatorDiv) separatorDiv.style.display = 'block';
+                if (opBtn) opBtn.style.display = '';
                 console.log('Calling loadNearbyWells...');
                 loadNearbyWells();
             } else {
@@ -26,6 +81,9 @@
                 }
                 if (countDiv) countDiv.style.display = 'none';
                 if (separatorDiv) separatorDiv.style.display = 'none';
+                if (opBtn) opBtn.style.display = 'none';
+                // Remove operator legend
+                removeOperatorLegend();
                 const filterPanel = document.getElementById('wellsFilterPanel');
                 if (filterPanel) filterPanel.style.display = 'none';
                 const wellCount = document.getElementById('nearbyWellCount');
@@ -610,6 +668,19 @@
             // Update nearby wells count
             document.getElementById('nearbyWellCount').textContent = wells.length;
 
+            // Build operator color map if in operator mode
+            if (colorByOperator) {
+                operatorColorMap = buildOperatorColorMap(wells);
+                renderOperatorLegend();
+                // Attach viewport handler so legend updates on pan/zoom
+                if (!window._operatorLegendHandler) {
+                    window._operatorLegendHandler = renderOperatorLegend;
+                    map.on('moveend zoomend', window._operatorLegendHandler);
+                }
+            } else {
+                removeOperatorLegend();
+            }
+
             // Store wells data globally for popup access
             window.nearbyWellsData = {};
 
@@ -649,6 +720,15 @@
             function nearbyMarkerStyle(well) {
                 const isPlugged = well.well_status === 'PA';
                 const producing = !isPlugged && isProducing(well);
+
+                // Color by operator mode
+                if (colorByOperator) {
+                    const op = (well.operator || 'Unknown').toUpperCase().trim();
+                    const color = operatorColorMap[op] || '#6B7280';
+                    const glow = isPlugged ? 'none' : `0 0 6px 2px ${color}66`;
+                    return { color, glow, opacity: isPlugged ? 0.4 : 1, producing };
+                }
+
                 const wt = (well.well_type || '').toLowerCase();
                 let color, glow;
                 if (wt.includes('gas')) {
@@ -681,12 +761,12 @@
                 const style = isExtendedLateral
                     ? { color: '#F59E0B', glow: '0 0 6px 2px rgba(245,158,11,0.5)', opacity: 1 }
                     : nearbyMarkerStyle(well);
-                const dotSize = 9;
+                const dotSize = 12;
 
                 const marker = L.marker([well.latitude, well.longitude], {
                     icon: L.divIcon({
                         className: 'nw-dot',
-                        html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${style.color};border:1.5px solid rgba(255,255,255,0.9);box-shadow:${style.glow};opacity:${style.opacity};"></div>`,
+                        html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${style.color};border:1px solid rgba(0,0,0,0.15);box-shadow:${style.glow};opacity:${style.opacity};"></div>`,
                         iconSize: [dotSize, dotSize],
                         iconAnchor: [dotSize / 2, dotSize / 2],
                         popupAnchor: [0, -dotSize / 2]
@@ -798,5 +878,182 @@
 
             ensureLayerOrder();
             updateSearchIndex();
+        }
+
+        // Render operator legend inside map container (viewport-aware)
+        function renderOperatorLegend() {
+            if (!colorByOperator || !allNearbyWells || !allNearbyWells.length) {
+                removeOperatorLegend();
+                return;
+            }
+
+            // Filter to wells visible in current viewport
+            const bounds = map.getBounds();
+            const visibleWells = allNearbyWells.filter(w =>
+                w.latitude && w.longitude && bounds.contains([w.latitude, w.longitude])
+            );
+
+            // Count wells per operator in viewport
+            const counts = {};
+            visibleWells.forEach(w => {
+                const op = (w.operator || 'Unknown').toUpperCase().trim();
+                counts[op] = (counts[op] || 0) + 1;
+            });
+            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+            const topN = sorted.slice(0, 15);
+            const otherCount = sorted.slice(15).reduce((sum, e) => sum + e[1], 0);
+
+            // Reuse existing element or create new one
+            let el = document.getElementById('operatorLegendPanel');
+            if (!el) {
+                el = document.createElement('div');
+                el.className = 'operator-legend';
+                el.id = 'operatorLegendPanel';
+                document.querySelector('.map-container').appendChild(el);
+                // Prevent Leaflet from swallowing clicks on the legend
+                L.DomEvent.disableClickPropagation(el);
+                L.DomEvent.disableScrollPropagation(el);
+            }
+
+            let html = `<div class="operator-legend-title">Operators in View <span style="font-weight:400;color:#94A3B8;">(${visibleWells.length})</span></div>`;
+            topN.forEach(([op, count]) => {
+                const color = operatorColorMap[op] || '#6B7280';
+                const display = toTitleCase(op);
+                html += `<div class="operator-legend-item" onclick="openOperatorModal('${op.replace(/'/g, "\\'")}')">
+                    <div class="operator-legend-dot" style="background:${color};"></div>
+                    <div class="operator-legend-name">${display}</div>
+                    <div class="operator-legend-count">${count}</div>
+                </div>`;
+            });
+            if (otherCount > 0) {
+                html += `<div class="operator-legend-item" style="cursor:default;">
+                    <div class="operator-legend-dot" style="background:#6B7280;"></div>
+                    <div class="operator-legend-name" style="color:#94A3B8;">Others</div>
+                    <div class="operator-legend-count">${otherCount}</div>
+                </div>`;
+            }
+            el.innerHTML = html;
+        }
+
+        function removeOperatorLegend() {
+            const el = document.getElementById('operatorLegendPanel');
+            if (el) el.remove();
+            // Remove map move handler
+            if (window._operatorLegendHandler) {
+                map.off('moveend zoomend', window._operatorLegendHandler);
+                window._operatorLegendHandler = null;
+            }
+        }
+
+        // Operator detail modal (scoped to visible wells when in operator color mode)
+        function openOperatorModal(operatorName) {
+            const overlay = document.getElementById('operatorModal');
+            if (!overlay) return;
+
+            const opKey = operatorName.toUpperCase().trim();
+            let wells;
+            let subtitle;
+            if (colorByOperator) {
+                // Scope to current viewport
+                const bounds = map.getBounds();
+                wells = (allNearbyWells || []).filter(w =>
+                    (w.operator || 'Unknown').toUpperCase().trim() === opKey &&
+                    w.latitude && w.longitude && bounds.contains([w.latitude, w.longitude])
+                );
+                subtitle = wells.length + ' wells in view';
+            } else {
+                wells = (allNearbyWells || []).filter(w =>
+                    (w.operator || 'Unknown').toUpperCase().trim() === opKey
+                );
+                subtitle = wells.length + ' wells nearby';
+            }
+
+            const display = toTitleCase(operatorName);
+            document.getElementById('operatorModalTitle').textContent = display;
+            document.getElementById('operatorModalSubtitle').textContent = subtitle;
+
+            // Stats
+            const producing = wells.filter(w => w.well_status === 'AC' && w.last_prod_month).length;
+            const active = wells.filter(w => w.well_status === 'AC').length;
+            const plugged = wells.filter(w => w.well_status === 'PA').length;
+            const horizontal = wells.filter(w => w.bh_latitude && w.bh_longitude &&
+                (Math.abs(w.bh_latitude - w.latitude) + Math.abs(w.bh_longitude - w.longitude)) * 69 > 0.3).length;
+
+            // Formation breakdown
+            const formCounts = {};
+            wells.forEach(w => {
+                const f = w.formation_name ? toTitleCase(w.formation_name) : 'Unknown';
+                formCounts[f] = (formCounts[f] || 0) + 1;
+            });
+            const topFormations = Object.entries(formCounts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+
+            // County breakdown
+            const countyCounts = {};
+            wells.forEach(w => {
+                const c = w.county ? toTitleCase(w.county) : 'Unknown';
+                countyCounts[c] = (countyCounts[c] || 0) + 1;
+            });
+            const topCounties = Object.entries(countyCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+            let body = `<div class="op-stats">
+                <div class="op-stat"><div class="op-stat-value">${active}</div><div class="op-stat-label">Active</div></div>
+                <div class="op-stat"><div class="op-stat-value">${producing}</div><div class="op-stat-label">Producing</div></div>
+                <div class="op-stat"><div class="op-stat-value">${plugged}</div><div class="op-stat-label">Plugged</div></div>
+                <div class="op-stat"><div class="op-stat-value">${horizontal}</div><div class="op-stat-label">Horizontal</div></div>
+            </div>`;
+
+            // Formations section
+            if (topFormations.length > 0) {
+                body += `<div class="op-section"><div class="op-section-title">Formations</div><div style="display:flex;gap:6px;flex-wrap:wrap;">`;
+                topFormations.forEach(([f, c]) => {
+                    body += `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;">${f} <span style="font-weight:600;">${c}</span></span>`;
+                });
+                body += `</div></div>`;
+            }
+
+            // Counties section
+            if (topCounties.length > 0) {
+                body += `<div class="op-section"><div class="op-section-title">Counties</div><div style="display:flex;gap:6px;flex-wrap:wrap;">`;
+                topCounties.forEach(([c, count]) => {
+                    body += `<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;background:#F1F5F9;color:#334155;border:1px solid #CBD5E1;">${c} <span style="font-weight:600;">${count}</span></span>`;
+                });
+                body += `</div></div>`;
+            }
+
+            // Wells table (top 50 by status then name)
+            const sortedWells = [...wells].sort((a, b) => {
+                if (a.well_status === 'AC' && b.well_status !== 'AC') return -1;
+                if (a.well_status !== 'AC' && b.well_status === 'AC') return 1;
+                return (a.well_name || '').localeCompare(b.well_name || '');
+            });
+            const showWells = sortedWells.slice(0, 50);
+
+            body += `<div class="op-section"><div class="op-section-title">Wells${wells.length > 50 ? ' (showing top 50)' : ''}</div>
+                <table class="op-wells-table">
+                    <thead><tr><th>Well Name</th><th>Status</th><th>Formation</th><th>TRS</th></tr></thead>
+                    <tbody>`;
+            showWells.forEach(w => {
+                const name = toTitleCase(w.well_name || 'Unknown');
+                const num = w.well_number || '';
+                const fullName = num ? `${name} ${num}` : name;
+                const status = getStatusLabel(w.well_status);
+                const formation = w.formation_name ? toTitleCase(w.formation_name) : '';
+                const trs = `${(w.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.section||'').toString().padStart(2, '0')}`;
+                body += `<tr>
+                    <td class="clickable" onclick="if(nearbyWellsData['${w.api_number}']){expandNearbyWellCard(nearbyWellsData['${w.api_number}']);closeOperatorModal();}">${fullName}</td>
+                    <td>${status}</td>
+                    <td>${formation}</td>
+                    <td style="white-space:nowrap;">${trs}</td>
+                </tr>`;
+            });
+            body += `</tbody></table></div>`;
+
+            document.getElementById('operatorModalBody').innerHTML = body;
+            overlay.style.display = 'flex';
+        }
+
+        function closeOperatorModal() {
+            const overlay = document.getElementById('operatorModal');
+            if (overlay) overlay.style.display = 'none';
         }
 
