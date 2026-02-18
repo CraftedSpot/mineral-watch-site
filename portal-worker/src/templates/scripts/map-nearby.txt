@@ -1057,11 +1057,11 @@
             body += `</tbody></table></div>`;
 
             document.getElementById('operatorModalBody').innerHTML = body;
-            overlay.style.display = 'flex';
+            overlay.classList.add('active');
         }
 
         function closeOperatorModal() {
             const overlay = document.getElementById('operatorModal');
-            if (overlay) overlay.style.display = 'none';
+            if (overlay) overlay.classList.remove('active');
         }
 
