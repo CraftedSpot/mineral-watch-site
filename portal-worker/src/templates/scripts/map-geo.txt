@@ -777,20 +777,16 @@
         // Create individual tracked well marker
         function createTrackedWellMarker(well, coords) {
             const wellStatus = well.well_status || 'Unknown';
-            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
             const isPlugged = wellStatus === 'PA';
 
-            // Glowing dot — larger than nearby wells, with colored ring for operator
+            // Tracked wells: white fill + cyan border/glow — distinct from type-colored nearby wells
             const dotSize = 12;
-            const glowColor = statusColor.replace('#', '');
-            const r = parseInt(glowColor.substring(0,2), 16);
-            const g = parseInt(glowColor.substring(2,4), 16);
-            const b = parseInt(glowColor.substring(4,6), 16);
-            const glow = isPlugged ? 'none' : `0 0 8px 3px rgba(${r},${g},${b},0.55)`;
+            const borderColor = isPlugged ? '#94A3B8' : '#06B6D4';
+            const glow = isPlugged ? 'none' : '0 0 8px 3px rgba(6,182,212,0.55)';
 
             const icon = L.divIcon({
                 className: 'tw-dot',
-                html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:${statusColor};border:2px solid #fff;box-shadow:${glow};opacity:${isPlugged ? 0.55 : 1};"></div>`,
+                html: `<div style="width:${dotSize}px;height:${dotSize}px;border-radius:50%;background:#fff;border:2.5px solid ${borderColor};box-shadow:${glow};opacity:${isPlugged ? 0.55 : 1};"></div>`,
                 iconSize: [dotSize, dotSize],
                 iconAnchor: [dotSize / 2, dotSize / 2],
                 popupAnchor: [0, -dotSize / 2]
