@@ -203,28 +203,49 @@ export async function handleGetProductionSummary(
       county: string | null;
     }>;
 
-    // If no links found, cache and return hasPun: false immediately (skip slow OCC check)
+    // If no links found, fallback to wells.otc_prod_unit_no (OCC's own PUN crosswalk)
     if (!links?.length) {
-      const noPunResponse = {
-        success: true,
-        hasPun: false,
-        pun: null,
-        production: null,
-        has1002aAvailable: null, // Skip OCC check for speed - completion reports shown separately
-        message: 'No PUN linked to this well',
-        cachedAt: Date.now()
-      };
-      // Cache "no PUN" response too (shorter TTL: 6 hours)
-      if (env.OCC_CACHE) {
-        try {
-          await env.OCC_CACHE.put(cacheKey, JSON.stringify(noPunResponse), {
-            expirationTtl: 21600 // 6 hours
-          });
-        } catch (cacheError) {
-          console.error('Cache write error:', cacheError);
+      const fallbackResult = await env.WELLS_DB.prepare(
+        `SELECT otc_prod_unit_no FROM wells WHERE (api_number = ? OR api_number = ?) AND otc_prod_unit_no IS NOT NULL AND LENGTH(otc_prod_unit_no) > 3`
+      ).bind(apiNumber, api10).first() as { otc_prod_unit_no: string } | null;
+
+      if (fallbackResult?.otc_prod_unit_no) {
+        // Use the OCC-provided base PUN as a synthetic link
+        const basePun = fallbackResult.otc_prod_unit_no;
+        links.push({
+          pun: basePun + '-0-0000',
+          base_pun: basePun,
+          confidence: 'high',
+          match_method: 'occ_well_record',
+          formation: null,
+          lease_name: null,
+          is_multi_well: 0,
+          well_count: 1,
+          county: null,
+        });
+        console.log(`[ProductionSummary] Fallback: ${api10} → ${basePun} via wells.otc_prod_unit_no`);
+      } else {
+        const noPunResponse = {
+          success: true,
+          hasPun: false,
+          pun: null,
+          production: null,
+          has1002aAvailable: null,
+          message: 'No PUN linked to this well',
+          cachedAt: Date.now()
+        };
+        // Cache "no PUN" response (shorter TTL: 6 hours)
+        if (env.OCC_CACHE) {
+          try {
+            await env.OCC_CACHE.put(cacheKey, JSON.stringify(noPunResponse), {
+              expirationTtl: 21600
+            });
+          } catch (cacheError) {
+            console.error('Cache write error:', cacheError);
+          }
         }
+        return jsonResponse(noPunResponse);
       }
-      return jsonResponse(noPunResponse);
     }
 
     // 2. Determine link type/scenario
