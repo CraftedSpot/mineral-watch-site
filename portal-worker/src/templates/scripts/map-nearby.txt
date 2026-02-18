@@ -980,6 +980,11 @@
             document.getElementById('operatorModalTitle').textContent = display;
             document.getElementById('operatorModalSubtitle').textContent = subtitle;
 
+            // Contact info (from operators table via nearby-wells join)
+            const sampleWell = wells.find(w => w.phone || w.contact_name) || {};
+            const phone = sampleWell.phone || '';
+            const contactName = sampleWell.contact_name ? toTitleCase(sampleWell.contact_name) : '';
+
             // Stats
             const producing = wells.filter(w => w.well_status === 'AC' && w.last_prod_month).length;
             const active = wells.filter(w => w.well_status === 'AC').length;
@@ -1003,7 +1008,22 @@
             });
             const topCounties = Object.entries(countyCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-            let body = `<div class="op-stats">
+            let body = '';
+
+            // Contact info
+            if (phone || contactName) {
+                body += `<div class="op-section" style="margin-bottom:12px;">
+                    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;">
+                        <div style="font-size:18px;">&#128222;</div>
+                        <div style="flex:1;">
+                            ${contactName ? `<div style="font-weight:600;color:#1E293B;font-size:14px;">${contactName}</div>` : ''}
+                            ${phone ? `<a href="tel:${phone.replace(/\\D/g, '')}" style="color:#1E40AF;font-size:13px;text-decoration:none;">${phone}</a>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            body += `<div class="op-stats">
                 <div class="op-stat"><div class="op-stat-value">${active}</div><div class="op-stat-label">Active</div></div>
                 <div class="op-stat"><div class="op-stat-value">${producing}</div><div class="op-stat-label">Producing</div></div>
                 <div class="op-stat"><div class="op-stat-value">${plugged}</div><div class="op-stat-label">Plugged</div></div>
@@ -1048,7 +1068,7 @@
                 const formation = w.formation_name ? toTitleCase(w.formation_name) : '';
                 const trs = `${(w.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.section||'').toString().padStart(2, '0')}`;
                 body += `<tr>
-                    <td class="clickable" onclick="if(nearbyWellsData['${w.api_number}']){expandNearbyWellCard(nearbyWellsData['${w.api_number}']);closeOperatorModal();}">${fullName}</td>
+                    <td class="clickable" onclick="if(nearbyWellsData['${w.api_number}']){expandNearbyWellCard(nearbyWellsData['${w.api_number}']);}">${fullName}</td>
                     <td>${status}</td>
                     <td>${formation}</td>
                     <td style="white-space:nowrap;">${trs}</td>

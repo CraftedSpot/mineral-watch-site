@@ -31,7 +31,7 @@
             subdomains: 'abcd'
         });
 
-        let mapDarkMode = localStorage.getItem('mw_map_dark') === '1';
+        let mapDarkMode = localStorage.getItem('mw_map_dark') !== '0';
 
         function toggleMapDarkMode() {
             mapDarkMode = !mapDarkMode;
