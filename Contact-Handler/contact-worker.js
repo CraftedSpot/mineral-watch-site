@@ -104,6 +104,21 @@ export default {
         return jsonResponse({ error: 'Failed to send message', resendError: errorData }, 500);
       }
 
+      // Send confirmation email to the person who submitted
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Mineral Watch <support@mymineralwatch.com>',
+          to: email,
+          subject: 'We received your message - Mineral Watch',
+          html: formatContactConfirmationEmail(name, topic)
+        })
+      });
+
       return jsonResponse({ success: true, message: 'Message sent successfully' }, 200);
 
     } catch (error) {
@@ -207,6 +222,66 @@ function formatHtmlEmail(name, email, topic, message) {
 </body>
 </html>
 `.trim();
+}
+
+function formatContactConfirmationEmail(name, topic) {
+  const escapeHtml = (str) => (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1C2B36; margin: 0; padding: 0; background: #F8F9FA; }
+    .wrapper { max-width: 600px; margin: 0 auto; padding: 40px 20px; }
+    .card { background: white; border-radius: 8px; overflow: hidden; border: 1px solid #E2E8F0; }
+    .brand { background: #1C2B36; color: white; padding: 24px; text-align: center; }
+    .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.5px; }
+    .body { padding: 30px; }
+    .body h2 { font-size: 20px; margin: 0 0 8px; color: #1C2B36; }
+    .body p { color: #334E68; margin: 0 0 16px; font-size: 15px; }
+    .detail-box { background: #F8F9FA; border: 1px solid #E2E8F0; border-radius: 6px; padding: 16px; margin-bottom: 20px; }
+    .detail-row { font-size: 14px; color: #334E68; }
+    .detail-label { font-weight: 600; color: #1C2B36; }
+    .footer { padding: 20px 30px; border-top: 1px solid #E2E8F0; font-size: 12px; color: #718096; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="brand">
+        <h1>Mineral Watch</h1>
+      </div>
+      <div class="body">
+        <h2>We received your message</h2>
+        <p>Hi ${escapeHtml(name)}, thanks for reaching out. We typically respond within one business day.</p>
+
+        <div class="detail-box">
+          <div class="detail-row">
+            <span class="detail-label">Topic:</span> ${escapeHtml(topic)}
+          </div>
+        </div>
+
+        <p>In the meantime, you might find these helpful:</p>
+        <p style="margin-bottom: 8px;">
+          <a href="https://mymineralwatch.com/features" style="color: #C05621; text-decoration: none; font-weight: 500;">Platform features</a> &mdash; See what Mineral Watch monitors
+        </p>
+        <p style="margin-bottom: 8px;">
+          <a href="https://mymineralwatch.com/pricing" style="color: #C05621; text-decoration: none; font-weight: 500;">Plans &amp; pricing</a> &mdash; Find the right plan for your portfolio
+        </p>
+        <p style="margin-bottom: 8px;">
+          <a href="https://mymineralwatch.com/demo" style="color: #C05621; text-decoration: none; font-weight: 500;">Book a demo</a> &mdash; Schedule a personalized walkthrough
+        </p>
+      </div>
+      <div class="footer">
+        Mineral Watch &middot; Oklahoma City, OK<br>
+        <a href="mailto:support@mymineralwatch.com" style="color: #C05621;">support@mymineralwatch.com</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`.trim();
 }
 
 // ─── Demo Booking Handler ───
