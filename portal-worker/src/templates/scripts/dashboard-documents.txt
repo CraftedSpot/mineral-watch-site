@@ -7523,7 +7523,7 @@
                 warningBanner.innerHTML = `
                     <span class="warning-icon">⚠️</span>
                     <span class="warning-text">You're out of credits. Documents won't be processed until you have credits available.</span>
-                    <a href="#" onclick="openCreditPackModal(); return false;" class="warning-action">Buy More Credits</a>
+                    <button type="button" onclick="openCreditPackModal()" class="btn-link warning-action">Buy More Credits</button>
                 `;
             } else if (remainingPct <= 20) {
                 // Show warning if below 20%
@@ -7532,7 +7532,7 @@
                 warningBanner.innerHTML = `
                     <span class="warning-icon">⚡</span>
                     <span class="warning-text">Low credits: ${totalAvailable} remaining${isLifetimeTier ? '' : ' this month'}.</span>
-                    <a href="#" onclick="openCreditPackModal(); return false;" class="warning-action">Buy More</a>
+                    <button type="button" onclick="openCreditPackModal()" class="btn-link warning-action">Buy More</button>
                 `;
             } else {
                 warningBanner.style.display = 'none';

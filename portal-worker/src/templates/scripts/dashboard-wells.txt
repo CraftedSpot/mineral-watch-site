@@ -1202,9 +1202,10 @@
             // Links
             const mapLink = document.getElementById('wellDetailsMapLink');
             if (well.occMapLink && well.occMapLink !== '#') {
-                mapLink.href = well.occMapLink;
+                mapLink.onclick = () => window.open(well.occMapLink, '_blank', 'noopener,noreferrer');
                 mapLink.style.display = 'inline-flex';
             } else {
+                mapLink.onclick = null;
                 mapLink.style.display = 'none';
             }
 
@@ -1214,9 +1215,10 @@
                 const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${well.apiNumber}*"}`);
                 const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}`;
 
-                recordsLink.href = recordsUrl;
+                recordsLink.onclick = () => window.open(recordsUrl, '_blank', 'noopener,noreferrer');
                 recordsLink.style.display = 'inline-flex';
             } else {
+                recordsLink.onclick = null;
                 recordsLink.style.display = 'none';
             }
             

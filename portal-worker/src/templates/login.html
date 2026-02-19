@@ -27,8 +27,8 @@
         .message.error { background: var(--error-bg); color: var(--error); }
         .message.success { background: var(--success-bg); color: var(--success); }
         .toggle-mode { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 14px; color: var(--slate-blue); }
-        .toggle-mode a { color: var(--red-dirt); text-decoration: none; font-weight: 600; }
-        .toggle-mode a:hover { text-decoration: underline; }
+        .toggle-mode a, .toggle-mode button { color: var(--red-dirt); text-decoration: none; font-weight: 600; background: none; border: none; font-size: inherit; cursor: pointer; padding: 0; }
+        .toggle-mode a:hover, .toggle-mode button:hover { text-decoration: underline; }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px; text-align: center; font-size: 13px; }
     </style>
 </head>
@@ -49,7 +49,7 @@
                     <button type="submit" class="btn" id="loginBtn">Send Login Link</button>
                 </form>
                 <div class="toggle-mode">
-                    Don't have an account? <a href="#" onclick="showSignup(event)">Sign up free</a>
+                    Don't have an account? <button type="button" onclick="showSignup(event)">Sign up free</button>
                 </div>
             </div>
             
@@ -76,7 +76,7 @@
                     <button type="submit" class="btn" id="signupBtn">Create Free Account</button>
                 </form>
                 <div class="toggle-mode">
-                    Already have an account? <a href="#" onclick="showLogin(event)">Log in</a>
+                    Already have an account? <button type="button" onclick="showLogin(event)">Log in</button>
                 </div>
             </div>
         </div>

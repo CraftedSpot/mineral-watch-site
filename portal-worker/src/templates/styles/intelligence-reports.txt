@@ -1,8 +1,8 @@
         /* Report Viewer */
         #reportViewer .report-header { background: var(--oil-navy); color: white; padding: 1.5rem 0; }
         .report-breadcrumb { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
-        .report-breadcrumb a { color: var(--text-muted); text-decoration: none; cursor: pointer; }
-        .report-breadcrumb a:hover { color: white; text-decoration: underline; }
+        .report-breadcrumb a, .report-breadcrumb button { color: var(--text-muted); text-decoration: none; cursor: pointer; background: none; border: none; font: inherit; padding: 0; }
+        .report-breadcrumb a:hover, .report-breadcrumb button:hover { color: white; text-decoration: underline; }
         .report-breadcrumb .chevron-icon { width: 14px; height: 14px; stroke: var(--text-muted); }
         .report-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
         .report-title { font-family: 'Merriweather', serif; font-size: 1.5rem; font-weight: 700; color: white; margin-bottom: 0.25rem; }
@@ -334,8 +334,8 @@
         /* Navy hero headers for viewer pages */
         .efficiency-hero, .directory-hero { padding-bottom: 1.5rem; }
         .efficiency-hero .report-breadcrumb, .directory-hero .report-breadcrumb { color: rgba(255,255,255,0.7); }
-        .efficiency-hero .report-breadcrumb a, .directory-hero .report-breadcrumb a { color: rgba(255,255,255,0.7); }
-        .efficiency-hero .report-breadcrumb a:hover, .directory-hero .report-breadcrumb a:hover { color: white; }
+        .efficiency-hero .report-breadcrumb a, .directory-hero .report-breadcrumb a, .efficiency-hero .report-breadcrumb button, .directory-hero .report-breadcrumb button { color: rgba(255,255,255,0.7); }
+        .efficiency-hero .report-breadcrumb a:hover, .directory-hero .report-breadcrumb a:hover, .efficiency-hero .report-breadcrumb button:hover, .directory-hero .report-breadcrumb button:hover { color: white; }
         .efficiency-hero .chevron-icon, .directory-hero .chevron-icon { stroke: rgba(255,255,255,0.5); }
         .efficiency-hero .report-title-row, .directory-hero .report-title-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; }
         .directory-stats { display: flex; gap: 0.5rem; align-items: center; }

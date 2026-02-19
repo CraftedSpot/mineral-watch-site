@@ -939,7 +939,7 @@
                                     <div style="font-weight: 500; font-size: 13px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${wellName}</div>
                                     <div style="font-size: 11px; color: #64748b;">${operator} • ${wellStatus}</div>
                                 </div>
-                                <a href="#" onclick="expandWellCard('${well.id}'); return false;" style="color: #C05621; font-size: 12px; text-decoration: none; padding: 4px;">→</a>
+                                <button type="button" class="btn-link" onclick="expandWellCard('${well.id}')" style="color: #C05621; font-size: 12px; padding: 4px;">→</button>
                             </div>
                         </div>
                     `;
@@ -952,13 +952,12 @@
                     const remaining = count - showInitially;
                     popupContent += `
                         <div style="padding-top: 8px; border-top: 1px solid #e2e8f0; margin-top: 4px;">
-                            <a href="#" onclick="
+                            <button type="button" class="btn-link" onclick="
                                 document.querySelectorAll('[data-well-item=hidden]').forEach(el => el.style.display = 'block');
                                 this.parentElement.style.display = 'none';
-                                return false;
-                            " style="color: #C05621; font-size: 12px; text-decoration: none;">
+                            " style="color: #C05621; font-size: 12px;">
                                 Show ${remaining} more well${remaining > 1 ? 's' : ''} ↓
-                            </a>
+                            </button>
                         </div>
                     `;
                 }

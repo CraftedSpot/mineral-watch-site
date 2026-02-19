@@ -44,7 +44,7 @@
         </div>
         <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659; position: relative;">
             <object id="pdfViewer" type="application/pdf" style="width: 100%; height: 100%; border: none;">
-                <p style="color: white; text-align: center; padding: 20px;">PDF cannot be displayed. <a href="#" onclick="downloadCurrentDocument(); return false;" style="color: #60A5FA;">Download instead</a></p>
+                <p style="color: white; text-align: center; padding: 20px;">PDF cannot be displayed. <button type="button" class="btn-link" onclick="downloadCurrentDocument()" style="color: #60A5FA;">Download instead</button></p>
             </object>
         </div>
     </div>
@@ -109,7 +109,7 @@
         <div style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: left;">
             <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Get More Credits</h4>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-                <a href="#" onclick="closeOutOfCreditsModal(); openCreditPackModal(); return false;" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                <button type="button" onclick="closeOutOfCreditsModal(); openCreditPackModal();" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s; cursor: pointer; width: 100%; font: inherit; text-align: left;">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
@@ -117,7 +117,7 @@
                         <div style="font-weight: 500;">Buy Credit Pack</div>
                         <div style="font-size: 12px; color: #6B7280;">One-time purchase, never expires</div>
                     </div>
-                </a>
+                </button>
                 <a href="/portal/account" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>

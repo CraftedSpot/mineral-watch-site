@@ -1,5 +1,6 @@
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        .btn-link { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 0; text-align: inherit; display: inline; line-height: inherit; -webkit-appearance: none; appearance: none; }
         body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
         h1, h2, .logo { font-family: 'Merriweather', serif; }
         header { background: var(--oil-navy); padding: 15px 0; color: white; }

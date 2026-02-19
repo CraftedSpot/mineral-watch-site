@@ -90,8 +90,8 @@
   background: #F7FAFC; border: 1px solid var(--border); border-radius: 6px;
   font-size: 12px; color: var(--slate-blue); display: flex; align-items: center; gap: 8px;
 }
-.tools-linked-property a { color: var(--oil-navy); font-weight: 600; text-decoration: none; }
-.tools-linked-property a:hover { text-decoration: underline; }
+.tools-linked-property a, .tools-linked-property button { color: var(--oil-navy); font-weight: 600; text-decoration: none; }
+.tools-linked-property a:hover, .tools-linked-property button:hover { text-decoration: underline; }
 
 /* Summary row: controls left, total right */
 .tools-summary-row {
@@ -298,7 +298,7 @@
 .nri-calc-result-value { font-size: 16px; font-weight: 700; font-family: 'DM Mono', monospace; color: #276749; }
 .nri-calc-default-note { display: block; width: 100%; font-size: 11px; color: #68D391; font-weight: 400; margin-top: 2px; font-style: italic; }
 .nri-calc-or { margin-top: 10px; font-size: 12px; color: var(--slate-blue); }
-.nri-calc-or a { color: var(--slate-blue); text-decoration: underline; }
+.nri-calc-or a, .nri-calc-or button { color: var(--slate-blue); text-decoration: underline; }
 
 /* No decimal prompt (manual entry fallback) */
 .no-decimal-prompt {

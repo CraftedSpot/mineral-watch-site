@@ -273,6 +273,7 @@
             margin: 4px 0;
         }
         
+        .btn-link { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 0; text-align: inherit; display: inline; line-height: inherit; -webkit-appearance: none; appearance: none; }
         .popup-link {
             display: inline-block;
             margin-top: 8px;
@@ -676,7 +677,7 @@
                 <div class="popup-detail"><strong>S${f.SEC} T${f.TWN} R${f.RNG}</strong></div>
                 <div class="popup-detail">${ownershipText}</div>
                 ${f.Notes ? `<div class="popup-detail" style="font-style: italic; margin-top: 8px;">"${f.Notes}"</div>` : ''}
-                <a href="#" class="popup-link" onclick="showPropertyDetail('${property.id}'); return false;">View Details →</a>
+                <button type="button" class="btn-link popup-link" onclick="showPropertyDetail('${property.id}')">View Details →</button>
             `;
             
             layer.bindPopup(popupContent);

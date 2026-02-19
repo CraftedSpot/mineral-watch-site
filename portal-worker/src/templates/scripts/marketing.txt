@@ -1759,7 +1759,14 @@
             document.getElementById('forumResponseStatus').value = post.response_status || 'New';
             document.getElementById('forumResult').value = post.result || '';
             document.getElementById('forumNotes').value = post.notes || '';
-            document.getElementById('forumModalLink').href = post.url || '#';
+            const forumLink = document.getElementById('forumModalLink');
+            if (post.url) {
+                forumLink.onclick = () => window.open(post.url, '_blank', 'noopener,noreferrer');
+                forumLink.style.display = '';
+            } else {
+                forumLink.onclick = null;
+                forumLink.style.display = 'none';
+            }
 
             // Build badges
             var badges = '';

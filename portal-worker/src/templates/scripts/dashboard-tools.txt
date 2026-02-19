@@ -576,7 +576,7 @@
             var html = '';
 
             // Back link
-            html += '<a href="#" class="tools-back-link" onclick="backFromUnitDetail();return false">\u2190 Back to ' + escapeHtml(propLabel) + '</a>';
+            html += '<button type="button" class="btn-link tools-back-link" onclick="backFromUnitDetail()">\u2190 Back to ' + escapeHtml(propLabel) + '</button>';
 
             // Unit header
             html += '<div class="unit-detail-header">' +
@@ -944,13 +944,13 @@
                     '<span class="nri-calc-result-value" id="toolsNriResult"></span>' +
                     '<span class="nri-calc-default-note" id="toolsNriDefaultNote"></span>' +
                 '</div>' +
-                '<div class="nri-calc-or">or <a href="#" onclick="document.getElementById(\'toolsNriCalcBox\').style.display=\'none\';document.getElementById(\'toolsManualDecBox\').style.display=\'flex\';return false">enter a known decimal directly</a></div>' +
+                '<div class="nri-calc-or">or <button type="button" class="btn-link" onclick="document.getElementById(\'toolsNriCalcBox\').style.display=\'none\';document.getElementById(\'toolsManualDecBox\').style.display=\'flex\'">enter a known decimal directly</button></div>' +
             '</div>' +
             '<div class="no-decimal-prompt" id="toolsManualDecBox" style="display:none; margin: 0 24px 12px">' +
                 '<label>Decimal interest:</label>' +
                 '<input type="text" id="toolsManualDecInput" placeholder="e.g. 0.00293" oninput="onManualDecimalChange(this.value)"' +
                 (toolsManualDecimal ? ' value="' + toolsManualDecimal + '"' : '') + '>' +
-                ' <a href="#" onclick="document.getElementById(\'toolsManualDecBox\').style.display=\'none\';document.getElementById(\'toolsNriCalcBox\').style.display=\'block\';return false" style="font-size:12px;color:var(--slate-blue)">use calculator</a>' +
+                ' <button type="button" class="btn-link" onclick="document.getElementById(\'toolsManualDecBox\').style.display=\'none\';document.getElementById(\'toolsNriCalcBox\').style.display=\'block\'" style="font-size:12px;color:var(--slate-blue)">use calculator</button>' +
             '</div>';
         }
 
@@ -1077,7 +1077,7 @@
                             '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
                         (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
-                        '<a href="#" class="ptv-link" onclick="openPropertyDetails(\'' + prop.id + '\');return false">View property details \u2192</a>' +
+                        '<button type="button" class="btn-link ptv-link" onclick="openPropertyDetails(\'' + prop.id + '\')">View property details \u2192</button>' +
                     '</div>';
             } else {
                 totalEl.innerHTML = buildTotalPlaceholder();
@@ -1129,7 +1129,7 @@
                         '<span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
                 }
 
-                html += '<a href="#" class="tools-drilldown-btn" onclick="drillDownToUnit(' + g2 + ');return false">Unit Revenue Detail \u2192</a>';
+                html += '<button type="button" class="tools-drilldown-btn" onclick="drillDownToUnit(' + g2 + ')">Unit Revenue Detail \u2192</button>';
                 html += '</div>';
             }
             for (var w2 = 0; w2 < wells.length; w2++) {
@@ -1163,8 +1163,8 @@
                 html += '<div class="well-card' + (shutIn ? ' shut-in' : '') + '">' +
                     '<div class="well-card-header">' +
                         '<div>' +
-                            '<div class="well-card-name"><a href="#" class="well-name-link" onclick="openWellDetailsModal(\'' + wl.wellId + '\');return false">' + escapeHtml(wl.wellName) + '</a></div>' +
-                            (wl.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(wl.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</a></div>' : '') +
+                            '<div class="well-card-name"><button type="button" class="btn-link well-name-link" onclick="openWellDetailsModal(\'' + wl.wellId + '\')">' + escapeHtml(wl.wellName) + '</button></div>' +
+                            (wl.operator ? '<div class="well-card-operator"><button type="button" class="btn-link well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(wl.operator).replace(/'/g, '\\\'') + '\')">' + escapeHtml(wl.operator.length > 25 ? wl.operator.substring(0, 25) + '...' : wl.operator) + '</button></div>' : '') +
                         '</div>' +
                         '<div class="well-card-badges">' + wBadgesHtml + '</div>' +
                     '</div>' +
@@ -1200,7 +1200,7 @@
                 }
 
                 // Drill-down button
-                html += '<a href="#" class="tools-drilldown-btn" onclick="drillDownToWell(\'' + wl.wellId + '\');return false">Well Revenue Detail \u2192</a>';
+                html += '<button type="button" class="tools-drilldown-btn" onclick="drillDownToWell(\'' + wl.wellId + '\')">Well Revenue Detail \u2192</button>';
 
                 html += '</div>';
             }
@@ -1257,7 +1257,7 @@
 
             // Back-to-property link when drilled down from property mode
             if (toolsDrilldownFrom) {
-                html += '<a href="#" class="tools-back-link" onclick="backToProperty();return false">\u2190 Back to ' + escapeHtml(toolsDrilldownFrom.label) + '</a>';
+                html += '<button type="button" class="btn-link tools-back-link" onclick="backToProperty()">\u2190 Back to ' + escapeHtml(toolsDrilldownFrom.label) + '</button>';
             }
 
             // Linked property badge
@@ -1267,7 +1267,7 @@
                     ((linkedProp.range || '').replace(/^R/i,'') || '') + '-' +
                     (linkedProp.section && linkedProp.section.length === 1 ? '0' + linkedProp.section : linkedProp.section || '');
                 html += '<div class="tools-linked-property">' +
-                    'Linked to property: <a href="#" onclick="openPropertyDetails(\'' + linkedProp.id + '\');return false">' + escapeHtml(propLabel) + '</a>' +
+                    'Linked to property: <button type="button" class="btn-link" onclick="openPropertyDetails(\'' + linkedProp.id + '\')">' + escapeHtml(propLabel) + '</button>' +
                     (linkedProp.ri_decimal ? ' &middot; Decimal: ' + linkedProp.ri_decimal : '') +
                 '</div>';
             }
@@ -1297,8 +1297,8 @@
             html += '<div class="well-card well-card-single' + (shutIn ? ' shut-in' : '') + '">' +
                 '<div class="well-card-header">' +
                     '<div>' +
-                        '<div class="well-card-name"><a href="#" class="well-name-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false">' + escapeHtml(well.wellName || 'Unknown Well') + '</a></div>' +
-                        (well.operator ? '<div class="well-card-operator"><a href="#" class="well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(well.operator).replace(/'/g, '\\\'') + '\');return false">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</a></div>' : '') +
+                        '<div class="well-card-name"><button type="button" class="btn-link well-name-link" onclick="openWellDetailsModal(\'' + well.id + '\')">' + escapeHtml(well.wellName || 'Unknown Well') + '</button></div>' +
+                        (well.operator ? '<div class="well-card-operator"><button type="button" class="btn-link well-op-link" onclick="lookupAndOpenOperator(\'' + escapeHtml(well.operator).replace(/'/g, '\\\'') + '\')">' + escapeHtml(well.operator.length > 25 ? well.operator.substring(0, 25) + '...' : well.operator) + '</button></div>' : '') +
                     '</div>' +
                     '<div class="well-card-badges">' + wmBadgesHtml + '</div>' +
                 '</div>' +
@@ -1385,7 +1385,7 @@
                             '<div class="ptv-net-label">Net (' + toolsDeduction + '% deductions)</div>' +
                         '</div>' +
                         (basisText ? '<div class="ptv-basis">' + basisText + '</div>' : '') +
-                        '<a href="#" class="ptv-link" onclick="openWellDetailsModal(\'' + well.id + '\');return false">View well details \u2192</a>' +
+                        '<button type="button" class="btn-link ptv-link" onclick="openWellDetailsModal(\'' + well.id + '\')">View well details \u2192</button>' +
                     '</div>';
                 if (disclaimerEl) disclaimerEl.style.display = 'block';
             } else {
@@ -1741,7 +1741,7 @@
                 var dwRevLatest = dwHasOwn ? rmCalcRevenue(dwLatest.oilBbl, dwLatest.gasMcf, dwDecimal, dwAlloc) : { gross: null, net: null };
                 var dwRevAvg = rmCalcRevenue(dwTrail.avgOilBbl || 0, dwTrail.avgGasMcf || 0, dwDecimal, dwAlloc);
 
-                var dhtml = '<a href="#" class="tools-back-link" onclick="rmBackToOverview();return false">\u2190 Back to all wells</a>';
+                var dhtml = '<button type="button" class="btn-link tools-back-link" onclick="rmBackToOverview()">\u2190 Back to all wells</button>';
 
                 // Badges
                 var dwBadges = statusBadgeHtml(dw.wellStatus);
@@ -1854,7 +1854,7 @@
                 var ugRevLatest = ugLatest ? rmCalcRevenue(ugLatest.oilBbl, ugLatest.gasMcf, ugDecimal, null) : { gross: null, net: null };
                 var ugRevAvg = rmCalcRevenue(ugTrail.avgOilBbl || 0, ugTrail.avgGasMcf || 0, ugDecimal, null);
 
-                var uhtml = '<a href="#" class="tools-back-link" onclick="rmBackToOverview();return false">\u2190 Back to all wells</a>';
+                var uhtml = '<button type="button" class="btn-link tools-back-link" onclick="rmBackToOverview()">\u2190 Back to all wells</button>';
 
                 // Unit header
                 uhtml += '<div class="unit-detail-header">' +
@@ -2039,7 +2039,7 @@
                 if (sgRevLatest.gross != null) {
                     html += '<div class="well-revenue"><span class="gross">' + fmtMoney(sgRevLatest.gross) + '</span> <span class="arrow">\u2192</span> <span class="net">Net ' + fmtMoney(sgRevLatest.net) + '</span></div>';
                 }
-                html += '<a href="#" class="tools-drilldown-btn" onclick="rmDrillDownToUnit(' + g2 + ');return false">Unit Revenue Detail \u2192</a>';
+                html += '<button type="button" class="tools-drilldown-btn" onclick="rmDrillDownToUnit(' + g2 + ')">Unit Revenue Detail \u2192</button>';
                 html += '</div>';
             }
 
@@ -2098,7 +2098,7 @@
                 } else {
                     html += '<div class="well-production" style="color:#A0AEC0">No production data</div>';
                 }
-                html += '<a href="#" class="tools-drilldown-btn" onclick="rmDrillDownToWell(' + w2 + ');return false">Well Revenue Detail \u2192</a>';
+                html += '<button type="button" class="tools-drilldown-btn" onclick="rmDrillDownToWell(' + w2 + ')">Well Revenue Detail \u2192</button>';
                 html += '</div>';
             }
             html += '</div>'; // close grid

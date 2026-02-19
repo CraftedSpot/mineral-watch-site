@@ -533,6 +533,7 @@
             margin: 3px 0;
         }
         
+        .btn-link { background: none; border: none; font: inherit; color: inherit; cursor: pointer; padding: 0; text-align: inherit; display: inline; line-height: inherit; -webkit-appearance: none; appearance: none; }
         .popup-link {
             display: inline-block;
             margin-top: 8px;
@@ -3355,11 +3356,11 @@
                 <div class="map-well-footer-grid">
                     <div class="map-well-footer-left">
                         <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map ↗</button>
-                        <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</a>
+                        <button type="button" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</button>
                     </div>
                     <div class="map-well-footer-right">
                         <div class="occ-warning" style="position: relative;">
-                            <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalRecordsLink">Well Records</a>
+                            <button type="button" class="action-btn primary well-blue" id="wellModalRecordsLink">Well Records</button>
                             <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
                             <div class="occ-tooltip">
                                 <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
