@@ -972,7 +972,29 @@ function generateOperatorPrintHtml(data: any, userName: string): string {
 
     .chart-container { margin: 16px 0; text-align: center; }
 
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
     .footer { padding: 16px 32px; background: #f8fafc; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #9ca3af; }
+
+    @media (max-width: 640px) {
+      body { padding: 8px; }
+      .print-controls { gap: 8px; }
+      .print-btn { padding: 8px 14px; font-size: 13px; }
+      .header { padding: 20px 16px; }
+      .header h1 { font-size: 18px; }
+      .header-top { flex-direction: column; gap: 8px; }
+      .brand { align-self: flex-end; }
+      .content { padding: 16px; }
+      .stats-grid { grid-template-columns: 1fr; gap: 8px; }
+      .stat-box { display: flex; align-items: center; justify-content: space-between; text-align: left; padding: 10px 14px; }
+      .stat-value { font-size: 18px; }
+      .stat-label { font-size: 11px; margin-top: 0; }
+      .info-grid { grid-template-columns: 1fr; gap: 6px; }
+      .health-grid { grid-template-columns: 1fr; gap: 8px; }
+      table { font-size: 12px; }
+      th, td { padding: 6px 8px; }
+      .footer { padding: 12px 16px; flex-direction: column; gap: 4px; text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -1065,6 +1087,7 @@ function generateOperatorPrintHtml(data: any, userName: string): string {
       <div class="section">
         <div class="section-title">Monthly Trend</div>
         <div class="chart-container">${chartSvg}</div>
+        <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -1078,12 +1101,14 @@ function generateOperatorPrintHtml(data: any, userName: string): string {
           </thead>
           <tbody>${monthlyRowsHtml}</tbody>
         </table>
+        </div>
       </div>` : ''}
 
       <!-- Counties -->
       ${counties.length > 0 ? `
       <div class="section">
         <div class="section-title">Top Counties</div>
+        <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -1095,6 +1120,7 @@ function generateOperatorPrintHtml(data: any, userName: string): string {
           </thead>
           <tbody>${countyRowsHtml}</tbody>
         </table>
+        </div>
       </div>` : ''}
     </div>
 
