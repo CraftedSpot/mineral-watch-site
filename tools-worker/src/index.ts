@@ -69,7 +69,7 @@ function render404(): string {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" media="print" onload="this.media='all'">
     <style>
-        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --border: #E2E8F0; }
+        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --border: #E2E8F0; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; }
         h1, h2, .logo { font-family: 'Merriweather', serif; }
@@ -80,7 +80,10 @@ function render404(): string {
         .logo { font-size: 22px; font-weight: 900; color: var(--oil-navy); letter-spacing: -0.5px; text-decoration: none; }
         .nav-links { display: flex; gap: 30px; align-items: center; }
         .nav-links a { color: var(--slate-blue); text-decoration: none; font-weight: 500; font-size: 15px; }
-        .nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
+        .nav-links .btn-start { background: var(--red-dirt); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
+        .nav-links .btn-start:hover { background: var(--red-dirt-dark); color: white; }
+        .nav-links .btn-login { color: var(--slate-blue); font-weight: 600; }
+        .nav-links .btn-login:hover { color: var(--oil-navy); }
         .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--oil-navy); }
         @media (max-width: 768px) {
             .mobile-menu-btn { display: block; }
@@ -105,6 +108,7 @@ function render404(): string {
                     <a href="/tools">Tools</a>
                     <a href="/about">About</a>
                     <a href="/contact">Contact</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
                     <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
                 </nav>
             </div>

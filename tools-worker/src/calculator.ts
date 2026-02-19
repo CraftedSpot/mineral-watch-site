@@ -92,8 +92,10 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .nav-links a { color: var(--slate-blue); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
 .nav-links a:hover { color: var(--oil-navy); }
 .nav-links a.active { color: var(--red-dirt); font-weight: 600; border-bottom: 2px solid var(--red-dirt); padding-bottom: 2px; }
-.nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
-.nav-links .btn-login:hover { background: var(--slate-blue); color: white; }
+.nav-links .btn-start { background: var(--red-dirt); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
+.nav-links .btn-start:hover { background: var(--red-dirt-dark); color: white; }
+.nav-links .btn-login { color: var(--slate-blue); font-weight: 600; }
+.nav-links .btn-login:hover { color: var(--oil-navy); }
 .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--oil-navy); }
 
 /* ── Footer ── */
@@ -672,6 +674,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
                 <a href="/tools" class="active">Tools</a>
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
+                <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
         </div>
