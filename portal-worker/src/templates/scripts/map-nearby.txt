@@ -1128,7 +1128,7 @@
                 body += `</div></div>`;
             }
 
-            // Wells table (top 50 by status then name)
+            // Wells table (collapsible, starts closed)
             const sortedWells = [...wells].sort((a, b) => {
                 if (a.well_status === 'AC' && b.well_status !== 'AC') return -1;
                 if (a.well_status !== 'AC' && b.well_status === 'AC') return 1;
@@ -1136,10 +1136,18 @@
             });
             const showWells = sortedWells.slice(0, 50);
 
-            body += `<div class="op-section"><div class="op-section-title">Wells${wells.length > 50 ? ' (showing top 50)' : ''}</div>
-                <table class="op-wells-table">
-                    <thead><tr><th>Well Name</th><th>Status</th><th>Formation</th><th>TRS</th></tr></thead>
-                    <tbody>`;
+            body += `<div class="occ-filings-section" style="margin-top:16px;">
+                <div class="occ-filings-header" onclick="toggleOpSection('opWells')">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="opWellsArrow" style="transition:transform 0.2s;">&#9654;</span>
+                        <span style="font-weight:500;">Wells</span>
+                        <span style="background:#e5e7eb;padding:2px 8px;border-radius:12px;font-size:12px;">${wells.length}</span>
+                    </div>
+                </div>
+                <div id="opWellsContent" style="display:none;padding:0 16px 16px;">
+                    <table class="op-wells-table">
+                        <thead><tr><th>Well Name</th><th>Status</th><th>Formation</th><th>TRS</th></tr></thead>
+                        <tbody>`;
             showWells.forEach(w => {
                 const name = toTitleCase(w.well_name || 'Unknown');
                 const num = w.well_number || '';
@@ -1154,12 +1162,22 @@
                     <td style="white-space:nowrap;">${trs}</td>
                 </tr>`;
             });
-            body += `</tbody></table></div>`;
+            body += `</tbody></table>`;
+            if (wells.length > 50) {
+                body += `<div style="text-align:center;font-size:12px;color:#94A3B8;margin-top:6px;">Showing top 50 of ${wells.length}</div>`;
+            }
+            body += `</div></div>`;
 
-            // OCC Activity section (loaded async)
-            body += `<div class="op-section" id="opActivitySection">
-                <div class="op-section-title">OCC Activity</div>
-                <div id="opActivityContent" style="color:#94A3B8;font-size:13px;">Loading filings...</div>
+            // OCC Activity section (collapsible, starts closed, loaded async)
+            body += `<div class="occ-filings-section" style="margin-top:16px;">
+                <div class="occ-filings-header" onclick="toggleOpSection('opActivity')">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span id="opActivityArrow" style="transition:transform 0.2s;">&#9654;</span>
+                        <span style="font-weight:500;">OCC Activity</span>
+                        <span id="opActivityCount" style="background:#e5e7eb;padding:2px 8px;border-radius:12px;font-size:12px;">...</span>
+                    </div>
+                </div>
+                <div id="opActivityContent" style="display:none;padding:0 16px 16px;color:#94A3B8;font-size:13px;">Loading filings...</div>
             </div>`;
 
             document.getElementById('operatorModalBody').innerHTML = body;
@@ -1172,6 +1190,19 @@
         function closeOperatorModal() {
             const overlay = document.getElementById('operatorModal');
             if (overlay) overlay.classList.remove('active');
+        }
+
+        function toggleOpSection(id) {
+            const content = document.getElementById(id + 'Content');
+            const arrow = document.getElementById(id + 'Arrow');
+            if (!content) return;
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                if (arrow) arrow.style.transform = '';
+            }
         }
 
         // Relief type display labels
@@ -1217,8 +1248,13 @@
                 }
                 const data = await resp.json();
 
-                if (data.totalFilings === 0 && data.poolingCount === 0) {
-                    el.innerHTML = '<div style="color:#94A3B8;font-style:italic;">No OCC filings found for this operator</div>';
+                // Update count badge
+                const totalActivity = data.totalFilings + data.poolingCount;
+                const countBadge = document.getElementById('opActivityCount');
+                if (countBadge) countBadge.textContent = totalActivity;
+
+                if (totalActivity === 0) {
+                    el.innerHTML = '<div style="color:#94A3B8;font-style:italic;">No OCC filings found in this area</div>';
                     return;
                 }
 
@@ -1291,6 +1327,8 @@
 
             } catch (err) {
                 console.error('Failed to load operator activity:', err);
+                const errBadge = document.getElementById('opActivityCount');
+                if (errBadge) errBadge.textContent = '—';
                 el.innerHTML = '<div style="color:#94A3B8;font-style:italic;">Could not load OCC activity</div>';
             }
         }
