@@ -14,6 +14,7 @@ compatibility_date = "2024-01-01"
 # Run: wrangler secret put MINERAL_AIRTABLE_API_KEY
 # Run: wrangler secret put AIRTABLE_BASE_ID
 # Run: wrangler secret put AIRTABLE_TABLE_ID
+# Run: wrangler secret put AIRTABLE_DEMO_TABLE_ID  (optional, defaults to tblDqFremDUvpOW7l)
 
 [vars]
 # Non-sensitive vars can go here

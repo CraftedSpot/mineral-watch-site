@@ -515,6 +515,10 @@
 
                 <!-- Right: Contact Form -->
                 <div class="contact-form-card">
+                    <div class="enterprise-callout" id="enterpriseCallout" style="display:none; background:#FFF7ED; border:1px solid #C05621; border-radius:6px; padding:14px 16px; margin-bottom:20px;">
+                        <p style="font-size:14px; font-weight:600; color:#1C2B36; margin:0 0 4px;">Managing a large mineral portfolio?</p>
+                        <a href="/demo" style="font-size:14px; color:#C05621; font-weight:500; text-decoration:none;">Book a personalized demo instead →</a>
+                    </div>
                     <div id="formMessage" class="form-message"></div>
                     
                     <form id="contactForm">
@@ -603,6 +607,7 @@
         const topicParam = urlParams.get('topic');
         if (topicParam === 'enterprise') {
             document.getElementById('topic').value = 'Enterprise / Large Portfolio';
+            document.getElementById('enterpriseCallout').style.display = 'block';
         }
 
         form.addEventListener('submit', async (e) => {

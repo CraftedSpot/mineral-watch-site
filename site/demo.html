@@ -1,0 +1,1068 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+    <title>Book a Demo - Mineral Watch</title>
+    <meta name="description" content="Schedule a personalized Mineral Watch demo. See how enterprise mineral rights monitoring works for large portfolios.">
+    <link rel="canonical" href="https://mymineralwatch.com/demo">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://mymineralwatch.com/demo">
+    <meta property="og:title" content="Book a Demo - Mineral Watch | Enterprise Mineral Rights Monitoring">
+    <meta property="og:description" content="Schedule a personalized Mineral Watch demo. See how enterprise mineral rights monitoring works for large portfolios.">
+    <meta property="og:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Book a Demo - Mineral Watch | Enterprise Mineral Rights Monitoring">
+    <meta name="twitter:description" content="Schedule a personalized Mineral Watch demo. See how enterprise mineral rights monitoring works for large portfolios.">
+    <meta name="twitter:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "Mineral Watch",
+      "url": "https://mymineralwatch.com",
+      "description": "Automated OCC monitoring, production intelligence, and document extraction platform for Oklahoma mineral rights owners.",
+      "founder": {
+        "@type": "Person",
+        "name": "James Price"
+      },
+      "address": {
+        "@type": "PostalAddress",
+        "addressLocality": "Oklahoma City",
+        "addressRegion": "OK",
+        "addressCountry": "US"
+      },
+      "sameAs": []
+    }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700;900&display=swap" media="print" onload="this.media='all'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700;900&display=swap"></noscript>
+
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+            --success: #047857;
+            --success-bg: #D1FAE5;
+            --error: #DC2626;
+            --error-bg: #FEE2E2;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--oil-navy);
+        }
+
+        .nav-links .btn-login {
+            background: var(--oil-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+
+        .nav-links .btn-login:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        /* Mobile Menu Toggle */
+        .menu-toggle {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            color: var(--oil-navy);
+        }
+
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            padding: 50px 0 35px;
+            background: linear-gradient(to bottom, #fff, var(--paper));
+        }
+
+        .page-header h1 {
+            font-size: 42px;
+            margin-bottom: 15px;
+            font-weight: 900;
+            color: var(--oil-navy);
+        }
+
+        .page-header p {
+            font-size: 18px;
+            color: var(--slate-blue);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Demo Section */
+        .demo-section {
+            padding: 40px 0 80px;
+            background: var(--paper);
+        }
+
+        .demo-form-wrapper {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Form Card */
+        .contact-form-card {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 35px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.04);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            margin-bottom: 6px;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: #fff;
+            color: var(--oil-navy);
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+            box-shadow: 0 0 0 3px rgba(192, 86, 33, 0.1);
+        }
+
+        .form-group input::placeholder {
+            color: #A0AEC0;
+        }
+
+        .form-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23334E68' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 40px;
+        }
+
+        /* Meeting Type Radio Cards */
+        .meeting-type-group {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .meeting-type-card {
+            position: relative;
+            cursor: pointer;
+        }
+
+        .meeting-type-card input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .meeting-type-card .card-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            padding: 16px 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            background: #fff;
+            transition: border-color 0.2s, background 0.2s;
+            text-align: center;
+        }
+
+        .meeting-type-card .card-content:hover {
+            border-color: var(--slate-blue);
+        }
+
+        .meeting-type-card input:checked + .card-content {
+            border-color: var(--red-dirt);
+            background: #FFF7ED;
+        }
+
+        .meeting-type-card .card-icon {
+            width: 32px;
+            height: 32px;
+            color: var(--slate-blue);
+        }
+
+        .meeting-type-card input:checked + .card-content .card-icon {
+            color: var(--red-dirt);
+        }
+
+        .meeting-type-card .card-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--oil-navy);
+        }
+
+        /* Conditional fields */
+        .conditional-field {
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease, margin 0.3s ease;
+            margin-bottom: 0;
+        }
+
+        .conditional-field.visible {
+            max-height: 100px;
+            opacity: 1;
+            margin-bottom: 20px;
+        }
+
+        .meeting-hint {
+            font-size: 13px;
+            color: var(--slate-blue);
+            margin-top: 8px;
+            max-height: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+        }
+
+        .meeting-hint.visible {
+            max-height: 40px;
+            opacity: 1;
+        }
+
+        /* Calendar Widget */
+        .calendar-container {
+            margin-bottom: 20px;
+        }
+
+        .calendar-container label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            margin-bottom: 6px;
+        }
+
+        .calendar {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--oil-navy);
+            color: white;
+        }
+
+        .calendar-header button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 4px 8px;
+            font-size: 18px;
+            line-height: 1;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .calendar-header button:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .calendar-header button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .calendar-header button:disabled:hover {
+            background: none;
+        }
+
+        .calendar-month-title {
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+        }
+
+        .calendar-day-header {
+            padding: 8px 4px;
+            text-align: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--slate-blue);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: var(--paper);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .calendar-day {
+            padding: 10px 4px;
+            text-align: center;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            border: 1px solid transparent;
+        }
+
+        .calendar-day:hover:not(.disabled):not(.empty) {
+            background: #FFF7ED;
+        }
+
+        .calendar-day.today {
+            font-weight: 700;
+        }
+
+        .calendar-day.selected {
+            background: var(--red-dirt);
+            color: white;
+            font-weight: 600;
+            border-radius: 4px;
+        }
+
+        .calendar-day.disabled {
+            color: #CBD5E0;
+            cursor: default;
+        }
+
+        .calendar-day.empty {
+            cursor: default;
+        }
+
+        .calendar-tz-note {
+            font-size: 12px;
+            color: var(--slate-blue);
+            margin-top: 8px;
+        }
+
+        /* Time Slots */
+        .time-slots-container {
+            margin-bottom: 20px;
+        }
+
+        .time-slots-container label {
+            display: block;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            margin-bottom: 8px;
+        }
+
+        .time-slots {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .time-slot {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            background: #fff;
+            color: var(--oil-navy);
+            cursor: pointer;
+            transition: border-color 0.2s, background 0.2s, color 0.2s;
+        }
+
+        .time-slot:hover {
+            border-color: var(--red-dirt);
+            background: #FFF7ED;
+        }
+
+        .time-slot.selected {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .no-date-hint {
+            font-size: 13px;
+            color: var(--slate-blue);
+            font-style: italic;
+        }
+
+        /* Submit */
+        .submit-btn {
+            width: 100%;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            color: white;
+            background: var(--red-dirt);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .submit-btn:hover {
+            background: var(--red-dirt-dark);
+        }
+
+        .submit-btn:active {
+            transform: scale(0.98);
+        }
+
+        .submit-btn:disabled {
+            background: #A0AEC0;
+            cursor: not-allowed;
+        }
+
+        /* Form Messages */
+        .form-message {
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .form-message.success {
+            background: var(--success-bg);
+            color: var(--success);
+            border: 1px solid var(--success);
+        }
+
+        .form-message.error {
+            background: var(--error-bg);
+            color: var(--error);
+            border: 1px solid var(--error);
+        }
+
+        .form-message.show {
+            display: block;
+        }
+
+        /* Success State */
+        .success-card {
+            text-align: center;
+            padding: 50px 30px;
+        }
+
+        .success-card .success-icon {
+            width: 64px;
+            height: 64px;
+            margin: 0 auto 20px;
+            background: var(--success-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--success);
+        }
+
+        .success-card h2 {
+            font-size: 24px;
+            margin-bottom: 12px;
+            color: var(--oil-navy);
+        }
+
+        .success-card p {
+            font-size: 15px;
+            color: var(--slate-blue);
+            max-width: 400px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* Footer */
+        .site-footer { background: #1C2B36; color: #b0bec9; padding: 40px 0; font-size: 14px; }
+        .site-footer a { color: #b0bec9; text-decoration: none; }
+        .site-footer a:hover { color: white; }
+        .footer-inner { max-width: 1100px; margin: 0 auto; padding: 0 20px; display: flex; justify-content: space-between; align-items: start; gap: 48px; flex-wrap: wrap; }
+        .footer-brand { max-width: 300px; }
+        .footer-brand .logo { color: white; display: inline-block; margin-bottom: 12px; }
+        .footer-brand p { font-size: 14px; line-height: 1.6; }
+        .footer-links { display: flex; gap: 48px; }
+        .footer-col h4 { color: white; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+        .footer-col a { display: block; font-size: 14px; color: #b0bec9; margin-bottom: 10px; transition: color 0.2s; }
+        .footer-col a:hover { color: white; }
+        .footer-bottom { max-width: 1100px; margin: 20px auto 0; padding: 20px 20px 0; border-top: 1px solid #2D3748; font-size: 13px; color: #94a3b8; }
+        .footer-bottom .copyright { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+        .disclaimer { font-size: 11px; color: #94a3b8; line-height: 1.6; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .menu-toggle {
+                display: block;
+            }
+
+            .nav-links {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #fff;
+                flex-direction: column;
+                padding: 20px;
+                gap: 0;
+                border-bottom: 1px solid var(--border);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 12px 0;
+                border-bottom: 1px solid var(--border);
+                font-size: 16px;
+            }
+
+            .nav-links a:last-child {
+                border-bottom: none;
+            }
+
+            .nav-links .btn-login {
+                text-align: center;
+                margin-top: 8px;
+                padding: 12px 20px;
+            }
+
+            header {
+                position: relative;
+                z-index: 1000;
+            }
+
+            .nav-links {
+                z-index: 1000;
+            }
+
+            .page-header {
+                padding: 35px 0 25px;
+            }
+
+            .page-header h1 {
+                font-size: 32px;
+            }
+
+            .contact-form-card {
+                padding: 25px;
+            }
+
+            .meeting-type-group {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-inner { flex-direction: column; }
+            .footer-links { gap: 32px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+                <button class="menu-toggle" aria-label="Menu">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+                <nav class="nav-links">
+                    <a href="https://mymineralwatch.com/features">Features</a>
+                    <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                    <a href="https://mymineralwatch.com/insights">Insights</a>
+                    <a href="https://mymineralwatch.com/tools">Tools</a>
+                    <a href="https://mymineralwatch.com/about">About</a>
+                    <a href="https://mymineralwatch.com/contact">Contact</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <main>
+    <section class="page-header">
+        <div class="container">
+            <h1>Book a Demo</h1>
+            <p>Takes 30 seconds. We'll confirm within 24 hours.</p>
+        </div>
+    </section>
+
+    <section class="demo-section">
+        <div class="container">
+            <div class="demo-form-wrapper">
+                <div class="contact-form-card" id="formCard">
+                    <div id="formMessage" class="form-message"></div>
+
+                    <form id="demoForm">
+                        <div class="form-group">
+                            <label for="name">Name</label>
+                            <input type="text" id="name" name="name" placeholder="Your name" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="company">Company</label>
+                            <input type="text" id="company" name="company" placeholder="Your company" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" placeholder="you@example.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="propertyCount">Property Count</label>
+                            <select id="propertyCount" name="propertyCount" required>
+                                <option value="" disabled selected>Select range...</option>
+                                <option value="500-1,000">500 - 1,000</option>
+                                <option value="1,000-2,500">1,000 - 2,500</option>
+                                <option value="2,500-5,000">2,500 - 5,000</option>
+                                <option value="5,000-10,000">5,000 - 10,000</option>
+                                <option value="10,000+">10,000+</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Meeting Type</label>
+                            <div class="meeting-type-group">
+                                <label class="meeting-type-card">
+                                    <input type="radio" name="meetingType" value="Phone Call" required>
+                                    <div class="card-content">
+                                        <svg class="card-icon" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                            <path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                                        </svg>
+                                        <span class="card-label">Phone Call</span>
+                                    </div>
+                                </label>
+                                <label class="meeting-type-card">
+                                    <input type="radio" name="meetingType" value="Virtual Meeting">
+                                    <div class="card-content">
+                                        <svg class="card-icon" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                            <path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                        <span class="card-label">Virtual Meeting</span>
+                                    </div>
+                                </label>
+                                <label class="meeting-type-card">
+                                    <input type="radio" name="meetingType" value="In-Person">
+                                    <div class="card-content">
+                                        <svg class="card-icon" width="32" height="32" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                                            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                                        </svg>
+                                        <span class="card-label">In-Person</span>
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="meeting-hint" id="virtualHint">We'll send a Google Meet link.</div>
+                        </div>
+
+                        <div class="conditional-field" id="phoneField">
+                            <div class="form-group" style="margin-bottom:0">
+                                <label for="phone">Phone Number</label>
+                                <input type="tel" id="phone" name="phone" placeholder="(405) 555-1234">
+                            </div>
+                        </div>
+
+                        <div class="conditional-field" id="cityField">
+                            <div class="form-group" style="margin-bottom:0">
+                                <label for="city">City</label>
+                                <input type="text" id="city" name="city" placeholder="e.g. Oklahoma City, Tulsa">
+                            </div>
+                        </div>
+
+                        <div class="calendar-container">
+                            <label>Preferred Date</label>
+                            <div class="calendar" id="calendar"></div>
+                            <div class="calendar-tz-note">All times Central (CT)</div>
+                        </div>
+
+                        <div class="time-slots-container" id="timeSlotsContainer">
+                            <label>Preferred Time</label>
+                            <div id="timeSlots">
+                                <span class="no-date-hint">Select a date above to see available times.</span>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="submit-btn" id="submitBtn">Request Demo</button>
+                    </form>
+                </div>
+
+                <div class="contact-form-card success-card" id="successCard" style="display:none;">
+                    <div class="success-icon">
+                        <svg width="32" height="32" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                    <h2>Demo Request Received</h2>
+                    <p id="successMessage"></p>
+                </div>
+            </div>
+        </div>
+    </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <span class="logo">Mineral Watch</span>
+          <p>Professional mineral rights monitoring and intelligence for Oklahoma mineral owners and operators.</p>
+        </div>
+        <div class="footer-links">
+          <div class="footer-col">
+            <h4>Platform</h4>
+            <a href="https://mymineralwatch.com/features">Features</a>
+            <a href="https://mymineralwatch.com/pricing">Pricing</a>
+            <a href="https://mymineralwatch.com/insights">Insights</a>
+            <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
+            <a href="https://portal.mymineralwatch.com">Sign In</a>
+          </div>
+          <div class="footer-col">
+            <h4>Company</h4>
+            <a href="https://mymineralwatch.com/about">About</a>
+            <a href="https://mymineralwatch.com/contact">Contact</a>
+          </div>
+          <div class="footer-col">
+            <h4>Legal</h4>
+            <a href="https://mymineralwatch.com/terms">Terms of Service</a>
+            <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <div class="copyright">
+          <span>&copy; 2026 Mineral Watch. Built by owners, for owners.</span>
+          <span>Oklahoma City, OK</span>
+        </div>
+        <div class="disclaimer">
+          <p><strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, or timeliness of this data. Government databases frequently contain errors, delays, or omissions. This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always verify official records directly with the OCC or a qualified attorney before making decisions.</p>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+        // ─── State ───
+        let selectedDate = null;
+        let selectedTime = null;
+        let currentMonth = new Date().getMonth();
+        let currentYear = new Date().getFullYear();
+
+        // ─── Time slots by day of week ───
+        const BASE_SLOTS = ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM'];
+        const AFTERNOON_SLOTS = ['1:00 PM', '1:30 PM'];
+        // Tuesday = day 2 — no afternoon slots
+        function getSlotsForDay(dayOfWeek) {
+            if (dayOfWeek === 2) return BASE_SLOTS;
+            return BASE_SLOTS.concat(AFTERNOON_SLOTS);
+        }
+
+        // ─── Calendar ───
+        const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+        const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+        function renderCalendar() {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const maxDate = new Date(today);
+            maxDate.setDate(maxDate.getDate() + 60);
+
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+            // Navigation limits
+            const canGoPrev = currentYear > today.getFullYear() || (currentYear === today.getFullYear() && currentMonth > today.getMonth());
+            const maxMonth = maxDate.getMonth();
+            const maxYear = maxDate.getFullYear();
+            const canGoNext = currentYear < maxYear || (currentYear === maxYear && currentMonth < maxMonth);
+
+            let html = '<div class="calendar-header">';
+            html += '<button type="button" id="calPrev"' + (canGoPrev ? '' : ' disabled') + '>&lsaquo;</button>';
+            html += '<span class="calendar-month-title">' + MONTH_NAMES[currentMonth] + ' ' + currentYear + '</span>';
+            html += '<button type="button" id="calNext"' + (canGoNext ? '' : ' disabled') + '>&rsaquo;</button>';
+            html += '</div>';
+
+            html += '<div class="calendar-grid">';
+            for (let i = 0; i < 7; i++) {
+                html += '<div class="calendar-day-header">' + DAY_HEADERS[i] + '</div>';
+            }
+
+            // Empty cells before first day
+            for (let i = 0; i < firstDay; i++) {
+                html += '<div class="calendar-day empty"></div>';
+            }
+
+            for (let d = 1; d <= daysInMonth; d++) {
+                const date = new Date(currentYear, currentMonth, d);
+                const dayOfWeek = date.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isPast = date < today;
+                const isBeyondMax = date > maxDate;
+                const disabled = isWeekend || isPast || isBeyondMax;
+
+                const isSelected = selectedDate && date.getTime() === selectedDate.getTime();
+                const isToday = date.getTime() === today.getTime();
+
+                let cls = 'calendar-day';
+                if (disabled) cls += ' disabled';
+                if (isSelected) cls += ' selected';
+                if (isToday) cls += ' today';
+
+                if (disabled) {
+                    html += '<div class="' + cls + '">' + d + '</div>';
+                } else {
+                    html += '<div class="' + cls + '" data-date="' + currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0') + '">' + d + '</div>';
+                }
+            }
+            html += '</div>';
+
+            document.getElementById('calendar').innerHTML = html;
+
+            // Bind nav
+            document.getElementById('calPrev').addEventListener('click', function() {
+                currentMonth--;
+                if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+                renderCalendar();
+            });
+            document.getElementById('calNext').addEventListener('click', function() {
+                currentMonth++;
+                if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+                renderCalendar();
+            });
+
+            // Bind day clicks
+            document.querySelectorAll('.calendar-day[data-date]').forEach(function(el) {
+                el.addEventListener('click', function() {
+                    var parts = this.getAttribute('data-date').split('-');
+                    selectedDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                    selectedTime = null;
+                    renderCalendar();
+                    renderTimeSlots();
+                });
+            });
+        }
+
+        // ─── Time Slots ───
+        function renderTimeSlots() {
+            var container = document.getElementById('timeSlots');
+            if (!selectedDate) {
+                container.innerHTML = '<span class="no-date-hint">Select a date above to see available times.</span>';
+                return;
+            }
+
+            var dayOfWeek = selectedDate.getDay();
+            var slots = getSlotsForDay(dayOfWeek);
+
+            // Check if previously selected time is still valid
+            if (selectedTime && slots.indexOf(selectedTime) === -1) {
+                selectedTime = null;
+            }
+
+            var html = '';
+            for (var i = 0; i < slots.length; i++) {
+                var cls = 'time-slot';
+                if (selectedTime === slots[i]) cls += ' selected';
+                html += '<button type="button" class="' + cls + '" data-time="' + slots[i] + '">' + slots[i] + '</button>';
+            }
+            container.innerHTML = html;
+
+            container.querySelectorAll('.time-slot').forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    selectedTime = this.getAttribute('data-time');
+                    renderTimeSlots();
+                });
+            });
+        }
+
+        // ─── Meeting Type Conditional Fields ───
+        var meetingRadios = document.querySelectorAll('input[name="meetingType"]');
+        var phoneField = document.getElementById('phoneField');
+        var cityField = document.getElementById('cityField');
+        var virtualHint = document.getElementById('virtualHint');
+        var phoneInput = document.getElementById('phone');
+        var cityInput = document.getElementById('city');
+
+        meetingRadios.forEach(function(radio) {
+            radio.addEventListener('change', function() {
+                var val = this.value;
+                phoneField.classList.toggle('visible', val === 'Phone Call');
+                cityField.classList.toggle('visible', val === 'In-Person');
+                virtualHint.classList.toggle('visible', val === 'Virtual Meeting');
+
+                // Toggle required
+                phoneInput.required = val === 'Phone Call';
+                cityInput.required = val === 'In-Person';
+
+                // Clear hidden fields
+                if (val !== 'Phone Call') phoneInput.value = '';
+                if (val !== 'In-Person') cityInput.value = '';
+            });
+        });
+
+        // ─── Form Submit ───
+        var form = document.getElementById('demoForm');
+        var submitBtn = document.getElementById('submitBtn');
+        var formMessage = document.getElementById('formMessage');
+
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // Validate date + time
+            if (!selectedDate) {
+                formMessage.textContent = 'Please select a preferred date.';
+                formMessage.className = 'form-message error show';
+                return;
+            }
+            if (!selectedTime) {
+                formMessage.textContent = 'Please select a preferred time.';
+                formMessage.className = 'form-message error show';
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Requesting...';
+            formMessage.className = 'form-message';
+
+            var meetingType = document.querySelector('input[name="meetingType"]:checked');
+
+            var payload = {
+                name: document.getElementById('name').value.trim(),
+                company: document.getElementById('company').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                propertyCount: document.getElementById('propertyCount').value,
+                meetingType: meetingType ? meetingType.value : '',
+                phone: document.getElementById('phone').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                preferredDate: selectedDate.getFullYear() + '-' + String(selectedDate.getMonth() + 1).padStart(2, '0') + '-' + String(selectedDate.getDate()).padStart(2, '0'),
+                preferredTime: selectedTime
+            };
+
+            try {
+                var response = await fetch('https://mineralwatch-contact.photog12.workers.dev/book-demo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    // Show success state
+                    document.getElementById('formCard').style.display = 'none';
+                    var meetingLabel = payload.meetingType.toLowerCase();
+                    document.getElementById('successMessage').innerHTML =
+                        'We\'ll confirm your ' + meetingLabel + ' within 24 hours.<br>Check <strong>' +
+                        payload.email.replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+                        '</strong> for a confirmation.';
+                    document.getElementById('successCard').style.display = 'block';
+                } else {
+                    var errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to submit');
+                }
+            } catch (error) {
+                formMessage.textContent = 'Something went wrong. Please email us directly at support@mymineralwatch.com';
+                formMessage.className = 'form-message error show';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Request Demo';
+            }
+        });
+
+        // ─── Init ───
+        renderCalendar();
+        renderTimeSlots();
+
+        // Hamburger menu toggle
+        document.querySelector('.menu-toggle').addEventListener('click', function() {
+            document.querySelector('.nav-links').classList.toggle('open');
+        });
+    </script>
+
+</body>
+</html>
