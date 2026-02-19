@@ -36,17 +36,17 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
          FROM wells WHERE county = ?`
       ).bind(countyUpper).first<{ total_wells: number; active_wells: number }>(),
 
-      // 2. Permits last 90 days
+      // 2. Permits last 90 days (handle both "CANADIAN" and "017-CANADIAN" formats)
       db.prepare(
         `SELECT COUNT(*) as cnt FROM statewide_activity
-         WHERE county = ? AND has_permit = 1 AND permit_date >= date('now', '-90 days')`
-      ).bind(countyUpper).first<{ cnt: number }>(),
+         WHERE (county = ? OR county LIKE '%-' || ?) AND has_permit = 1 AND permit_date >= date('now', '-90 days')`
+      ).bind(countyUpper, countyUpper).first<{ cnt: number }>(),
 
-      // 3. Completions last 90 days
+      // 3. Completions last 90 days (handle both formats)
       db.prepare(
         `SELECT COUNT(*) as cnt FROM statewide_activity
-         WHERE county = ? AND has_completion = 1 AND completion_date >= date('now', '-90 days')`
-      ).bind(countyUpper).first<{ cnt: number }>(),
+         WHERE (county = ? OR county LIKE '%-' || ?) AND has_completion = 1 AND completion_date >= date('now', '-90 days')`
+      ).bind(countyUpper, countyUpper).first<{ cnt: number }>(),
 
       // 4. Pooling orders last 90 days
       db.prepare(
@@ -61,23 +61,23 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
          GROUP BY operator ORDER BY active_wells DESC LIMIT 5`
       ).bind(countyUpper).all<OperatorRow>(),
 
-      // 6. Recent permits for activity feed
+      // 6. Recent permits for activity feed (handle both formats)
       db.prepare(
         `SELECT well_name, operator, surface_section as section, surface_township as township,
                 surface_range as range, formation, permit_date as activity_date
          FROM statewide_activity
-         WHERE county = ? AND has_permit = 1 AND permit_date >= date('now', '-90 days')
+         WHERE (county = ? OR county LIKE '%-' || ?) AND has_permit = 1 AND permit_date >= date('now', '-90 days')
          ORDER BY permit_date DESC LIMIT 5`
-      ).bind(countyUpper).all(),
+      ).bind(countyUpper, countyUpper).all(),
 
-      // 7. Recent completions for activity feed
+      // 7. Recent completions for activity feed (handle both formats)
       db.prepare(
         `SELECT well_name, operator, surface_section as section, surface_township as township,
                 surface_range as range, formation, completion_date as activity_date
          FROM statewide_activity
-         WHERE county = ? AND has_completion = 1 AND completion_date >= date('now', '-90 days')
+         WHERE (county = ? OR county LIKE '%-' || ?) AND has_completion = 1 AND completion_date >= date('now', '-90 days')
          ORDER BY completion_date DESC LIMIT 5`
-      ).bind(countyUpper).all(),
+      ).bind(countyUpper, countyUpper).all(),
 
       // 8. Recent pooling for activity feed
       db.prepare(
