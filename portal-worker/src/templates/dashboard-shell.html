@@ -16,6 +16,7 @@
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
     <header>
         <div class="container">
             <div class="header-inner">
@@ -38,7 +39,7 @@
         </div>
     </header>
     <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
-    <main>
+    <main id="main-content">
         <div class="container">
             <div class="page-header">
                 <h1 style="margin: 0;">My Monitoring</h1>
@@ -252,7 +253,7 @@
                     <!-- Activity Search/Sort/Filter Toolbar -->
                     <div id="activityToolbar" style="display: none; padding: 12px 20px; border-bottom: 1px solid var(--border); display: none;">
                         <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                            <input type="text" id="activitySearch" class="search-input" placeholder="Search by well, operator, county, case..." style="max-width: 320px;">
+                            <input type="text" id="activitySearch" class="search-input" placeholder="Search by well, operator, county, case..." aria-label="Search activity" style="max-width: 320px;">
                             <select id="activitySort" class="sort-select" style="min-width: 140px;">
                                 <option value="date-desc">Newest First</option>
                                 <option value="date-asc">Oldest First</option>

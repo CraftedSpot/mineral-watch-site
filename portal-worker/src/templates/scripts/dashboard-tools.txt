@@ -196,6 +196,7 @@
                     '<div class="tools-search-wrapper" id="toolsPropertySearchWrapper">' +
                         '<input type="text" class="tools-search-input" id="toolsPropertySearch"' +
                             ' placeholder="Search by county, section, township-range..."' +
+                            ' aria-label="Search properties for tools"' +
                             ' autocomplete="off"' +
                             ' oninput="onToolsPropertySearchInput(this.value)"' +
                             ' onfocus="onToolsPropertySearchInput(this.value)"' +
