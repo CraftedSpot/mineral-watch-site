@@ -96,6 +96,41 @@
                 
                 await loadAllData();
 
+                // Deferred localStorage cleanup for section geometry cache
+                setTimeout(() => {
+                    try {
+                        const TTL = 7 * 24 * 60 * 60 * 1000;
+                        const MAX = 500;
+                        const now = Date.now();
+                        const entries = [];
+                        for (let i = localStorage.length - 1; i >= 0; i--) {
+                            const key = localStorage.key(i);
+                            if (key && key.startsWith('mw_section_')) {
+                                let ts = 0;
+                                try { const v = JSON.parse(localStorage.getItem(key)); ts = v && v.t ? v.t : 0; } catch(e) {}
+                                entries.push({ key, ts });
+                            }
+                        }
+                        // Evict expired
+                        const alive = [];
+                        for (const e of entries) {
+                            if (e.ts > 0 && (now - e.ts) > TTL) {
+                                localStorage.removeItem(e.key);
+                            } else {
+                                alive.push(e);
+                            }
+                        }
+                        // Cap at 500 — remove oldest first
+                        if (alive.length > MAX) {
+                            alive.sort((a, b) => a.ts - b.ts);
+                            const remove = alive.length - MAX;
+                            for (let i = 0; i < remove; i++) {
+                                localStorage.removeItem(alive[i].key);
+                            }
+                        }
+                    } catch (e) {}
+                }, 0);
+
                 // Initialize search/sort controls
                 initWellsControls();
                 initPropertiesControls();
@@ -118,34 +153,43 @@
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {
-                tab.addEventListener('click', () => {
+                tab.addEventListener('click', async () => {
                     currentTab = tab.dataset.tab;
                     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
                     tab.classList.add('active');
                     document.getElementById(currentTab + '-tab').classList.add('active');
-                    
-                    // Load activity data when tab is selected (lazy load)
-                    if (currentTab === 'activity') {
-                        loadActivity();
+
+                    if (currentTab === 'wells' && !wellsInitialized) {
+                        wellsInitialized = true;
+                        loadWells().catch(() => { wellsInitialized = false; });
                     }
-                    // Load tools data when tab is selected (lazy load)
-                    if (currentTab === 'tools') {
-                        loadTools();
+                    if (currentTab === 'activity' && !activityInitialized) {
+                        activityInitialized = true;
+                        loadActivity().catch(() => { activityInitialized = false; });
                     }
-                    // Load documents data when tab is selected (lazy load)
                     if (currentTab === 'documents') {
-                        loadDocuments();
+                        if (!documentsInitialized) {
+                            documentsInitialized = true;
+                            Promise.all([loadDocuments(), loadUsageStats()])
+                                .catch(() => { documentsInitialized = false; });
+                        }
                     } else {
-                        // Stop polling when leaving documents tab
                         stopDocumentPolling();
+                    }
+                    if (currentTab === 'tools') {
+                        if (!wellsInitialized) {
+                            wellsInitialized = true;
+                            await loadWells().catch(() => { wellsInitialized = false; });
+                        }
+                        loadTools();
                     }
                 });
             });
             
             // Tab Visibility API - Auto-refresh when returning to tab
             document.addEventListener('visibilitychange', async () => {
-                if (!document.hidden && currentTab === 'documents') {
+                if (!document.hidden && currentTab === 'documents' && documentsInitialized) {
                     // User returned to tab while on documents
                     const hasProcessing = loadedDocuments.some(doc => 
                         doc.status === 'processing' || doc.status === 'pending'
@@ -236,11 +280,18 @@
             });
         });
         
-        async function loadAllData() {
-            const promises = [loadProperties(), loadWells(), loadActivity(), loadActivityStats()];
+        let wellsInitialized = false;
+        let activityInitialized = false;
+        let documentsInitialized = false;
 
-            // Only load documents if the tab is visible (user has access)
-            if (document.getElementById('documentsTab') && document.getElementById('documentsTab').style.display !== 'none') {
+        async function loadAllData() {
+            const promises = [loadProperties(), loadActivityStats()];
+
+            // Reload tabs that have already been initialized (for post-mutation refresh)
+            if (wellsInitialized) promises.push(loadWells());
+            if (activityInitialized) promises.push(loadActivity());
+            if (documentsInitialized && document.getElementById('documentsTab') &&
+                document.getElementById('documentsTab').style.display !== 'none') {
                 promises.push(loadDocuments());
                 promises.push(loadUsageStats());
             }

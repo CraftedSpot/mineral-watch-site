@@ -483,7 +483,8 @@
             const stored = localStorage.getItem(`mw_section_${cacheKey}`);
             if (stored) {
                 try {
-                    const parsed = JSON.parse(stored);
+                    const _raw = JSON.parse(stored);
+                    const parsed = _raw && _raw.d !== undefined ? _raw.d : _raw;
                     geometryCache[cacheKey] = parsed;
                     return parsed;
                 } catch (e) {
@@ -502,7 +503,7 @@
                     if (feature && feature.geometry) {
                         console.log(`✅ Found geometry from D1 for Section ${section} T${twn} R${rng}`);
                         geometryCache[cacheKey] = feature;
-                        localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                        localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                         return feature;
                     }
                 }
@@ -568,7 +569,7 @@
                     const feature = data.features[0];
                     console.log(`✅ Found geometry from OCC for Section ${section}`);
                     geometryCache[cacheKey] = feature;
-                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                     return feature;
                 }
                 return null;
@@ -630,7 +631,8 @@
             const stored = localStorage.getItem(`mw_section_${cacheKey}`);
             if (stored) {
                 try {
-                    const parsed = JSON.parse(stored);
+                    const _raw = JSON.parse(stored);
+                    const parsed = _raw && _raw.d !== undefined ? _raw.d : _raw;
                     console.log(`📍 Using localStorage cached geometry for ${cacheKey}`);
                     geometryCache[cacheKey] = parsed;
                     const bounds = L.geoJSON(parsed).getBounds();

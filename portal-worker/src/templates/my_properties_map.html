@@ -494,7 +494,8 @@
             // Check localStorage cache
             const stored = localStorage.getItem(`mw_section_${cacheKey}`);
             if (stored) {
-                const parsed = JSON.parse(stored);
+                const _raw = JSON.parse(stored);
+                const parsed = _raw && _raw.d !== undefined ? _raw.d : _raw;
                 geometryCache[cacheKey] = parsed;
                 return parsed;
             }
@@ -520,7 +521,7 @@
                     const feature = data.features[0];
                     // Cache in memory and localStorage
                     geometryCache[cacheKey] = feature;
-                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                     return feature;
                 }
             } catch (err) {

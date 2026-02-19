@@ -4035,7 +4035,8 @@
             const stored = localStorage.getItem(`mw_section_${cacheKey}`);
             if (stored) {
                 try {
-                    const parsed = JSON.parse(stored);
+                    const _raw = JSON.parse(stored);
+                    const parsed = _raw && _raw.d !== undefined ? _raw.d : _raw;
                     geometryCache[cacheKey] = parsed;
                     return parsed;
                 } catch (e) {
@@ -4054,7 +4055,7 @@
                     if (feature && feature.geometry) {
                         console.log(`✅ Found geometry from D1 for Section ${section} T${twn} R${rng}`);
                         geometryCache[cacheKey] = feature;
-                        localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                        localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                         return feature;
                     }
                 }
@@ -4118,7 +4119,7 @@
                     const feature = data.features[0];
                     console.log(`✅ Found geometry from OCC for Section ${section}`);
                     geometryCache[cacheKey] = feature;
-                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                     return feature;
                 }
                 return null;
@@ -4181,7 +4182,8 @@
             const stored = localStorage.getItem(`mw_section_${cacheKey}`);
             if (stored) {
                 try {
-                    const parsed = JSON.parse(stored);
+                    const _raw = JSON.parse(stored);
+                    const parsed = _raw && _raw.d !== undefined ? _raw.d : _raw;
                     console.log(`📍 Using localStorage cached geometry for ${cacheKey}`);
                     geometryCache[cacheKey] = parsed;
                     const bounds = L.geoJSON(parsed).getBounds();
@@ -7644,7 +7646,7 @@
                                     // Cache with unpadded section to match lookup key format
                                     const cacheKey = `${matchingProp.section}-${matchingProp.township}-${matchingProp.range}`;
                                     geometryCache[cacheKey] = feature;
-                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                                 }
                             });
                         } else {
@@ -7717,7 +7719,8 @@
                     // Check if already cached
                     if (geometryCache[cacheKey] || localStorage.getItem(`mw_section_${cacheKey}`)) {
                         // Load from cache immediately
-                        const geometry = geometryCache[cacheKey] || JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`));
+                        let geometry = geometryCache[cacheKey];
+                        if (!geometry) { const _r = JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`)); geometry = _r && _r.d !== undefined ? _r.d : _r; }
                         addPropertyToMap(property, geometry);
                         console.log(`Loaded from cache: S${section} T${township} R${range}`);
                     } else {

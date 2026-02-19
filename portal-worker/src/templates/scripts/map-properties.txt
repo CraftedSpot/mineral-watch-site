@@ -676,7 +676,7 @@
                         if (d1Results[cacheKey]) {
                             results.push({ property: prop.property, geometry: d1Results[cacheKey] });
                             geometryCache[cacheKey] = d1Results[cacheKey];
-                            localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(d1Results[cacheKey]));
+                            localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:d1Results[cacheKey]}));
                         } else {
                             d1Misses.push(prop);
                         }
@@ -724,7 +724,7 @@
                                     results.push({ property: matchingProp.property, geometry: feature });
                                     const cacheKey = `${sectionNum}-${matchingProp.township}-${matchingProp.range}`;
                                     geometryCache[cacheKey] = feature;
-                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
                                 }
                             });
                         }
@@ -793,7 +793,8 @@
                     // Check if already cached
                     if (geometryCache[cacheKey] || localStorage.getItem(`mw_section_${cacheKey}`)) {
                         // Load from cache immediately
-                        const geometry = geometryCache[cacheKey] || JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`));
+                        let geometry = geometryCache[cacheKey];
+                        if (!geometry) { const _r = JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`)); geometry = _r && _r.d !== undefined ? _r.d : _r; }
                         addPropertyToMap(property, geometry);
                         console.log(`Loaded from cache: S${section} T${township} R${range}`);
                     } else {
