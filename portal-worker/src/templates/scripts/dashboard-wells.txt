@@ -607,8 +607,9 @@
 /* __SPLIT_WELLS_B__ */
         // Event listeners moved to DOMContentLoaded above
         
-        function closeWellModal() { 
-            document.getElementById('addWellModal').style.display = 'none'; 
+        function closeWellModal() {
+            closeModalA11y(document.getElementById('addWellModal'));
+            document.getElementById('addWellModal').style.display = 'none';
             document.getElementById('addWellForm').reset();
             // Reset search tab
             clearWellSearch();
@@ -1247,7 +1248,8 @@
             const newZIndex = baseZIndex + (modalStack.length * 10);
             
             wellModal.style.cssText = `display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: ${newZIndex} !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;`;
-            
+            openModalA11y(wellModal);
+
             // Add to modal stack if not already there (initial opening)
             if (!modalStack.find(m => m.element === wellModal)) {
                 modalStack.push({ type: 'well', id: wellId, element: wellModal });
@@ -1489,6 +1491,7 @@
 
         function closeWellDetailsModal() {
             const modal = document.getElementById('wellDetailsModal');
+            closeModalA11y(modal);
             modal.style = '';
             // Reset z-index for next time
             modal.style.zIndex = '';

@@ -1575,7 +1575,10 @@
             });
 
             document.body.appendChild(overlay);
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
             modalStack.push({ type: 'revenue', id: id, element: overlay });
+            openModalA11y(overlay);
 
             // Fetch data
             try {
@@ -1596,6 +1599,7 @@
         function closeRevenueModal() {
             var overlay = document.getElementById('revenueEstimateModal');
             if (overlay) {
+                closeModalA11y(overlay);
                 overlay.remove();
                 var idx = modalStack.findIndex(function(m) { return m.element === overlay; });
                 if (idx > -1) modalStack.splice(idx, 1);

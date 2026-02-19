@@ -1,9 +1,9 @@
 <!-- Manual Document Link Modal -->
-<div class="modal-overlay" id="manualDocLinkModal" style="display: none;">
+<div class="modal-overlay" id="manualDocLinkModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="manualDocLinkTitle">
     <div class="modal" style="max-width: 500px; width: 100%; position: relative;">
         <button class="modal-close" onclick="closeManualDocLinkModal()" aria-label="Close">&times;</button>
         <div style="padding: 24px;">
-            <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">Link Document</h3>
+            <h3 id="manualDocLinkTitle" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">Link Document</h3>
             <p id="manualDocLinkSubtitle" style="margin: 0 0 20px 0; font-size: 14px; color: var(--slate-blue);">Select a document to link</p>
 
             <div id="manualDocLinkList" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
@@ -28,7 +28,7 @@
 </div>
 <!-- __SPLIT_DOCS_HTML_B__ -->
 <!-- DOCUMENT VIEW MODAL -->
-<div class="modal-overlay" id="documentViewModal" style="display: none; z-index: 1000001;">
+<div class="modal-overlay" id="documentViewModal" style="display: none; z-index: 1000001;" role="dialog" aria-modal="true" aria-labelledby="documentViewTitle">
     <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
             <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
@@ -51,7 +51,7 @@
 </div>
 
 <!-- DOCUMENT DETAIL MODAL -->
-<div class="modal-overlay" id="documentDetailModal" style="display: none; overflow-y: auto; z-index: 1000000;">
+<div class="modal-overlay" id="documentDetailModal" style="display: none; overflow-y: auto; z-index: 1000000;" role="dialog" aria-modal="true" aria-labelledby="documentModalTitle">
     <div class="modal detail-modal document-detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
         <!-- Modal Header with green background (full bleed) -->
         <div class="modal-header detail-modal-header" style="background: #1D6F5C; color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
@@ -92,7 +92,7 @@
 </div>
 
 <!-- OUT OF CREDITS MODAL -->
-<div class="modal-overlay" id="outOfCreditsModal" style="display: none;">
+<div class="modal-overlay" id="outOfCreditsModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="outOfCreditsTitle">
     <div class="modal" style="max-width: 450px; text-align: center;">
         <div style="margin-bottom: 24px;">
             <div style="width: 64px; height: 64px; background: #FEE2E2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
@@ -100,7 +100,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
             </div>
-            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 20px; color: var(--oil-navy);">You're Out of Credits</h2>
+            <h2 id="outOfCreditsTitle" style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 20px; color: var(--oil-navy);">You're Out of Credits</h2>
             <p style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.5;" id="outOfCreditsMessage">
                 You've used all your available credits. Documents won't be processed until you have credits available.
             </p>
@@ -141,11 +141,11 @@
 </div>
 
 <!-- CREDIT PACK PURCHASE MODAL -->
-<div class="modal-overlay" id="creditPackModal" style="display: none;">
+<div class="modal-overlay" id="creditPackModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="creditPackTitle">
     <div class="modal" style="max-width: 700px; position: relative;">
-        <button onclick="closeCreditPackModal()" style="position: absolute; top: 12px; right: 12px; background: #f3f4f6; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; color: #374151; display: flex; align-items: center; justify-content: center; z-index: 10;">×</button>
+        <button onclick="closeCreditPackModal()" style="position: absolute; top: 12px; right: 12px; background: #f3f4f6; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; color: #374151; display: flex; align-items: center; justify-content: center; z-index: 10;" aria-label="Close">×</button>
         <div style="text-align: center; margin-bottom: 24px;">
-            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">Buy Credit Pack</h2>
+            <h2 id="creditPackTitle" style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">Buy Credit Pack</h2>
             <p style="margin: 0; color: #6B7280; font-size: 14px;">One-time purchase. Credits never expire.</p>
         </div>
 
@@ -217,10 +217,10 @@
 </div>
 <!-- __SPLIT_DOCS_HTML_C__ -->
 <!-- DOCUMENT UPLOAD MODAL -->
-<div class="modal-overlay" id="documentUploadModal" style="display: none;">
+<div class="modal-overlay" id="documentUploadModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="uploadDocumentsTitle">
     <div class="modal" style="max-width: 500px;">
-        <button class="close-btn" onclick="closeUploadModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
-        <h2 style="margin-bottom: 24px; font-family: 'Merriweather', serif;">Upload Documents</h2>
+        <button class="close-btn" onclick="closeUploadModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;" aria-label="Close">×</button>
+        <h2 id="uploadDocumentsTitle" style="margin-bottom: 24px; font-family: 'Merriweather', serif;">Upload Documents</h2>
         
         <form id="documentUploadForm" onsubmit="handleDocumentUpload(event)">
             <!-- File Drop Zone -->

@@ -221,8 +221,10 @@
             
             // Add button event listeners inside DOMContentLoaded
             // Well Modal
-            document.getElementById('addWellBtn').addEventListener('click', () => { 
-                document.getElementById('addWellModal').style.display = 'flex'; 
+            document.getElementById('addWellBtn').addEventListener('click', () => {
+                const m = document.getElementById('addWellModal');
+                m.style.display = 'flex';
+                openModalA11y(m);
             });
             
             // Bulk Upload Properties Modal

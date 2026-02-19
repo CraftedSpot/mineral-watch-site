@@ -1,11 +1,11 @@
     <!-- Add Property Modal - Styled Like Property Details -->
-    <div class="modal-overlay" id="addPropertyModal">
+    <div class="modal-overlay" id="addPropertyModal" role="dialog" aria-modal="true" aria-labelledby="addPropertyTitle">
         <div class="property-card" style="max-width: 520px; width: 100%;">
             <!-- Header with Orange Gradient -->
             <div class="property-card-header">
                 <button class="close-btn" onclick="closePropertyModal()" aria-label="Close">×</button>
                 <div class="card-header-top">
-                    <h2 class="property-name">Add Property</h2>
+                    <h2 class="property-name" id="addPropertyTitle">Add Property</h2>
                     <span class="acreage-badge" id="addPropertyAcreageBadge" style="display: none;">0 acres</span>
                 </div>
                 <div class="property-location" id="addPropertyLocation" style="opacity: 0;">Location</div>

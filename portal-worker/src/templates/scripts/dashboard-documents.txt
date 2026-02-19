@@ -679,16 +679,19 @@
             window.viewingFromDetailModal = fromDetailModal;
             window.currentDocumentRotation = rotationApplied || 0;
 
+            const viewModal = document.getElementById('documentViewModal');
             await openDocumentViewer(docId, filename, contentType, {
                 container: document.getElementById('pdfViewerContainer'),
                 titleEl: document.getElementById('documentViewTitle'),
-                modal: document.getElementById('documentViewModal'),
+                modal: viewModal,
                 zIndex: fromDetailModal ? '9999999' : '2000',
                 rotation: rotationApplied || 0
             });
+            openModalA11y(viewModal);
         }
 
         function closeDocumentViewer() {
+            closeModalA11y(document.getElementById('documentViewModal'));
             closeDocumentViewerShared({
                 container: document.getElementById('pdfViewerContainer'),
                 modal: document.getElementById('documentViewModal'),
@@ -7097,7 +7100,8 @@
             
             detailModal.style.display = 'flex';
             detailModal.style.zIndex = String(newZIndex);
-            
+            openModalA11y(detailModal);
+
             // Add to modal stack if not already there
             if (!modalStack.find(m => m.element === detailModal)) {
                 modalStack.push({ type: 'document', id: docId, element: detailModal });
@@ -7127,6 +7131,7 @@
 
         function closeDocumentDetailModal() {
             const modal = document.getElementById('documentDetailModal');
+            closeModalA11y(modal);
             modal.style.display = 'none';
             modal.style.zIndex = '';  // Reset z-index
             currentDocumentId = null;
@@ -7780,9 +7785,11 @@
             // Show modal
             const modal = document.getElementById('manualDocLinkModal');
             modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 1000001 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important;';
+            openModalA11y(modal);
         }
 
         function closeManualDocLinkModal() {
+            closeModalA11y(document.getElementById('manualDocLinkModal'));
             document.getElementById('manualDocLinkModal').style.display = 'none';
         }
 

@@ -1,5 +1,49 @@
         // escapeHtml() is now in shared-utils.txt (injected earlier in the page)
 
+        // ── Modal Accessibility: Focus Trap ──────────────────────────────
+        const _a11yStack = [];
+        const _focusableSelector = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+        function openModalA11y(modal) {
+            if (!modal) return;
+            _a11yStack.push({ modal: modal, trigger: document.activeElement });
+            // Move focus to first focusable element inside modal
+            requestAnimationFrame(() => {
+                const first = modal.querySelector(_focusableSelector);
+                if (first) first.focus();
+            });
+        }
+
+        function closeModalA11y(modal) {
+            if (!modal) return;
+            // Find this modal in stack (search from top)
+            for (let i = _a11yStack.length - 1; i >= 0; i--) {
+                if (_a11yStack[i].modal === modal) {
+                    const entry = _a11yStack.splice(i, 1)[0];
+                    if (entry.trigger && typeof entry.trigger.focus === 'function') {
+                        try { entry.trigger.focus(); } catch (e) {}
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Global Tab trap — keeps focus cycling inside the topmost modal
+        document.addEventListener('keydown', function(e) {
+            if (e.key !== 'Tab' || _a11yStack.length === 0) return;
+            const top = _a11yStack[_a11yStack.length - 1].modal;
+            const focusable = Array.from(top.querySelectorAll(_focusableSelector)).filter(el => el.offsetParent !== null);
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (e.shiftKey) {
+                if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+            } else {
+                if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+            }
+        });
+        // ── End Focus Trap ───────────────────────────────────────────────
+
         // Filter tracts table by search term (unitization orders)
         function filterTracts(tableId, searchId) {
             const searchTerm = document.getElementById(searchId).value.toLowerCase();
@@ -622,15 +666,18 @@
                 cancelBtn.textContent = options.cancelText || 'Cancel';
                 
                 dialog.classList.add('show');
+                openModalA11y(dialog);
                 console.log('Dialog should be visible now');
-                
+
                 const handleCancel = () => {
+                    closeModalA11y(dialog);
                     dialog.classList.remove('show');
                     resolve(false);
                     cleanup();
                 };
-                
+
                 const handleConfirm = () => {
+                    closeModalA11y(dialog);
                     dialog.classList.remove('show');
                     resolve(true);
                     cleanup();

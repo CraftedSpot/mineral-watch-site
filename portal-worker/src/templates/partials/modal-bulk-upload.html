@@ -1,9 +1,9 @@
 <!-- BULK UPLOAD MODAL - REDESIGNED -->
-<div class="modal-overlay" id="bulk-upload-modal">
+<div class="modal-overlay" id="bulk-upload-modal" role="dialog" aria-modal="true" aria-labelledby="bulkUploadTitle">
     <div class="modal bulk-modal">
         <!-- Header -->
         <div class="bulk-header">
-            <h2>Bulk Upload Properties</h2>
+            <h2 id="bulkUploadTitle">Bulk Upload Properties</h2>
             <button class="bulk-close" onclick="closeBulkUploadModal()">&times;</button>
         </div>
         
@@ -166,11 +166,11 @@
 </div>
 
 <!-- BULK UPLOAD WELLS MODAL -->
-<div class="modal-overlay" id="bulk-upload-wells-modal">
+<div class="modal-overlay" id="bulk-upload-wells-modal" role="dialog" aria-modal="true" aria-labelledby="bulkUploadWellsTitle">
     <div class="modal bulk-modal">
         <!-- Header -->
         <div class="bulk-header">
-            <h2>Bulk Upload Wells</h2>
+            <h2 id="bulkUploadWellsTitle">Bulk Upload Wells</h2>
             <button class="bulk-close" onclick="closeBulkUploadWellsModal()">&times;</button>
         </div>
         
@@ -338,7 +338,7 @@
 </div>
 <!-- __SPLIT_PROCESSING__ -->
 <!-- DOCUMENT PROCESSING NOTIFICATION MODAL -->
-<div class="modal-overlay" id="bulkProcessingModal" style="display: none;">
+<div class="modal-overlay" id="bulkProcessingModal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="bulkProcessingTitle">
     <div class="modal" style="max-width: 440px; background: linear-gradient(135deg, #FAFDF7 0%, #F0FDF4 100%); border: 1px solid rgba(34, 197, 94, 0.3); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);">
         <div style="text-align: center; margin-bottom: 20px;">
             <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
@@ -348,7 +348,7 @@
                     <polyline points="14 2 14 8 20 8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </div>
-            <h2 style="margin: 0 0 6px 0; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">
+            <h2 id="bulkProcessingTitle" style="margin: 0 0 6px 0; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">
                 Processing Started
             </h2>
             <p style="margin: 0; font-size: 14px; color: #15803D; font-weight: 500;">

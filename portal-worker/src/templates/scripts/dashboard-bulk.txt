@@ -36,12 +36,14 @@ function openBulkUploadModal() {
             console.log('Modal content styles applied');
         }
         
+        openModalA11y(modal);
+
         // Debug: Check computed styles
         const computedStyle = window.getComputedStyle(modal);
         console.log('Modal computed display:', computedStyle.display);
         console.log('Modal computed z-index:', computedStyle.zIndex);
         console.log('Modal computed position:', computedStyle.position);
-        
+
         // Check if modal is in viewport
         const rect = modal.getBoundingClientRect();
         console.log('Modal position:', rect);
@@ -66,6 +68,7 @@ function openBulkUploadWellsModal() {
         if (modalContent) {
             modalContent.style.cssText = 'display: block !important; position: relative !important; z-index: 100000 !important; background: white !important;';
         }
+        openModalA11y(modal);
     }
 }
 
@@ -74,6 +77,7 @@ window.openBulkUploadWellsModal = openBulkUploadWellsModal;
 
 // Close bulk upload modal
 function closeBulkUploadModal() {
+    closeModalA11y(document.getElementById('bulk-upload-modal'));
     document.getElementById('bulk-upload-modal').style.display = 'none';
     document.body.style.overflow = ''; // Restore body scrolling
     resetBulkUpload();
@@ -498,6 +502,7 @@ let wellsSkippedData = []; // Wells that weren't imported (not found, skipped, f
 
 // Close wells modal
 function closeBulkUploadWellsModal() {
+    closeModalA11y(document.getElementById('bulk-upload-wells-modal'));
     document.getElementById('bulk-upload-wells-modal').style.display = 'none';
     resetBulkUploadWells();
 }
@@ -1295,7 +1300,9 @@ function openUploadModal() {
     }
 
     // Show modal
-    document.getElementById('documentUploadModal').style.display = 'flex';
+    const uploadModal = document.getElementById('documentUploadModal');
+    uploadModal.style.display = 'flex';
+    openModalA11y(uploadModal);
 }
 window.openUploadModal = openUploadModal;
 
@@ -1322,21 +1329,27 @@ function showOutOfCreditsModal() {
         resetInfo.style.display = 'none';
     }
 
-    document.getElementById('outOfCreditsModal').style.display = 'flex';
+    const oocModal = document.getElementById('outOfCreditsModal');
+    oocModal.style.display = 'flex';
+    openModalA11y(oocModal);
 }
 window.showOutOfCreditsModal = showOutOfCreditsModal;
 
 function closeOutOfCreditsModal() {
+    closeModalA11y(document.getElementById('outOfCreditsModal'));
     document.getElementById('outOfCreditsModal').style.display = 'none';
 }
 window.closeOutOfCreditsModal = closeOutOfCreditsModal;
 
 function openCreditPackModal() {
-    document.getElementById('creditPackModal').style.display = 'flex';
+    const cpModal = document.getElementById('creditPackModal');
+    cpModal.style.display = 'flex';
+    openModalA11y(cpModal);
 }
 window.openCreditPackModal = openCreditPackModal;
 
 function closeCreditPackModal() {
+    closeModalA11y(document.getElementById('creditPackModal'));
     document.getElementById('creditPackModal').style.display = 'none';
 }
 window.closeCreditPackModal = closeCreditPackModal;
@@ -1388,6 +1401,7 @@ document.getElementById('creditPackModal')?.addEventListener('click', e => {
 });
 
 function closeUploadModal() {
+    closeModalA11y(document.getElementById('documentUploadModal'));
     document.getElementById('documentUploadModal').style.display = 'none';
     clearSelectedFile();
 
@@ -2303,7 +2317,9 @@ function showBulkProcessingModal(count) {
     }
 
     // Show modal
-    document.getElementById('bulkProcessingModal').style.display = 'flex';
+    const bpModal = document.getElementById('bulkProcessingModal');
+    bpModal.style.display = 'flex';
+    openModalA11y(bpModal);
 }
 
 function closeBulkProcessingModal() {
@@ -2314,6 +2330,7 @@ function closeBulkProcessingModal() {
     }
     
     // Hide modal
+    closeModalA11y(document.getElementById('bulkProcessingModal'));
     document.getElementById('bulkProcessingModal').style.display = 'none';
 }
 
