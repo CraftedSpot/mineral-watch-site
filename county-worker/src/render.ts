@@ -213,7 +213,7 @@ const FOOTER = `
   </div>
   <div class="footer-bottom">
     <div class="copyright">
-      <span>&copy; ${new Date().getFullYear()} Mineral Watch. Built by owners, for owners.</span>
+      <span>&copy; 2026 Mineral Watch. Built by owners, for owners.</span>
       <span>Oklahoma City, OK</span>
     </div>
     <div class="disclaimer">
