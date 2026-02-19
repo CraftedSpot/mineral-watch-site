@@ -145,8 +145,8 @@
             <div class="content-card">
                 <div id="properties-tab" class="tab-content active">
                     <div id="propertiesControls" class="table-controls" style="display: none;">
-                        <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
-                        <select id="propertiesSort" class="sort-select">
+                        <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range..." aria-label="Search properties">
+                        <select id="propertiesSort" class="sort-select" aria-label="Sort properties">
                             <option value="legal-asc" selected>Legal Description</option>
                             <option value="acres-desc">Total Acres</option>
                             <option value="wells-desc">Wells</option>
@@ -183,14 +183,14 @@
                 
                 <div id="wells-tab" class="tab-content">
                     <div id="wellsControls" class="table-controls" style="display: none;">
-                        <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
-                        <select id="wellsFilter" class="sort-select">
+                        <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county..." aria-label="Search wells">
+                        <select id="wellsFilter" class="sort-select" aria-label="Filter wells by status">
                             <option value="all" selected>All Wells</option>
                             <option value="active">Active</option>
                             <option value="idle">Idle</option>
                             <option value="no_data">No OTC Data</option>
                         </select>
-                        <select id="wellsSort" class="sort-select">
+                        <select id="wellsSort" class="sort-select" aria-label="Sort wells">
                             <option value="name-asc" selected>Well Name</option>
                             <option value="legal-asc">Legal Description</option>
                             <option value="operator-asc">Operator</option>
@@ -319,7 +319,7 @@
                         <!-- Enhanced Extraction Toggle -->
                         <label id="enhancedToggleLabel" style="display: inline-flex; align-items: center; gap: 10px; cursor: pointer; padding: 8px 14px; border: 1px solid #E5E7EB; border-radius: 8px; font-size: 13px; transition: all 0.2s;">
                             <div style="position: relative; width: 36px; height: 20px; flex-shrink: 0;">
-                                <input type="checkbox" id="enhancedExtractionToggle" onchange="toggleEnhancedExtraction()" style="opacity: 0; width: 0; height: 0; position: absolute;">
+                                <input type="checkbox" id="enhancedExtractionToggle" onchange="toggleEnhancedExtraction()" style="opacity: 0; width: 0; height: 0; position: absolute;" aria-label="Toggle enhanced extraction">
                                 <div id="enhancedToggleTrack" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: #D1D5DB; border-radius: 10px; transition: background 0.2s;"></div>
                                 <div id="enhancedToggleThumb" style="position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2);"></div>
                             </div>
@@ -358,7 +358,7 @@
                     </div>
 
                     <div id="documentsControls" class="table-controls" style="display: none;">
-                        <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content...">
+                        <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content..." aria-label="Search documents">
                         <div class="searchable-dropdown" id="documentsCategoryDropdown">
                             <button type="button" class="searchable-dropdown-trigger" id="documentsCategoryTrigger">
                                 <span class="dropdown-label">All Categories</span>
@@ -368,15 +368,15 @@
                             </button>
                             <div class="searchable-dropdown-menu" id="documentsCategoryMenu">
                                 <div class="dropdown-search-wrapper">
-                                    <input type="text" class="dropdown-search" id="documentsCategorySearch" placeholder="Search categories...">
+                                    <input type="text" class="dropdown-search" id="documentsCategorySearch" placeholder="Search categories..." aria-label="Search document categories">
                                 </div>
                                 <div class="dropdown-options" id="documentsCategoryOptions">
                                     <!-- Options populated by JS -->
                                 </div>
                             </div>
                         </div>
-                        <input type="hidden" id="documentsCategory" value="all">
-                        <select id="documentsSort" class="sort-select">
+                        <input type="hidden" id="documentsCategory" value="all" aria-hidden="true">
+                        <select id="documentsSort" class="sort-select" aria-label="Sort documents">
                             <!-- Options will be dynamically populated -->
                         </select>
                         <span id="documentsResultsCount" class="results-count"></span>

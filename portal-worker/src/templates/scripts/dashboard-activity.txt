@@ -317,7 +317,7 @@
                 html += `
                     <div class="activity-item">
                         <div class="activity-checkbox" onclick="event.stopPropagation()">
-                            <input type="checkbox" class="activity-checkbox-input" data-id="${r.id}">
+                            <input type="checkbox" class="activity-checkbox-input" data-id="${r.id}" aria-label="Select activity ${escapeHtml(activityType)}">
                         </div>
                         <div class="activity-icon ${iconClass}">${icon}</div>
                         <div class="activity-details">

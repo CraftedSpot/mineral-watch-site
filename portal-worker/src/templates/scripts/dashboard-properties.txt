@@ -278,7 +278,7 @@
             let html = '<table class="data-table"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
-            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th>';
+            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all" aria-label="Select all properties"></th>';
             html += '<th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
             
             // SVG icons for links column
@@ -309,7 +309,7 @@
 
                 html += `<tr onclick="openPropertyDetails('${p.id}')" style="cursor: pointer;">`;
                 if (!isViewer) {
-                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>`;
+                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}" aria-label="Select property ${escapeHtml(cleanCountyDisplay(f.COUNTY))} ${str}"></td>`;
                 }
                 html += `<td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
                     <td><strong>${str}</strong></td>

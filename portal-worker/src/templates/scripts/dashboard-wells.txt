@@ -496,7 +496,7 @@
             let html = '<table class="data-table wells-table"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
-            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th>';
+            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all" aria-label="Select all wells"></th>';
             html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
 
             displayWells.forEach(w => {
@@ -560,7 +560,7 @@
                 // Clean row that opens modal on click
                 html += `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">`;
                 if (!isViewer) {
-                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}"></td>`;
+                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}" aria-label="Select well ${escapeHtml(wellName)}"></td>`;
                 }
                 html += `<td class="well-info-cell">
                         <div class="well-name-line">
