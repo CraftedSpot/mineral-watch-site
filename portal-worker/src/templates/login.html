@@ -89,6 +89,12 @@
         if (error) {
             document.getElementById('loginMessage').innerHTML = '<div class="message error">' + error + '</div>';
         }
+
+        // Show signup form by default if ?new=1
+        if (params.get('new') === '1') {
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('signupSection').style.display = 'block';
+        }
         
         // Toggle between login and signup
         function showSignup(e) {
