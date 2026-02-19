@@ -533,9 +533,9 @@
 
                 <!-- Right: Contact Form -->
                 <div class="contact-form-card">
-                    <div class="enterprise-callout" id="enterpriseCallout" style="display:none; background:#FFF7ED; border:2px solid #C05621; border-radius:8px; padding:18px 20px; margin-bottom:20px;">
+                    <div class="enterprise-callout" style="background:#FFF7ED; border:2px solid #C05621; border-radius:8px; padding:18px 20px; margin-bottom:20px;">
                         <p style="font-size:15px; font-weight:700; color:#1C2B36; margin:0 0 6px;">Managing 500+ mineral properties?</p>
-                        <p style="font-size:13px; color:#334E68; margin:0 0 12px;">Skip the form. Get a personalized walkthrough of bulk import, production tracking, and team onboarding.</p>
+                        <p style="font-size:13px; color:#334E68; margin:0 0 12px;">Get a personalized walkthrough of bulk import, production tracking, and team onboarding.</p>
                         <a href="/demo" style="display:inline-block; background:#C05621; color:white; padding:10px 20px; border-radius:6px; font-size:14px; font-weight:600; text-decoration:none;">Book a Demo →</a>
                     </div>
                     <div id="formMessage" class="form-message"></div>
@@ -558,7 +558,6 @@
                                 <option value="General Question">General Question</option>
                                 <option value="Pricing & Plans">Pricing & Plans</option>
                                 <option value="Technical Support">Technical Support</option>
-                                <option value="Enterprise / Large Portfolio">Enterprise / Large Portfolio</option>
                                 <option value="Partnership Inquiry">Partnership Inquiry</option>
                                 <option value="Other">Other</option>
                             </select>
@@ -628,20 +627,6 @@
         // Pre-select topic from URL parameter
         const urlParams = new URLSearchParams(window.location.search);
         const topicParam = urlParams.get('topic');
-        if (topicParam === 'enterprise') {
-            document.getElementById('topic').value = 'Enterprise / Large Portfolio';
-            document.getElementById('enterpriseCallout').style.display = 'block';
-        }
-
-        // Show enterprise callout when topic changes to Enterprise
-        document.getElementById('topic').addEventListener('change', function() {
-            var callout = document.getElementById('enterpriseCallout');
-            if (this.value === 'Enterprise / Large Portfolio') {
-                callout.style.display = 'block';
-            } else {
-                callout.style.display = 'none';
-            }
-        });
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
