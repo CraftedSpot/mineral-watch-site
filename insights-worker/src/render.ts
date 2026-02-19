@@ -1742,7 +1742,7 @@ const POOLING_ORDERS_BODY = `
 <p><strong>Forgetting about multi-section horizontal wells.</strong> Modern horizontal wells often span two or more sections. A pooling order on your section might be for a well that also crosses into adjacent sections. Understanding the full scope of the well helps you evaluate its potential production and the value of your participation.</p>
 
 <div class="guide-cta-inline">
-    <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors OCC pooling orders daily and alerts you when your sections are affected &mdash; so you never miss a 20-day deadline. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors OCC pooling orders daily and alerts you when your sections are affected &mdash; so you never miss a 20-day deadline. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
 </div>
 
 <h2 id="when-to-hire-attorney">When to Hire an Attorney</h2>
@@ -1891,7 +1891,7 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 </div>
 
 <div class="guide-cta-inline">
-    <p><strong>Mineral Watch automates this.</strong> Mineral Watch organizes all your inherited properties, wells, and documents in one place &mdash; so you can see what you own and what&rsquo;s happening on it. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch organizes all your inherited properties, wells, and documents in one place &mdash; so you can see what you own and what&rsquo;s happening on it. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
 </div>
 
 <h2 id="figuring-out-what-you-own">Figuring Out What You Actually Own</h2>
@@ -2628,7 +2628,7 @@ const DIVISION_ORDERS_BODY = `
 </div>
 
 <div class="guide-cta-inline">
-    <p><strong>Mineral Watch automates this.</strong> Mineral Watch extracts decimal interests from division orders automatically and flags discrepancies against your records. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch extracts decimal interests from division orders automatically and flags discrepancies against your records. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
 </div>
 
 <h2 id="common-issues">Common Division Order Issues</h2>
@@ -2807,7 +2807,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         <p>The search lets you filter by well name, API number, county, operator name or number, and &mdash; most usefully for mineral owners &mdash; by legal description (section, township, and range). Each well record includes permit data, completion data, bottom hole location, and production information.</p>
 
         <div class="guide-cta-inline">
-            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls everything from multiple OCC databases into one dashboard for your specific sections. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls everything from multiple OCC databases into one dashboard for your specific sections. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
         </div>
 
         <div class="step-box">
@@ -2908,7 +2908,7 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         <p>The case number format in ECF uses a ten-character format: two-letter docket code followed by the year and a six-digit sequence number. For example, <strong>CD2024-000300</strong> is Conservation Docket case number 300 from 2024.</p>
 
         <div class="guide-cta-inline">
-            <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors all these filing types automatically and sends you alerts when your sections are affected. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors all these filing types automatically and sends you alerts when your sections are affected. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
         </div>
 
         <div class="tool-detail">
@@ -3336,7 +3336,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
         <p>For gas production, watch for the unit of measurement. Some operators report in MCF (thousand cubic feet) while others use MMBTU (million British thermal units). The conversion isn&rsquo;t always 1:1, and a unit mismatch can make production look lower than it actually is.</p>
 
         <div class="guide-cta-inline">
-            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls OTC production data automatically and compares it against your check stubs &mdash; no manual lookups needed. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls OTC production data automatically and compares it against your check stubs &mdash; no manual lookups needed. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
         </div>
 
         <div class="check-detail">
@@ -3826,7 +3826,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
 <p>The OCC&rsquo;s online well records system and docket allow you to search by section, township, and range &mdash; our <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">guide to the OCC website</a> walks through how. Check for new spacing applications (the earliest signal that an operator is planning development), pooling applications (which precede the pooling order and its deadline), drilling permits (Form 1000 filings that signal a rig is coming), and completion reports (which confirm what was drilled and how the well performed).</p>
 
 <div class="guide-cta-inline">
-    <p><strong>Mineral Watch automates this.</strong> Mineral Watch tracks permits, completions, spacing, and pooling orders across every SCOOP, STACK, and MERGE county &mdash; daily. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch tracks permits, completions, spacing, and pooling orders across every SCOOP, STACK, and MERGE county &mdash; daily. <a href="https://portal.mymineralwatch.com/portal/login?new=1">Start free &rarr;</a></p>
 </div>
 
 <p>For mineral owners with properties across multiple counties &mdash; which is common in families with generational mineral portfolios &mdash; manually checking the OCC systems on a regular basis becomes impractical. That&rsquo;s where automated monitoring comes in: setting up alerts for each of your sections ensures you&rsquo;re notified when any new filing appears, without having to manually check each one.</p>
