@@ -28,8 +28,9 @@ function mapRowToRecord(row: any) {
   if (row.str_location) fields['Section-Township-Range'] = row.str_location;
   if (row.formation) fields['Formation'] = row.formation;
   if (row.occ_link) fields['OCC Link'] = row.occ_link;
-  if (row.occ_map_link) fields['OCC Map Link'] = row.occ_map_link;
-  if (row.map_link) fields['Map Link'] = row.map_link;
+  // Only include map links that have actual coordinates (contain marker=), not bare homepage URLs
+  if (row.occ_map_link && row.occ_map_link.includes('marker=')) fields['OCC Map Link'] = row.occ_map_link;
+  if (row.map_link && row.map_link.includes('marker=')) fields['Map Link'] = row.map_link;
   if (row.previous_value) fields['Previous Value'] = row.previous_value;
   if (row.new_value) fields['New Value'] = row.new_value;
   if (row.detected_at) fields['Detected At'] = row.detected_at;

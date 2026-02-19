@@ -453,10 +453,10 @@
                     <!-- Action Buttons -->
                     <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px;">
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            ${f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? `<a href="${f['OCC Map Link']}" target="_blank" class="details-btn primary">📍 OCC Map</a>` : ''}
+                            ${f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? `<a href="${f['OCC Map Link']}" target="_blank" rel="noopener noreferrer" class="details-btn primary">📍 OCC Map</a>` : ''}
                             ${apiNumber ? `
                                 <div class="occ-warning" style="display: inline-flex; align-items: center;">
-                                    <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`)}&cr=1" target="_blank" class="details-btn">📂 Well Records</a>
+                                    <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`)}&cr=1" target="_blank" rel="noopener noreferrer" class="details-btn">📂 Well Records</a>
                                     <span class="occ-warning-icon">!</span>
                                     <div class="occ-tooltip">
                                         <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.

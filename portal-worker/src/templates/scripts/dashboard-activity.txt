@@ -238,7 +238,9 @@
 
                 // Build action buttons
                 const occLink = f['OCC Link'];
-                const mapLink = f['OCC Map Link'] || f['Map Link'];
+                const rawMapLink = f['OCC Map Link'] || f['Map Link'];
+                // Only use map links with actual coordinates (contain marker=), not bare URLs
+                const mapLink = rawMapLink && rawMapLink.includes('marker=') ? rawMapLink : null;
                 const apiNumber = f['API Number'];
 
                 // Check if this activity type should have a Track Well button
@@ -287,7 +289,7 @@
                 }
                 // OCC Map second
                 if (mapLink) {
-                    actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
+                    actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" rel="noopener noreferrer" class="activity-btn">OCC Map</a>`;
                 }
                 // Track Well
                 if (shouldShowTrackButton) {
