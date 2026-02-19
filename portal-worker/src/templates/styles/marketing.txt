@@ -931,19 +931,71 @@
 
   @media (max-width: 768px) {
     .topbar { padding: 12px 16px; }
-    .tab-nav { padding: 0 16px; }
-    .main { padding: 20px 16px; }
-    .stat-row, .metrics-row { grid-template-columns: repeat(2, 1fr); }
+    .tab-nav { padding: 0 12px; }
+    .tab-btn { padding: 12px 14px; min-height: 44px; font-size: 12px; }
+    .main { padding: 16px 12px; }
+    .stat-row, .metrics-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .auto-grid, .competitor-grid, .venue-grid, .action-plan-grid, .audience-grid, .budget-grid, .analytics-grid { grid-template-columns: 1fr; }
     .section-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-    .table-toolbar { flex-direction: column; gap: 12px; align-items: flex-start; }
-    .search-input { width: 100%; }
+    .section-title { font-size: 18px; }
+    .table-toolbar { flex-direction: column; gap: 12px; align-items: stretch; }
+    .table-toolbar-left { flex-direction: column; }
+    .search-input { width: 100%; min-height: 44px; }
+    .filter-btn { min-height: 44px; }
     .topbar-logo span { display: none; }
+    .btn { min-height: 44px; }
+
+    /* Funnel: stack vertically, hide arrows */
+    .funnel-row { flex-direction: column; }
+    .funnel-step { border-right: none; border-bottom: 1px solid var(--border); }
+    .funnel-step:last-child { border-bottom: none; }
+    .funnel-arrow { display: none; }
+    .funnel-step-value { font-size: 22px; }
+
+    /* Pipeline stages: stack vertically */
+    .pipeline-stages { flex-direction: column; }
+    .pipeline-stage { border-right: none; border-bottom: 1px solid var(--border); }
+    .pipeline-stage:last-child { border-bottom: none; }
+
+    /* Phase timeline: single column */
+    .phase-timeline { grid-template-columns: 1fr; }
+
+    /* Metric cards: smaller values */
+    .metric-card { padding: 14px 16px; }
+    .metric-card-value { font-size: 24px; }
+    .stat-card { padding: 14px 16px; }
+    .stat-value { font-size: 22px; }
+
+    /* Tables: horizontal scroll + smaller padding */
+    .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    th { padding: 10px 12px; font-size: 10px; }
+    td { padding: 10px 12px; font-size: 13px; }
+
+    /* Calendar mobile: agenda view */
     .calendar-grid { display: none; }
     .cal-agenda { display: block; }
     .cal-month-nav { gap: 12px; }
     .cal-month-title { font-size: 16px; }
-    .phase-timeline { grid-template-columns: 1fr 1fr; }
-    .funnel-row { flex-direction: column; }
-    .pipeline-stages { flex-direction: column; }
+    .cal-toolbar { flex-direction: column; align-items: stretch; }
+    .cal-month-nav { justify-content: space-between; width: 100%; }
+    .cal-nav-btn { min-height: 44px; }
+
+    /* Quick-add: stack */
+    .quick-add { flex-direction: column; }
+    .quick-add input { min-height: 44px; }
+
+    /* Comp cards */
+    .comp-name { font-size: 14px; }
+
+    /* Venue/auto cards: tighter padding */
+    .venue-card, .auto-card, .ap-card, .comp-card-body, .budget-card { padding: 16px; }
+
+    /* Modal: full-width on small screens */
+    .modal { width: 95%; padding: 20px; border-radius: 12px; }
+    .modal-actions { flex-direction: column-reverse; }
+    .modal-actions .btn { width: 100%; text-align: center; min-height: 44px; }
+    .modal-actions .btn-danger { margin-right: 0; }
+
+    /* Toast: full-width */
+    .toast { left: 12px; right: 12px; bottom: 12px; }
   }
