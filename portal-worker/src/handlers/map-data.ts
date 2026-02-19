@@ -602,40 +602,82 @@ export async function handleGetOperatorActivity(request: Request, env: Env): Pro
     const opUpper = operator.toUpperCase().trim();
     const opPattern = `%${opUpper}%`;
 
+    // Optional viewport bounds for geographic scoping
+    const south = parseFloat(url.searchParams.get('south') || '0');
+    const north = parseFloat(url.searchParams.get('north') || '0');
+    const west = parseFloat(url.searchParams.get('west') || '0');
+    const east = parseFloat(url.searchParams.get('east') || '0');
+    const hasBounds = south !== 0 && north !== 0;
+
     let docketResult: any;
     let poolingResult: any;
 
-    // Query occ_docket_entries by applicant
+    // Query occ_docket_entries by applicant (optionally scoped to viewport via townships)
     try {
-      docketResult = await env.WELLS_DB.prepare(`
-        SELECT case_number, relief_type, applicant, county,
-               section, township, range, meridian,
-               hearing_date, status, docket_date
-        FROM occ_docket_entries
-        WHERE UPPER(applicant) LIKE ?
-        ORDER BY docket_date DESC
-        LIMIT 100
-      `).bind(opPattern).all();
+      if (hasBounds) {
+        docketResult = await env.WELLS_DB.prepare(`
+          SELECT de.case_number, de.relief_type, de.applicant, de.county,
+                 de.section, de.township, de.range, de.meridian,
+                 de.hearing_date, de.status, de.docket_date
+          FROM occ_docket_entries de
+          JOIN townships t ON UPPER(TRIM(de.township)) = UPPER(TRIM(t.township))
+                          AND UPPER(TRIM(de.range)) = UPPER(TRIM(t.range))
+          WHERE UPPER(de.applicant) LIKE ?
+            AND t.center_lat BETWEEN ? AND ?
+            AND t.center_lng BETWEEN ? AND ?
+          ORDER BY de.docket_date DESC
+          LIMIT 100
+        `).bind(opPattern, south, north, west, east).all();
+      } else {
+        docketResult = await env.WELLS_DB.prepare(`
+          SELECT case_number, relief_type, applicant, county,
+                 section, township, range, meridian,
+                 hearing_date, status, docket_date
+          FROM occ_docket_entries
+          WHERE UPPER(applicant) LIKE ?
+          ORDER BY docket_date DESC
+          LIMIT 100
+        `).bind(opPattern).all();
+      }
     } catch (e: any) {
       console.error('[MapData] Docket query failed:', e?.message);
       docketResult = { results: [] };
     }
 
-    // Query pooling_orders by operator (with GROUP BY for MAX aggregate)
+    // Query pooling_orders by operator (optionally scoped to viewport)
     try {
-      poolingResult = await env.WELLS_DB.prepare(`
-        SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
-               po.proposed_well_name, po.section, po.township, po.range, po.county,
-               po.formations, po.unit_size_acres,
-               MAX(peo.bonus_per_acre) as max_bonus
-        FROM pooling_orders po
-        LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
-        WHERE UPPER(po.operator) LIKE ?
-           OR UPPER(po.applicant) LIKE ?
-        GROUP BY po.id
-        ORDER BY po.order_date DESC
-        LIMIT 50
-      `).bind(opPattern, opPattern).all();
+      if (hasBounds) {
+        poolingResult = await env.WELLS_DB.prepare(`
+          SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
+                 po.proposed_well_name, po.section, po.township, po.range, po.county,
+                 po.formations, po.unit_size_acres,
+                 MAX(peo.bonus_per_acre) as max_bonus
+          FROM pooling_orders po
+          LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+          JOIN townships t ON UPPER(TRIM(po.township)) = UPPER(TRIM(t.township))
+                          AND UPPER(TRIM(po.range)) = UPPER(TRIM(t.range))
+          WHERE (UPPER(po.operator) LIKE ? OR UPPER(po.applicant) LIKE ?)
+            AND t.center_lat BETWEEN ? AND ?
+            AND t.center_lng BETWEEN ? AND ?
+          GROUP BY po.id
+          ORDER BY po.order_date DESC
+          LIMIT 50
+        `).bind(opPattern, opPattern, south, north, west, east).all();
+      } else {
+        poolingResult = await env.WELLS_DB.prepare(`
+          SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
+                 po.proposed_well_name, po.section, po.township, po.range, po.county,
+                 po.formations, po.unit_size_acres,
+                 MAX(peo.bonus_per_acre) as max_bonus
+          FROM pooling_orders po
+          LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+          WHERE UPPER(po.operator) LIKE ?
+             OR UPPER(po.applicant) LIKE ?
+          GROUP BY po.id
+          ORDER BY po.order_date DESC
+          LIMIT 50
+        `).bind(opPattern, opPattern).all();
+      }
     } catch (e: any) {
       console.error('[MapData] Pooling query failed:', e?.message);
       poolingResult = { results: [] };
@@ -714,6 +756,59 @@ export async function handleGetOperatorActivity(request: Request, env: Env): Pro
     console.error('[MapData] Error fetching operator activity:', error);
     return jsonResponse({
       error: 'Failed to fetch operator activity',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}
+
+/**
+ * Get OCC filing counts by operator for a geographic area (for legend toggle)
+ * GET /api/map/area-filings?south=35&north=36&west=-98&east=-97
+ */
+export async function handleGetAreaFilings(request: Request, env: Env): Promise<Response> {
+  try {
+    if (!env.WELLS_DB) {
+      return jsonResponse({ error: 'Database not configured' }, 503);
+    }
+
+    const url = new URL(request.url);
+    const south = parseFloat(url.searchParams.get('south') || '0');
+    const north = parseFloat(url.searchParams.get('north') || '0');
+    const west = parseFloat(url.searchParams.get('west') || '0');
+    const east = parseFloat(url.searchParams.get('east') || '0');
+
+    if (!south && !north) {
+      return jsonResponse({ error: 'bounds required (south, north, west, east)' }, 400);
+    }
+
+    // Count docket entries by applicant within viewport townships
+    const result = await env.WELLS_DB.prepare(`
+      SELECT UPPER(TRIM(de.applicant)) as operator, COUNT(*) as filing_count
+      FROM occ_docket_entries de
+      JOIN townships t ON UPPER(TRIM(de.township)) = UPPER(TRIM(t.township))
+                      AND UPPER(TRIM(de.range)) = UPPER(TRIM(t.range))
+      WHERE t.center_lat BETWEEN ? AND ?
+        AND t.center_lng BETWEEN ? AND ?
+        AND de.applicant IS NOT NULL
+        AND de.applicant != ''
+      GROUP BY UPPER(TRIM(de.applicant))
+      ORDER BY filing_count DESC
+      LIMIT 50
+    `).bind(south, north, west, east).all();
+
+    const filings: Record<string, number> = {};
+    let total = 0;
+    for (const row of (result.results as any[])) {
+      filings[row.operator] = row.filing_count;
+      total += row.filing_count;
+    }
+
+    return jsonResponse({ success: true, filings, total });
+
+  } catch (error) {
+    console.error('[MapData] Error fetching area filings:', error);
+    return jsonResponse({
+      error: 'Failed to fetch area filings',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     }, 500);
   }

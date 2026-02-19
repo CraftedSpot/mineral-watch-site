@@ -157,6 +157,7 @@ import {
   handleGetPoolingRates,
   handleGetPoolingOrders,
   handleGetOperatorActivity,
+  handleGetAreaFilings,
   handleGetMapDataVersion,
   // Docket heatmap handler
   handleGetDocketHeatmap,
@@ -1279,6 +1280,9 @@ var index_default = {
       }
       if (path === "/api/map/operator-activity" && request.method === "GET") {
         return handleGetOperatorActivity(request, env);
+      }
+      if (path === "/api/map/area-filings" && request.method === "GET") {
+        return handleGetAreaFilings(request, env);
       }
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);

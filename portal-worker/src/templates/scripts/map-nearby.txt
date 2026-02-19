@@ -674,7 +674,11 @@
                 renderOperatorLegend();
                 // Attach viewport handler so legend updates on pan/zoom
                 if (!window._operatorLegendHandler) {
-                    window._operatorLegendHandler = renderOperatorLegend;
+                    window._operatorLegendHandler = function() {
+                        cachedFilingCounts = null; // Invalidate on viewport change
+                        renderOperatorLegend();
+                        if (legendMode === 'filings') fetchAreaFilings();
+                    };
                     map.on('moveend zoomend', window._operatorLegendHandler);
                 }
             } else {
@@ -880,6 +884,10 @@
             updateSearchIndex();
         }
 
+        // Legend mode: 'wells' or 'filings'
+        let legendMode = 'wells';
+        let cachedFilingCounts = null;
+
         // Render operator legend inside map container (viewport-aware)
         function renderOperatorLegend() {
             if (!colorByOperator || !allNearbyWells || !allNearbyWells.length) {
@@ -894,14 +902,11 @@
             );
 
             // Count wells per operator in viewport
-            const counts = {};
+            const wellCounts = {};
             visibleWells.forEach(w => {
                 const op = (w.operator || 'Unknown').toUpperCase().trim();
-                counts[op] = (counts[op] || 0) + 1;
+                wellCounts[op] = (wellCounts[op] || 0) + 1;
             });
-            const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-            const topN = sorted.slice(0, 15);
-            const otherCount = sorted.slice(15).reduce((sum, e) => sum + e[1], 0);
 
             // Reuse existing element or create new one
             let el = document.getElementById('operatorLegendPanel');
@@ -910,42 +915,103 @@
                 el.className = 'operator-legend';
                 el.id = 'operatorLegendPanel';
                 document.querySelector('.map-container').appendChild(el);
-                // Prevent Leaflet from swallowing clicks on the legend
                 L.DomEvent.disableClickPropagation(el);
                 L.DomEvent.disableScrollPropagation(el);
-                // Event delegation for operator clicks
                 el.addEventListener('click', function(e) {
                     const item = e.target.closest('.operator-legend-item[data-operator]');
                     if (item) {
                         e.stopPropagation();
                         openOperatorModal(item.getAttribute('data-operator'));
                     }
+                    const toggle = e.target.closest('.legend-mode-toggle');
+                    if (toggle) {
+                        e.stopPropagation();
+                        const newMode = toggle.getAttribute('data-mode');
+                        if (newMode && newMode !== legendMode) {
+                            toggleLegendMode();
+                        }
+                    }
                 });
             }
 
-            let html = `<div class="operator-legend-title">Operators in View <span style="font-weight:400;color:#94A3B8;">(${visibleWells.length})</span></div>`;
-            topN.forEach(([op, count]) => {
-                const color = operatorColorMap[op] || '#6B7280';
-                const display = toTitleCase(op);
-                html += `<div class="operator-legend-item" data-operator="${op.replace(/"/g, '&quot;')}">
-                    <div class="operator-legend-dot" style="background:${color};"></div>
-                    <div class="operator-legend-name">${display}</div>
-                    <div class="operator-legend-count">${count}</div>
-                </div>`;
-            });
-            if (otherCount > 0) {
-                html += `<div class="operator-legend-item" style="cursor:default;">
-                    <div class="operator-legend-dot" style="background:#6B7280;"></div>
-                    <div class="operator-legend-name" style="color:#94A3B8;">Others</div>
-                    <div class="operator-legend-count">${otherCount}</div>
-                </div>`;
+            // Use filing counts if in filings mode and cached
+            const useCounts = legendMode === 'filings' && cachedFilingCounts ? cachedFilingCounts : wellCounts;
+            const sorted = Object.entries(useCounts).sort((a, b) => b[1] - a[1]);
+            const topN = sorted.slice(0, 15);
+            const otherCount = sorted.slice(15).reduce((sum, e) => sum + e[1], 0);
+            const totalCount = legendMode === 'filings' && cachedFilingCounts
+                ? Object.values(cachedFilingCounts).reduce((a, b) => a + b, 0)
+                : visibleWells.length;
+
+            const wellsActive = legendMode === 'wells' ? 'font-weight:700;color:#E2E8F0;' : 'font-weight:400;color:#64748B;cursor:pointer;';
+            const filingsActive = legendMode === 'filings' ? 'font-weight:700;color:#E2E8F0;' : 'font-weight:400;color:#64748B;cursor:pointer;';
+
+            let html = `<div class="operator-legend-title" style="display:flex;align-items:center;gap:6px;">
+                <span>Operators</span>
+                <span style="font-weight:400;color:#94A3B8;">(${totalCount})</span>
+                <span style="margin-left:auto;font-size:10px;">
+                    <span class="legend-mode-toggle" data-mode="wells" style="${wellsActive}">Wells</span>
+                    <span style="color:#475569;"> | </span>
+                    <span class="legend-mode-toggle" data-mode="filings" style="${filingsActive}">Filings</span>
+                </span>
+            </div>`;
+
+            if (legendMode === 'filings' && !cachedFilingCounts) {
+                html += '<div style="color:#94A3B8;font-size:12px;padding:8px 0;">Loading filings...</div>';
+            } else {
+                topN.forEach(([op, count]) => {
+                    const color = operatorColorMap[op] || '#6B7280';
+                    const display = toTitleCase(op);
+                    html += `<div class="operator-legend-item" data-operator="${op.replace(/"/g, '&quot;')}">
+                        <div class="operator-legend-dot" style="background:${color};"></div>
+                        <div class="operator-legend-name">${display}</div>
+                        <div class="operator-legend-count">${count}</div>
+                    </div>`;
+                });
+                if (otherCount > 0) {
+                    html += `<div class="operator-legend-item" style="cursor:default;">
+                        <div class="operator-legend-dot" style="background:#6B7280;"></div>
+                        <div class="operator-legend-name" style="color:#94A3B8;">Others</div>
+                        <div class="operator-legend-count">${otherCount}</div>
+                    </div>`;
+                }
             }
             el.innerHTML = html;
+        }
+
+        function toggleLegendMode() {
+            legendMode = legendMode === 'wells' ? 'filings' : 'wells';
+            if (legendMode === 'filings') {
+                cachedFilingCounts = null; // Invalidate on toggle
+                renderOperatorLegend(); // Show loading state
+                fetchAreaFilings();
+            } else {
+                renderOperatorLegend();
+            }
+        }
+
+        async function fetchAreaFilings() {
+            try {
+                const bounds = map.getBounds();
+                const resp = await fetch(`/api/map/area-filings?south=${bounds.getSouth()}&north=${bounds.getNorth()}&west=${bounds.getWest()}&east=${bounds.getEast()}`, {
+                    credentials: 'include'
+                });
+                if (!resp.ok) throw new Error('Failed');
+                const data = await resp.json();
+                cachedFilingCounts = data.filings || {};
+                renderOperatorLegend();
+            } catch (err) {
+                console.error('Failed to fetch area filings:', err);
+                cachedFilingCounts = {};
+                renderOperatorLegend();
+            }
         }
 
         function removeOperatorLegend() {
             const el = document.getElementById('operatorLegendPanel');
             if (el) el.remove();
+            legendMode = 'wells';
+            cachedFilingCounts = null;
             // Remove map move handler
             if (window._operatorLegendHandler) {
                 map.off('moveend zoomend', window._operatorLegendHandler);
@@ -1125,7 +1191,9 @@
             if (!el) return;
 
             try {
-                const resp = await fetch(`/api/map/operator-activity?operator=${encodeURIComponent(operatorName)}`, {
+                const bounds = map.getBounds();
+                const boundsParams = `&south=${bounds.getSouth()}&north=${bounds.getNorth()}&west=${bounds.getWest()}&east=${bounds.getEast()}`;
+                const resp = await fetch(`/api/map/operator-activity?operator=${encodeURIComponent(operatorName)}${boundsParams}`, {
                     credentials: 'include'
                 });
                 if (!resp.ok) {
