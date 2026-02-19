@@ -7967,7 +7967,7 @@
             }
             
             // Build table like properties/wells
-            let html = '<table class="data-table"><thead><tr>';
+            let html = '<table class="data-table" aria-label="Uploaded documents"><thead><tr>';
             html += '<th class="bulk-only"><input type="checkbox" id="selectAllDocuments" title="Select all" aria-label="Select all documents"></th>';
             html += '<th>Filename</th><th>Category</th><th>County</th><th>Status</th><th>Uploaded</th><th style="text-align: right;">Actions</th>';
             html += '</tr></thead><tbody>';

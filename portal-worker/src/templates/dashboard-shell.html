@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <!-- v2024.12.13.10 - Fixed Import buttons with onclick handlers and added wells modal CSS -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
@@ -212,7 +215,7 @@
                         <span class="bulk-clear" onclick="clearSelection('wells')">Clear selection</span>
                     </div>
                    <div id="wellsContent">
-    <table class="data-table">
+    <table class="data-table" aria-label="Tracked wells">
         <thead>
             <tr>
                 <th class="bulk-only skeleton skeleton-cell"></th>

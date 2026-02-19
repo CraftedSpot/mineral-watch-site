@@ -275,7 +275,7 @@
             
             // Build table with conditional checkbox column for non-Viewers
             const isViewer = currentUser?.role === 'Viewer';
-            let html = '<table class="data-table"><colgroup>';
+            let html = '<table class="data-table" aria-label="Monitored properties"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all" aria-label="Select all properties"></th>';

@@ -493,7 +493,7 @@
             
             // Clean table that opens modal on row click
             const isViewer = currentUser?.role === 'Viewer';
-            let html = '<table class="data-table wells-table"><colgroup>';
+            let html = '<table class="data-table wells-table" aria-label="Tracked wells"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all" aria-label="Select all wells"></th>';
