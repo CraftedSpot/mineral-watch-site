@@ -934,6 +934,16 @@
                 });
             }
 
+            // Zoom gate: filings toggle only at zoom >= 10
+            const FILINGS_MIN_ZOOM = 10;
+            const zoomedEnough = map.getZoom() >= FILINGS_MIN_ZOOM;
+
+            // Auto-switch back to wells if zoomed out
+            if (!zoomedEnough && legendMode === 'filings') {
+                legendMode = 'wells';
+                cachedFilingCounts = null;
+            }
+
             // Use filing counts if in filings mode and cached
             const useCounts = legendMode === 'filings' && cachedFilingCounts ? cachedFilingCounts : wellCounts;
             const sorted = Object.entries(useCounts).sort((a, b) => b[1] - a[1]);
@@ -946,14 +956,18 @@
             const wellsActive = legendMode === 'wells' ? 'font-weight:700;color:#E2E8F0;' : 'font-weight:400;color:#64748B;cursor:pointer;';
             const filingsActive = legendMode === 'filings' ? 'font-weight:700;color:#E2E8F0;' : 'font-weight:400;color:#64748B;cursor:pointer;';
 
-            let html = `<div class="operator-legend-title" style="display:flex;align-items:center;gap:6px;">
-                <span>Operators</span>
-                <span style="font-weight:400;color:#94A3B8;">(${totalCount})</span>
-                <span style="margin-left:auto;font-size:10px;">
+            const filingsToggle = zoomedEnough
+                ? `<span style="margin-left:auto;font-size:10px;">
                     <span class="legend-mode-toggle" data-mode="wells" style="${wellsActive}">Wells</span>
                     <span style="color:#475569;"> | </span>
                     <span class="legend-mode-toggle" data-mode="filings" style="${filingsActive}">Filings</span>
-                </span>
+                </span>`
+                : '';
+
+            let html = `<div class="operator-legend-title" style="display:flex;align-items:center;gap:6px;">
+                <span>Operators</span>
+                <span style="font-weight:400;color:#94A3B8;">(${totalCount})</span>
+                ${filingsToggle}
             </div>`;
 
             if (legendMode === 'filings' && !cachedFilingCounts) {
