@@ -18,7 +18,7 @@ interface Env {
 }
 
 const KV_KEY = 'commodity-prices';
-const CACHE_TTL_SECONDS = 6 * 60 * 60; // 6 hours — EIA updates daily ~5pm ET
+const CACHE_TTL_SECONDS = 2 * 60 * 60; // 2 hours — EIA updates daily ~5pm ET
 
 // ── EIA API v2 endpoints ──
 function wtiUrl(apiKey: string): string {

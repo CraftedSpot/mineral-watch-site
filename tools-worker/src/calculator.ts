@@ -1449,6 +1449,12 @@ document.addEventListener('click', function(e) {
         }
 
         function liveBadge(dateStr) {
+            var now = new Date();
+            var priceDate = new Date(dateStr + 'T12:00:00Z');
+            var daysOld = Math.floor((now - priceDate) / 86400000);
+            if (daysOld > 2) {
+                return '<span class="live-price-badge">as of ' + formatDate(dateStr) + '</span>';
+            }
             return '<span class="live-price-badge"><span class="live-dot"></span>Live \\u00b7 ' + formatDate(dateStr) + '</span>';
         }
 
