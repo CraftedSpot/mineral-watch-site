@@ -215,6 +215,12 @@ async function handleDemoBooking(request, env) {
   try {
     const data = await request.json();
 
+    // Honeypot — silently accept but don't process
+    if (data.website) {
+      console.log('Honeypot triggered, ignoring submission');
+      return jsonResponse({ success: true });
+    }
+
     const { name, company, email, propertyCount, meetingType, preferredDate, preferredTime } = data;
     if (!name || !company || !email || !propertyCount || !meetingType || !preferredDate || !preferredTime) {
       return jsonResponse({ error: 'Missing required fields' }, 400);

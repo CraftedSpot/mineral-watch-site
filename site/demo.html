@@ -687,6 +687,12 @@
                     <div id="formMessage" class="form-message"></div>
 
                     <form id="demoForm">
+                        <!-- Honeypot — hidden from humans, bots auto-fill it -->
+                        <div style="position:absolute;left:-9999px;top:-9999px;" aria-hidden="true">
+                            <label for="website">Website</label>
+                            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+                        </div>
+
                         <div class="form-group">
                             <label for="name">Name</label>
                             <input type="text" id="name" name="name" placeholder="Your name" required>
@@ -830,19 +836,40 @@
     </footer>
 
     <script>
+        // ════════════════════════════════════════════
+        // CONFIGURATION — edit these to change availability
+        // ════════════════════════════════════════════
+
+        // Time slots offered per day of week (0=Sun, 1=Mon, ..., 6=Sat)
+        // Weekends are blocked by the calendar, so 0 and 6 are unused
+        var SLOTS_BY_DAY = {
+            1: ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM'], // Monday
+            2: ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM'],                         // Tuesday (no afternoon)
+            3: ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM'], // Wednesday
+            4: ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM'], // Thursday
+            5: ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM']  // Friday
+        };
+
+        // Blackout dates — add 'YYYY-MM-DD' strings to block specific days
+        var BLACKOUT_DATES = [
+            // '2026-03-17',  // example: St. Patrick's Day
+            // '2026-05-25',  // example: Memorial Day
+        ];
+
+        // ════════════════════════════════════════════
+
         // ─── State ───
         let selectedDate = null;
         let selectedTime = null;
         let currentMonth = new Date().getMonth();
         let currentYear = new Date().getFullYear();
 
-        // ─── Time slots by day of week ───
-        const BASE_SLOTS = ['8:30 AM', '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '12:30 PM'];
-        const AFTERNOON_SLOTS = ['1:00 PM', '1:30 PM'];
-        // Tuesday = day 2 — no afternoon slots
         function getSlotsForDay(dayOfWeek) {
-            if (dayOfWeek === 2) return BASE_SLOTS;
-            return BASE_SLOTS.concat(AFTERNOON_SLOTS);
+            return SLOTS_BY_DAY[dayOfWeek] || [];
+        }
+
+        function isBlackout(dateStr) {
+            return BLACKOUT_DATES.indexOf(dateStr) !== -1;
         }
 
         // ─── Calendar ───
@@ -883,10 +910,11 @@
             for (let d = 1; d <= daysInMonth; d++) {
                 const date = new Date(currentYear, currentMonth, d);
                 const dayOfWeek = date.getDay();
+                const dateStr = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
                 const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                 const isPast = date < today;
                 const isBeyondMax = date > maxDate;
-                const disabled = isWeekend || isPast || isBeyondMax;
+                const disabled = isWeekend || isPast || isBeyondMax || isBlackout(dateStr);
 
                 const isSelected = selectedDate && date.getTime() === selectedDate.getTime();
                 const isToday = date.getTime() === today.getTime();
@@ -995,6 +1023,21 @@
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
 
+            // Honeypot check — if filled, silently fake success
+            if (document.getElementById('website').value) {
+                document.getElementById('formCard').style.display = 'none';
+                document.getElementById('successMessage').innerHTML = 'We\'ll be in touch within 24 hours.';
+                document.getElementById('successCard').style.display = 'block';
+                return;
+            }
+
+            // Duplicate submission check
+            if (localStorage.getItem('mmw_demo_booked')) {
+                formMessage.textContent = 'You\'ve already submitted a demo request. Check your email for confirmation, or contact support@mymineralwatch.com.';
+                formMessage.className = 'form-message error show';
+                return;
+            }
+
             // Validate date + time
             if (!selectedDate) {
                 formMessage.textContent = 'Please select a preferred date.';
@@ -1022,7 +1065,8 @@
                 phone: document.getElementById('phone').value.trim(),
                 city: document.getElementById('city').value.trim(),
                 preferredDate: selectedDate.getFullYear() + '-' + String(selectedDate.getMonth() + 1).padStart(2, '0') + '-' + String(selectedDate.getDate()).padStart(2, '0'),
-                preferredTime: selectedTime
+                preferredTime: selectedTime,
+                website: document.getElementById('website').value
             };
 
             try {
@@ -1033,6 +1077,8 @@
                 });
 
                 if (response.ok) {
+                    // Mark as submitted to prevent duplicates
+                    localStorage.setItem('mmw_demo_booked', Date.now().toString());
                     // Show success state
                     document.getElementById('formCard').style.display = 'none';
                     var meetingLabel = payload.meetingType.toLowerCase();
