@@ -1076,12 +1076,136 @@
             });
             body += `</tbody></table></div>`;
 
+            // OCC Activity section (loaded async)
+            body += `<div class="op-section" id="opActivitySection">
+                <div class="op-section-title">OCC Activity</div>
+                <div id="opActivityContent" style="color:#94A3B8;font-size:13px;">Loading filings...</div>
+            </div>`;
+
             document.getElementById('operatorModalBody').innerHTML = body;
+
+            // Fetch OCC activity async
+            loadOperatorActivity(operatorName);
             overlay.classList.add('active');
         }
 
         function closeOperatorModal() {
             const overlay = document.getElementById('operatorModal');
             if (overlay) overlay.classList.remove('active');
+        }
+
+        // Relief type display labels
+        const RELIEF_LABELS = {
+            'POOLING': 'Pooling',
+            'INCREASED_DENSITY': 'Increased Density',
+            'SPACING': 'Spacing',
+            'HORIZONTAL_WELL': 'Horizontal Well',
+            'LOCATION_EXCEPTION': 'Location Exception',
+            'OPERATOR_CHANGE': 'Operator Change',
+            'WELL_TRANSFER': 'Well Transfer',
+            'ORDER_MODIFICATION': 'Order Modification',
+            'MULTI_UNIT_HORIZONTAL': 'Multi-Unit Horizontal',
+            'VACUUM': 'Vacuum',
+            'OTHER': 'Other'
+        };
+
+        const RELIEF_COLORS = {
+            'POOLING': '#F59E0B',
+            'INCREASED_DENSITY': '#8B5CF6',
+            'SPACING': '#3B82F6',
+            'HORIZONTAL_WELL': '#22C55E',
+            'LOCATION_EXCEPTION': '#EC4899',
+            'OPERATOR_CHANGE': '#6B7280',
+            'WELL_TRANSFER': '#6B7280',
+            'ORDER_MODIFICATION': '#6B7280'
+        };
+
+        async function loadOperatorActivity(operatorName) {
+            const el = document.getElementById('opActivityContent');
+            if (!el) return;
+
+            try {
+                const resp = await fetch(`/api/map/operator-activity?operator=${encodeURIComponent(operatorName)}`, {
+                    credentials: 'include'
+                });
+                if (!resp.ok) throw new Error('Failed to load');
+                const data = await resp.json();
+
+                if (data.totalFilings === 0 && data.poolingCount === 0) {
+                    el.innerHTML = '<div style="color:#94A3B8;font-style:italic;">No OCC filings found for this operator</div>';
+                    return;
+                }
+
+                let html = '';
+
+                // Type summary tags
+                if (data.typeSummary && data.typeSummary.length > 0) {
+                    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">';
+                    data.typeSummary.forEach(t => {
+                        const label = RELIEF_LABELS[t.type] || t.type;
+                        const color = RELIEF_COLORS[t.type] || '#6B7280';
+                        html += `<span style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:12px;font-size:12px;background:${color}18;color:${color};border:1px solid ${color}40;font-weight:500;">
+                            ${label} <span style="font-weight:700;">${t.count}</span>
+                        </span>`;
+                    });
+                    html += '</div>';
+                }
+
+                // Recent filings table
+                if (data.recentFilings && data.recentFilings.length > 0) {
+                    html += `<table class="op-wells-table" style="margin-top:4px;">
+                        <thead><tr><th>Type</th><th>Case</th><th>Location</th><th>Date</th><th>Status</th></tr></thead>
+                        <tbody>`;
+                    data.recentFilings.forEach(f => {
+                        const label = RELIEF_LABELS[f.reliefType] || f.reliefType;
+                        const color = RELIEF_COLORS[f.reliefType] || '#6B7280';
+                        const trs = f.township && f.range && f.section
+                            ? `${(f.township||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${(f.range||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${String(f.section).padStart(2, '0')}`
+                            : '';
+                        const date = f.docketDate || f.hearingDate || '';
+                        const shortDate = date ? date.substring(0, 10) : '';
+                        const statusColor = f.status === 'SCHEDULED' ? '#F59E0B' : f.status === 'HEARD' ? '#22C55E' : '#94A3B8';
+                        html += `<tr>
+                            <td><span style="color:${color};font-weight:500;">${label}</span></td>
+                            <td style="font-size:12px;">${f.caseNumber || ''}</td>
+                            <td style="white-space:nowrap;">${trs}</td>
+                            <td style="white-space:nowrap;font-size:12px;">${shortDate}</td>
+                            <td><span style="color:${statusColor};font-size:12px;">${f.status || ''}</span></td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table>';
+                    if (data.totalFilings > 20) {
+                        html += `<div style="text-align:center;font-size:12px;color:#94A3B8;margin-top:6px;">Showing 20 of ${data.totalFilings} filings</div>`;
+                    }
+                }
+
+                // Pooling orders summary
+                if (data.poolingOrders && data.poolingOrders.length > 0) {
+                    html += `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #E5E7EB;">
+                        <div style="font-size:11px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:8px;">Pooling Orders (${data.poolingCount})</div>
+                        <table class="op-wells-table">
+                            <thead><tr><th>Well Name</th><th>Location</th><th>Date</th><th>Max Bonus</th></tr></thead>
+                            <tbody>`;
+                    data.poolingOrders.slice(0, 15).forEach(po => {
+                        const trs = po.township && po.range && po.section
+                            ? `${(po.township||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${(po.range||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${String(po.section).padStart(2, '0')}`
+                            : '';
+                        const bonus = po.maxBonus ? `$${Math.round(po.maxBonus).toLocaleString()}` : '';
+                        html += `<tr>
+                            <td>${po.wellName ? toTitleCase(po.wellName) : po.caseNumber || ''}</td>
+                            <td style="white-space:nowrap;">${trs}</td>
+                            <td style="white-space:nowrap;font-size:12px;">${po.orderDate || ''}</td>
+                            <td style="color:#059669;font-weight:600;">${bonus}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table></div>';
+                }
+
+                el.innerHTML = html;
+
+            } catch (err) {
+                console.error('Failed to load operator activity:', err);
+                el.innerHTML = '<div style="color:#94A3B8;font-style:italic;">Could not load OCC activity</div>';
+            }
         }
 

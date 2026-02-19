@@ -1276,6 +1276,9 @@ var index_default = {
       if (path === "/api/map/pooling-orders" && request.method === "GET") {
         return handleGetPoolingOrders(request, env);
       }
+      if (path === "/api/map/operator-activity" && request.method === "GET") {
+        return handleGetOperatorActivity(request, env);
+      }
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);
       }

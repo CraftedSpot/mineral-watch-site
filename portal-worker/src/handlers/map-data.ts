@@ -581,3 +581,127 @@ export async function handleGetPoolingOrders(request: Request, env: Env): Promis
     }, 500);
   }
 }
+
+/**
+ * Get OCC activity for a specific operator
+ * GET /api/map/operator-activity?operator=DEVON ENERGY
+ */
+export async function handleGetOperatorActivity(request: Request, env: Env): Promise<Response> {
+  try {
+    if (!env.WELLS_DB) {
+      return jsonResponse({ error: 'Database not configured' }, 503);
+    }
+
+    const url = new URL(request.url);
+    const operator = url.searchParams.get('operator');
+    if (!operator) {
+      return jsonResponse({ error: 'operator parameter required' }, 400);
+    }
+
+    // Simple LIKE pattern on raw operator name (avoid REPLACE in WHERE for perf)
+    const opUpper = operator.toUpperCase().trim();
+    const opPattern = `%${opUpper}%`;
+
+    // Query occ_docket_entries by applicant
+    const docketResult = await env.WELLS_DB.prepare(`
+      SELECT case_number, relief_type, applicant, county,
+             section, township, range, meridian,
+             hearing_date, status, docket_date
+      FROM occ_docket_entries
+      WHERE UPPER(applicant) LIKE ?
+      ORDER BY docket_date DESC
+      LIMIT 100
+    `).bind(opPattern).all();
+
+    // Query pooling_orders by operator (with GROUP BY for MAX aggregate)
+    const poolingResult = await env.WELLS_DB.prepare(`
+      SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
+             po.proposed_well_name, po.section, po.township, po.range, po.county,
+             po.formations, po.unit_size_acres,
+             MAX(peo.bonus_per_acre) as max_bonus
+      FROM pooling_orders po
+      LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+      WHERE UPPER(po.operator) LIKE ?
+         OR UPPER(po.applicant) LIKE ?
+      GROUP BY po.id
+      ORDER BY po.order_date DESC
+      LIMIT 50
+    `).bind(opPattern, opPattern).all();
+
+    // Group docket entries by relief_type
+    const byType: Record<string, any[]> = {};
+    for (const row of (docketResult.results as any[])) {
+      const type = row.relief_type || 'OTHER';
+      if (!byType[type]) byType[type] = [];
+      byType[type].push({
+        caseNumber: row.case_number,
+        reliefType: row.relief_type,
+        applicant: row.applicant,
+        county: row.county,
+        section: row.section,
+        township: row.township,
+        range: row.range,
+        hearingDate: row.hearing_date,
+        status: row.status,
+        docketDate: row.docket_date
+      });
+    }
+
+    // Build type summary with counts
+    const typeSummary = Object.entries(byType).map(([type, entries]) => ({
+      type,
+      count: entries.length,
+      mostRecent: entries[0]?.docketDate || entries[0]?.hearingDate || null
+    })).sort((a, b) => b.count - a.count);
+
+    // Build pooling orders list
+    const poolingOrders = (poolingResult.results as any[]).map(row => {
+      let formations: string[] = [];
+      try { formations = row.formations ? JSON.parse(row.formations) : []; } catch {}
+      return {
+        caseNumber: row.case_number,
+        orderNumber: row.order_number,
+        orderDate: row.order_date,
+        wellName: row.proposed_well_name,
+        section: row.section,
+        township: row.township,
+        range: row.range,
+        county: row.county,
+        formations,
+        unitSizeAcres: row.unit_size_acres,
+        maxBonus: row.max_bonus
+      };
+    });
+
+    // Recent filings (most recent 20 across all types)
+    const recentFilings = (docketResult.results as any[]).slice(0, 20).map(row => ({
+      caseNumber: row.case_number,
+      reliefType: row.relief_type,
+      applicant: row.applicant,
+      county: row.county,
+      section: row.section,
+      township: row.township,
+      range: row.range,
+      hearingDate: row.hearing_date,
+      status: row.status,
+      docketDate: row.docket_date
+    }));
+
+    return jsonResponse({
+      success: true,
+      operator,
+      typeSummary,
+      totalFilings: docketResult.results.length,
+      recentFilings,
+      poolingOrders,
+      poolingCount: poolingOrders.length
+    });
+
+  } catch (error) {
+    console.error('[MapData] Error fetching operator activity:', error);
+    return jsonResponse({
+      error: 'Failed to fetch operator activity',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}
