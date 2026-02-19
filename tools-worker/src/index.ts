@@ -108,7 +108,7 @@ function render404(): string {
                     <a href="/tools">Tools</a>
                     <a href="/about">About</a>
                     <a href="/contact">Contact</a>
-                    <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
+                    <a href="https://portal.mymineralwatch.com/portal/login?new=1" class="btn-start">Start Free</a>
                     <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
                 </nav>
             </div>
