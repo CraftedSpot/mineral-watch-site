@@ -63,8 +63,10 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .nav-links a { color: var(--slate-blue); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
 .nav-links a:hover { color: var(--oil-navy); }
 .nav-links a.active { color: var(--red-dirt); font-weight: 600; border-bottom: 2px solid var(--red-dirt); padding-bottom: 2px; }
-.nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
-.nav-links .btn-login:hover { background: var(--slate-blue); color: white; }
+.nav-links .btn-start { background: var(--red-dirt); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
+.nav-links .btn-start:hover { background: var(--red-dirt-dark); color: white; }
+.nav-links .btn-login { color: var(--slate-blue); font-weight: 600; }
+.nav-links .btn-login:hover { color: var(--oil-navy); }
 .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: var(--oil-navy); }
 .breadcrumb { padding: 16px 0; font-size: 13px; color: #596674; border-bottom: 1px solid var(--border); }
 .breadcrumb a { color: var(--slate-blue); text-decoration: none; }
@@ -146,7 +148,8 @@ main { padding: 60px 0; }
     .nav-links.open { display: flex; }
     .nav-links a { padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 16px; }
     .nav-links a:last-child { border-bottom: none; }
-    .nav-links .btn-login { text-align: center; margin-top: 8px; padding: 12px 20px; }
+    .nav-links .btn-start { text-align: center; margin-top: 8px; padding: 12px 20px; background: var(--red-dirt); color: white; border-radius: 4px; }
+    .nav-links .btn-login { text-align: center; padding: 12px 0; }
     header { position: relative; z-index: 1000; }
     .county-hero-layout { grid-template-columns: 1fr; gap: 30px; }
     .county-hero h1 { font-size: 30px; }
@@ -177,6 +180,7 @@ const HEADER = `
 
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
+                <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
         </div>
@@ -196,6 +200,7 @@ const FOOTER = `
         <a href="https://mymineralwatch.com/features">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
         <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://mymineralwatch.com/counties">Counties</a>
         <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
         <a href="https://portal.mymineralwatch.com">Sign In</a>
       </div>

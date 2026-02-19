@@ -49,11 +49,18 @@
       "url": "https://mymineralwatch.com/pricing",
       "offers": {
         "@type": "AggregateOffer",
-        "lowPrice": "9",
+        "lowPrice": "0",
         "highPrice": "249",
         "priceCurrency": "USD",
-        "offerCount": "4",
+        "offerCount": "5",
         "offers": [
+          {
+            "@type": "Offer",
+            "name": "Free",
+            "price": "0",
+            "priceCurrency": "USD",
+            "description": "1 property, 1 well, daily alerts, OCC monitoring, 3 document credits/mo"
+          },
           {
             "@type": "Offer",
             "name": "Starter",
@@ -232,17 +239,26 @@
 
         .nav-links a.active { color: var(--red-dirt); font-weight: 600; border-bottom: 2px solid var(--red-dirt); padding-bottom: 2px; }
 
-        .nav-links .btn-login {
-            background: var(--oil-navy);
+        .nav-links .btn-start {
+            background: var(--red-dirt);
             color: white;
             padding: 10px 20px;
             border-radius: 4px;
             font-weight: 600;
         }
-        
-        .nav-links .btn-login:hover {
-            background: var(--slate-blue);
+
+        .nav-links .btn-start:hover {
+            background: var(--red-dirt-dark);
             color: white;
+        }
+
+        .nav-links .btn-login {
+            color: var(--slate-blue);
+            font-weight: 600;
+        }
+
+        .nav-links .btn-login:hover {
+            color: var(--oil-navy);
         }
 
         /* Mobile Menu Toggle */
@@ -358,8 +374,8 @@
         /* Pricing Grid */
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 16px;
             margin-bottom: 40px;
             align-items: stretch;
         }
@@ -496,6 +512,19 @@
         }
         .pricing-cta.secondary:hover { background: var(--slate-blue); }
 
+        .popular-badge {
+            display: inline-block;
+            background: var(--red-dirt);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 10px;
+        }
+
         /* The Enterprise Row */
         .enterprise-row {
             max-width: 800px;
@@ -615,6 +644,12 @@
         .disclaimer { font-size: 11px; color: #94a3b8; line-height: 1.6; }
 
         /* Responsive */
+        @media (max-width: 1279px) and (min-width: 901px) {
+            .pricing-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
         @media (max-width: 900px) {
             .menu-toggle {
                 display: block;
@@ -648,10 +683,18 @@
                 border-bottom: none;
             }
 
-            .nav-links .btn-login {
+            .nav-links .btn-start {
                 text-align: center;
                 margin-top: 8px;
                 padding: 12px 20px;
+                background: var(--red-dirt);
+                color: white;
+                border-radius: 4px;
+            }
+
+            .nav-links .btn-login {
+                text-align: center;
+                padding: 12px 0;
             }
 
             header {
@@ -709,6 +752,7 @@
                     <a href="https://mymineralwatch.com/tools">Tools</a>
                     <a href="https://mymineralwatch.com/about">About</a>
                     <a href="https://mymineralwatch.com/contact">Contact</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
                     <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
                 </nav>
             </div>
@@ -718,7 +762,7 @@
     <main>
     <section class="pricing-header">
         <div class="container">
-            <h1>Simple, Honest Pricing</h1>
+            <h1>Simple, Honest Pricing for Oklahoma Mineral Intelligence</h1>
             <p>No contracts. No hidden fees. Cancel anytime.</p>
             
             <div class="billing-toggle">
@@ -728,7 +772,7 @@
                 <span class="save-badge">Save ~20%</span>
             </div>
 
-            <p class="free-note">Just getting started? <a href="https://portal.mymineralwatch.com/">Try our free plan</a> — monitor 1 property, no credit card required.</p>
+            <p class="free-note">No credit card required to start. Cancel anytime.</p>
         </div>
     </section>
 
@@ -766,6 +810,24 @@
         </div>
 
         <div class="pricing-grid">
+            <!-- Free -->
+            <div class="pricing-card">
+                <div class="tier-name">Free</div>
+                <div class="price">
+                    <span class="price-amount">$0</span>
+                    <span class="price-period">/forever</span>
+                </div>
+                <div class="annual-savings-text">&nbsp;</div>
+                <div class="properties-count">1 Property / 1 Well</div>
+                <ul class="feature-list">
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Daily permit & completion alerts</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>OCC docket monitoring</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Adjacent section watch</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>3 document credits/mo</li>
+                </ul>
+                <a href="https://portal.mymineralwatch.com/" class="pricing-cta secondary">Create Free Account</a>
+            </div>
+
             <!-- Starter -->
             <div class="pricing-card">
                 <div class="tier-name">Starter</div>
@@ -786,7 +848,8 @@
             </div>
 
             <!-- Standard -->
-            <div class="pricing-card">
+            <div class="pricing-card highlight">
+                <span class="popular-badge">Most Popular</span>
                 <div class="tier-name">Standard</div>
                 <div class="price">
                     <span class="price-amount monthly-price">$278</span>
@@ -800,7 +863,7 @@
                     <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg><strong class="doc-credits" data-monthly="25 document credits/mo" data-annual="25 credits/mo + 300 bonus">25 credits/mo + 300 bonus</strong></li>
                     <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Priority email support</li>
                 </ul>
-                <a href="#" class="pricing-cta secondary" data-plan="standard">Get Started</a>
+                <a href="#" class="pricing-cta primary" data-plan="standard">Get Started</a>
             </div>
 
             <!-- Professional -->
@@ -822,7 +885,7 @@
             </div>
 
             <!-- Business -->
-            <div class="pricing-card highlight">
+            <div class="pricing-card">
                 <div class="tier-name">Business</div>
                 <div class="price">
                     <span class="price-amount monthly-price">$2,390</span>
@@ -837,14 +900,14 @@
                     <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Free copy of The Mineral Rights Guide</li>
                     <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Priority support</li>
                 </ul>
-                <a href="#" class="pricing-cta primary" data-plan="business">Get Started</a>
+                <a href="#" class="pricing-cta secondary" data-plan="business">Get Started</a>
             </div>
         </div>
 
         <div class="enterprise-row">
             <h3>Managing 500+ properties?</h3>
-            <p>Enterprise plans start at $499/month with dedicated onboarding, custom integrations, and 5+ team seats. Built for family offices, mineral management companies, and institutional investors.</p>
-            <a href="https://mymineralwatch.com/demo" class="enterprise-link">Book a Demo →</a>
+            <p>Enterprise plans start at $499/month with dedicated onboarding, bulk CSV import, and 5+ team seats. Replace spreadsheets and filing cabinets with a single organized system — built for mineral management companies, family offices, banks, and trust departments.</p>
+            <a href="https://mymineralwatch.com/demo" class="enterprise-link">Book a Demo &rarr;</a>
         </div>
 
     </div>
@@ -961,14 +1024,20 @@
         function updatePricing() {
             document.querySelectorAll('.pricing-card').forEach(card => {
                 card.classList.toggle('show-annual', isAnnual);
-                
+
                 const priceAmount = card.querySelector('.price-amount.monthly-price');
                 const pricePeriod = card.querySelector('.price-period.monthly-period');
-                const planName = card.querySelector('[data-plan]')?.dataset.plan;
-                
+                const cta = card.querySelector('[data-plan]');
+                const planName = cta?.dataset.plan;
+
                 if (priceAmount && pricePeriod && planName && prices[planName]) {
                     priceAmount.textContent = isAnnual ? prices[planName].annual : prices[planName].monthly;
                     pricePeriod.textContent = isAnnual ? '/yr' : '/mo';
+                }
+
+                if (cta && planName && paymentLinks[planName]) {
+                    const link = isAnnual ? paymentLinks[planName].annual : paymentLinks[planName].monthly;
+                    cta.setAttribute('href', link);
                 }
             });
             

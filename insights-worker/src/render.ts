@@ -28,6 +28,7 @@ const HEADER = `
 
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
+                <a href="https://portal.mymineralwatch.com" class="btn-start">Start Free</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
         </div>
@@ -47,6 +48,7 @@ const FOOTER = `
         <a href="https://mymineralwatch.com/features">Features</a>
         <a href="https://mymineralwatch.com/pricing">Pricing</a>
         <a href="https://mymineralwatch.com/insights">Insights</a>
+        <a href="https://mymineralwatch.com/counties">Counties</a>
         <a href="https://mymineralwatch.com/tools/mineral-calculator">Tools</a>
         <a href="https://portal.mymineralwatch.com">Sign In</a>
       </div>
@@ -115,8 +117,10 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .nav-links a { color: var(--slate-blue); text-decoration: none; font-weight: 500; font-size: 15px; transition: color 0.2s; }
 .nav-links a:hover { color: var(--oil-navy); }
 .nav-links a.active { color: var(--red-dirt); font-weight: 600; border-bottom: 2px solid var(--red-dirt); padding-bottom: 2px; }
-.nav-links .btn-login { background: var(--oil-navy); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
-.nav-links .btn-login:hover { background: var(--slate-blue); color: white; }
+.nav-links .btn-start { background: var(--red-dirt); color: white; padding: 10px 20px; border-radius: 4px; font-weight: 600; }
+.nav-links .btn-start:hover { background: var(--red-dirt-dark); color: white; }
+.nav-links .btn-login { color: var(--slate-blue); font-weight: 600; }
+.nav-links .btn-login:hover { color: var(--oil-navy); }
 .mobile-menu-btn { display: none; background: none; border: none; cursor: pointer; color: var(--oil-navy); }
 
 /* Footer */
@@ -929,7 +933,7 @@ const ARTICLES: Record<string, Article> = {
         { "@type": "Question", "name": "What are post-production deductions on a royalty check?", "acceptedAnswer": { "@type": "Answer", "text": "Post-production deductions are costs the operator subtracts from your royalty payment for expenses incurred after the oil or gas leaves the wellhead. Common deductions include gathering fees, transportation, and processing or treating fees. Whether these deductions are legal depends on your lease language." } },
         { "@type": "Question", "name": "How do I calculate my net revenue interest (NRI)?", "acceptedAnswer": { "@type": "Answer", "text": "Your net revenue interest is calculated by multiplying your mineral interest (your ownership as a fraction of the whole section) by your royalty rate (from your lease or pooling order). For example, if you own 10 net mineral acres in a 640-acre section and your royalty rate is 3/16, your NRI would be (10/640) \u00d7 3/16 = 0.00292969." } },
         { "@type": "Question", "name": "What should I do if I think my royalty check is wrong?", "acceptedAnswer": { "@type": "Answer", "text": "Start by documenting the specific discrepancy. Contact the operator's revenue or division order department in writing. If the operator doesn't resolve the issue, file a complaint with the OCC's Consumer Services Department. For systematic underpayment or large amounts, consulting an oil and gas attorney is advisable." } },
-        { "@type": "Question", "name": "How often should I audit my royalty checks?", "acceptedAnswer": { "@type": "Answer", "text": "At minimum, do a thorough audit once a year when you receive your 1099 from each operator. For higher-value properties, a quarterly review makes sense. Oklahoma has a two-year statute of limitations for royalty underpayment claims." } }
+        { "@type": "Question", "name": "How often should I audit my royalty checks?", "acceptedAnswer": { "@type": "Answer", "text": "At minimum, do a thorough audit once a year when you receive your 1099 from each operator. For higher-value properties, a quarterly review makes sense. Oklahoma has a five-year statute of limitations for royalty underpayment claims under the PRSA (52 O.S. &sect; 570.14(D))." } }
       ]
     }
     </script>`,
@@ -1319,6 +1323,11 @@ export function renderArticle(slug: string): string | null {
         .share-opt:hover { border-color: var(--red-dirt); color: var(--red-dirt); background: #FFF8F5; }
         .share-opt svg { width: 14px; height: 14px; flex-shrink: 0; }
 
+        .guide-cta-inline { border-left: 4px solid var(--red-dirt); background: #FFF7ED; padding: 16px 20px; margin: 24px 0; border-radius: 0 6px 6px 0; }
+        .guide-cta-inline p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--oil-navy); }
+        .guide-cta-inline a { color: var(--red-dirt); font-weight: 600; text-decoration: none; }
+        .guide-cta-inline a:hover { text-decoration: underline; }
+
         .bottom-cta { background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); padding: 60px 0; text-align: center; color: white; }
         .bottom-cta h2 { font-size: 28px; margin-bottom: 12px; font-weight: 900; }
         .bottom-cta p { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 28px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.6; }
@@ -1640,7 +1649,7 @@ const POOLING_ORDERS_BODY = `
 
 <h3 id="option-nonconsent">Option 3: Non-Consent (Go &ldquo;Nonconsent&rdquo;)</h3>
 
-<p>If you choose not to participate and not to accept the lease-like terms, you can go nonconsent. You receive no upfront bonus payment. Instead, the operator drills the well at their own cost and risk. If the well is productive, the operator recovers a penalty &mdash; typically 150% to 200% of your proportionate share of drilling costs &mdash; from your share of production before you start receiving any revenue.</p>
+<p>If you choose not to participate and not to accept the lease-like terms, you can go nonconsent. You receive no upfront bonus payment. Instead, the operator drills the well at their own cost and risk. If the well is productive, the operator recovers their drilling costs plus a risk premium from your share of production before you start receiving any revenue. In Oklahoma, this cost-recovery multiplier is set by the individual pooling order (not a fixed statutory percentage), though it commonly approximates 200% of your proportionate share of drilling costs in practice.</p>
 
 <p>This is sometimes called the &ldquo;risk penalty.&rdquo; The logic is that the operator took all the financial risk of drilling, so they get to recover an elevated share of costs before you participate in the upside. Depending on the well&rsquo;s production, this penalty period can last months, years, or in the case of a marginal well, essentially forever.</p>
 
@@ -1731,6 +1740,10 @@ const POOLING_ORDERS_BODY = `
 <p><strong>Not checking the operator&rsquo;s track record.</strong> Look at the operator&rsquo;s existing wells in the area. What&rsquo;s their average initial production rate? How many wells have they drilled in this formation? A strong operator with a proven track record in the area reduces your risk regardless of which option you choose.</p>
 
 <p><strong>Forgetting about multi-section horizontal wells.</strong> Modern horizontal wells often span two or more sections. A pooling order on your section might be for a well that also crosses into adjacent sections. Understanding the full scope of the well helps you evaluate its potential production and the value of your participation.</p>
+
+<div class="guide-cta-inline">
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors OCC pooling orders daily and alerts you when your sections are affected &mdash; so you never miss a 20-day deadline. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+</div>
 
 <h2 id="when-to-hire-attorney">When to Hire an Attorney</h2>
 
@@ -1858,7 +1871,7 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 
 <p>Probate is the most common and most legally robust way to transfer mineral rights from a deceased person to their heirs. In Oklahoma, the probate court reviews the will (or applies intestate succession law if there&rsquo;s no will), identifies the heirs, and issues a decree or order that formally transfers the property. That decree gets recorded at the county clerk&rsquo;s office in every county where the minerals are located.</p>
 
-<p>Oklahoma offers two types of probate: regular probate and summary administration. Summary administration is a simplified, faster process available for smaller estates or estates where all heirs agree on the distribution. For many mineral rights situations, summary administration is sufficient and can be completed in a matter of months rather than a year or more.</p>
+<p>Oklahoma offers two types of probate: regular probate and summary administration. Summary administration is a simplified, faster process available when the estate is valued under $200,000, the decedent died more than 5 years ago, or the decedent was an out-of-state resident at the time of death. For many mineral rights situations, summary administration is sufficient and can be completed in a matter of months rather than a year or more.</p>
 
 <p>If minerals have passed through multiple generations without being probated &mdash; which is more common than you&rsquo;d think &mdash; you may need to probate more than one estate to clear the chain of title. This is called &ldquo;stacking&rdquo; probates, and while it&rsquo;s more work, it&rsquo;s the cleanest way to resolve a multi-generational title issue.</p>
 
@@ -1875,6 +1888,10 @@ const INHERITED_MINERAL_RIGHTS_BODY = `
 <div class="callout callout-tip">
     <div class="callout-title">Recording is essential</div>
     <p>Whichever method you use, the resulting document &mdash; probate decree, affidavit of heirship, or trust distribution deed &mdash; must be <strong>recorded at the county clerk&rsquo;s office in every county where you own minerals</strong>. This is how the world knows you&rsquo;re the owner. It&rsquo;s how operators know to put your name on division orders. It&rsquo;s how title examiners will find your ownership when a new well is drilled. Don&rsquo;t skip this step.</p>
+</div>
+
+<div class="guide-cta-inline">
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch organizes all your inherited properties, wells, and documents in one place &mdash; so you can see what you own and what&rsquo;s happening on it. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
 </div>
 
 <h2 id="figuring-out-what-you-own">Figuring Out What You Actually Own</h2>
@@ -2610,6 +2627,10 @@ const DIVISION_ORDERS_BODY = `
     </div>
 </div>
 
+<div class="guide-cta-inline">
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch extracts decimal interests from division orders automatically and flags discrepancies against your records. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+</div>
+
 <h2 id="common-issues">Common Division Order Issues</h2>
 
 <h3>The decimal is wrong</h3>
@@ -2785,6 +2806,10 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
 
         <p>The search lets you filter by well name, API number, county, operator name or number, and &mdash; most usefully for mineral owners &mdash; by legal description (section, township, and range). Each well record includes permit data, completion data, bottom hole location, and production information.</p>
 
+        <div class="guide-cta-inline">
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls everything from multiple OCC databases into one dashboard for your specific sections. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+        </div>
+
         <div class="step-box">
             <ol>
                 <li>Go to the <a href="https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&amp;dbid=0&amp;repo=OCC" target="_blank" rel="noopener"><strong>OCC Well Records Search</strong></a></li>
@@ -2881,6 +2906,10 @@ const NAVIGATING_OCC_WEBSITE_BODY = `
         </div>
 
         <p>The case number format in ECF uses a ten-character format: two-letter docket code followed by the year and a six-digit sequence number. For example, <strong>CD2024-000300</strong> is Conservation Docket case number 300 from 2024.</p>
+
+        <div class="guide-cta-inline">
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch monitors all these filing types automatically and sends you alerts when your sections are affected. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+        </div>
 
         <div class="tool-detail">
             <div class="tool-detail-item">
@@ -3306,6 +3335,10 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 
         <p>For gas production, watch for the unit of measurement. Some operators report in MCF (thousand cubic feet) while others use MMBTU (million British thermal units). The conversion isn&rsquo;t always 1:1, and a unit mismatch can make production look lower than it actually is.</p>
 
+        <div class="guide-cta-inline">
+            <p><strong>Mineral Watch automates this.</strong> Mineral Watch pulls OTC production data automatically and compares it against your check stubs &mdash; no manual lookups needed. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+        </div>
+
         <div class="check-detail">
             <div class="check-detail-item">
                 <h4>What You Need</h4>
@@ -3453,7 +3486,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 
 <p>After walking through the steps above, here are the patterns that come up most often in Oklahoma royalty disputes. Knowing what to look for makes the audit process faster and more focused.</p>
 
-<p><strong>Blanchard royalty miscalculations.</strong> Oklahoma has a unique royalty calculation system stemming from the 1963 Blanchard decision, where royalty interests in spacing units are &ldquo;communitized&rdquo; so that every royalty owner receives their proportionate share of production. The Production Revenue Standards Act of 1992 clarified how this works, but errors in applying it &mdash; particularly in units with multiple working interest owners &mdash; still occur.</p>
+<p><strong>Blanchard royalty miscalculations.</strong> Oklahoma has a unique royalty calculation system stemming from the 1963 Blanchard decision, where royalty interests in spacing units are &ldquo;communitized&rdquo; so that every royalty owner receives their proportionate share of production. The Production Revenue Standards Act of 1980 (52 O.S. &sect; 570.1 et seq.) clarified how this works, but errors in applying it &mdash; particularly in units with multiple working interest owners &mdash; still occur.</p>
 
 <p><strong>Incorrect well allocation for multi-unit horizontals.</strong> When a horizontal well crosses two or more sections, production must be allocated between the units &mdash; typically based on the proportion of the lateral that falls within each section. If 60% of the lateral is in Section 15 and 40% is in Section 22, the production should be split accordingly. Errors in this allocation directly affect every mineral owner in both sections.</p>
 
@@ -3465,7 +3498,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 
 <div class="callout callout-tip">
     <div class="callout-title">Statute of limitations</div>
-    <p>Oklahoma&rsquo;s Production Revenue Standards Act provides a two-year statute of limitations for royalty underpayment claims. That means you can recover the past two years of underpayment &mdash; but not beyond that. Don&rsquo;t let errors compound for years before investigating. An annual audit habit protects your right to recover what you&rsquo;re owed.</p>
+    <p>Oklahoma&rsquo;s Production Revenue Standards Act provides a five-year statute of limitations for royalty underpayment claims under the PRSA (52 O.S. &sect; 570.14(D)). That means you can recover the past five years of underpayment &mdash; but not beyond that. Don&rsquo;t let errors compound for years before investigating. An annual audit habit protects your right to recover what you&rsquo;re owed.</p>
 </div>
 
 <h2 id="what-to-do">What to Do When You Find a Problem</h2>
@@ -3518,7 +3551,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
     </div>
     <div class="faq-item">
         <div class="faq-question">What should I do if I think my royalty check is wrong?</div>
-        <p class="faq-answer">Document the specific discrepancy, then contact the operator&rsquo;s division order or revenue department in writing. If unresolved, file a complaint with the OCC Consumer Services Department. For significant amounts or systematic issues, consult an oil and gas attorney. Oklahoma has a two-year statute of limitations for royalty underpayment claims.</p>
+        <p class="faq-answer">Document the specific discrepancy, then contact the operator&rsquo;s division order or revenue department in writing. If unresolved, file a complaint with the OCC Consumer Services Department. For significant amounts or systematic issues, consult an oil and gas attorney. Oklahoma has a five-year statute of limitations for royalty underpayment claims under the PRSA (52 O.S. &sect; 570.14(D)).</p>
     </div>
     <div class="faq-item">
         <div class="faq-question">How often should I audit my royalty checks?</div>
@@ -3534,7 +3567,7 @@ const AUDITING_ROYALTY_CHECKS_BODY = `
 `;
 
 const SCOOP_STACK_OVERVIEW_BODY = `
-<p>The Anadarko Basin spans roughly 70,000 square miles across western Oklahoma, the Texas Panhandle, and parts of southwestern Kansas and southeastern Colorado. It&rsquo;s been producing oil and gas for over a century. But the modern story of Oklahoma drilling is dominated by two geographic areas within that basin: the SCOOP and the STACK. Together with the transitional MERGE area between them, these plays account for the majority of horizontal drilling activity in Oklahoma.</p>
+<p>The Anadarko Basin spans approximately 50,000 square miles across western Oklahoma, the Texas Panhandle, and parts of southwestern Kansas and southeastern Colorado. It&rsquo;s been producing oil and gas for over a century. But the modern story of Oklahoma drilling is dominated by two geographic areas within that basin: the SCOOP and the STACK. Together with the transitional MERGE area between them, these plays account for the majority of horizontal drilling activity in Oklahoma.</p>
 
 <p>For mineral owners, these aren&rsquo;t abstract geological concepts. If your section is in one of the core counties of the SCOOP, STACK, or MERGE, you are likely to see &mdash; or may have already seen &mdash; spacing applications, pooling orders, drilling permits, and increased density filings on your property &mdash; see our <a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); font-weight: 600;">guide to OCC filing types</a> for what each of these means. Understanding the plays helps you understand why operators are interested in your minerals, what they&rsquo;re drilling for, and how your section fits into the bigger picture.</p>
 
@@ -3791,6 +3824,10 @@ const SCOOP_STACK_OVERVIEW_BODY = `
 <p>In an active play like the SCOOP or STACK, staying informed about what&rsquo;s happening on your sections is essential. The pace of activity means that filings can appear with relatively short notice &mdash; a spacing application today can become a pooling order with a 20-day deadline within months.</p>
 
 <p>The OCC&rsquo;s online well records system and docket allow you to search by section, township, and range &mdash; our <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">guide to the OCC website</a> walks through how. Check for new spacing applications (the earliest signal that an operator is planning development), pooling applications (which precede the pooling order and its deadline), drilling permits (Form 1000 filings that signal a rig is coming), and completion reports (which confirm what was drilled and how the well performed).</p>
+
+<div class="guide-cta-inline">
+    <p><strong>Mineral Watch automates this.</strong> Mineral Watch tracks permits, completions, spacing, and pooling orders across every SCOOP, STACK, and MERGE county &mdash; daily. <a href="https://portal.mymineralwatch.com/">Start free &rarr;</a></p>
+</div>
 
 <p>For mineral owners with properties across multiple counties &mdash; which is common in families with generational mineral portfolios &mdash; manually checking the OCC systems on a regular basis becomes impractical. That&rsquo;s where automated monitoring comes in: setting up alerts for each of your sections ensures you&rsquo;re notified when any new filing appears, without having to manually check each one.</p>
 

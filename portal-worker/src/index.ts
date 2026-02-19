@@ -309,8 +309,12 @@ var index_default = {
         return Response.redirect(`${BASE_URL}/portal`, 302);
       }
 
-      // Legacy signup URLs — redirect to login
+      // Legacy signup URLs — redirect to pricing (preserves plan intent) or login
       if (path === "/signup" || path === "/signup/") {
+        const plan = url.searchParams.get("plan");
+        if (plan) {
+          return Response.redirect("https://mymineralwatch.com/pricing", 301);
+        }
         return Response.redirect(`${BASE_URL}/portal/login`, 301);
       }
       if (path === "/portal" || path === "/portal/") {
