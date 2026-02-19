@@ -1952,6 +1952,7 @@
                 flex: 0 0 auto;
                 justify-content: center;
                 padding: 10px 14px;
+                min-height: 44px;
                 min-width: unset;
                 font-size: 13px;
             }
@@ -1960,6 +1961,7 @@
                 justify-content: center;
                 min-width: 60px;
                 padding: 10px 8px;
+                min-height: 44px;
                 font-size: 13px;
             }
             .action-divider { display: none; }
@@ -2062,7 +2064,8 @@
             }
             .activity-btn {
                 font-size: 11px;
-                padding: 4px 8px;
+                padding: 10px 12px;
+                min-height: 44px;
             }
             
             /* Tabs mobile */
@@ -2073,14 +2076,29 @@
             }
             .tab {
                 flex-shrink: 0;
-                padding: 10px 16px;
+                padding: 12px 16px;
+                min-height: 44px;
                 font-size: 13px;
             }
             .tab-icon {
                 width: 14px;
                 height: 14px;
             }
-            
+
+            /* Touch targets: search/sort controls */
+            .table-controls {
+                flex-direction: column;
+            }
+            .search-input {
+                width: 100%;
+                min-height: 44px;
+            }
+            .sort-select {
+                width: 100%;
+                min-height: 44px;
+                min-width: unset;
+            }
+
             /* Modal mobile */
             .modal {
                 margin: 10px;
@@ -2747,3 +2765,21 @@
                 gap: 8px;
             }
         }
+
+        /* Horizontal scroll for data tables on narrow viewports */
+        #propertiesContent,
+        #wellsContent,
+        #documentsContent {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            background:
+                linear-gradient(to right, white 30%, rgba(255,255,255,0)),
+                linear-gradient(to left, white 30%, rgba(255,255,255,0)),
+                linear-gradient(to right, rgba(0,0,0,0.08), rgba(0,0,0,0)),
+                linear-gradient(to left, rgba(0,0,0,0.08), rgba(0,0,0,0));
+            background-position: left center, right center, left center, right center;
+            background-repeat: no-repeat;
+            background-size: 40px 100%, 40px 100%, 15px 100%, 15px 100%;
+            background-attachment: local, local, scroll, scroll;
+        }
+
