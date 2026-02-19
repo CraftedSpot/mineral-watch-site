@@ -1,7 +1,8 @@
 // ══════════════════════════════════════════════
-//  LIVE COMMODITY PRICES — EIA API v2
-//  Fetches WTI crude & Henry Hub nat gas spot prices
-//  Caches in KV for 6 hours to minimize API calls
+//  LIVE COMMODITY PRICES
+//  Primary: OilPriceAPI (real-time WTI + natural gas)
+//  Fallback: EIA API v2 (delayed spot prices)
+//  Caches in KV for 2 hours to minimize API calls
 // ══════════════════════════════════════════════
 
 export interface PriceData {
@@ -15,12 +16,68 @@ export interface PriceData {
 interface Env {
   PRICES_KV: KVNamespace;
   EIA_API_KEY: string;
+  OILPRICE_API_KEY: string;
 }
 
 const KV_KEY = 'commodity-prices';
-const CACHE_TTL_SECONDS = 2 * 60 * 60; // 2 hours — EIA updates daily ~5pm ET
+const CACHE_TTL_SECONDS = 2 * 60 * 60; // 2 hours
 
-// ── EIA API v2 endpoints ──
+const OILPRICE_BASE = 'https://api.oilpriceapi.com/v1/prices/latest';
+
+// ── OilPriceAPI (primary) ──
+function toISODate(dateStr: string): string {
+  // "2026-02-19T06:15:30.889Z" → "2026-02-19"
+  return dateStr.slice(0, 10);
+}
+
+async function fetchOilPriceAPI(apiKey: string): Promise<PriceData> {
+  const result: PriceData = {
+    wti: null,
+    henryHub: null,
+    updatedAt: new Date().toISOString(),
+    source: 'OilPriceAPI',
+    cached: false,
+  };
+
+  const headers = { 'Authorization': `Token ${apiKey}` };
+
+  const [wtiRes, gasRes] = await Promise.allSettled([
+    fetch(`${OILPRICE_BASE}?by_code=WTI_USD`, { headers }),
+    fetch(`${OILPRICE_BASE}?by_code=NATURAL_GAS_USD`, { headers }),
+  ]);
+
+  // Parse WTI
+  if (wtiRes.status === 'fulfilled' && wtiRes.value.ok) {
+    try {
+      const json: any = await wtiRes.value.json();
+      if (json.status === 'success' && json.data?.price) {
+        result.wti = {
+          price: Math.round(json.data.price * 100) / 100,
+          date: toISODate(json.data.created_at),
+          unit: '$/BBL',
+        };
+      }
+    } catch { /* swallow */ }
+  }
+
+  // Parse Natural Gas
+  if (gasRes.status === 'fulfilled' && gasRes.value.ok) {
+    try {
+      const json: any = await gasRes.value.json();
+      if (json.status === 'success' && json.data?.price) {
+        result.henryHub = {
+          price: Math.round(json.data.price * 100) / 100,
+          date: toISODate(json.data.created_at),
+          unit: '$/MCF',
+        };
+      }
+    } catch { /* swallow */ }
+  }
+
+  return result;
+}
+
+// ── EIA API v2 (fallback) ──
 function wtiUrl(apiKey: string): string {
   return `https://api.eia.gov/v2/petroleum/pri/spt/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[product][]=EPCWTI&sort[0][column]=period&sort[0][direction]=desc&length=1`;
 }
@@ -29,7 +86,6 @@ function henryHubUrl(apiKey: string): string {
   return `https://api.eia.gov/v2/natural-gas/pri/fut/data/?api_key=${apiKey}&frequency=daily&data[0]=value&facets[series][]=RNGWHHD&sort[0][column]=period&sort[0][direction]=desc&length=1`;
 }
 
-// ── Parse EIA response ──
 function parseEiaResponse(data: any): { price: number; date: string } | null {
   try {
     const rows = data?.response?.data;
@@ -43,8 +99,7 @@ function parseEiaResponse(data: any): { price: number; date: string } | null {
   }
 }
 
-// ── Fetch fresh prices from EIA ──
-async function fetchFreshPrices(apiKey: string): Promise<PriceData> {
+async function fetchEIAPrices(apiKey: string): Promise<PriceData> {
   const result: PriceData = {
     wti: null,
     henryHub: null,
@@ -53,13 +108,11 @@ async function fetchFreshPrices(apiKey: string): Promise<PriceData> {
     cached: false,
   };
 
-  // Fetch both in parallel
   const [wtiRes, gasRes] = await Promise.allSettled([
     fetch(wtiUrl(apiKey)),
     fetch(henryHubUrl(apiKey)),
   ]);
 
-  // Parse WTI
   if (wtiRes.status === 'fulfilled' && wtiRes.value.ok) {
     try {
       const data = await wtiRes.value.json();
@@ -70,7 +123,6 @@ async function fetchFreshPrices(apiKey: string): Promise<PriceData> {
     } catch { /* swallow */ }
   }
 
-  // Parse Henry Hub
   if (gasRes.status === 'fulfilled' && gasRes.value.ok) {
     try {
       const data = await gasRes.value.json();
@@ -90,7 +142,7 @@ export async function handlePricesRequest(env: Env): Promise<Response> {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Cache-Control': 'public, max-age=900, s-maxage=1800', // CDN cache 30min, browser 15min
+    'Cache-Control': 'public, max-age=900, s-maxage=1800',
   };
 
   // Check KV cache first
@@ -102,19 +154,31 @@ export async function handlePricesRequest(env: Env): Promise<Response> {
     }
   } catch { /* cache miss, continue */ }
 
-  // No cache — fetch fresh
-  if (!env.EIA_API_KEY) {
-    const fallback: PriceData = {
+  // Primary: OilPriceAPI
+  let prices: PriceData | null = null;
+  if (env.OILPRICE_API_KEY) {
+    try {
+      prices = await fetchOilPriceAPI(env.OILPRICE_API_KEY);
+    } catch { /* fall through to EIA */ }
+  }
+
+  // Fallback: EIA if OilPriceAPI returned nothing
+  if ((!prices?.wti && !prices?.henryHub) && env.EIA_API_KEY) {
+    try {
+      prices = await fetchEIAPrices(env.EIA_API_KEY);
+    } catch { /* swallow */ }
+  }
+
+  // Last resort: empty response
+  if (!prices) {
+    prices = {
       wti: null,
       henryHub: null,
       updatedAt: new Date().toISOString(),
-      source: 'Defaults — EIA API key not configured',
+      source: 'No price data available',
       cached: false,
     };
-    return new Response(JSON.stringify(fallback), { headers });
   }
-
-  const prices = await fetchFreshPrices(env.EIA_API_KEY);
 
   // Cache in KV (only if we got at least one price)
   if (prices.wti || prices.henryHub) {
