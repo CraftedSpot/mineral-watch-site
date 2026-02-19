@@ -187,15 +187,24 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 .map-carousel-tabs button:hover { color: var(--oil-navy); border-color: #A0AEC0; }
 .map-carousel-tabs button.active { background: var(--white); color: var(--red-dirt); border-color: var(--red-dirt); box-shadow: 0 1px 4px rgba(192, 86, 33, 0.12); }
 
+/* Prevent clicks on hidden carousel images */
+.map-carousel img, .report-carousel img, .panel-carousel img { pointer-events: none; }
+.map-carousel img.active, .report-carousel img.active, .panel-carousel img.active { pointer-events: auto; cursor: zoom-in; }
+.screenshot-frame img { cursor: zoom-in; }
+
 /* Lightbox */
 .lightbox { display: none; position: fixed; inset: 0; z-index: 100000; background: rgba(0,0,0,0.88); align-items: center; justify-content: center; cursor: zoom-out; padding: 24px; }
 .lightbox.open { display: flex; }
-.lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
-.lightbox-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: white; font-size: 32px; cursor: pointer; line-height: 1; padding: 8px; opacity: 0.7; transition: opacity 0.2s; }
+.lightbox img { max-width: calc(100% - 120px); max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); cursor: default; }
+.lightbox-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: white; font-size: 32px; cursor: pointer; line-height: 1; padding: 8px; opacity: 0.7; transition: opacity 0.2s; z-index: 2; }
 .lightbox-close:hover { opacity: 1; }
 .lightbox-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 12px; }
-.map-carousel img, .report-carousel img, .panel-carousel img { cursor: zoom-in; }
-.screenshot-frame img { cursor: zoom-in; }
+.lightbox-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; color: white; font-size: 28px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s, background 0.2s; z-index: 2; }
+.lightbox-arrow:hover { opacity: 1; background: rgba(255,255,255,0.2); }
+.lightbox-arrow.prev { left: 16px; }
+.lightbox-arrow.next { right: 16px; }
+.lightbox-arrow.hidden { display: none; }
+.lightbox-counter { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 500; }
 
 /* Capability cards */
 .cap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 40px; }
