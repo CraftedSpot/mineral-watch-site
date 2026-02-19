@@ -366,7 +366,7 @@ ${HEADER}
             <div class="county-hero-layout">
                 <div>
                     <div class="county-label">Oklahoma County Profile</div>
-                    <h1>${esc(countyName)} County <em>Mineral</em> Intelligence</h1>
+                    <h1>${esc(countyName)} County, Oklahoma <em>Mineral</em> Intelligence</h1>
                     <p class="county-hero-description">${esc(heroDesc)}</p>
                     <a href="https://portal.mymineralwatch.com/" class="hero-cta">Start Free &rarr;</a>
                 </div>
