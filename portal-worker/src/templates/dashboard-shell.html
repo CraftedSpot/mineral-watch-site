@@ -495,24 +495,12 @@
 /* __BULK_JS__ */
 </script>
 
-<!-- Add Papa Parse library (CSV parsing) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
-<!-- PDF.js library for accurate page count detection -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script>
-    // Set worker source for pdf.js
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-</script>
-
-<!-- pdf-lib for combining images into PDF -->
-<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
-
-<!-- heic2any for HEIC/HEIF to JPEG conversion (iPhone photos) -->
-<script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
-
-<!-- SheetJS library for Excel file parsing -->
-<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Third-party libs: deferred (only needed for file upload / document viewing) -->
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script defer src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+<script defer src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
+<script defer src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- Custom Confirm Dialog -->
 <div class="confirm-overlay" id="confirmDialog">

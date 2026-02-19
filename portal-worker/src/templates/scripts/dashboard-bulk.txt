@@ -87,6 +87,7 @@ function resetBulkUpload() {
     document.getElementById('results-step').style.display = 'none';
     document.getElementById('file-info').style.display = 'none';
     document.getElementById('parse-error').style.display = 'none';
+    document.getElementById('parse-error').innerHTML = '';
     document.getElementById('fileInput').value = '';
     parsedData = [];
     validationResults = null;
@@ -157,8 +158,9 @@ async function processFile(file) {
         
     } catch (error) {
         console.error('File processing error:', error);
-        document.getElementById('error-message').textContent = error.message;
-        document.getElementById('parse-error').style.display = 'block';
+        var parseErr = document.getElementById('parse-error');
+        parseErr.innerHTML = '<strong>Error parsing file:</strong> ' + escapeHtml(error.message);
+        parseErr.style.display = 'block';
     }
 }
 
@@ -248,8 +250,9 @@ async function validateAndPreview() {
         
     } catch (error) {
         console.error('Validation error:', error);
-        document.getElementById('error-message').textContent = error.message;
-        document.getElementById('parse-error').style.display = 'block';
+        var parseErr = document.getElementById('parse-error');
+        parseErr.innerHTML = '<strong>Error parsing file:</strong> ' + escapeHtml(error.message);
+        parseErr.style.display = 'block';
     }
 }
 
@@ -507,6 +510,7 @@ function resetBulkUploadWells() {
     document.getElementById('wells-results-step').style.display = 'none';
     document.getElementById('wells-file-info').style.display = 'none';
     document.getElementById('wells-parse-error').style.display = 'none';
+    document.getElementById('wells-parse-error').innerHTML = '';
     if (document.getElementById('wells-validating')) document.getElementById('wells-validating').style.display = 'none';
     document.getElementById('wellsFileInput').value = '';
     wellsParsedData = [];
@@ -585,8 +589,9 @@ async function processWellsFile(file) {
         
     } catch (error) {
         console.error('Wells file processing error:', error);
-        document.getElementById('wells-error-message').textContent = error.message;
-        document.getElementById('wells-parse-error').style.display = 'block';
+        var wellsParseErr = document.getElementById('wells-parse-error');
+        wellsParseErr.innerHTML = '<strong>Error parsing file:</strong> ' + escapeHtml(error.message);
+        wellsParseErr.style.display = 'block';
     }
 }
 
@@ -753,8 +758,9 @@ async function validateAndPreviewWells() {
         console.error('Wells validation error:', error);
         hideBatchProgress();
         if (document.getElementById('wells-validating')) document.getElementById('wells-validating').style.display = 'none';
-        document.getElementById('wells-error-message').textContent = error.message;
-        document.getElementById('wells-parse-error').style.display = 'block';
+        var wellsParseErr = document.getElementById('wells-parse-error');
+        wellsParseErr.innerHTML = '<strong>Error parsing file:</strong> ' + escapeHtml(error.message);
+        wellsParseErr.style.display = 'block';
     }
 }
 
@@ -1516,6 +1522,9 @@ async function displaySelectedFiles() {
         // Use pdf.js to get actual page count for PDFs, images are always 1 page
         if (file.type === 'application/pdf' && typeof pdfjsLib !== 'undefined') {
             try {
+                if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
                 const arrayBuffer = await file.arrayBuffer();
                 const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
                 pageCount = pdf.numPages;
