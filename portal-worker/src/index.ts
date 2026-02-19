@@ -156,6 +156,7 @@ import {
   handleGetCountyProduction,
   handleGetPoolingRates,
   handleGetPoolingOrders,
+  handleGetOperatorActivity,
   handleGetMapDataVersion,
   // Docket heatmap handler
   handleGetDocketHeatmap,

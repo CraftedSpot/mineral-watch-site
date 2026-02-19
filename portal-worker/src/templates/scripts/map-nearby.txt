@@ -1128,7 +1128,11 @@
                 const resp = await fetch(`/api/map/operator-activity?operator=${encodeURIComponent(operatorName)}`, {
                     credentials: 'include'
                 });
-                if (!resp.ok) throw new Error('Failed to load');
+                if (!resp.ok) {
+                    const errBody = await resp.text();
+                    console.error('Operator activity API error:', resp.status, errBody);
+                    throw new Error('Failed to load');
+                }
                 const data = await resp.json();
 
                 if (data.totalFilings === 0 && data.poolingCount === 0) {

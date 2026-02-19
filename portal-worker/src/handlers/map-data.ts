@@ -602,31 +602,44 @@ export async function handleGetOperatorActivity(request: Request, env: Env): Pro
     const opUpper = operator.toUpperCase().trim();
     const opPattern = `%${opUpper}%`;
 
+    let docketResult: any;
+    let poolingResult: any;
+
     // Query occ_docket_entries by applicant
-    const docketResult = await env.WELLS_DB.prepare(`
-      SELECT case_number, relief_type, applicant, county,
-             section, township, range, meridian,
-             hearing_date, status, docket_date
-      FROM occ_docket_entries
-      WHERE UPPER(applicant) LIKE ?
-      ORDER BY docket_date DESC
-      LIMIT 100
-    `).bind(opPattern).all();
+    try {
+      docketResult = await env.WELLS_DB.prepare(`
+        SELECT case_number, relief_type, applicant, county,
+               section, township, range, meridian,
+               hearing_date, status, docket_date
+        FROM occ_docket_entries
+        WHERE UPPER(applicant) LIKE ?
+        ORDER BY docket_date DESC
+        LIMIT 100
+      `).bind(opPattern).all();
+    } catch (e: any) {
+      console.error('[MapData] Docket query failed:', e?.message);
+      docketResult = { results: [] };
+    }
 
     // Query pooling_orders by operator (with GROUP BY for MAX aggregate)
-    const poolingResult = await env.WELLS_DB.prepare(`
-      SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
-             po.proposed_well_name, po.section, po.township, po.range, po.county,
-             po.formations, po.unit_size_acres,
-             MAX(peo.bonus_per_acre) as max_bonus
-      FROM pooling_orders po
-      LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
-      WHERE UPPER(po.operator) LIKE ?
-         OR UPPER(po.applicant) LIKE ?
-      GROUP BY po.id
-      ORDER BY po.order_date DESC
-      LIMIT 50
-    `).bind(opPattern, opPattern).all();
+    try {
+      poolingResult = await env.WELLS_DB.prepare(`
+        SELECT po.id, po.case_number, po.order_number, po.order_date, po.operator,
+               po.proposed_well_name, po.section, po.township, po.range, po.county,
+               po.formations, po.unit_size_acres,
+               MAX(peo.bonus_per_acre) as max_bonus
+        FROM pooling_orders po
+        LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+        WHERE UPPER(po.operator) LIKE ?
+           OR UPPER(po.applicant) LIKE ?
+        GROUP BY po.id
+        ORDER BY po.order_date DESC
+        LIMIT 50
+      `).bind(opPattern, opPattern).all();
+    } catch (e: any) {
+      console.error('[MapData] Pooling query failed:', e?.message);
+      poolingResult = { results: [] };
+    }
 
     // Group docket entries by relief_type
     const byType: Record<string, any[]> = {};
