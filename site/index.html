@@ -557,10 +557,16 @@
         /* Lightbox */
         .lightbox { display: none; position: fixed; inset: 0; z-index: 100000; background: rgba(0,0,0,0.88); align-items: center; justify-content: center; cursor: zoom-out; padding: 24px; }
         .lightbox.open { display: flex; }
-        .lightbox img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); }
-        .lightbox-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: white; font-size: 32px; cursor: pointer; line-height: 1; padding: 8px; opacity: 0.7; transition: opacity 0.2s; }
+        .lightbox img { max-width: calc(100% - 120px); max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,0.5); cursor: default; }
+        .lightbox-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: white; font-size: 32px; cursor: pointer; line-height: 1; padding: 8px; opacity: 0.7; transition: opacity 0.2s; z-index: 2; }
         .lightbox-close:hover { opacity: 1; }
         .lightbox-hint { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 12px; }
+        .lightbox-arrow { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(255,255,255,0.1); border: none; color: white; font-size: 28px; width: 48px; height: 48px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; opacity: 0.6; transition: opacity 0.2s, background 0.2s; z-index: 2; }
+        .lightbox-arrow:hover { opacity: 1; background: rgba(255,255,255,0.2); }
+        .lightbox-arrow.prev { left: 16px; }
+        .lightbox-arrow.next { right: 16px; }
+        .lightbox-arrow.hidden { display: none; }
+        .lightbox-counter { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 500; }
 
         /* Per-image positioning to show the most relevant content */
         #showcase-map img {
@@ -1527,20 +1533,78 @@
 
     <div class="lightbox" id="lightbox">
         <button class="lightbox-close" aria-label="Close">&times;</button>
+        <button class="lightbox-arrow prev" aria-label="Previous">&#8249;</button>
+        <button class="lightbox-arrow next" aria-label="Next">&#8250;</button>
+        <span class="lightbox-counter" id="lightboxCounter"></span>
         <img id="lightboxImg" src="" alt="">
         <span class="lightbox-hint">Click anywhere or press Esc to close</span>
     </div>
     <script>
         var lightbox = document.getElementById('lightbox');
         var lightboxImg = document.getElementById('lightboxImg');
-        function openLightbox(src, alt) { lightboxImg.src = src; lightboxImg.alt = alt || ''; lightbox.classList.add('open'); document.body.style.overflow = 'hidden'; }
-        function closeLightbox() { lightbox.classList.remove('open'); document.body.style.overflow = ''; lightboxImg.src = ''; }
+        var lightboxCounter = document.getElementById('lightboxCounter');
+        var prevBtn = document.querySelector('.lightbox-arrow.prev');
+        var nextBtn = document.querySelector('.lightbox-arrow.next');
+        var galleryImages = [];
+        var galleryIndex = 0;
+
+        function showGalleryImage() {
+            var img = galleryImages[galleryIndex];
+            lightboxImg.src = img.src;
+            lightboxImg.alt = img.alt || '';
+            if (galleryImages.length > 1) {
+                lightboxCounter.textContent = (galleryIndex + 1) + ' / ' + galleryImages.length;
+                lightboxCounter.style.display = '';
+                prevBtn.classList.toggle('hidden', galleryIndex === 0);
+                nextBtn.classList.toggle('hidden', galleryIndex === galleryImages.length - 1);
+            } else {
+                lightboxCounter.style.display = 'none';
+                prevBtn.classList.add('hidden');
+                nextBtn.classList.add('hidden');
+            }
+        }
+
+        function openGallery(images, startIndex) {
+            galleryImages = images;
+            galleryIndex = startIndex || 0;
+            showGalleryImage();
+            lightbox.classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('open');
+            document.body.style.overflow = '';
+            lightboxImg.src = '';
+            galleryImages = [];
+        }
+
+        prevBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (galleryIndex > 0) { galleryIndex--; showGalleryImage(); }
+        });
+        nextBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (galleryIndex < galleryImages.length - 1) { galleryIndex++; showGalleryImage(); }
+        });
+
         lightbox.addEventListener('click', closeLightbox);
-        lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); closeLightbox(); });
+        lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); });
         document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
-        document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
-        document.querySelectorAll('.showcase-content img').forEach(function(img) {
-            img.addEventListener('click', function() { openLightbox(this.src, this.alt); });
+        document.addEventListener('keydown', function(e) {
+            if (!lightbox.classList.contains('open')) return;
+            if (e.key === 'Escape') closeLightbox();
+            if (e.key === 'ArrowLeft' && galleryIndex > 0) { galleryIndex--; showGalleryImage(); }
+            if (e.key === 'ArrowRight' && galleryIndex < galleryImages.length - 1) { galleryIndex++; showGalleryImage(); }
+        });
+
+        // Showcase images form a gallery group
+        var showcaseImgs = document.querySelectorAll('.showcase-content img');
+        var showcaseGallery = Array.from(showcaseImgs).map(function(i) { return { src: i.src, alt: i.alt }; });
+        showcaseImgs.forEach(function(img, idx) {
+            img.addEventListener('click', function() {
+                openGallery(showcaseGallery, idx);
+            });
         });
     </script>
 

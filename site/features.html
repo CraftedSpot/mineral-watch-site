@@ -776,18 +776,43 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 
 <div class="lightbox" id="lightbox">
     <button class="lightbox-close" aria-label="Close">&times;</button>
+    <button class="lightbox-arrow prev" aria-label="Previous">&#8249;</button>
+    <button class="lightbox-arrow next" aria-label="Next">&#8250;</button>
+    <span class="lightbox-counter" id="lightboxCounter"></span>
     <img id="lightboxImg" src="" alt="">
     <span class="lightbox-hint">Click anywhere or press Esc to close</span>
 </div>
 
 <script>
-// Lightbox
+// Lightbox with gallery navigation
 var lightbox = document.getElementById('lightbox');
 var lightboxImg = document.getElementById('lightboxImg');
+var lightboxCounter = document.getElementById('lightboxCounter');
+var prevBtn = document.querySelector('.lightbox-arrow.prev');
+var nextBtn = document.querySelector('.lightbox-arrow.next');
+var galleryImages = [];
+var galleryIndex = 0;
 
-function openLightbox(src, alt) {
-    lightboxImg.src = src;
-    lightboxImg.alt = alt || '';
+function showGalleryImage() {
+    var img = galleryImages[galleryIndex];
+    lightboxImg.src = img.src;
+    lightboxImg.alt = img.alt || '';
+    if (galleryImages.length > 1) {
+        lightboxCounter.textContent = (galleryIndex + 1) + ' / ' + galleryImages.length;
+        lightboxCounter.style.display = '';
+        prevBtn.classList.toggle('hidden', galleryIndex === 0);
+        nextBtn.classList.toggle('hidden', galleryIndex === galleryImages.length - 1);
+    } else {
+        lightboxCounter.style.display = 'none';
+        prevBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+    }
+}
+
+function openGallery(images, startIndex) {
+    galleryImages = images;
+    galleryIndex = startIndex || 0;
+    showGalleryImage();
     lightbox.classList.add('open');
     document.body.style.overflow = 'hidden';
 }
@@ -796,17 +821,43 @@ function closeLightbox() {
     lightbox.classList.remove('open');
     document.body.style.overflow = '';
     lightboxImg.src = '';
+    galleryImages = [];
 }
 
-lightbox.addEventListener('click', closeLightbox);
-lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); closeLightbox(); });
-document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
-document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeLightbox(); });
+prevBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (galleryIndex > 0) { galleryIndex--; showGalleryImage(); }
+});
+nextBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    if (galleryIndex < galleryImages.length - 1) { galleryIndex++; showGalleryImage(); }
+});
 
-// Attach lightbox to all carousel and standalone images
-document.querySelectorAll('.map-carousel img, .report-carousel img, .panel-carousel img, .screenshot-frame img').forEach(function(img) {
+lightbox.addEventListener('click', closeLightbox);
+lightboxImg.addEventListener('click', function(e) { e.stopPropagation(); });
+document.querySelector('.lightbox-close').addEventListener('click', closeLightbox);
+document.addEventListener('keydown', function(e) {
+    if (!lightbox.classList.contains('open')) return;
+    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'ArrowLeft' && galleryIndex > 0) { galleryIndex--; showGalleryImage(); }
+    if (e.key === 'ArrowRight' && galleryIndex < galleryImages.length - 1) { galleryIndex++; showGalleryImage(); }
+});
+
+// Each carousel is a gallery group — click any image to open, arrows navigate the group
+document.querySelectorAll('.map-carousel, .report-carousel, .panel-carousel').forEach(function(carousel) {
+    var imgs = carousel.querySelectorAll('img');
+    imgs.forEach(function(img, idx) {
+        img.addEventListener('click', function() {
+            var allImgs = Array.from(imgs).map(function(i) { return { src: i.src, alt: i.alt }; });
+            openGallery(allImgs, idx);
+        });
+    });
+});
+
+// Standalone screenshot-frame images open solo (no arrows)
+document.querySelectorAll('.screenshot-frame img').forEach(function(img) {
     img.addEventListener('click', function() {
-        openLightbox(this.src, this.alt);
+        openGallery([{ src: this.src, alt: this.alt }], 0);
     });
 });
 
