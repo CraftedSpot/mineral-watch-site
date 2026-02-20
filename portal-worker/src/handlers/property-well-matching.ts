@@ -1,241 +1,419 @@
 /**
  * Property-Well Auto-Matching Handler
- * 
- * Automatically creates links between properties and wells based on location matching
+ *
+ * D1-first: Reads properties and wells directly from D1.
+ * No Airtable dependency. Matching runs in milliseconds instead of 5-10s.
+ *
+ * Flow:
+ * 1. Query properties from D1 (org ownership filter)
+ * 2. Query wells from D1 with JOIN to statewide wells (BH + sections_affected)
+ * 3. Query existing links from D1
+ * 4. Compute lateral sections for horizontal wells
+ * 5. Run N×M matching (same priority logic as before)
+ * 6. Create new links in D1 via batch insert
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserByIdD1First, getOrganizationD1First, fetchAllAirtableRecords } from '../services/airtable.js';
-import { escapeAirtableValue } from '../utils/airtable-escape.js';
-import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected, createLinksInBatches } from '../utils/property-well-matching.js';
-import type { LateralLocation } from '../utils/property-well-matching.js';
+import { getUserByIdD1First } from '../services/airtable.js';
+import {
+  normalizeSection,
+  createLocationKey,
+  CM_COUNTIES,
+  parseSectionsAffected,
+  computeLateralSections,
+  getAdjacentLocations,
+  locationsMatch,
+  LINK_FIELDS,
+  WELL_FIELDS,
+  createLinksInBatches,
+} from '../utils/property-well-matching.js';
+import type { PropertyRecord, WellRecord, LateralLocation, LocationKey } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
 
-// Panhandle counties that use Cimarron Meridian (CM)
-const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
-
-// Use human-readable field names (Airtable API returns these, not field IDs)
-const PROPERTY_FIELDS = {
-  SEC: 'SEC',
-  TWN: 'TWN',
-  RNG: 'RNG',
-  MERIDIAN: 'MERIDIAN',
-  USER: 'User',
-  ORGANIZATION: 'Organization',
-  COUNTY: 'County'
-};
-
-// Field names for wells
-const WELL_FIELDS = {
-  SECTION: 'Section',
-  TOWNSHIP: 'Township',
-  RANGE: 'Range',
-  BH_SECTION: 'BH Section',
-  BH_TOWNSHIP: 'BH Township',
-  BH_RANGE: 'BH Range',
-  SECTIONS_AFFECTED: 'Sections Affected',
-  WELL_NAME: 'Well Name',
-  USER: 'User',
-  ORGANIZATION: 'Organization',
-  COUNTY: 'County'
-};
-
-// Field names for links
-const LINK_FIELDS = {
-  LINK_NAME: 'Link Name',
-  PROPERTY: 'Property',
-  WELL: 'Well',
-  LINK_TYPE: 'Link Type',
-  MATCH_REASON: 'Match Reason',
-  STATUS: 'Status',
-  USER: 'User',
-  ORGANIZATION: 'Organization'
-};
-
-interface LocationKey {
-  section: number;
-  township: string;
-  range: string;
-  meridian: string;
-}
-
-interface PropertyRecord {
-  id: string;
-  fields: any;
-  location: LocationKey | null;
-}
-
-interface WellRecord {
-  id: string;
-  fields: any;
-  surfaceLocation: LocationKey | null;
-  bottomHoleLocation: LocationKey | null;
-  sectionsAffected: LateralLocation[];
-  township: string;
-  range: string;
-  meridian: string;
+/**
+ * Get meridian based on county (panhandle = CM, everything else = IM)
+ */
+function getMeridianFromCounty(county: string | null, explicitMeridian: string | null): string {
+  if (explicitMeridian) return explicitMeridian;
+  const upper = (county || '').toUpperCase().replace(/^\d+-/, '');
+  return CM_COUNTIES.includes(upper) ? 'CM' : 'IM';
 }
 
 /**
- * Normalize section value (remove leading zeros, convert to number)
+ * Main handler for property-well matching (D1-first)
  */
-function normalizeSection(section: string | number | undefined): number | null {
-  if (!section) return null;
-  const parsed = parseInt(String(section), 10);
-  return isNaN(parsed) || parsed < 1 || parsed > 36 ? null : parsed;
-}
+export async function handleMatchPropertyWells(request: Request, env: Env) {
+  const startTime = Date.now();
 
-/**
- * Get meridian with smart defaults based on county
- */
-function getMeridian(record: any): string {
-  // Use explicit meridian if set
-  if (record[PROPERTY_FIELDS.MERIDIAN] || record.MERIDIAN || record.Meridian) {
-    return record[PROPERTY_FIELDS.MERIDIAN] || record.MERIDIAN || record.Meridian;
-  }
-  
-  // Default based on county
-  const county = (record[PROPERTY_FIELDS.COUNTY] || record.County || record.county || '').toUpperCase();
-  return CM_COUNTIES.includes(county) ? 'CM' : 'IM';
-}
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
 
-/**
- * Parse sections affected field (e.g., "S19, S30, S31" → [19, 30, 31])
- */
-function parseSectionsAffected(sectionsStr: string): number[] {
-  if (!sectionsStr) return [];
+    const userRecord = await getUserByIdD1First(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
 
-  const sections: number[] = [];
-  // Match patterns like "S19", "S 19", "19", "Sec 19", "Sec19", etc.
-  const matches = sectionsStr.match(/(?:^|[^0-9])(\d{1,2})(?=[^0-9]|$)/g);
+    const userId = authUser.id;
+    const organizationId = userRecord.fields.Organization?.[0];
 
-  if (matches) {
-    for (const match of matches) {
-      const digitMatch = match.match(/(\d{1,2})/);
-      if (digitMatch) {
-        const section = parseInt(digitMatch[1], 10);
-        if (section >= 1 && section <= 36) {
-          sections.push(section);
+    console.log(`[PropertyWellMatch] Starting D1-first match for user ${authUser.email}, org=${organizationId || 'none'}`);
+
+    // --- Step 1: Query properties from D1 ---
+    const propWhereClause = organizationId
+      ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      : `WHERE p.user_id = ?`;
+    const propBindParams = organizationId ? [organizationId, organizationId] : [userId];
+
+    const propResult = await env.WELLS_DB!.prepare(`
+      SELECT p.airtable_record_id, p.section, p.township, p.range, p.county, p.meridian
+      FROM properties p
+      ${propWhereClause}
+    `).bind(...propBindParams).all();
+
+    const tPropsFetch = Date.now();
+
+    // --- Step 2: Query wells from D1 (JOIN statewide wells for BH + sections_affected) ---
+    const wellWhereClause = organizationId
+      ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      : `WHERE cw.user_id = ?`;
+    const wellBindParams = organizationId ? [organizationId, organizationId] : [userId];
+
+    const wellResult = await env.WELLS_DB!.prepare(`
+      SELECT
+        cw.airtable_id,
+        cw.well_name AS cw_well_name,
+        cw.section AS cw_section,
+        cw.township AS cw_township,
+        cw.range_val AS cw_range,
+        cw.county AS cw_county,
+        w.section AS occ_section,
+        w.township AS occ_township,
+        w.range AS occ_range,
+        w.bh_section,
+        w.bh_township,
+        w.bh_range,
+        w.sections_affected,
+        w.well_name AS occ_well_name,
+        w.well_number
+      FROM client_wells cw
+      LEFT JOIN wells w ON w.api_number = cw.api_number
+      ${wellWhereClause}
+    `).bind(...wellBindParams).all();
+
+    const tWellsFetch = Date.now();
+    const propRows = propResult.results || [];
+    const wellRows = wellResult.results || [];
+
+    console.log(`[PropertyWellMatch] D1 fetch: ${propRows.length} properties (${tPropsFetch - startTime}ms), ${wellRows.length} wells (${tWellsFetch - tPropsFetch}ms)`);
+
+    if (propRows.length === 0 || wellRows.length === 0) {
+      return jsonResponse({
+        success: true,
+        stats: {
+          propertiesProcessed: propRows.length,
+          wellsProcessed: wellRows.length,
+          linksCreated: 0,
+          linksSkipped: 0,
+          existingLinks: 0,
+          d1Synced: 0,
+          errors: 0
+        },
+        duration: `${((Date.now() - startTime) / 1000).toFixed(1)}s`
+      });
+    }
+
+    // --- Step 3: Build PropertyRecord[] from D1 rows ---
+    const processedProperties: PropertyRecord[] = [];
+    let propertiesWithNoLocation = 0;
+
+    for (const row of propRows as any[]) {
+      if (!row.airtable_record_id) continue;
+      const section = normalizeSection(row.section);
+      const township = row.township;
+      const range = row.range;
+      const meridian = getMeridianFromCounty(row.county, row.meridian);
+      const location = createLocationKey(section, township, range, meridian);
+
+      if (!location) propertiesWithNoLocation++;
+
+      processedProperties.push({
+        id: row.airtable_record_id,
+        fields: row,
+        location
+      });
+    }
+
+    // --- Step 4: Build WellRecord[] from D1 rows + compute laterals ---
+    const processedWells: WellRecord[] = [];
+    let wellsWithNoSurface = 0;
+    let wellsWithBH = 0;
+    let wellsWithSectionsAffected = 0;
+    let lateralComputed = 0;
+    let lateralSameTwn = 0;
+    let lateralCrossTwn = 0;
+
+    for (const row of wellRows as any[]) {
+      if (!row.airtable_id) continue;
+
+      // Prefer OCC statewide data, fall back to client_wells
+      const section = row.occ_section || row.cw_section;
+      const township = row.occ_township || row.cw_township;
+      const range = row.occ_range || row.cw_range;
+      const county = row.cw_county || '';
+      const meridian = getMeridianFromCounty(county, null);
+
+      const surfaceSection = normalizeSection(section);
+      const surfaceLocation = createLocationKey(surfaceSection, township, range, meridian);
+      if (!surfaceLocation) wellsWithNoSurface++;
+
+      // Bottom hole
+      const bhSection = normalizeSection(row.bh_section);
+      const bhTownship = row.bh_township || township;
+      const bhRange = row.bh_range || range;
+      const bottomHoleLocation = createLocationKey(bhSection, bhTownship, bhRange, meridian);
+      if (bottomHoleLocation) wellsWithBH++;
+
+      // Lateral sections: use sections_affected if available, else compute from surface→BH
+      let sectionsAffected: LateralLocation[] = [];
+
+      if (row.sections_affected) {
+        wellsWithSectionsAffected++;
+        const sectionNumbers = parseSectionsAffected(row.sections_affected);
+        sectionsAffected = sectionNumbers.map((s: number) => ({
+          section: s, township: township || '', range: range || ''
+        }));
+      } else if (surfaceSection && bhSection && surfaceSection !== bhSection) {
+        // Auto-compute lateral path
+        if (township === bhTownship && range === bhRange) {
+          // Same township — Bresenham trace
+          lateralSameTwn++;
+          const lateralSections = computeLateralSections(surfaceSection, bhSection);
+          sectionsAffected = lateralSections.map((s: number) => ({
+            section: s, township: township || '', range: range || ''
+          }));
+        } else {
+          // Cross-township — just include surface + BH
+          lateralCrossTwn++;
+          sectionsAffected = [
+            { section: surfaceSection, township: township || '', range: range || '' },
+            { section: bhSection, township: bhTownship || '', range: bhRange || '' }
+          ];
+        }
+        if (sectionsAffected.length > 0) lateralComputed++;
+      }
+
+      // Build well name (prefer OCC name, fall back to client_wells)
+      let wellName: string;
+      if (row.occ_well_name) {
+        wellName = row.well_number
+          ? `${row.occ_well_name} #${row.well_number}`
+          : row.occ_well_name;
+      } else {
+        wellName = row.cw_well_name || 'Unknown Well';
+      }
+
+      processedWells.push({
+        id: row.airtable_id,
+        fields: { [WELL_FIELDS.WELL_NAME]: wellName },
+        surfaceLocation,
+        bottomHoleLocation,
+        sectionsAffected,
+        township: township || '',
+        range: range || '',
+        meridian
+      });
+    }
+
+    const tProcess = Date.now();
+
+    // --- Step 5: Get existing links from D1 ---
+    const propertyIds = processedProperties.map(p => p.id);
+    let existingLinks: Array<{
+      property_airtable_id: string;
+      well_airtable_id: string;
+      match_reason: string;
+      status: string;
+    }> = [];
+
+    const LINK_BATCH = 90;
+    for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
+      const batch = propertyIds.slice(i, i + LINK_BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB!.prepare(
+        `SELECT property_airtable_id, well_airtable_id, match_reason, status
+         FROM property_well_links
+         WHERE property_airtable_id IN (${placeholders})`
+      ).bind(...batch).all();
+      existingLinks.push(...((result.results || []) as any[]));
+    }
+
+    const existingLinkKeys = new Set<string>();
+    for (const link of existingLinks) {
+      if (link.property_airtable_id && link.well_airtable_id) {
+        existingLinkKeys.add(`${link.property_airtable_id}-${link.well_airtable_id}`);
+      }
+    }
+
+    const tLinks = Date.now();
+
+    // --- Step 6: N×M matching ---
+    const linksToCreate: any[] = [];
+    let matchesFound = 0;
+    let skippedExisting = 0;
+    const matchesByType: Record<string, number> = {};
+
+    for (const property of processedProperties) {
+      for (const well of processedWells) {
+        const linkKey = `${property.id}-${well.id}`;
+
+        if (existingLinkKeys.has(linkKey)) {
+          skippedExisting++;
+          continue;
+        }
+
+        const reason = findBestMatch(property, well);
+        if (reason) {
+          matchesFound++;
+          matchesByType[reason] = (matchesByType[reason] || 0) + 1;
+
+          const wellName = well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown Well';
+          const propLocation = property.location
+            ? `S${property.location.section}-T${property.location.township}-R${property.location.range}`
+            : 'Unknown Location';
+
+          const linkRecord: any = {
+            fields: {
+              [LINK_FIELDS.LINK_NAME]: `${wellName} → ${propLocation}`,
+              [LINK_FIELDS.PROPERTY]: [property.id],
+              [LINK_FIELDS.WELL]: [well.id],
+              [LINK_FIELDS.LINK_TYPE]: 'Auto',
+              [LINK_FIELDS.MATCH_REASON]: reason,
+              [LINK_FIELDS.STATUS]: 'Linked',
+              [LINK_FIELDS.USER]: [userId]
+            }
+          };
+          if (organizationId) {
+            linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
+          }
+          linksToCreate.push(linkRecord);
         }
       }
     }
-  }
 
-  return [...new Set(sections)]; // Remove duplicates
-}
+    const tMatch = Date.now();
 
-/**
- * Create a location key for comparison
- */
-function createLocationKey(section: number | null, township: string, range: string, meridian: string): LocationKey | null {
-  if (!section || !township || !range) return null;
-  return { section, township, range, meridian };
-}
+    // --- Step 7: Create links in D1 ---
+    const { created, failed } = await createLinksInBatches(env, linksToCreate);
 
-/**
- * Process properties into indexed structure
- */
-function processProperties(properties: any[]): PropertyRecord[] {
-  return properties.map(prop => {
-    const section = normalizeSection(prop.fields[PROPERTY_FIELDS.SEC]);
-    const township = prop.fields[PROPERTY_FIELDS.TWN];
-    const range = prop.fields[PROPERTY_FIELDS.RNG];
-    const meridian = getMeridian(prop.fields);
-    
-    return {
-      id: prop.id,
-      fields: prop.fields,
-      location: createLocationKey(section, township, range, meridian)
-    };
-  });
-}
+    const tCreate = Date.now();
 
-/**
- * Process wells into indexed structure
- */
-function processWells(wells: any[]): WellRecord[] {
-  return wells.map(well => {
-    const township = well.fields[WELL_FIELDS.TOWNSHIP];
-    const range = well.fields[WELL_FIELDS.RANGE];
-    const meridian = getMeridian(well.fields);
-    
-    // Surface location
-    const surfaceSection = normalizeSection(well.fields[WELL_FIELDS.SECTION]);
-    const surfaceLocation = createLocationKey(surfaceSection, township, range, meridian);
-    
-    // Bottom hole location
-    const bhSection = normalizeSection(well.fields[WELL_FIELDS.BH_SECTION]);
-    const bhTownship = well.fields[WELL_FIELDS.BH_TOWNSHIP] || township;
-    const bhRange = well.fields[WELL_FIELDS.BH_RANGE] || range;
-    const bottomHoleLocation = createLocationKey(bhSection, bhTownship, bhRange, meridian);
-    
-    // Sections affected as full location tuples
-    let sectionsAffected: LateralLocation[];
-    if (well._lateralLocations) {
-      // Use pre-computed full tuples from enrichment pipeline
-      sectionsAffected = well._lateralLocations;
-    } else {
-      // Fallback: parse section numbers from string, use surface township/range
-      const sectionNumbers = parseSectionsAffected(well.fields[WELL_FIELDS.SECTIONS_AFFECTED] || '');
-      sectionsAffected = sectionNumbers.map((s: number) => ({
-        section: s,
-        township: township,
-        range: range
-      }));
+    // --- Diagnostics ---
+    const existingByReason: Record<string, number> = {};
+    const existingByStatus: Record<string, number> = {};
+    for (const link of existingLinks) {
+      existingByReason[link.match_reason || 'Unknown'] = (existingByReason[link.match_reason || 'Unknown'] || 0) + 1;
+      existingByStatus[link.status || 'No Status'] = (existingByStatus[link.status || 'No Status'] || 0) + 1;
     }
 
-    return {
-      id: well.id,
-      fields: well.fields,
-      surfaceLocation,
-      bottomHoleLocation,
-      sectionsAffected,
-      township,
-      range,
-      meridian
+    // Find unlinked wells
+    const linkedWellIds = new Set<string>();
+    for (const link of existingLinks) {
+      if (link.well_airtable_id) linkedWellIds.add(link.well_airtable_id);
+    }
+    for (const l of linksToCreate) {
+      const wellId = l.fields[LINK_FIELDS.WELL]?.[0];
+      if (wellId) linkedWellIds.add(wellId);
+    }
+    const unlinkedWells = processedWells.filter(w => !linkedWellIds.has(w.id)).map(w => ({
+      name: w.fields[WELL_FIELDS.WELL_NAME] || 'Unknown',
+      location: w.surfaceLocation
+        ? `S${w.surfaceLocation.section}-T${w.surfaceLocation.township}-R${w.surfaceLocation.range}`
+        : 'no surface',
+      bhLocation: w.bottomHoleLocation
+        ? `S${w.bottomHoleLocation.section}-T${w.bottomHoleLocation.township}-R${w.bottomHoleLocation.range}`
+        : 'no BH',
+      lateralSections: w.sectionsAffected.length > 0
+        ? w.sectionsAffected.map(s => `S${s.section}-T${s.township}-R${s.range}`).join(',')
+        : 'none'
+    }));
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    const stats = {
+      propertiesProcessed: processedProperties.length,
+      wellsProcessed: processedWells.length,
+      linksCreated: created,
+      linksSkipped: skippedExisting,
+      existingLinks: existingLinks.length,
+      d1Synced: created,
+      errors: failed,
+      newMatchesByType: matchesByType,
+      existingLinksByType: existingByReason,
+      existingLinksByStatus: existingByStatus,
+      dataQuality: {
+        propertiesWithNoLocation,
+        wellsWithNoSurface,
+        wellsWithBH,
+        wellsWithSectionsAffected
+      },
+      lateral: {
+        computed: lateralComputed,
+        sameTownship: lateralSameTwn,
+        crossTownship: lateralCrossTwn
+      },
+      unlinkedWellCount: unlinkedWells.length,
+      unlinkedWellSamples: unlinkedWells.slice(0, 10),
+      timing: {
+        propsFetch: tPropsFetch - startTime,
+        wellsFetch: tWellsFetch - tPropsFetch,
+        process: tProcess - tWellsFetch,
+        existingLinks: tLinks - tProcess,
+        matching: tMatch - tLinks,
+        createLinks: tCreate - tMatch,
+        total: Date.now() - startTime
+      }
     };
-  });
+
+    console.log(`[PropertyWellMatch] D1-first completed in ${duration}s:`, JSON.stringify(stats));
+
+    return jsonResponse({ success: true, stats, duration: `${duration}s` });
+
+  } catch (error) {
+    console.error('[PropertyWellMatch] Error:', error);
+    return jsonResponse({
+      error: 'Failed to match properties and wells',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
 }
 
 /**
- * Check if locations match
+ * Find best match between property and well (same priority as before)
+ * Returns match reason string or null
  */
-function locationsMatch(loc1: LocationKey | null, loc2: LocationKey | null): boolean {
-  if (!loc1 || !loc2) return false;
-  return loc1.section === loc2.section &&
-         loc1.township === loc2.township &&
-         loc1.range === loc2.range &&
-         loc1.meridian === loc2.meridian;
-}
+function findBestMatch(property: PropertyRecord, well: WellRecord): string | null {
+  if (!property.location) return null;
 
-/**
- * Find the best match between a property and well
- */
-function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: boolean; reason: string } {
-  if (!property.location) return { matched: false, reason: '' };
-  
   // Priority 1: Surface location match
   if (locationsMatch(property.location, well.surfaceLocation)) {
-    return { matched: true, reason: 'Surface Location' };
+    return 'Surface Location';
   }
-  
+
   // Priority 2: Lateral path match (sections affected — full STR tuples)
   if (well.sectionsAffected.some(s =>
       s.section === property.location!.section &&
       s.township === property.location!.township &&
       s.range === property.location!.range
   ) && property.location.meridian === well.meridian) {
-    return { matched: true, reason: 'Lateral Path' };
-  }
-  
-  // Priority 3: Bottom hole match
-  if (locationsMatch(property.location, well.bottomHoleLocation)) {
-    return { matched: true, reason: 'Bottom Hole' };
+    return 'Lateral Path';
   }
 
-  // Priority 4: Adjacent BH section match (horizontal wells - stronger signal)
+  // Priority 3: Bottom hole match
+  if (locationsMatch(property.location, well.bottomHoleLocation)) {
+    return 'Bottom Hole';
+  }
+
+  // Priority 4: Adjacent BH section match
   if (well.bottomHoleLocation) {
     const adjLocs = getAdjacentLocations(
       property.location.section, property.location.township, property.location.range
@@ -245,7 +423,7 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
       a.township === well.bottomHoleLocation!.township &&
       a.range === well.bottomHoleLocation!.range
     )) {
-      return { matched: true, reason: 'Adjacent Section' };
+      return 'Adjacent Section';
     }
   }
 
@@ -259,282 +437,9 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
       a.township === well.surfaceLocation!.township &&
       a.range === well.surfaceLocation!.range
     )) {
-      return { matched: true, reason: 'Adjacent Section' };
+      return 'Adjacent Section';
     }
   }
 
-  return { matched: false, reason: '' };
-}
-
-/**
- * Main handler for property-well matching
- */
-export async function handleMatchPropertyWells(request: Request, env: Env) {
-  const startTime = Date.now();
-  
-  try {
-    // Authenticate user
-    const authUser = await authenticateRequest(request, env);
-    if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
-    
-    // Get full user record
-    const userRecord = await getUserByIdD1First(env, authUser.id);
-    if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
-    
-    const userId = authUser.id;
-    const organizationId = userRecord.fields.Organization?.[0];
-    
-    console.log(`[PropertyWellMatch] Starting for user ${authUser.email}`);
-    
-    // Build filter formulas based on org/user (Airtable only for tracked properties/wells)
-    let propertiesFilter: string;
-    let wellsFilter: string;
-
-    console.log(`[PropertyWellMatch] User ID: ${userId}, Org ID: ${organizationId || 'none'}`);
-
-    const userEmail = escapeAirtableValue(authUser.email);
-
-    if (organizationId) {
-      // Organization user - get org name for filtering (D1-first)
-      const orgData = await getOrganizationD1First(env, organizationId);
-      const orgName = orgData?.name || '';
-
-      console.log(`[PropertyWellMatch] Organization name: ${orgName}`);
-
-      if (orgName) {
-        // Filter by organization name OR user email - properties may have Organization
-        // field empty but User field set (e.g., after bulk re-upload via Airtable)
-        const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
-        const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
-        propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-        wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-      } else {
-        // Org name unavailable — fall back to user email only (safe: never matches ALL records)
-        console.warn(`[PropertyWellMatch] Org name empty for ${organizationId}, falling back to user email filter`);
-        propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-        wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-      }
-    } else {
-      // Solo user - filter by user email (as displayed in linked field)
-      propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-      wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-    }
-
-    console.log(`[PropertyWellMatch] Filters - Properties: ${propertiesFilter}`);
-    console.log(`[PropertyWellMatch] Filters - Wells: ${wellsFilter}`);
-
-    // Fetch tracked properties/wells from Airtable
-    console.log('[PropertyWellMatch] Fetching data...');
-
-    const [properties, wells] = await Promise.all([
-      fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter),
-      fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter)
-    ]);
-
-    console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells`);
-
-    // Get existing links from D1 using the actual property IDs (not user_id which may be NULL)
-    const propertyIds = properties.map((p: any) => p.id);
-    let existingLinks: Array<{
-      property_airtable_id: string;
-      well_airtable_id: string;
-      match_reason: string;
-      status: string;
-    }> = [];
-
-    const LINK_BATCH = 90; // D1 limit is 100 bind params per query
-    for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
-      const batch = propertyIds.slice(i, i + LINK_BATCH);
-      const placeholders = batch.map(() => '?').join(',');
-      const result = await env.WELLS_DB.prepare(
-        `SELECT property_airtable_id, well_airtable_id, match_reason, status
-         FROM property_well_links
-         WHERE property_airtable_id IN (${placeholders})`
-      ).bind(...batch).all();
-      existingLinks.push(...((result.results || []) as any[]));
-    }
-
-    console.log(`[PropertyWellMatch] Found ${existingLinks.length} existing links in D1 for ${propertyIds.length} properties`);
-    
-    // Debug: Log sample property and well to check field structure
-    if (properties.length > 0) {
-      console.log('[PropertyWellMatch] Sample property:', JSON.stringify(properties[0], null, 2));
-    }
-    if (wells.length > 0) {
-      console.log('[PropertyWellMatch] Sample well:', JSON.stringify(wells[0], null, 2));
-    }
-    
-    // Enrich wells with surface location, well name, county, and BH data from D1
-    const enrichDiag = await enrichWellsWithD1Data(wells, env);
-
-    // Build set of existing links to avoid duplicates (from D1)
-    const existingLinkKeys = new Set<string>();
-    for (const link of existingLinks) {
-      if (link.property_airtable_id && link.well_airtable_id) {
-        existingLinkKeys.add(`${link.property_airtable_id}-${link.well_airtable_id}`);
-      }
-    }
-
-    // Process properties and wells
-    const processedProperties = processProperties(properties);
-    const processedWells = processWells(wells);
-
-    // Find matches with detailed diagnostics
-    const linksToCreate: any[] = [];
-    let matchesFound = 0;
-    let skippedExisting = 0;
-    const matchesByType: Record<string, number> = {};
-    let propertiesWithNoLocation = 0;
-    let wellsWithNoSurface = 0;
-    let wellsWithBH = 0;
-    let wellsWithSectionsAffected = 0;
-
-    // Count property/well data quality
-    for (const p of processedProperties) {
-      if (!p.location) propertiesWithNoLocation++;
-    }
-    for (const w of processedWells) {
-      if (!w.surfaceLocation) wellsWithNoSurface++;
-      if (w.bottomHoleLocation) wellsWithBH++;
-      if (w.sectionsAffected.length > 0) wellsWithSectionsAffected++;
-    }
-
-    // Count existing links by match reason AND by status (from D1)
-    const existingByReason: Record<string, number> = {};
-    const existingByStatus: Record<string, number> = {};
-    for (const link of existingLinks) {
-      const reason = link.match_reason || 'Unknown';
-      existingByReason[reason] = (existingByReason[reason] || 0) + 1;
-      const status = link.status || 'No Status';
-      existingByStatus[status] = (existingByStatus[status] || 0) + 1;
-    }
-
-    console.log(`[PropertyWellMatch] Data quality: ${propertiesWithNoLocation} props without location, ${wellsWithNoSurface} wells without surface, ${wellsWithBH} wells with BH, ${wellsWithSectionsAffected} wells with sections affected`);
-    console.log(`[PropertyWellMatch] Existing links by reason:`, existingByReason);
-
-    for (const property of processedProperties) {
-      for (const well of processedWells) {
-        const linkKey = `${property.id}-${well.id}`;
-
-        // Skip if link already exists
-        if (existingLinkKeys.has(linkKey)) {
-          skippedExisting++;
-          continue;
-        }
-
-        // Check for match
-        const { matched, reason } = findBestMatch(property, well);
-        if (matched) {
-          matchesFound++;
-          matchesByType[reason] = (matchesByType[reason] || 0) + 1;
-          
-          // Create link name
-          const wellName = well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown Well';
-          const propLocation = property.location 
-            ? `S${property.location.section}-T${property.location.township}-R${property.location.range}`
-            : 'Unknown Location';
-          const linkName = `${wellName} → ${propLocation}`;
-          
-          const linkRecord = {
-            fields: {
-              [LINK_FIELDS.LINK_NAME]: linkName,
-              [LINK_FIELDS.PROPERTY]: [property.id],
-              [LINK_FIELDS.WELL]: [well.id],
-              [LINK_FIELDS.LINK_TYPE]: 'Auto',
-              [LINK_FIELDS.MATCH_REASON]: reason,
-              [LINK_FIELDS.STATUS]: 'Linked',
-              [LINK_FIELDS.USER]: [userId]
-            }
-          };
-          
-          // Add organization if exists
-          if (organizationId) {
-            linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
-          }
-          
-          linksToCreate.push(linkRecord);
-        }
-      }
-    }
-    
-    // Find wells with no links at all (from D1 existing links)
-    const linkedWellIds = new Set<string>();
-    for (const link of existingLinks) {
-      if (link.well_airtable_id) linkedWellIds.add(link.well_airtable_id);
-    }
-    // Also count wells that would be linked by new matches
-    for (const l of linksToCreate) {
-      const wellId = l.fields[LINK_FIELDS.WELL]?.[0];
-      if (wellId) linkedWellIds.add(wellId);
-    }
-
-    const unlinkedWells: Array<{name: string; location: string; bhLocation: string; lateralSections: string}> = [];
-    for (const well of processedWells) {
-      if (!linkedWellIds.has(well.id)) {
-        const loc = well.surfaceLocation
-          ? `S${well.surfaceLocation.section}-T${well.surfaceLocation.township}-R${well.surfaceLocation.range}`
-          : 'no surface';
-        const bhLoc = well.bottomHoleLocation
-          ? `S${well.bottomHoleLocation.section}-T${well.bottomHoleLocation.township}-R${well.bottomHoleLocation.range}`
-          : 'no BH';
-        const lat = well.sectionsAffected.length > 0
-          ? well.sectionsAffected.map(s => `S${s.section}-T${s.township}-R${s.range}`).join(',')
-          : 'none';
-        unlinkedWells.push({
-          name: well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown',
-          location: loc,
-          bhLocation: bhLoc,
-          lateralSections: lat
-        });
-      }
-    }
-
-    console.log(`[PropertyWellMatch] Found ${matchesFound} matches, ${skippedExisting} already linked, ${unlinkedWells.length} wells with no link`);
-    if (unlinkedWells.length > 0) {
-      console.log('[PropertyWellMatch] Unlinked wells (first 10):', JSON.stringify(unlinkedWells.slice(0, 10)));
-    }
-    
-    // Create links directly in D1 (D1-first — no Airtable dependency)
-    const { created, failed } = await createLinksInBatches(env, linksToCreate);
-    const d1Synced = created; // Links written directly to D1
-
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    const stats = {
-      propertiesProcessed: properties.length,
-      wellsProcessed: wells.length,
-      linksCreated: created,
-      linksSkipped: skippedExisting,
-      existingLinks: existingLinks.length,
-      d1Synced,
-      errors: failed,
-      newMatchesByType: matchesByType,
-      existingLinksByType: existingByReason,
-      existingLinksByStatus: existingByStatus,
-      dataQuality: {
-        propertiesWithNoLocation,
-        wellsWithNoSurface,
-        wellsWithBH,
-        wellsWithSectionsAffected
-      },
-      enrichment: enrichDiag,
-      unlinkedWellCount: unlinkedWells.length,
-      unlinkedWellSamples: unlinkedWells.slice(0, 10)
-    };
-
-    console.log(`[PropertyWellMatch] Completed in ${duration}s:`, stats);
-
-    return jsonResponse({
-      success: true,
-      stats,
-      duration: `${duration}s`
-    });
-    
-  } catch (error) {
-    console.error('[PropertyWellMatch] Error:', error);
-    return jsonResponse({ 
-      error: 'Failed to match properties and wells',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    }, 500);
-  }
+  return null;
 }
