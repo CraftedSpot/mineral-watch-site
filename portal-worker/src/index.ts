@@ -15,6 +15,7 @@ import {
   PLAN_LIMITS,
   OCC_CACHE_TTL,
   CORS_HEADERS,
+  SECURITY_HEADERS,
   PRICE_IDS,
   PRICE_TO_PLAN,
   ORGANIZATION_TABLE
@@ -268,17 +269,37 @@ var index_default = {
   },
   
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // CORS preflight — no security headers needed
+    if (request.method === "OPTIONS") {
+      return corsResponse();
+    }
+    // All non-OPTIONS responses get security headers
+    return withSecurityHeaders(await routeRequest(request, env, ctx));
+  }
+};
+
+// Apply security headers to any response
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+    headers.set(key, value);
+  }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
+}
+
+// Route all non-OPTIONS requests
+async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
-    
+
     // Debug logging
     console.log(`[Portal] Incoming request: ${request.method} ${path}`);
     console.log(`[Portal] Full URL: ${url.href}`);
     console.log(`[Portal] D1 binding available: ${!!env.WELLS_DB}`);
-    
-    if (request.method === "OPTIONS") {
-      return corsResponse();
-    }
 
     // Simple version endpoint to verify deployments
     if (path === "/api/version") {
@@ -1675,8 +1696,7 @@ var index_default = {
       console.error("Worker error:", err);
       return jsonResponse({ error: "Internal server error" }, 500);
     }
-  }
-};
+}
 
 // ====================
 // SECURITY HELPERS

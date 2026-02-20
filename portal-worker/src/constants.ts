@@ -65,11 +65,15 @@ export const CORS_HEADERS = {
 } as const;
 
 // Security Headers
+// Applied to all non-OPTIONS responses via withSecurityHeaders() in index.ts
+// CSP uses 'unsafe-inline' for script-src because the dashboard uses inline onclick handlers
 export const SECURITY_HEADERS = {
-  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com https://player.vimeo.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://r2cdn.perplexity.ai; img-src 'self' data: blob: https://*.arcgisonline.com https://*.basemaps.cartocdn.com; frame-src 'self' blob: https://player.vimeo.com; connect-src 'self' https://mymineralwatch.com https://*.mymineralwatch.com https://player.vimeo.com https://*.vimeocdn.com https://unpkg.com; worker-src 'self' blob:;",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
-  "Referrer-Policy": "strict-origin-when-cross-origin"
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://static.cloudflareinsights.com https://js.stripe.com https://player.vimeo.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.arcgisonline.com https://*.basemaps.cartocdn.com https://*.stripe.com; connect-src 'self' https://mymineralwatch.com https://*.mymineralwatch.com https://api.stripe.com https://services.arcgis.com https://player.vimeo.com https://*.vimeocdn.com https://unpkg.com; frame-src 'self' blob: https://js.stripe.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; worker-src 'self' blob:"
 } as const;
 
 // Stripe Price IDs - LIVE MODE
