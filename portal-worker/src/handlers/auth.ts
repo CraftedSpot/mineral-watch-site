@@ -114,6 +114,10 @@ export async function handleSendMagicLink(request: Request, env: Env) {
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('[Auth] Send magic link error:', error);
+    const msg = error instanceof Error ? error.message : '';
+    if (msg.includes('Airtable error') || msg.includes('SERVER_ERROR')) {
+      return jsonResponse({ error: 'Login is temporarily unavailable. Please try again in a few minutes.' }, 503);
+    }
     return jsonResponse({ error: 'Failed to send login email' }, 500);
   }
 }
@@ -179,9 +183,9 @@ export async function handleVerifyMagicLink(request: Request, env: Env, url: URL
 
   // Build Set-Cookie headers (clear old + set new)
   const cookieHeaders = [
-    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
-    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`,
-    `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=.mymineralwatch.com; Max-Age=0`,
+    `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000`
   ];
 
   if (wantsJson) {
@@ -301,12 +305,12 @@ export async function handleLogout() {
   });
 
   // Clear all cookie variations (current v4 + legacy v3)
-  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
-  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
-  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=portal.mymineralwatch.com; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+  response.headers.append('Set-Cookie', `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=portal.mymineralwatch.com; Max-Age=0`);
   response.headers.append('Set-Cookie', `${COOKIE_NAME}=; Path=/; Max-Age=0`);
-  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
-  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`);
+  response.headers.append('Set-Cookie', `mw_session_v3=; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
 
   return response;
 }

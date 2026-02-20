@@ -547,7 +547,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             status: 200,
             headers: {
               'Content-Type': 'application/json',
-              'Set-Cookie': `${COOKIE_NAME}=${token}; Path=/; Secure; SameSite=Lax; HttpOnly; Max-Age=2592000`,
+              'Set-Cookie': `${COOKIE_NAME}=${token}; Path=/; Secure; SameSite=Strict; HttpOnly; Max-Age=2592000`,
               ...CORS_HEADERS,
             }
           });
@@ -652,7 +652,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
     addDebug('Token length: ' + fullToken.length);
     
     // Clear any existing session cookie first
-    document.cookie = "mw_session=; path=/; secure; samesite=lax; max-age=0";
+    document.cookie = "mw_session=; path=/; secure; samesite=strict; max-age=0";
     addDebug('Cleared existing session cookie');
     
     // Add a small delay for mobile browsers to ensure cookie is cleared

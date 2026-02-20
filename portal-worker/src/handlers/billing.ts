@@ -327,7 +327,7 @@ setTimeout(checkAndRedirect, 100);
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
+        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Strict; Max-Age=2592000; HttpOnly`
       }
     });
 
