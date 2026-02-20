@@ -122,8 +122,8 @@ export async function getUserFromSession(env: Env, sessionUser: any): Promise<Ai
     return sessionUser.airtableUser;
   }
 
-  // Otherwise, fall back to API call (for backwards compatibility)
-  return getUserById(env, sessionUser.id);
+  // Otherwise, fall back to D1-first lookup
+  return getUserByIdD1First(env, sessionUser.id);
 }
 
 /**

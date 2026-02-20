@@ -4,22 +4,21 @@
  * Returns counts of linked properties, documents, and OCC filings for all wells.
  * Used by the dashboard to populate the Links column in the Wells grid.
  *
- * Data sources (matching what well modal uses):
+ * D1-first: Wells loaded from D1 client_wells (same source as /api/wells/v2).
+ * No Airtable dependency.
+ *
+ * Data sources:
  * - Properties: D1 property_well_links by well_airtable_id
- * - Documents: D1 documents joined with airtable_wells by API number
+ * - Documents: D1 documents joined with client_wells/wells by API number
  * - OCC Filings: D1 occ_docket_entries by well's section/township/range
  */
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtable.js';
-import { BASE_ID, WELLS_TABLE, BATCH_SIZE_D1, ORGANIZATION_TABLE } from '../constants.js';
-import { getAdjacentLocations } from '../utils/property-well-matching.js';
-import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { getUserByIdD1First } from '../services/airtable.js';
+import { BATCH_SIZE_D1 } from '../constants.js';
 import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
 import type { Env } from '../index';
-
-const WELLS_CACHE_TTL = 300; // 5 minutes
 
 // Document types that show on well modals (keep in sync with property-documents-d1.ts WELL_DOC_TYPES)
 const WELL_DOC_TYPES = [
@@ -36,44 +35,16 @@ interface LinkCounts {
   };
 }
 
-interface WellSTR {
-  wellId: string;
-  apiNumber: string;
+interface WellLocation {
   sec: number;
   twn: string;
   rng: string;
 }
 
-/**
- * Get cached wells or fetch from Airtable and cache
- */
-async function getCachedWells(
-  env: Env,
-  cacheKey: string,
-  wellsFilter: string
-): Promise<any[] | null> {
-  try {
-    const cached = await env.OCC_CACHE.get(cacheKey);
-    if (cached) {
-      console.log('[WellLinkCounts] Using cached wells');
-      return JSON.parse(cached);
-    }
-  } catch (err) {
-    console.error('[WellLinkCounts] Cache read error:', err);
-  }
-
-  const wells = await fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter);
-
-  if (wells && wells.length > 0) {
-    try {
-      await env.OCC_CACHE.put(cacheKey, JSON.stringify(wells), { expirationTtl: WELLS_CACHE_TTL });
-      console.log('[WellLinkCounts] Cached', wells.length, 'wells');
-    } catch (err) {
-      console.error('[WellLinkCounts] Cache write error:', err);
-    }
-  }
-
-  return wells;
+interface WellFilingData {
+  wellId: string;
+  apiNumber: string;
+  locations: WellLocation[];  // surface + bottom hole (deduplicated)
 }
 
 /**
@@ -230,85 +201,189 @@ async function fetchDocumentCounts(
 }
 
 /**
- * Fetch OCC filing counts from D1 (direct section only - no adjacent)
- * This matches the well modal behavior which now uses PUN-based queries
+ * Fetch OCC filing counts from D1 using three match paths:
+ * 1. STR matching (surface + bottom hole) against occ_docket_entries
+ * 2. API number matching against occ_docket_entries.api_numbers JSON
+ * 3. Junction table matching against docket_entry_sections
+ *
+ * Uses DISTINCT case_number to deduplicate across all paths.
  */
 async function fetchOCCFilingCounts(
   env: Env,
-  wellSTRs: WellSTR[]
+  wellData: WellFilingData[]
 ): Promise<Map<string, number>> {
   const filingCounts = new Map<string, number>();
 
-  if (wellSTRs.length === 0) return filingCounts;
+  if (wellData.length === 0) return filingCounts;
 
   // Initialize all wells to 0
-  for (const wstr of wellSTRs) {
-    filingCounts.set(wstr.wellId, 0);
+  for (const wd of wellData) {
+    filingCounts.set(wd.wellId, 0);
   }
 
-  // Build map for direct STR lookups only (no adjacent)
-  const directSTRMap: Map<string, string[]> = new Map();
-
-  for (const wstr of wellSTRs) {
-    const directKey = `${wstr.sec}|${wstr.twn}|${wstr.rng}`;
-
-    if (!directSTRMap.has(directKey)) {
-      directSTRMap.set(directKey, []);
+  // Build STR→wellIds map (surface + BH locations combined)
+  const strToWellIds: Map<string, string[]> = new Map();
+  for (const wd of wellData) {
+    for (const loc of wd.locations) {
+      const key = `${loc.sec}|${loc.twn}|${loc.rng}`;
+      if (!strToWellIds.has(key)) strToWellIds.set(key, []);
+      strToWellIds.get(key)!.push(wd.wellId);
     }
-    directSTRMap.get(directKey)!.push(wstr.wellId);
   }
 
-  // Get all unique direct STR keys
-  const allSTRList = Array.from(directSTRMap.keys()).map(key => {
+  // Build API→wellIds map (for API number matching)
+  const apiToWellIds: Map<string, string> = new Map();
+  for (const wd of wellData) {
+    if (wd.apiNumber) apiToWellIds.set(wd.apiNumber, wd.wellId);
+  }
+
+  // Collect case_numbers per wellId using a Set for dedup
+  const wellCaseNumbers: Map<string, Set<string>> = new Map();
+  for (const wd of wellData) {
+    wellCaseNumbers.set(wd.wellId, new Set());
+  }
+
+  const uniqueSTRs = Array.from(strToWellIds.keys()).map(key => {
     const [sec, twn, rng] = key.split('|');
     return { sec: parseInt(sec), twn, rng, key };
   });
 
-  console.log('[WellLinkCounts] Querying', directSTRMap.size, 'direct STR locations (no adjacent)');
+  const uniqueApis = Array.from(apiToWellIds.keys());
 
-  // Query OCC entries in batches (parallelized)
-  const strBatches = chunk(allSTRList, BATCH_SIZE_D1);
-  const strBatchPromises = strBatches.map(async (batch) => {
+  const bhCount = wellData.reduce((n, wd) => n + (wd.locations.length > 1 ? 1 : 0), 0);
+  console.log(`[WellLinkCounts] Filing query: ${uniqueSTRs.length} STR locations (${bhCount} wells with BH), ${uniqueApis.length} API numbers`);
+
+  // --- Path 1: STR matching against occ_docket_entries (surface + BH) ---
+  const strBatches = chunk(uniqueSTRs, BATCH_SIZE_D1);
+  const strPromises = strBatches.map(async (batch) => {
     try {
-      const whereConditions = batch.map(() =>
+      const conditions = batch.map(() =>
         `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
       ).join(' OR ');
-      const whereBindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
+      const bindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
 
-      const query = `
-        SELECT section as sec, township as twn, range as rng, COUNT(*) as count
+      const result = await env.WELLS_DB.prepare(`
+        SELECT case_number, section as sec, township as twn, range as rng
         FROM occ_docket_entries
-        WHERE (${whereConditions})
-        GROUP BY section, township, range
-      `;
-      const result = await env.WELLS_DB.prepare(query).bind(...whereBindings).all();
-      return result.results as { sec: string; twn: string; rng: string; count: number }[] || [];
+        WHERE (${conditions})
+      `).bind(...bindings).all();
+      return result.results as { case_number: string; sec: string; twn: string; rng: string }[] || [];
     } catch (err) {
-      console.error('[WellLinkCounts] Error querying OCC filings:', err);
+      console.error('[WellLinkCounts] Error querying OCC filings (STR):', err);
       return [];
     }
   });
 
-  const strResults = await Promise.all(strBatchPromises);
+  // --- Path 2: API number matching against occ_docket_entries.api_numbers ---
+  // api_numbers is stored as JSON array like ["049-24518","035-20123"]
+  // Use INSTR to find API substrings in the JSON text. Batch by 50 (2 params each = 100 max).
+  const apiBatches = chunk(uniqueApis, 50);
+  const apiPromises = apiBatches.map(async (batch) => {
+    try {
+      const conditions = batch.map(() => `INSTR(api_numbers, ?) > 0`).join(' OR ');
+      const result = await env.WELLS_DB.prepare(`
+        SELECT case_number, api_numbers
+        FROM occ_docket_entries
+        WHERE api_numbers IS NOT NULL AND (${conditions})
+      `).bind(...batch).all();
+      return result.results as { case_number: string; api_numbers: string }[] || [];
+    } catch (err) {
+      console.error('[WellLinkCounts] Error querying OCC filings (API):', err);
+      return [];
+    }
+  });
 
-  // Process results - direct matches only
+  // --- Path 3: Junction table (docket_entry_sections) matching ---
+  const junctionBatches = chunk(uniqueSTRs, BATCH_SIZE_D1);
+  const junctionPromises = junctionBatches.map(async (batch) => {
+    try {
+      const conditions = batch.map(() =>
+        `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
+      ).join(' OR ');
+      const bindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
+
+      const result = await env.WELLS_DB.prepare(`
+        SELECT case_number, section as sec, township as twn, range as rng
+        FROM docket_entry_sections
+        WHERE (${conditions})
+      `).bind(...bindings).all();
+      return result.results as { case_number: string; sec: string; twn: string; rng: string }[] || [];
+    } catch (err) {
+      console.error('[WellLinkCounts] Error querying docket_entry_sections:', err);
+      return [];
+    }
+  });
+
+  // Run all three paths in parallel
+  const [strResults, apiResults, junctionResults] = await Promise.all([
+    Promise.all(strPromises),
+    Promise.all(apiPromises),
+    Promise.all(junctionPromises)
+  ]);
+
+  // Process Path 1 results: STR matches
   for (const rows of strResults) {
     for (const row of rows) {
       const normSec = normalizeSection(row.sec);
       const normTwn = normalizeTownship(row.twn);
       const normRng = normalizeRange(row.rng);
-
       if (normSec === null || !normTwn || !normRng) continue;
 
       const strKey = `${normSec}|${normTwn}|${normRng}`;
-
-      // Direct matches only
-      const directWells = directSTRMap.get(strKey) || [];
-      for (const wellId of directWells) {
-        filingCounts.set(wellId, (filingCounts.get(wellId) || 0) + row.count);
+      const wellIds = strToWellIds.get(strKey) || [];
+      for (const wellId of wellIds) {
+        wellCaseNumbers.get(wellId)!.add(row.case_number);
       }
     }
   }
+
+  // Process Path 2 results: API number matches
+  for (const rows of apiResults) {
+    for (const row of rows) {
+      // Parse api_numbers JSON and match against our well API numbers
+      try {
+        const apis: string[] = JSON.parse(row.api_numbers);
+        for (const api of apis) {
+          const wellId = apiToWellIds.get(api);
+          if (wellId) {
+            wellCaseNumbers.get(wellId)!.add(row.case_number);
+          }
+        }
+      } catch {
+        // Malformed JSON — try substring match as fallback
+        for (const [api, wellId] of apiToWellIds) {
+          if (row.api_numbers.includes(api)) {
+            wellCaseNumbers.get(wellId)!.add(row.case_number);
+          }
+        }
+      }
+    }
+  }
+
+  // Process Path 3 results: Junction table matches
+  for (const rows of junctionResults) {
+    for (const row of rows) {
+      const normSec = normalizeSection(row.sec);
+      const normTwn = normalizeTownship(row.twn);
+      const normRng = normalizeRange(row.rng);
+      if (normSec === null || !normTwn || !normRng) continue;
+
+      const strKey = `${normSec}|${normTwn}|${normRng}`;
+      const wellIds = strToWellIds.get(strKey) || [];
+      for (const wellId of wellIds) {
+        wellCaseNumbers.get(wellId)!.add(row.case_number);
+      }
+    }
+  }
+
+  // Convert Sets to counts
+  for (const [wellId, cases] of wellCaseNumbers) {
+    filingCounts.set(wellId, cases.size);
+  }
+
+  const wellsWithFilings = wellData.filter(wd => filingCounts.get(wd.wellId)! > 0).length;
+  const totalFilings = Array.from(filingCounts.values()).reduce((a, b) => a + b, 0);
+  console.log(`[WellLinkCounts] Filing results: ${wellsWithFilings} wells with filings, ${totalFilings} total case matches`);
 
   return filingCounts;
 }
@@ -316,8 +391,10 @@ async function fetchOCCFilingCounts(
 /**
  * Get link counts for all wells belonging to the authenticated user
  *
+ * D1-first: Loads wells from D1 client_wells (same as /api/wells/v2).
+ * No Airtable dependency.
+ *
  * Optimizations:
- * - Wells cached in KV for 5 minutes (user/org-specific)
  * - Properties, documents, and OCC queries run in parallel
  * - D1 batches run in parallel within each category
  */
@@ -330,106 +407,77 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
   const counts: LinkCounts = {};
 
   try {
-    const userRecord = await getUserFromSession(env, user);
-    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+    // Get user record (D1-first) for org membership
+    const userRecord = await getUserByIdD1First(env, user.id);
+    const organizationId = userRecord?.fields.Organization?.[0];
     const tSession = Date.now();
 
-    // Build cache key and filter
-    const organizationId = userRecord.fields.Organization?.[0];
-    const cacheKey = `link-counts:wells:${organizationId || user.id}`;
-    let wellsFilter: string;
+    // Query wells from D1 (same ownership pattern as /api/wells/v2)
+    const whereClause = organizationId
+      ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      : `WHERE cw.user_id = ?`;
+    const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
 
-    const userEmail = escapeAirtableValue(user.email);
+    const wellsResult = await env.WELLS_DB!.prepare(`
+      SELECT cw.airtable_id, cw.api_number, cw.section, cw.township, cw.range_val,
+             w.section AS occ_section, w.township AS occ_township, w.range AS occ_range,
+             w.bh_section, w.bh_township, w.bh_range
+      FROM client_wells cw
+      LEFT JOIN wells w ON w.api_number = cw.api_number
+      ${whereClause}
+    `).bind(...bindParams).all();
 
-    if (organizationId) {
-      const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-        { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-      );
-
-      if (orgResponse.ok) {
-        const org = await orgResponse.json() as any;
-        const orgName = escapeAirtableValue(org.fields.Name || '');
-        const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-        const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
-        wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-      } else {
-        wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-      }
-    } else {
-      wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-    }
-    const tOrgLookup = Date.now();
-
-    // Get wells (cached or fresh)
-    const wells = await getCachedWells(env, cacheKey, wellsFilter);
+    const wells = wellsResult.results || [];
     const tWellsFetch = Date.now();
-    console.log(`[WellLinkCounts timing] auth=${tAuth-start}ms session=${tSession-tAuth}ms orgLookup=${tOrgLookup-tSession}ms wellsFetch=${tWellsFetch-tOrgLookup}ms (${wells?.length || 0} wells)`);
+    console.log(`[WellLinkCounts timing] auth=${tAuth-start}ms session=${tSession-tAuth}ms wellsFetch=${tWellsFetch-tSession}ms (${wells.length} wells)`);
 
-    if (!wells || wells.length === 0) {
+    if (wells.length === 0) {
       return jsonResponse(counts);
     }
 
-    // Initialize counts and collect API numbers
-    const wellSTRs: WellSTR[] = [];
+    // Initialize counts and collect data for parallel queries
+    const wellFilingData: WellFilingData[] = [];
     const wellIds: string[] = [];
     const apiNumbers: string[] = [];
     const apiToWellId: Map<string, string> = new Map();
-    const wellsNeedingTRS: string[] = []; // API numbers that don't have TRS in Airtable
 
-    for (const well of wells) {
-      counts[well.id] = { properties: 0, documents: 0, filings: 0 };
-      wellIds.push(well.id);
+    for (const row of wells as any[]) {
+      const wellId = row.airtable_id; // Matches V2 response id field
+      if (!wellId) continue;
 
-      const apiNumber = well.fields?.['API Number'];
-      if (apiNumber) {
-        apiNumbers.push(apiNumber);
-        apiToWellId.set(apiNumber, well.id);
+      counts[wellId] = { properties: 0, documents: 0, filings: 0 };
+      wellIds.push(wellId);
+
+      if (row.api_number) {
+        apiNumbers.push(row.api_number);
+        apiToWellId.set(row.api_number, wellId);
       }
 
-      const sec = normalizeSection(well.fields?.Section);
-      const twn = normalizeTownship(well.fields?.Township);
-      const rng = normalizeRange(well.fields?.Range);
+      // Collect all STR locations for this well (surface + bottom hole)
+      const locations: WellLocation[] = [];
 
+      // Surface location: prefer OCC well data, fall back to client_wells
+      const sec = normalizeSection(row.occ_section ?? row.section);
+      const twn = normalizeTownship(row.occ_township ?? row.township);
+      const rng = normalizeRange(row.occ_range ?? row.range_val);
       if (sec !== null && twn && rng) {
-        wellSTRs.push({ wellId: well.id, apiNumber: apiNumber || '', sec, twn, rng });
-      } else if (apiNumber) {
-        // Mark for D1 lookup
-        wellsNeedingTRS.push(apiNumber);
+        locations.push({ sec, twn, rng });
       }
-    }
 
-    // Fetch TRS data from D1 for wells that don't have it in Airtable
-    if (wellsNeedingTRS.length > 0) {
-      try {
-        const trsBatches = chunk(wellsNeedingTRS, BATCH_SIZE_D1);
-        const trsPromises = trsBatches.map(async (batch) => {
-          const placeholders = batch.map(() => '?').join(', ');
-          const result = await env.WELLS_DB.prepare(`
-            SELECT api_number, section, township, range
-            FROM wells
-            WHERE api_number IN (${placeholders})
-          `).bind(...batch).all();
-          return result.results as { api_number: string; section: number; township: string; range: string }[] || [];
-        });
-        const trsResults = await Promise.all(trsPromises);
-
-        for (const rows of trsResults) {
-          for (const row of rows) {
-            const wellId = apiToWellId.get(row.api_number);
-            if (wellId) {
-              const sec = normalizeSection(row.section);
-              const twn = normalizeTownship(row.township);
-              const rng = normalizeRange(row.range);
-              if (sec !== null && twn && rng) {
-                wellSTRs.push({ wellId, apiNumber: row.api_number, sec, twn, rng });
-              }
-            }
-          }
+      // Bottom hole location (for horizontals — different section than surface)
+      const bhSec = normalizeSection(row.bh_section);
+      const bhTwn = normalizeTownship(row.bh_township);
+      const bhRng = normalizeRange(row.bh_range);
+      if (bhSec !== null && bhTwn && bhRng) {
+        // Only add if different from surface location
+        const isDuplicate = sec === bhSec && twn === bhTwn && rng === bhRng;
+        if (!isDuplicate) {
+          locations.push({ sec: bhSec, twn: bhTwn, rng: bhRng });
         }
-        console.log(`[WellLinkCounts] Fetched TRS from D1 for ${wellsNeedingTRS.length} wells, found ${wellSTRs.length} with valid TRS`);
-      } catch (err) {
-        console.error('[WellLinkCounts] Error fetching TRS from D1:', err);
+      }
+
+      if (locations.length > 0 || row.api_number) {
+        wellFilingData.push({ wellId, apiNumber: row.api_number || '', locations });
       }
     }
 
@@ -438,7 +486,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     const [propertyCounts, docCounts, filingCounts] = await Promise.all([
       fetchPropertyCounts(env, wellIds),
       fetchDocumentCounts(env, apiNumbers, apiToWellId),
-      fetchOCCFilingCounts(env, wellSTRs)
+      fetchOCCFilingCounts(env, wellFilingData)
     ]);
     const tD1End = Date.now();
 
