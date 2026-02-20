@@ -6,7 +6,7 @@
  */
 
 import { COOKIE_NAME, SUPER_ADMIN_EMAILS, BASE_ID, ORGANIZATION_TABLE, SESSION_EXPIRY } from '../constants.js';
-import { getUserById } from '../services/airtable.js';
+import { getUserById, getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 // Per-Worker-instance dedup for D1 user upserts.
@@ -97,8 +97,8 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
       }
     }
 
-    // 5. Fetch fresh user data from Airtable (direct record fetch by ID — fast)
-    const userRecord = await getUserById(env, payload.id);
+    // 5. Fetch user data — D1 first (fast, resilient), Airtable fallback
+    const userRecord = await getUserByIdD1First(env, payload.id);
     if (!userRecord) return null;
 
     // 6. Construct SessionPayload (same shape as before — all handlers work unchanged)
@@ -129,7 +129,7 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
         return sessionPayload;
       }
 
-      const targetUser = await getUserById(env, actAs);
+      const targetUser = await getUserByIdD1First(env, actAs);
       if (!targetUser) {
         console.warn(`[Impersonate] Target user ${actAs} not found`);
         return sessionPayload;

@@ -31,7 +31,9 @@ import {
 
 import {
   findUserByEmail,
-  getUserById
+  findUserByEmailD1First,
+  getUserById,
+  getUserByIdD1First
 } from '../services/airtable.js';
 
 import {
@@ -56,7 +58,7 @@ export async function handleSendMagicLink(request: Request, env: Env) {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await findUserByEmail(env, normalizedEmail);
+    const user = await findUserByEmailD1First(env, normalizedEmail);
 
     // Silent success if user doesn't exist or is inactive (prevents email enumeration)
     if (!user || user.fields.Status !== 'Active') {
@@ -166,9 +168,9 @@ export async function handleVerifyMagicLink(request: Request, env: Env, url: URL
     exp: Date.now() + SESSION_EXPIRY
   });
 
-  // JIT D1 user sync — fetch full user record and upsert before setting cookie
+  // JIT D1 user sync — fetch user record (D1-first) and upsert before setting cookie
   try {
-    const userRecord = await getUserById(env, payload.id);
+    const userRecord = await getUserByIdD1First(env, payload.id);
     if (userRecord) {
       await ensureUserInD1(env, userRecord);
     }
@@ -234,8 +236,8 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     return jsonResponse({ error: 'Session expired' }, 401);
   }
 
-  // Fresh Airtable lookup
-  const user = await findUserByEmail(env, payload.email);
+  // D1-first user lookup (Airtable fallback for brand-new users)
+  const user = await findUserByEmailD1First(env, payload.email);
   if (!user) {
     return jsonResponse({ error: 'User not found' }, 401);
   }

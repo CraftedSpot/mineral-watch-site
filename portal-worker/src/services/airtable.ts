@@ -113,9 +113,78 @@ export async function getUserFromSession(env: Env, sessionUser: any): Promise<Ai
   if (sessionUser.airtableUser) {
     return sessionUser.airtableUser;
   }
-  
+
   // Otherwise, fall back to API call (for backwards compatibility)
   return getUserById(env, sessionUser.id);
+}
+
+/**
+ * Convert a D1 users row to AirtableUser shape.
+ * Allows all existing handlers to work unchanged — they expect { id, fields: { ... } }.
+ */
+function d1RowToAirtableUser(row: any): AirtableUser {
+  return {
+    id: row.airtable_record_id,
+    fields: {
+      Email: row.email,
+      Name: row.name,
+      Plan: row.plan || 'Free',
+      Status: row.status || 'Active',
+      Organization: row.organization_id ? [row.organization_id] : [],
+      Role: row.role || 'Viewer',
+      'Stripe Customer ID': row.stripe_customer_id || undefined
+    }
+  };
+}
+
+/**
+ * D1-first user lookup by email with Airtable fallback.
+ * Survives Airtable outages for existing users. Falls back to Airtable
+ * for brand-new users before JIT sync (shouldn't happen in practice).
+ */
+export async function findUserByEmailD1First(env: Env, email: string): Promise<AirtableUser | null> {
+  // 1. Try D1
+  if (env.WELLS_DB) {
+    try {
+      const row = await env.WELLS_DB.prepare(
+        `SELECT airtable_record_id, email, name, plan, status,
+                organization_id, role, stripe_customer_id
+         FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`
+      ).bind(email).first();
+      if (row) return d1RowToAirtableUser(row);
+    } catch (e) {
+      console.warn('[Auth] D1 user lookup failed, trying Airtable:', (e as Error).message);
+    }
+  }
+  // 2. Fallback to Airtable (handles brand-new users before JIT sync)
+  try {
+    return await findUserByEmail(env, email);
+  } catch (e) {
+    console.error('[Auth] Airtable fallback also failed:', (e as Error).message);
+    return null;
+  }
+}
+
+/**
+ * D1-first user lookup by Airtable record ID with Airtable fallback.
+ * Used by authenticateRequest() on every API call — this is the critical path.
+ */
+export async function getUserByIdD1First(env: Env, userId: string): Promise<AirtableUser | null> {
+  // 1. Try D1
+  if (env.WELLS_DB) {
+    try {
+      const row = await env.WELLS_DB.prepare(
+        `SELECT airtable_record_id, email, name, plan, status,
+                organization_id, role, stripe_customer_id
+         FROM users WHERE airtable_record_id = ? LIMIT 1`
+      ).bind(userId).first();
+      if (row) return d1RowToAirtableUser(row);
+    } catch (e) {
+      console.warn('[Auth] D1 user lookup failed, trying Airtable:', (e as Error).message);
+    }
+  }
+  // 2. Fallback to Airtable
+  return getUserById(env, userId);
 }
 
 /**
