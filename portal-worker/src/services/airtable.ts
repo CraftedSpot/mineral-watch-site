@@ -308,9 +308,9 @@ export async function checkDuplicateWell(env: Env, userEmail: string, apiNumber:
 export async function countUserPropertiesD1(env: Env, userId: string, organizationId?: string): Promise<number> {
   if (!env.WELLS_DB) return 0;
   const q = organizationId
-    ? `SELECT COUNT(*) as cnt FROM properties WHERE user_id = ? OR organization_id = ?`
+    ? `SELECT COUNT(*) as cnt FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `SELECT COUNT(*) as cnt FROM properties WHERE user_id = ?`;
-  const params = organizationId ? [userId, organizationId] : [userId];
+  const params = organizationId ? [organizationId, organizationId] : [userId];
   const result = await env.WELLS_DB.prepare(q).bind(...params).first();
   return (result as any)?.cnt || 0;
 }
@@ -319,9 +319,9 @@ export async function countUserPropertiesD1(env: Env, userId: string, organizati
 export async function countUserWellsD1(env: Env, userId: string, organizationId?: string): Promise<number> {
   if (!env.WELLS_DB) return 0;
   const q = organizationId
-    ? `SELECT COUNT(*) as cnt FROM client_wells WHERE user_id = ? OR organization_id = ?`
+    ? `SELECT COUNT(*) as cnt FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `SELECT COUNT(*) as cnt FROM client_wells WHERE user_id = ?`;
-  const params = organizationId ? [userId, organizationId] : [userId];
+  const params = organizationId ? [organizationId, organizationId] : [userId];
   const result = await env.WELLS_DB.prepare(q).bind(...params).first();
   return (result as any)?.cnt || 0;
 }
@@ -333,9 +333,9 @@ export async function checkDuplicatePropertyD1(
 ): Promise<boolean> {
   if (!env.WELLS_DB) return false;
   const ownerClause = organizationId
-    ? `(user_id = ? OR organization_id = ?)`
+    ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `user_id = ?`;
-  const ownerParams = organizationId ? [userId, organizationId] : [userId];
+  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
   const result = await env.WELLS_DB.prepare(
     `SELECT 1 FROM properties WHERE ${ownerClause} AND county = ? AND section = ? AND township = ? AND range = ? LIMIT 1`
   ).bind(...ownerParams, county, section, township, range).first();
@@ -348,9 +348,9 @@ export async function checkDuplicateWellD1(
 ): Promise<boolean> {
   if (!env.WELLS_DB) return false;
   const ownerClause = organizationId
-    ? `(user_id = ? OR organization_id = ?)`
+    ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `user_id = ?`;
-  const ownerParams = organizationId ? [userId, organizationId] : [userId];
+  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
   const result = await env.WELLS_DB.prepare(
     `SELECT 1 FROM client_wells WHERE ${ownerClause} AND api_number = ? LIMIT 1`
   ).bind(...ownerParams, apiNumber).first();
@@ -363,9 +363,9 @@ export async function fetchUserWellsD1(
 ): Promise<SimplifiedWell[]> {
   if (!env.WELLS_DB) return [];
   const q = organizationId
-    ? `SELECT airtable_id, api_number, well_name FROM client_wells WHERE user_id = ? OR organization_id = ?`
+    ? `SELECT airtable_id, api_number, well_name FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `SELECT airtable_id, api_number, well_name FROM client_wells WHERE user_id = ?`;
-  const params = organizationId ? [userId, organizationId] : [userId];
+  const params = organizationId ? [organizationId, organizationId] : [userId];
   const result = await env.WELLS_DB.prepare(q).bind(...params).all();
   return (result.results || []).map((r: any) => ({
     id: r.airtable_id || '',

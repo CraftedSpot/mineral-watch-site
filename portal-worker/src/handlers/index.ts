@@ -247,6 +247,11 @@ export {
   handleWellProduction
 } from './tools-revenue.js';
 
+// Dashboard counts handler (lightweight usage bar counts)
+export {
+  handleGetDashboardCounts
+} from './dashboard-counts.js';
+
 // County records handlers (OKCountyRecords integration)
 export {
   handleCountyRecordsCounties,

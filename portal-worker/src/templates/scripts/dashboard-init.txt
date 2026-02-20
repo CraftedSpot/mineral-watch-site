@@ -286,8 +286,21 @@
         let activityInitialized = false;
         let documentsInitialized = false;
 
+        async function loadBarCounts() {
+            try {
+                const res = await fetch('/api/dashboard/counts');
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('wellCount').textContent = data.wells;
+                    if (document.getElementById('docCount')) {
+                        document.getElementById('docCount').textContent = data.documents;
+                    }
+                }
+            } catch {}
+        }
+
         async function loadAllData() {
-            const promises = [loadProperties(), loadActivityStats()];
+            const promises = [loadProperties(), loadActivityStats(), loadBarCounts()];
 
             // Reload tabs that have already been initialized (for post-mutation refresh)
             if (wellsInitialized) promises.push(loadWells());

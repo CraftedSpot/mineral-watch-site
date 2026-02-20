@@ -63,7 +63,7 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
 
   // Build WHERE clause — org members see all properties belonging to any user in the org
   const whereClause = organizationId
-    ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT id FROM users WHERE organization_id = ?))`
+    ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `WHERE p.user_id = ?`;
   const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
 

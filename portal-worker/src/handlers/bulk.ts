@@ -503,9 +503,9 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   let existingRows: any[];
   if (organizationId) {
     const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE organization_id = ? OR user_id = ?`
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     );
-    existingRows = (await stmt.bind(organizationId, user.id).all()).results || [];
+    existingRows = (await stmt.bind(organizationId, organizationId).all()).results || [];
   } else {
     const stmt = env.WELLS_DB.prepare(
       `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`
@@ -674,9 +674,9 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   let existingRows: any[];
   if (existingOrgId) {
     const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE organization_id = ? OR user_id = ?`
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     );
-    existingRows = (await stmt.bind(existingOrgId, targetUserId).all()).results || [];
+    existingRows = (await stmt.bind(existingOrgId, existingOrgId).all()).results || [];
   } else {
     const stmt = env.WELLS_DB.prepare(
       `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`

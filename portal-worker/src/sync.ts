@@ -248,7 +248,7 @@ function buildPropertyUpsert(env: any, record: AirtableRecord) {
       owner = excluded.owner,
       group_name = excluded.group_name,
       user_id = excluded.user_id,
-      organization_id = excluded.organization_id,
+      organization_id = COALESCE(excluded.organization_id, properties.organization_id),
       monitor_adjacent = excluded.monitor_adjacent,
       status = excluded.status,
       occ_map_link = excluded.occ_map_link,
@@ -297,7 +297,7 @@ function buildClientWellUpsert(env: any, record: AirtableRecord) {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(airtable_id) DO UPDATE SET
       user_id = excluded.user_id,
-      organization_id = excluded.organization_id,
+      organization_id = COALESCE(excluded.organization_id, client_wells.organization_id),
       api_number = excluded.api_number,
       well_name = COALESCE(excluded.well_name, client_wells.well_name),
       operator = COALESCE(excluded.operator, client_wells.operator),
@@ -758,11 +758,11 @@ async function reconcileLinkCounts(env: any): Promise<void> {
     const userId = owner.user_id;
     const orgId = owner.organization_id;
 
-    // Build owner WHERE clause
+    // Build owner WHERE clause — include all org members' data
     const ownerWhere = orgId
-      ? `(p.organization_id = ? OR p.user_id = ?)`
+      ? `(p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
       : `p.user_id = ?`;
-    const ownerParams = orgId ? [orgId, userId] : [userId];
+    const ownerParams = orgId ? [orgId, orgId] : [userId];
 
     try {
       // Get current properties with their stored counts
@@ -784,7 +784,7 @@ async function reconcileLinkCounts(env: any): Promise<void> {
       // 1. Well counts — use owner filter on links table
       const wellMap = new Map<string, number>();
       const ownerLinkWhere = orgId
-        ? `(organization_id = ? OR user_id = ?)`
+        ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
         : `user_id = ?`;
       const wellResult = await env.WELLS_DB.prepare(`
         SELECT property_airtable_id, COUNT(*) as cnt

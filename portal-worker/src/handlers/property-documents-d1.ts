@@ -74,9 +74,9 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
         )
           AND (deleted_at IS NULL OR deleted_at = '')
           AND doc_type IN (${docTypeList})
-          AND (user_id = ? OR organization_id = ?)
+          AND (organization_id = ? OR user_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
         ORDER BY upload_date DESC
-      `).bind(propertyId, startsWithPattern, endsWithPattern, containsPattern, authUser.id, userOrgId).all();
+      `).bind(propertyId, startsWithPattern, endsWithPattern, containsPattern, userOrgId, authUser.id, userOrgId).all();
       
       console.log(`[GetPropertyDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       

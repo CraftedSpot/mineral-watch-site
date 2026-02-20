@@ -201,7 +201,9 @@ import {
   handleCountyRecordsCounties,
   handleCountyRecordsInstrumentTypes,
   handleCountyRecordsSearch,
-  handleCountyRecordsRetrieve
+  handleCountyRecordsRetrieve,
+  // Dashboard counts handler
+  handleGetDashboardCounts
 } from './handlers/index.js';
 
 import { rateLimit, rateLimitUser } from './utils/rate-limit.js';
@@ -1001,6 +1003,11 @@ var index_default = {
       }
       if (path === "/api/tools/well-production" && request.method === "GET") {
         return handleWellProduction(request, env);
+      }
+
+      // Dashboard counts (lightweight usage bar)
+      if (path === "/api/dashboard/counts" && request.method === "GET") {
+        return handleGetDashboardCounts(request, env);
       }
 
       // Properties endpoints

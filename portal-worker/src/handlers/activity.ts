@@ -83,11 +83,11 @@ export async function handleListActivity(request: Request, env: Env) {
     if (days) {
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - parseInt(days));
-      query = `SELECT * FROM activity_log WHERE (user_id = ? OR organization_id = ?) AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
-      params.push(user.id, orgId, sinceDate.toISOString(), recordLimit);
+      query = `SELECT * FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
+      params.push(orgId, orgId, sinceDate.toISOString(), recordLimit);
     } else {
-      query = `SELECT * FROM activity_log WHERE (user_id = ? OR organization_id = ?) ORDER BY detected_at DESC LIMIT ?`;
-      params.push(user.id, orgId, recordLimit);
+      query = `SELECT * FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) ORDER BY detected_at DESC LIMIT ?`;
+      params.push(orgId, orgId, recordLimit);
     }
   } else {
     if (days) {
@@ -146,8 +146,8 @@ export async function handleActivityStats(request: Request, env: Env) {
 
     if (userOrganizations.length > 0) {
       const orgId = userOrganizations[0];
-      whereClause = '(user_id = ? OR organization_id = ?)';
-      baseParams.push(user.id, orgId);
+      whereClause = '(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))';
+      baseParams.push(orgId, orgId);
     } else {
       whereClause = 'user_id = ?';
       baseParams.push(user.id);

@@ -456,7 +456,7 @@ export async function handleListWellsV2(request: Request, env: Env) {
 
   // Build WHERE clause — org members see all wells belonging to any user in the org
   const whereClause = organizationId
-    ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))`
+    ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `WHERE cw.user_id = ?`;
   const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
 

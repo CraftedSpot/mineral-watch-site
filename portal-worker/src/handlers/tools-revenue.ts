@@ -79,11 +79,11 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   const userId = session.id;
   const orgId = session.airtableUser?.fields?.Organization?.[0] || null;
 
-  // 1. Verify property ownership and get property data
+  // 1. Verify property ownership and get property data — org members can access all org properties
   const propQuery = orgId
-    ? `SELECT * FROM properties WHERE airtable_record_id = ? AND (organization_id = ? OR user_id = ?)`
+    ? `SELECT * FROM properties WHERE airtable_record_id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
     : `SELECT * FROM properties WHERE airtable_record_id = ? AND user_id = ?`;
-  const propBinds = orgId ? [propertyId, orgId, userId] : [propertyId, userId];
+  const propBinds = orgId ? [propertyId, orgId, orgId] : [propertyId, userId];
 
   const propResult = await env.WELLS_DB!.prepare(propQuery).bind(...propBinds).first() as any;
   if (!propResult) return jsonResponse({ error: 'Property not found' }, 404);
