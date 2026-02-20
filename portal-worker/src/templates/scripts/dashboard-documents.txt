@@ -7368,10 +7368,6 @@
         
         // Document Usage Tracking
         let currentUsageStats = null;
-        // Track rolling credits baseline in localStorage so it persists across page refreshes
-        let rollingCreditsBaseline = localStorage.getItem('rollingCreditsBaseline')
-            ? parseInt(localStorage.getItem('rollingCreditsBaseline'), 10)
-            : null;
         
         async function loadUsageStats() {
             try {
@@ -7429,23 +7425,17 @@
                 rollingRow.style.display = 'grid';
                 document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
 
-                // Track baseline on first load (or if credits increased, e.g., purchased more)
-                if (rollingCreditsBaseline === null || rollingCredits > rollingCreditsBaseline) {
-                    rollingCreditsBaseline = rollingCredits;
-                    localStorage.setItem('rollingCreditsBaseline', rollingCredits.toString());
-                }
+                // Server-side baseline: total credits ever purchased + current permanent credits
+                // This works across all devices (no localStorage dependency)
+                const rollingBaseline = Math.max(
+                    (usage.total_credits_purchased || 0) + (usage.permanent_credits || 0),
+                    rollingCredits
+                );
 
-                // If rolling credits hit 0, clear baseline so it resets on next purchase
-                if (rollingCredits === 0 && rollingCreditsBaseline !== null) {
-                    rollingCreditsBaseline = null;
-                    localStorage.removeItem('rollingCreditsBaseline');
-                }
-
-                // Rolling bar - show percentage relative to baseline
-                // This makes the bar deplete visually as rolling credits are used during the session
+                // Rolling bar - show percentage relative to server-side baseline
                 const rollingBarFill = document.getElementById('rollingBarFill');
-                const rollingPercentage = rollingCreditsBaseline > 0
-                    ? Math.min(100, (rollingCredits / rollingCreditsBaseline) * 100)
+                const rollingPercentage = rollingBaseline > 0
+                    ? Math.min(100, (rollingCredits / rollingBaseline) * 100)
                     : 0;
                 rollingBarFill.style.width = rollingPercentage + '%';
 
@@ -7453,7 +7443,7 @@
                 rollingBarFill.classList.remove('warning', 'danger');
                 if (rollingCredits === 0) {
                     rollingBarFill.classList.add('danger');
-                } else if (rollingCredits <= rollingCreditsBaseline * 0.2) {
+                } else if (rollingCredits <= rollingBaseline * 0.2) {
                     rollingBarFill.classList.add('warning');
                 }
             } else {

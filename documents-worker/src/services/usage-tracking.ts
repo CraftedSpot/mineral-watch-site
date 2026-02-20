@@ -13,6 +13,7 @@ export interface UsageStats {
   total_available: number;
   reset_date: string;
   is_lifetime_tier: boolean;
+  total_credits_purchased: number;  // lifetime sum of all purchased credit packs
 }
 
 export interface CreditCheckResult {
@@ -173,6 +174,12 @@ export class UsageTrackingService {
     const usage = await this.getOrCreateUsageRecord(userId, userPlan);
     const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
 
+    // Get total credits ever purchased (for rolling bar baseline across devices)
+    const purchaseHistoryRow = await this.db.prepare(
+      `SELECT COALESCE(SUM(credits), 0) as total FROM credit_purchase_history WHERE user_id = ?`
+    ).bind(userId).first<{ total: number }>();
+    const totalCreditsPurchased = purchaseHistoryRow?.total || 0;
+
     let monthlyRemaining: number;
     let purchasedCredits: number;
     let permanentCredits: number;  // bonus credits
@@ -207,7 +214,8 @@ export class UsageTrackingService {
       percentage_used: tierLimit.monthly > 0 ? Math.round((usage.monthly_credits_used / tierLimit.monthly) * 100) : 0,
       total_available: totalAvailable,
       reset_date: resetDate.toISOString().split('T')[0],
-      is_lifetime_tier: isLifetimeTier
+      is_lifetime_tier: isLifetimeTier,
+      total_credits_purchased: totalCreditsPurchased
     };
   }
 

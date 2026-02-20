@@ -1,6 +1,7 @@
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; --accent-blue: #3498db; --accent-blue-light: #ebf5fb; --warning-amber: #d97706; --warning-amber-light: #fef3c7; --danger-red: #dc2626; --danger-red-light: #fef2f2; --text-muted: #94a3b8; --border-light: #f1f5f9; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; display: flex; flex-direction: column; }
+        footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; margin-top: auto; }
         h1, h2, .logo { font-family: 'Merriweather', serif; }
         header { background: var(--oil-navy); padding: 15px 0; color: white; }
         .container { max-width: 1600px; margin: 0 auto; padding: 0 25px; }
