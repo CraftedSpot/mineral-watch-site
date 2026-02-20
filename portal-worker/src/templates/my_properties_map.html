@@ -607,37 +607,67 @@
             adjacentLayer.addTo(map);
         }
         
+        const MAP_CACHE_KEY = 'mw_map_cache';
+        const MAP_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
         async function loadProperties() {
+            // Try sessionStorage cache first
+            try {
+                const cached = sessionStorage.getItem(MAP_CACHE_KEY);
+                if (cached) {
+                    const { ts, items } = JSON.parse(cached);
+                    if (Date.now() - ts < MAP_CACHE_TTL && items.length > 0) {
+                        for (const { prop, geo } of items) {
+                            addPropertyToMap(prop, geo);
+                        }
+                        document.getElementById('mapLoading').style.display = 'none';
+                        document.getElementById('propertyCountInfo').textContent =
+                            `${items.length} properties loaded`;
+                        if (propertiesLayer.getLayers().length > 0) {
+                            map.fitBounds(propertiesLayer.getBounds(), { padding: [50, 50] });
+                        }
+                        return;
+                    }
+                }
+            } catch (_) { /* cache miss or parse error — fall through */ }
+
             document.getElementById('mapLoading').style.display = 'flex';
-            
+
             const res = await fetch('/api/properties');
             const properties = await res.json();
-            
+
             let loaded = 0;
             const total = properties.length;
-            
+            const cacheItems = [];
+
             for (const prop of properties) {
                 const f = prop.fields;
                 // Strip any T/R prefixes from the values
                 const sec = f.SEC.replace(/^S/i, '');
                 const twn = f.TWN.replace(/^T/i, '');
                 const rng = f.RNG.replace(/^R/i, '');
-                
+
                 const geometry = await fetchSectionGeometry(sec, twn, rng);
-                
+
                 if (geometry) {
                     addPropertyToMap(prop, geometry);
+                    cacheItems.push({ prop, geo: geometry });
                 }
-                
+
                 loaded++;
-                document.querySelector('.loading-text').textContent = 
+                document.querySelector('.loading-text').textContent =
                     `Loading ${loaded} of ${total} properties...`;
             }
-            
+
+            // Cache assembled map data
+            try {
+                sessionStorage.setItem(MAP_CACHE_KEY, JSON.stringify({ ts: Date.now(), items: cacheItems }));
+            } catch (_) { /* quota exceeded — skip */ }
+
             document.getElementById('mapLoading').style.display = 'none';
-            document.getElementById('propertyCountInfo').textContent = 
+            document.getElementById('propertyCountInfo').textContent =
                 `${properties.length} properties loaded`;
-            
+
             // Fit map to show all properties
             if (propertiesLayer.getLayers().length > 0) {
                 map.fitBounds(propertiesLayer.getBounds(), { padding: [50, 50] });
