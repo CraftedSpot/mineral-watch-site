@@ -5,7 +5,7 @@
 import { BASE_ID, ORGANIZATION_TABLE, PROPERTIES_TABLE, WELLS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
+import { getUserByIdD1First, fetchAllAirtableRecords } from '../services/airtable.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import {
   LINK_FIELDS,
@@ -35,7 +35,7 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
     }
     
     // Get full user record
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userId = authUser.id;

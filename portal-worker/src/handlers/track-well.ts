@@ -16,7 +16,7 @@ import {
 } from '../utils/auth.js';
 
 import {
-  getUserById,
+  getUserByIdD1First,
   countUserWells,
   countUserWellsD1,
   checkDuplicateWell,
@@ -313,7 +313,7 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
     try {
       // Get user record
       console.log(`[Track Well] Getting user record for ID: ${userId}`);
-      const userRecord = await getUserById(env, userId);
+      const userRecord = await getUserByIdD1First(env, userId);
       if (!userRecord) {
         console.log(`[Track Well] User not found: ${userId}`);
         return new Response(generateTrackWellErrorPage('User not found. Please contact support.'), {

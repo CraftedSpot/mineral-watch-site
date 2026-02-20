@@ -30,9 +30,7 @@ import {
 } from '../utils/auth.js';
 
 import {
-  findUserByEmail,
   findUserByEmailD1First,
-  getUserById,
   getUserByIdD1First,
   getOrganizationD1First
 } from '../services/airtable.js';
@@ -388,7 +386,7 @@ export async function handleRegister(request: Request, env: Env) {
     
     // Check if user already exists
     console.log("Checking if user already exists");
-    const existingUser = await findUserByEmail(env, normalizedEmail);
+    const existingUser = await findUserByEmailD1First(env, normalizedEmail);
     if (existingUser) {
       console.log("User already exists");
       return jsonResponse({ error: "An account with this email already exists" }, 409);
@@ -522,7 +520,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
     console.log(`Email change request: ${currentEmail} -> ${normalizedNewEmail}`);
     
     // Check if new email is already in use
-    const existingUser = await findUserByEmail(env, normalizedNewEmail);
+    const existingUser = await findUserByEmailD1First(env, normalizedNewEmail);
     if (existingUser) {
       console.log(`Email change blocked: ${normalizedNewEmail} already exists (user: ${existingUser.id})`);
       
@@ -540,7 +538,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
     }
     
     // Check if user is an organization owner/admin
-    const userRecord = await findUserByEmail(env, currentEmail);
+    const userRecord = await findUserByEmailD1First(env, currentEmail);
     if (userRecord?.fields.Role === 'Admin' && userRecord?.fields.Organization?.length > 0) {
       console.log(`Warning: Email change requested by organization admin: ${currentEmail}`);
       

@@ -23,8 +23,8 @@ import {
 } from '../utils/auth.js';
 
 import {
-  findUserByEmail,
-  getUserById
+  findUserByEmailD1First,
+  getUserByIdD1First
 } from '../services/airtable.js';
 
 import type { Env } from '../types/env.js';
@@ -131,7 +131,7 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
   }
   
   // Update Airtable immediately (webhook will also fire, but this is faster)
-  const userRecord = await findUserByEmail(env, user.email);
+  const userRecord = await findUserByEmailD1First(env, user.email);
   if (userRecord) {
     await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
       method: 'PATCH',
@@ -161,7 +161,7 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
 export async function handleBillingPortal(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  const userRecord = await findUserByEmail(env, user.email);
+  const userRecord = await findUserByEmailD1First(env, user.email);
   const customerId = userRecord?.fields["Stripe Customer ID"];
   if (!customerId) {
     return jsonResponse({ error: "No billing account found" }, 404);
@@ -202,7 +202,7 @@ export async function handleUpgrade(request: Request, env: Env) {
     return jsonResponse({ error: "Invalid plan or interval" }, 400);
   }
   
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserByIdD1First(env, user.id);
   const currentPlan = userRecord?.fields.Plan || 'Free';
   const stripeCustomerId = userRecord?.fields["Stripe Customer ID"];
   const subscriptionId = userRecord?.fields["Stripe Subscription ID"];
@@ -280,7 +280,7 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
     }
 
     // Update user in Airtable (idempotent — webhook may also fire)
-    const userRecord = await findUserByEmail(env, customerEmail);
+    const userRecord = await findUserByEmailD1First(env, customerEmail);
     if (userRecord) {
       const currentPlan = userRecord.fields.Plan || 'Free';
       if (currentPlan !== targetPlan || !userRecord.fields['Stripe Customer ID']) {

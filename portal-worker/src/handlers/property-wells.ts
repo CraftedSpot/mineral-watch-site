@@ -7,7 +7,7 @@
 import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserById } from '../services/airtable.js';
+import { getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -20,7 +20,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
 
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
 
     const userOrgId = userRecord.fields.Organization?.[0];
@@ -172,7 +172,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
 
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
 
     const userOrgId = userRecord.fields.Organization?.[0];
@@ -308,7 +308,7 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     // Get full user record for ownership verification
-    const userRecord = await getUserById(env, user.id);
+    const userRecord = await getUserByIdD1First(env, user.id);
     const userOrgId = userRecord?.fields.Organization?.[0];
 
     console.log(`[UnlinkWell] Unlinking link ${linkId}`);
@@ -402,7 +402,7 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
     // Get full user record for ownership verification
-    const userRecord = await getUserById(env, user.id);
+    const userRecord = await getUserByIdD1First(env, user.id);
     const userOrgId = userRecord?.fields.Organization?.[0];
 
     console.log(`[RelinkWell] Re-linking link ${linkId}`);

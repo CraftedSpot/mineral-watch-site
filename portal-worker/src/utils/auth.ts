@@ -6,7 +6,7 @@
  */
 
 import { COOKIE_NAME, SUPER_ADMIN_EMAILS, BASE_ID, ORGANIZATION_TABLE, SESSION_EXPIRY } from '../constants.js';
-import { getUserById, getUserByIdD1First } from '../services/airtable.js';
+import { getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 // Per-Worker-instance dedup for D1 user upserts.

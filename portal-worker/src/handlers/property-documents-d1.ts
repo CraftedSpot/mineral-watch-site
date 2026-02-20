@@ -6,7 +6,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserById } from '../services/airtable.js';
+import { getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 // Document types that show on property modals (snake_case format)
@@ -37,7 +37,7 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userOrgId = userRecord.fields.Organization?.[0];
@@ -130,7 +130,7 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userOrgId = userRecord.fields.Organization?.[0];

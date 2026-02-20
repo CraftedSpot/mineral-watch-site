@@ -24,7 +24,8 @@ import {
 } from '../utils/auth.js';
 
 import {
-  findUserByEmail
+  findUserByEmailD1First,
+  getOrganizationD1First
 } from '../services/airtable.js';
 
 // Normalize legacy notification mode values to current option names
@@ -62,7 +63,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
     }
 
     // Get full user details to find organization
-    const userRecord = await findUserByEmail(env, user.email);
+    const userRecord = await findUserByEmailD1First(env, user.email);
 
     if (!userRecord) {
       return jsonResponse({ organization: null });
@@ -75,23 +76,15 @@ export async function handleGetOrganization(request: Request, env: Env) {
     // Organization field is always an array in Airtable linked records
     const organizationId = userRecord.fields.Organization[0];
 
-    // Fetch organization details
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-
-    if (!orgResponse.ok) {
-      console.error('[Organization] Failed to fetch org:', orgResponse.status);
+    // Fetch organization details (D1-first)
+    const orgData = await getOrganizationD1First(env, organizationId);
+    if (!orgData) {
+      console.error('[Organization] Org not found:', organizationId);
       return jsonResponse({ error: "Failed to fetch organization" }, 500);
     }
 
-    const organization = await orgResponse.json() as any;
-
     // Fetch all members of this organization
-    const filterFormula = `{Organization} = '${escapeAirtableValue(organization.fields.Name)}'`;
+    const filterFormula = `{Organization} = '${escapeAirtableValue(orgData.name || '')}'`;
     const membersResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
       `filterByFormula=${encodeURIComponent(filterFormula)}`,
@@ -119,14 +112,13 @@ export async function handleGetOrganization(request: Request, env: Env) {
     // Return organization with members and settings
     return jsonResponse({
       organization: {
-        id: organization.id,
-        name: organization.fields.Name,
+        id: organizationId,
+        name: orgData.name,
         plan: userRecord.fields.Plan,
-        createdDate: organization.fields['Created Time'],
         members: members,
         // Notification settings
-        defaultNotificationMode: normalizeNotificationMode(organization.fields['Default Notification Mode']) || 'Daily + Weekly',
-        allowUserOverride: organization.fields['Allow User Override'] !== false
+        defaultNotificationMode: normalizeNotificationMode(orgData.defaultNotificationMode) || 'Daily + Weekly',
+        allowUserOverride: orgData.allowUserOverride
       }
     });
 
@@ -148,7 +140,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     }
 
     // Get user details and check if they're an admin
-    const userRecord = await findUserByEmail(env, user.email);
+    const userRecord = await findUserByEmailD1First(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
       return jsonResponse({ error: "Only admins can invite members" }, 403);
     }
@@ -164,20 +156,12 @@ export async function handleInviteMember(request: Request, env: Env) {
     const planConfig = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS];
     const maxMembers = planConfig?.seats || 1;
 
-    // Get organization details for the invite email
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-    
-    if (!orgResponse.ok) {
+    // Get organization details for the invite email (D1-first)
+    const orgData = await getOrganizationD1First(env, organizationId);
+    if (!orgData) {
       return jsonResponse({ error: "Failed to fetch organization" }, 500);
     }
-    
-    const organization = await orgResponse.json() as any;
-    const organizationName = organization.fields.Name;
+    const organizationName = orgData.name || '';
 
     // Parse request body first to check if this is a resend
     const { email, role = 'Editor', name } = await request.json() as any;
@@ -196,7 +180,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     const normalizedEmail = email.toLowerCase().trim();
 
     // Check if user already exists
-    const existingUser = await findUserByEmail(env, normalizedEmail);
+    const existingUser = await findUserByEmailD1First(env, normalizedEmail);
     if (existingUser) {
       // Check if they're already in THIS organization
       if (existingUser.fields.Organization && existingUser.fields.Organization.includes(organizationId)) {
@@ -457,7 +441,7 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
     }
 
     // Get user details and check if they're an admin
-    const userRecord = await findUserByEmail(env, user.email);
+    const userRecord = await findUserByEmailD1First(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
       return jsonResponse({ error: "Only admins can change roles" }, 403);
     }
@@ -629,7 +613,7 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
     }
 
     // Get user details and check if they're an admin
-    const userRecord = await findUserByEmail(env, user.email);
+    const userRecord = await findUserByEmailD1First(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
       return jsonResponse({ error: "Only admins can update organization settings" }, 403);
     }
@@ -696,7 +680,7 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
     }
 
     // Get user details and check if they're an admin
-    const userRecord = await findUserByEmail(env, user.email);
+    const userRecord = await findUserByEmailD1First(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
       return jsonResponse({ error: "Only admins can remove members" }, 403);
     }

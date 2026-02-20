@@ -23,7 +23,7 @@ import {
 } from '../utils/auth.js';
 
 import {
-  getUserById,
+  getUserByIdD1First,
   countUserProperties,
   countUserPropertiesD1,
   countUserWells,
@@ -75,7 +75,7 @@ async function resolveUploadContext(
 
   // If already impersonating via ?act_as=, treat as admin override
   if (sessionUser.impersonating) {
-    const userRecord = await getUserById(env, sessionUser.id);
+    const userRecord = await getUserByIdD1First(env, sessionUser.id);
     const plan = userRecord?.fields.Plan || 'Free';
     console.log(`[AdminOverride] Impersonation mode: ${sessionUser.impersonating.adminEmail} acting as ${sessionUser.email} (${sessionUser.id})`);
     return {
@@ -90,7 +90,7 @@ async function resolveUploadContext(
 
   // No override requested — use session user's context
   if (!targetUserId) {
-    const userRecord = await getUserById(env, sessionUser.id);
+    const userRecord = await getUserByIdD1First(env, sessionUser.id);
     const plan = userRecord?.fields.Plan || 'Free';
     return {
       targetUserId: sessionUser.id,
@@ -108,7 +108,7 @@ async function resolveUploadContext(
   }
 
   // Look up the target user
-  const targetRecord = await getUserById(env, targetUserId);
+  const targetRecord = await getUserByIdD1First(env, targetUserId);
   if (!targetRecord) {
     return jsonResponse({ error: `Target user ${targetUserId} not found` }, 404);
   }
@@ -496,7 +496,7 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   }
   
   // Get user's plan limits (impersonation-aware: authenticateRequest already resolved target user)
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserByIdD1First(env, user.id);
   const organizationId = userRecord?.fields.Organization?.[0];
 
   // Get user's current properties for duplicate checking (from D1, includes property_code)
@@ -1444,7 +1444,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   }
   
   // Check plan allows wells
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserByIdD1First(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = getPlanLimits(plan);
   const isAdminOverride = !!(user as any).impersonating;

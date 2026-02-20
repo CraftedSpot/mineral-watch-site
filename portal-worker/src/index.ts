@@ -46,15 +46,15 @@ import {
 } from './templates/index.js';
 
 import {
-  findUserByEmail,
-  getUserById,
+  getUserByIdD1First,
   countUserProperties,
   countUserWells,
   checkDuplicateProperty,
   checkDuplicateWell,
   fetchAllAirtableRecords,
   fetchUserProperties,
-  fetchUserWells
+  fetchUserWells,
+  getOrganizationD1First
 } from './services/airtable.js';
 
 import {
@@ -1164,21 +1164,15 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         const targetId = url.searchParams.get('user_id');
         if (!targetId) return jsonResponse({ error: 'user_id required' }, 400);
 
-        const targetUser = await getUserById(env, targetId);
+        const targetUser = await getUserByIdD1First(env, targetId);
         if (!targetUser) return jsonResponse({ error: 'User not found' }, 404);
 
         let orgName = null;
         const orgId = targetUser.fields.Organization?.[0];
         if (orgId) {
           try {
-            const orgRes = await fetch(
-              `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${orgId}`,
-              { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-            );
-            if (orgRes.ok) {
-              const org = await orgRes.json() as any;
-              orgName = org.fields.Name;
-            }
+            const orgData = await getOrganizationD1First(env, orgId);
+            if (orgData) orgName = orgData.name;
           } catch (e) { /* org lookup failed, non-fatal */ }
         }
 

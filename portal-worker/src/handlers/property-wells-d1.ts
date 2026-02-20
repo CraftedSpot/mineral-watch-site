@@ -8,7 +8,7 @@
 import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserById } from '../services/airtable.js';
+import { getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 // Import the original Airtable handlers as fallback
@@ -28,7 +28,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userOrgId = userRecord.fields.Organization?.[0];
@@ -163,7 +163,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
     // Get full user record to access organization info
-    const userRecord = await getUserById(env, authUser.id);
+    const userRecord = await getUserByIdD1First(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userOrgId = userRecord.fields.Organization?.[0];
