@@ -33,7 +33,8 @@ import {
   findUserByEmail,
   findUserByEmailD1First,
   getUserById,
-  getUserByIdD1First
+  getUserByIdD1First,
+  getOrganizationD1First
 } from '../services/airtable.js';
 
 import {
@@ -253,28 +254,21 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     return map[mode] || mode;
   };
 
-  // Fetch org notification preferences if user has an organization
+  // Fetch org notification preferences — D1 first, Airtable fallback
   let orgDefaultNotificationMode: string | null = null;
   let orgAllowOverride = true;
   const organizationId = user.fields.Organization ? user.fields.Organization[0] : null;
 
   if (organizationId) {
-    try {
-      const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
-        { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-      );
-      if (orgResponse.ok) {
-        const org: any = await orgResponse.json();
-        orgDefaultNotificationMode = normalizeNotificationMode(org.fields['Default Notification Mode']) || 'Daily + Weekly';
-        orgAllowOverride = org.fields['Allow User Override'] !== false;
-      }
-    } catch (err) {
-      console.error('[Auth] Error fetching organization:', err);
+    const org = await getOrganizationD1First(env, organizationId);
+    if (org) {
+      orgDefaultNotificationMode = normalizeNotificationMode(org.defaultNotificationMode) || 'Daily + Weekly';
+      orgAllowOverride = org.allowUserOverride;
     }
   }
 
   // Return only whitelisted fields — never expose Stripe IDs, Plan History, etc. to the browser
+  // Alert preferences come from D1 via d1RowToAirtableUser (D1-first user lookup above)
   return jsonResponse({
     id: user.id,
     email: user.fields.Email,
@@ -778,4 +772,98 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
     console.error("Email change verification error:", (err as Error).message);
     return Response.redirect(`${BASE_URL}/portal/account?error=Invalid%20or%20expired%20link`, 302);
   }
+}
+
+/**
+ * Admin endpoint: Backfill all users' alert preferences from Airtable to D1.
+ * One-time migration for Phase 2 D1-first auth.
+ */
+export async function handleBackfillUserPrefs(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+  const { isSuperAdmin } = await import('../utils/auth.js');
+  if (!isSuperAdmin(user.email)) {
+    return jsonResponse({ error: 'Admin required' }, 403);
+  }
+
+  if (!env.WELLS_DB) {
+    return jsonResponse({ error: 'D1 not available' }, 503);
+  }
+
+  // Fetch all users from Airtable
+  let allUsers: any[] = [];
+  let offset: string | undefined;
+
+  do {
+    const url = new URL(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`);
+    url.searchParams.set('fields[]', 'Email');
+    // Airtable requires separate fields[] params
+    const fieldsUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
+      ['Email', 'Alert Permits', 'Alert Completions', 'Alert Status Changes',
+       'Alert Expirations', 'Alert Operator Transfers', 'Expiration Warning Days',
+       'Notification Override'].map(f => `fields[]=${encodeURIComponent(f)}`).join('&') +
+      (offset ? `&offset=${offset}` : '');
+
+    const resp = await fetch(fieldsUrl, {
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+    });
+    if (!resp.ok) {
+      return jsonResponse({ error: `Airtable error: ${resp.status}` }, 502);
+    }
+    const data: any = await resp.json();
+    allUsers.push(...data.records);
+    offset = data.offset;
+  } while (offset);
+
+  console.log(`[Backfill] Found ${allUsers.length} users in Airtable`);
+
+  let updated = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (const u of allUsers) {
+    const f = u.fields || {};
+    try {
+      const result = await env.WELLS_DB.prepare(`
+        UPDATE users SET
+          alert_permits = ?,
+          alert_completions = ?,
+          alert_status_changes = ?,
+          alert_expirations = ?,
+          alert_operator_transfers = ?,
+          expiration_warning_days = ?,
+          notification_override = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE airtable_record_id = ?
+      `).bind(
+        f['Alert Permits'] !== false ? 1 : 0,
+        f['Alert Completions'] !== false ? 1 : 0,
+        f['Alert Status Changes'] !== false ? 1 : 0,
+        f['Alert Expirations'] !== false ? 1 : 0,
+        f['Alert Operator Transfers'] !== false ? 1 : 0,
+        f['Expiration Warning Days'] || 30,
+        f['Notification Override'] || null,
+        u.id
+      ).run();
+
+      if (result.meta.changes > 0) {
+        updated++;
+      } else {
+        skipped++;
+      }
+    } catch (err) {
+      errors.push(`${u.id}: ${(err as Error).message}`);
+    }
+  }
+
+  console.log(`[Backfill] Done: ${updated} updated, ${skipped} skipped (no D1 row), ${errors.length} errors`);
+
+  return jsonResponse({
+    success: true,
+    total: allUsers.length,
+    updated,
+    skipped,
+    errors: errors.length > 0 ? errors : undefined
+  });
 }

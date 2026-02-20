@@ -94,13 +94,49 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
     const updatedUser = await updateResponse.json();
     console.log(`[Preferences] Successfully updated preferences for user ${user.id}`);
 
-    // Dual-write notification override to D1 for digest processing
-    if (fields['Notification Override'] && env.WELLS_DB) {
+    // Dual-write all alert preferences to D1
+    if (env.WELLS_DB) {
       try {
-        await env.WELLS_DB.prepare(
-          `UPDATE users SET notification_override = ? WHERE airtable_record_id = ?`
-        ).bind(fields['Notification Override'] as string, user.id).run();
-        console.log(`[Preferences] D1 notification_override synced for ${user.id}`);
+        const d1Updates: string[] = [];
+        const d1Values: any[] = [];
+
+        if ('Alert Permits' in fields) {
+          d1Updates.push('alert_permits = ?');
+          d1Values.push(fields['Alert Permits'] ? 1 : 0);
+        }
+        if ('Alert Completions' in fields) {
+          d1Updates.push('alert_completions = ?');
+          d1Values.push(fields['Alert Completions'] ? 1 : 0);
+        }
+        if ('Alert Status Changes' in fields) {
+          d1Updates.push('alert_status_changes = ?');
+          d1Values.push(fields['Alert Status Changes'] ? 1 : 0);
+        }
+        if ('Alert Expirations' in fields) {
+          d1Updates.push('alert_expirations = ?');
+          d1Values.push(fields['Alert Expirations'] ? 1 : 0);
+        }
+        if ('Alert Operator Transfers' in fields) {
+          d1Updates.push('alert_operator_transfers = ?');
+          d1Values.push(fields['Alert Operator Transfers'] ? 1 : 0);
+        }
+        if ('Expiration Warning Days' in fields) {
+          d1Updates.push('expiration_warning_days = ?');
+          d1Values.push(fields['Expiration Warning Days']);
+        }
+        if ('Notification Override' in fields) {
+          d1Updates.push('notification_override = ?');
+          d1Values.push(fields['Notification Override'] as string);
+        }
+
+        if (d1Updates.length > 0) {
+          d1Updates.push('updated_at = CURRENT_TIMESTAMP');
+          d1Values.push(user.id);
+          await env.WELLS_DB.prepare(
+            `UPDATE users SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`
+          ).bind(...d1Values).run();
+          console.log(`[Preferences] D1 synced ${d1Updates.length - 1} fields for ${user.id}`);
+        }
       } catch (d1Err) {
         // Non-fatal: Airtable is source of truth, D1 is best-effort
         console.warn(`[Preferences] D1 sync failed (non-fatal): ${(d1Err as Error).message}`);

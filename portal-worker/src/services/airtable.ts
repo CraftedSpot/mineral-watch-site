@@ -30,6 +30,14 @@ export interface AirtableUser {
     'Stripe Customer ID'?: string;
     Status?: string;
     'Created Time'?: string;
+    // Alert preferences (populated from D1, may be absent from Airtable responses)
+    'Alert Permits'?: boolean;
+    'Alert Completions'?: boolean;
+    'Alert Status Changes'?: boolean;
+    'Alert Expirations'?: boolean;
+    'Alert Operator Transfers'?: boolean;
+    'Expiration Warning Days'?: number;
+    'Notification Override'?: string;
   };
 }
 
@@ -132,9 +140,67 @@ function d1RowToAirtableUser(row: any): AirtableUser {
       Status: row.status || 'Active',
       Organization: row.organization_id ? [row.organization_id] : [],
       Role: row.role || 'Viewer',
-      'Stripe Customer ID': row.stripe_customer_id || undefined
+      'Stripe Customer ID': row.stripe_customer_id || undefined,
+      // Alert preferences — D1 stores as INTEGER (0/1), convert to boolean
+      'Alert Permits': row.alert_permits !== 0,
+      'Alert Completions': row.alert_completions !== 0,
+      'Alert Status Changes': row.alert_status_changes !== 0,
+      'Alert Expirations': row.alert_expirations !== 0,
+      'Alert Operator Transfers': row.alert_operator_transfers !== 0,
+      'Expiration Warning Days': row.expiration_warning_days || 30,
+      'Notification Override': row.notification_override || undefined
     }
   };
+}
+
+/**
+ * D1-first organization lookup with Airtable fallback.
+ * Returns org notification settings needed by handleGetCurrentUser.
+ */
+export async function getOrganizationD1First(env: Env, orgId: string): Promise<{
+  name: string | null;
+  defaultNotificationMode: string;
+  allowUserOverride: boolean;
+} | null> {
+  // Try D1 first
+  if (env.WELLS_DB) {
+    try {
+      const row = await env.WELLS_DB.prepare(
+        `SELECT name, default_notification_mode, allow_user_override
+         FROM organizations WHERE airtable_record_id = ? LIMIT 1`
+      ).bind(orgId).first();
+
+      if (row) {
+        return {
+          name: row.name as string | null,
+          defaultNotificationMode: (row.default_notification_mode as string) || 'Daily + Weekly',
+          allowUserOverride: (row.allow_user_override as number) !== 0
+        };
+      }
+    } catch (e) {
+      console.warn('[Auth] D1 org lookup failed, trying Airtable:', (e as Error).message);
+    }
+  }
+
+  // Airtable fallback
+  try {
+    const resp = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${orgId}`,
+      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+    );
+    if (resp.ok) {
+      const org: any = await resp.json();
+      return {
+        name: org.fields['Name'] || null,
+        defaultNotificationMode: org.fields['Default Notification Mode'] || 'Daily + Weekly',
+        allowUserOverride: org.fields['Allow User Override'] !== false
+      };
+    }
+    return null;
+  } catch (e) {
+    console.error('[Auth] Airtable org fallback also failed:', (e as Error).message);
+    return null;
+  }
 }
 
 /**
@@ -148,7 +214,10 @@ export async function findUserByEmailD1First(env: Env, email: string): Promise<A
     try {
       const row = await env.WELLS_DB.prepare(
         `SELECT airtable_record_id, email, name, plan, status,
-                organization_id, role, stripe_customer_id
+                organization_id, role, stripe_customer_id,
+                alert_permits, alert_completions, alert_status_changes,
+                alert_expirations, alert_operator_transfers,
+                expiration_warning_days, notification_override
          FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`
       ).bind(email).first();
       if (row) return d1RowToAirtableUser(row);
@@ -175,7 +244,10 @@ export async function getUserByIdD1First(env: Env, userId: string): Promise<Airt
     try {
       const row = await env.WELLS_DB.prepare(
         `SELECT airtable_record_id, email, name, plan, status,
-                organization_id, role, stripe_customer_id
+                organization_id, role, stripe_customer_id,
+                alert_permits, alert_completions, alert_status_changes,
+                alert_expirations, alert_operator_transfers,
+                expiration_warning_days, notification_override
          FROM users WHERE airtable_record_id = ? LIMIT 1`
       ).bind(userId).first();
       if (row) return d1RowToAirtableUser(row);

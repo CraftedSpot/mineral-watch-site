@@ -6,6 +6,7 @@ const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // Client Wells
 const LINKS_TABLE_ID = 'tblcLilnMgeXvxXKT'; // Property-Well Links
+const ORGANIZATIONS_TABLE = '🏢 Organization'; // Organization table (name, not ID)
 
 // D1 batch configuration
 const BATCH_SIZE = 500; // Max statements per batch to stay within limits
@@ -893,6 +894,73 @@ async function reconcileLinkCounts(env: any): Promise<void> {
   console.log(`[Reconcile] Done in ${Date.now() - start}ms. Updated ${totalUpdated} properties, ${totalDrift} drift warnings`);
 }
 
+/**
+ * Sync organizations from Airtable to D1.
+ * Lightweight — typically <10 records. Runs every sync cycle in post_sync.
+ */
+async function syncOrganizations(env: any): Promise<void> {
+  if (!env.WELLS_DB) return;
+
+  console.log('[Sync] Syncing organizations to D1...');
+
+  let synced = 0;
+  let offset: string | undefined;
+
+  try {
+    do {
+      const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(ORGANIZATIONS_TABLE)}`);
+      if (offset) url.searchParams.set('offset', offset);
+
+      const resp = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!resp.ok) {
+        console.error(`[Sync] Org fetch failed: ${resp.status}`);
+        return;
+      }
+
+      const data: any = await resp.json();
+      const records = data.records || [];
+
+      const stmts = records.map((record: AirtableRecord) => {
+        const id = `org_${record.id}`;
+        const fields = record.fields || {};
+        return env.WELLS_DB.prepare(`
+          INSERT INTO organizations (id, airtable_record_id, name, default_notification_mode, allow_user_override, synced_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          ON CONFLICT(airtable_record_id) DO UPDATE SET
+            name = excluded.name,
+            default_notification_mode = excluded.default_notification_mode,
+            allow_user_override = excluded.allow_user_override,
+            synced_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(
+          id,
+          record.id,
+          fields['Name'] || null,
+          fields['Default Notification Mode'] || 'Daily + Weekly',
+          fields['Allow User Override'] !== false ? 1 : 0
+        );
+      });
+
+      if (stmts.length > 0) {
+        await env.WELLS_DB.batch(stmts);
+      }
+
+      synced += records.length;
+      offset = data.offset;
+    } while (offset);
+
+    console.log(`[Sync] Organizations synced: ${synced} records`);
+  } catch (error) {
+    console.error('[Sync] Organizations sync error:', error);
+  }
+}
+
 async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
   const totalSynced = cursor.stats.properties.synced + cursor.stats.wells.synced +
     cursor.stats.clientWells.synced + cursor.stats.links.synced;
@@ -902,6 +970,13 @@ async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
     await reconcileLinkCounts(env);
   } catch (error) {
     console.error('[Sync] Link count reconciliation error:', error);
+  }
+
+  // Sync organizations to D1 (lightweight — typically <10 records)
+  try {
+    await syncOrganizations(env);
+  } catch (error) {
+    console.error('[Sync] Organizations sync error:', error);
   }
 
   // Document re-linking
