@@ -571,14 +571,14 @@
                 
                 // Get counts
                 const [propsRes, wellsRes] = await Promise.all([
-                    fetch('/api/properties'),
-                    fetch('/api/wells')
+                    fetch('/api/properties/v2'),
+                    fetch('/api/wells/v2')
                 ]);
                 if (propsRes.ok && wellsRes.ok) {
-                    const props = await propsRes.json();
-                    const wells = await wellsRes.json();
-                    document.getElementById('propItems').textContent = props.length;
-                    document.getElementById('wellItems').textContent = wells.length;
+                    const propsData = await propsRes.json();
+                    const wellsData = await wellsRes.json();
+                    document.getElementById('propItems').textContent = (propsData.records || []).length;
+                    document.getElementById('wellItems').textContent = (wellsData.records || []).length;
                 }
                 
                 // Check if user has organization (Business/Professional/Enterprise plans)

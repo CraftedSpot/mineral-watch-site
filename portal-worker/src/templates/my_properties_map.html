@@ -633,8 +633,9 @@
 
             document.getElementById('mapLoading').style.display = 'flex';
 
-            const res = await fetch('/api/properties');
-            const properties = await res.json();
+            const res = await fetch('/api/properties/v2', { credentials: 'include' });
+            const data = await res.json();
+            const properties = data.records || [];
 
             let loaded = 0;
             const total = properties.length;
