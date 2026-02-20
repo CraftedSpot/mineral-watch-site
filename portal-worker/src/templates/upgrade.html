@@ -23,7 +23,7 @@
         .nav-links a { color: #CBD5E0; text-decoration: none; margin-left: 24px; font-size: 14px; }
         .nav-links a:hover, .nav-links a.active { color: white; }
         
-        main { max-width: 1600px; margin: 0 auto; padding: 40px 25px; }
+        main { max-width: 1200px; margin: 0 auto; padding: 40px 25px; }
         .page-header { text-align: center; margin-bottom: 40px; }
         .page-header h1 { font-size: 32px; margin-bottom: 12px; }
         .page-header p { color: var(--slate-blue); font-size: 18px; }
@@ -71,10 +71,13 @@
         
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 24px;
         }
-        @media (max-width: 900px) {
+        @media (max-width: 1100px) {
+            .pricing-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 600px) {
             .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
         }
         
@@ -196,7 +199,7 @@
         .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--red-dirt); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .enterprise-row {
-            max-width: 700px;
+            max-width: 800px;
             margin: 40px auto 0;
             text-align: center;
             padding: 24px 30px;
@@ -292,18 +295,34 @@
                     <li>Track 250 Wells (One-click)</li>
                     <li>Adjacent section monitoring</li>
                     <li>Daily OCC scans</li>
-                    <li>Priority support</li>
                     <li>Bulk import & export</li>
-                    <li>Multi-user access (3)</li>
+                    <li>50 document credits/mo</li>
+                    <li>Phone support</li>
                 </ul>
                 <button class="plan-btn primary" id="professionalBtn" data-plan="professional">Select Professional</button>
+            </div>
+
+            <div class="plan-card" id="businessCard">
+                <h3 class="plan-name">Business</h3>
+                <div class="plan-price" id="businessPrice">$249<span>/mo</span></div>
+                <div class="plan-interval" id="businessInterval">billed monthly</div>
+                <ul class="plan-features">
+                    <li>500 properties</li>
+                    <li>Track 500 Wells (One-click)</li>
+                    <li>Everything in Professional</li>
+                    <li>3 team member seats</li>
+                    <li>100 document credits/mo</li>
+                    <li>Free copy of The Mineral Rights Guide</li>
+                    <li>Priority support</li>
+                </ul>
+                <button class="plan-btn primary" id="businessBtn" data-plan="business">Select Business</button>
             </div>
         </div>
         
         <div class="enterprise-row">
-            <h3>Need more than 250 properties?</h3>
-            <p>Custom solutions for family offices, mineral management companies, and financial institutions.</p>
-            <a href="https://mymineralwatch.com/contact?topic=enterprise" class="enterprise-link">Contact Sales for Enterprise →</a>
+            <h3>Managing 500+ properties?</h3>
+            <p>Enterprise plans start at $499/month with dedicated onboarding, bulk CSV import, and 5+ team seats. Replace spreadsheets and filing cabinets with a single organized system — built for mineral management companies, family offices, banks, and trust departments.</p>
+            <a href="https://mymineralwatch.com/demo" class="enterprise-link">Book a Demo →</a>
         </div>
         
         <a href="/portal" class="back-link">← Back to Dashboard</a>
@@ -320,7 +339,8 @@
         const pricing = {
             starter: { monthly: 9, annual: 86 },
             standard: { monthly: 29, annual: 278 },
-            professional: { monthly: 99, annual: 950 }
+            professional: { monthly: 99, annual: 950 },
+            business: { monthly: 249, annual: 2390 }
         };
         
         const planHierarchy = ['Free', 'Starter', 'Standard', 'Professional', 'Business', 'Enterprise 1K'];
@@ -383,13 +403,13 @@
         function updatePrices() {
             const isAnnual = currentInterval === 'annual';
             
-            ['starter', 'standard', 'professional'].forEach(plan => {
+            ['starter', 'standard', 'professional', 'business'].forEach(plan => {
                 const price = pricing[plan][currentInterval];
                 const perMonth = isAnnual ? Math.round(price / 12) : price;
-                
-                document.getElementById(plan + 'Price').innerHTML = 
+
+                document.getElementById(plan + 'Price').innerHTML =
                     '$' + perMonth + '<span>/mo</span>';
-                document.getElementById(plan + 'Interval').textContent = 
+                document.getElementById(plan + 'Interval').textContent =
                     isAnnual ? 'billed annually ($' + price + '/yr)' : 'billed monthly';
             });
         }
@@ -398,7 +418,7 @@
             const userPlan = currentUser?.plan || 'Free';
             const userIndex = planHierarchy.indexOf(userPlan);
             
-            ['starter', 'standard', 'professional'].forEach(plan => {
+            ['starter', 'standard', 'professional', 'business'].forEach(plan => {
                 const card = document.getElementById(plan + 'Card');
                 const btn = document.getElementById(plan + 'Btn');
                 const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
