@@ -1,0 +1,91 @@
+        // =============================================
+        // VIRTUAL TABLE SCROLLER
+        // Renders only visible rows for tables with 100+ items.
+        // Below threshold: normal full render. Above: fixed-height
+        // scroll container with spacer <tr> elements.
+        // =============================================
+        function createVirtualTableScroller({ container, rowHeight, colCount, threshold = 100, buffer = 10, tableClass = 'data-table' }) {
+            let data = [];
+            let renderRowFn = null;
+            let headerHtml = '';
+            let tableEl = null;
+            let tbodyEl = null;
+            let lastStart = -1, lastEnd = -1;
+            let isVirtual = false;
+            let rafPending = false;
+
+            // resetScroll: true for filter/sort, false for data merges (link counts)
+            function setData(newData, renderRow, header, resetScroll = true) {
+                data = newData;
+                if (renderRow) renderRowFn = renderRow;
+                if (header) headerHtml = header;
+                const wasVirtual = isVirtual;
+                isVirtual = data.length > threshold;
+                lastStart = lastEnd = -1;
+
+                if (!isVirtual) {
+                    // Normal render — full table, no scroll container
+                    container.style.maxHeight = '';
+                    container.style.overflowY = '';
+                    let html = `<table class="${tableClass}">` + headerHtml + '<tbody>';
+                    for (let i = 0; i < data.length; i++) html += renderRowFn(data[i], i);
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                    tableEl = tbodyEl = null;
+                    return;
+                }
+
+                // If already in virtual mode with same shell, skip rebuild — just update tbody
+                if (wasVirtual && tableEl && tbodyEl) {
+                    if (resetScroll) container.scrollTop = 0;
+                    renderVisible(true);
+                    return;
+                }
+
+                // Virtual mode — fixed-height scroll container
+                container.style.maxHeight = 'calc(100vh - 280px)';
+                container.style.overflowY = 'auto';
+                container.innerHTML = `<table class="${tableClass} vs-active">` + headerHtml + '<tbody></tbody></table>';
+                tableEl = container.querySelector('table');
+                tbodyEl = tableEl.querySelector('tbody');
+                renderVisible(true);
+            }
+
+            function renderVisible(force) {
+                if (!isVirtual || !tbodyEl) return;
+                const scrollTop = container.scrollTop;
+                const viewHeight = container.clientHeight || 600;
+                let start = Math.max(0, Math.floor(scrollTop / rowHeight) - buffer);
+                let end = Math.min(data.length, Math.ceil((scrollTop + viewHeight) / rowHeight) + buffer);
+                if (!force && start === lastStart && end === lastEnd) return;
+                lastStart = start;
+                lastEnd = end;
+
+                const topH = start * rowHeight;
+                const bottomH = (data.length - end) * rowHeight;
+                let html = '';
+                if (topH > 0) html += `<tr class="vs-spacer"><td colspan="${colCount}" style="height:${topH}px;padding:0;border:0"></td></tr>`;
+                for (let i = start; i < end; i++) html += renderRowFn(data[i], i);
+                if (bottomH > 0) html += `<tr class="vs-spacer"><td colspan="${colCount}" style="height:${bottomH}px;padding:0;border:0"></td></tr>`;
+                tbodyEl.innerHTML = html;
+            }
+
+            // Deduplicated rAF scroll handler
+            container.addEventListener('scroll', () => {
+                if (isVirtual && !rafPending) {
+                    rafPending = true;
+                    requestAnimationFrame(() => {
+                        renderVisible(false);
+                        rafPending = false;
+                    });
+                }
+            });
+
+            return {
+                setData,
+                refresh: () => renderVisible(true),
+                isVirtual: () => isVirtual,
+                getData: () => data,
+                getDataLength: () => data.length
+            };
+        }

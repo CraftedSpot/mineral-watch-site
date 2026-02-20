@@ -346,43 +346,38 @@
         }
         
         function selectAllItems(type, checked) {
-            if (type === 'properties') {
-                const checkboxes = document.querySelectorAll('.property-checkbox');
-                selectedProperties.clear();
-                checkboxes.forEach(cb => {
-                    cb.checked = checked;
-                    if (checked) selectedProperties.add(cb.dataset.id);
-                });
-            } else if (type === 'wells') {
-                const checkboxes = document.querySelectorAll('.well-checkbox');
-                selectedWells.clear();
-                checkboxes.forEach(cb => {
-                    cb.checked = checked;
-                    if (checked) selectedWells.add(cb.dataset.id);
-                });
-            } else if (type === 'documents') {
-                const checkboxes = document.querySelectorAll('.document-checkbox');
-                selectedDocuments.clear();
-                checkboxes.forEach(cb => {
-                    cb.checked = checked;
-                    if (checked) selectedDocuments.add(cb.dataset.id);
-                });
+            const selectedSet = type === 'properties' ? selectedProperties :
+                                type === 'wells' ? selectedWells : selectedDocuments;
+            // Use getData() from virtual scroller for the already-filtered array
+            const vs = type === 'properties' ? propertiesVS :
+                       type === 'wells' ? wellsVS : documentsVS;
+            selectedSet.clear();
+            if (checked) {
+                vs.getData().forEach(item => selectedSet.add(item.id));
             }
+            // Update visible checkboxes in DOM
+            const cls = type === 'properties' ? '.property-checkbox' :
+                        type === 'wells' ? '.well-checkbox' : '.document-checkbox';
+            document.querySelectorAll(cls).forEach(cb => { cb.checked = checked; });
             updateBulkActionVisibility();
         }
-        
+
         function updateSelectAllState(type) {
-            const selectAllId = type === 'properties' ? 'selectAllProperties' : 'selectAllWells';
-            const checkboxes = document.querySelectorAll(type === 'properties' ? '.property-checkbox' : '.well-checkbox');
-            const selectedSet = type === 'properties' ? selectedProperties : selectedWells;
+            const selectAllId = type === 'properties' ? 'selectAllProperties' :
+                                type === 'wells' ? 'selectAllWells' : 'selectAllDocuments';
+            const selectedSet = type === 'properties' ? selectedProperties :
+                                type === 'wells' ? selectedWells : selectedDocuments;
+            const vs = type === 'properties' ? propertiesVS :
+                       type === 'wells' ? wellsVS : documentsVS;
+            const totalCount = vs ? vs.getDataLength() : 0;
             const selectAllCheckbox = document.getElementById(selectAllId);
-            
+
             if (!selectAllCheckbox) return;
-            
+
             if (selectedSet.size === 0) {
                 selectAllCheckbox.indeterminate = false;
                 selectAllCheckbox.checked = false;
-            } else if (selectedSet.size === checkboxes.length) {
+            } else if (totalCount > 0 && selectedSet.size >= totalCount) {
                 selectAllCheckbox.indeterminate = false;
                 selectAllCheckbox.checked = true;
             } else {

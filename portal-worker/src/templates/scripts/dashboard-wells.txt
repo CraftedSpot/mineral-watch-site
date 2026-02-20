@@ -470,133 +470,130 @@
         }
 
         // Render the wells table (extracted from loadWells)
-        function renderWellsTable() {
+        // SVG icons for wells links column (shared by row renderer)
+        const wellPropsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>';
+        const wellDocsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+        const wellFilingsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>';
+        const wellLinkIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>';
+
+        // Virtual table scroller for wells
+        const wellsVS = createVirtualTableScroller({
+            container: document.getElementById('wellsContent'),
+            rowHeight: 64,
+            colCount: 4,
+            threshold: 100,
+            tableClass: 'data-table wells-table'
+        });
+
+        function getWellsHeader() {
+            const isViewer = currentUser?.role === 'Viewer';
+            let h = '<colgroup>';
+            if (!isViewer) h += '<col class="col-select">';
+            h += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
+            if (!isViewer) h += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all" aria-label="Select all wells"></th>';
+            h += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead>';
+            return h;
+        }
+
+        function renderWellRow(w) {
+            const isViewer = currentUser?.role === 'Viewer';
+            const wellBaseName = w.well_name || '';
+            const wellName = wellBaseName ? escapeHtml(wellBaseName) : '<em style="color: #A0AEC0;">Unknown</em>';
+            const operator = w.operator ? escapeHtml(w.operator) : '<em style="color: #A0AEC0;">—</em>';
+            const operatorPhone = w.operator_phone || '';
+            const contactPerson = w.operator_contact || '';
+            const apiNumber = w.apiNumber || '';
+            const status = w.well_status || '—';
+
+            const county = cleanCountyDisplay(w.county) || '';
+            const section = w.section || '';
+            const township = w.township || '';
+            const range = w.range || '';
+            let locationDisplay = '';
+            if (county) {
+                locationDisplay = county;
+                if (section && township && range) {
+                    locationDisplay += ` • ${section}-${township}-${range}`;
+                }
+            }
+
+            const operatorLink = w.operator
+                ? `<strong><span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator('${escapeHtmlAttr(w.operator)}')">${operator}</span></strong>`
+                : `<strong>${operator}</strong>`;
+            let operatorContactDisplay = operatorLink;
+            if (operatorPhone || contactPerson) {
+                const contactParts = [];
+                if (operatorPhone) {
+                    const cleanPhone = operatorPhone.replace(/[^0-9]/g, '');
+                    contactParts.push(`${formatPhoneNumber(cleanPhone)}`);
+                }
+                if (contactPerson) contactParts.push(`${contactPerson}`);
+                if (contactParts.length > 0) {
+                    operatorContactDisplay += ` ${contactParts.join(' • ')}`;
+                }
+            }
+
+            const linkCounts = w._linkCounts || { properties: 0, documents: 0, filings: 0 };
+            const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count';
+            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
+            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+            const totalLinks = linkCounts.properties + linkCounts.documents + linkCounts.filings;
+            const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
+            const checked = selectedWells.has(w.id) ? ' checked' : '';
+
+            let row = `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">`;
+            if (!isViewer) {
+                row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}"${checked} aria-label="Select well ${escapeHtml(wellName)}"></td>`;
+            }
+            row += `<td class="well-info-cell">
+                    <div class="well-name-line">
+                        <strong>${wellName}</strong>
+                    </div>
+                    <div class="well-details-line">
+                        ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}
+                        <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
+                        ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
+                    </div>
+                </td>
+                <td class="operator-contact-cell">${operatorContactDisplay}</td>
+                <td>
+                    <div class="links-cell">
+                        <div class="link-breakdown">
+                            <span class="${propsClass}" title="Linked Properties">${wellPropsIcon}${linkCounts.properties}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${docsClass}" title="Documents">${wellDocsIcon}${linkCounts.documents}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${filingsClass}" title="OCC Filings">${wellFilingsIcon}${linkCounts.filings}</span>
+                        </div>
+                        <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${wellLinkIcon}${totalLinks}</span>
+                    </div>
+                </td>
+            </tr>`;
+            return row;
+        }
+
+        function renderWellsTable(resetScroll = true) {
             const hasSearch = currentUser?.plan !== 'Free';
 
-            // Apply filter and sort via controller pipeline
             let displayWells = loadedWells;
             if (hasSearch) {
                 displayWells = wellsController.applyPipeline(loadedWells);
                 wellsController.updateCount(displayWells.length, loadedWells.length, 'wellsResultsCount');
             }
-            
+
             if (displayWells.length === 0 && loadedWells.length > 0) {
-                // No search results
                 document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells match your search.</p></div>';
                 return;
             }
-            
+
             if (displayWells.length === 0) {
                 document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
                 return;
             }
-            
-            // Clean table that opens modal on row click
-            const isViewer = currentUser?.role === 'Viewer';
-            let html = '<table class="data-table wells-table" aria-label="Tracked wells"><colgroup>';
-            if (!isViewer) html += '<col class="col-select">';
-            html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
-            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all" aria-label="Select all wells"></th>';
-            html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
 
-            displayWells.forEach(w => {
-                // V2 returns flat object with D1 snake_case fields
-                const wellBaseName = w.well_name || '';
-                const wellFullName = wellBaseName;
-                const wellName = wellFullName ? escapeHtml(wellFullName) : '<em style="color: #A0AEC0;">Unknown</em>';
-                const operator = w.operator ? escapeHtml(w.operator) : '<em style="color: #A0AEC0;">—</em>';
-                const operatorPhone = w.operator_phone || '';
-                const contactPerson = w.operator_contact || '';
-                const apiNumber = w.apiNumber || '';
-                const status = w.well_status || '—';
-                const wellType = w.well_type || '';
+            wellsVS.setData(displayWells, renderWellRow, getWellsHeader(), resetScroll);
 
-                // Format location (county + legal)
-                const county = cleanCountyDisplay(w.county) || '';
-                const section = w.section || '';
-                const township = w.township || '';
-                const range = w.range || '';
-                let locationDisplay = '';
-                if (county) {
-                    locationDisplay = county;
-                    if (section && township && range) {
-                        locationDisplay += ` • ${section}-${township}-${range}`;
-                    }
-                }
-
-                // Format operator contact for compact view (with bold operator name)
-                const operatorLink = w.operator
-                    ? `<strong><span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator('${escapeHtmlAttr(w.operator)}')">${operator}</span></strong>`
-                    : `<strong>${operator}</strong>`;
-                let operatorContactDisplay = operatorLink;
-                if (operatorPhone || contactPerson) {
-                    const contactParts = [];
-                    if (operatorPhone) {
-                        // Strip existing formatting before re-formatting to avoid double parentheses
-                        const cleanPhone = operatorPhone.replace(/[^0-9]/g, '');
-                        contactParts.push(`${formatPhoneNumber(cleanPhone)}`);
-                    }
-                    if (contactPerson) contactParts.push(`${contactPerson}`);
-                    if (contactParts.length > 0) {
-                        // Don't wrap in parentheses since phone already has them
-                        operatorContactDisplay += ` ${contactParts.join(' • ')}`;
-                    }
-                }
-
-                // Build Links column - show properties, documents, OCC filings (same structure as Properties grid)
-                const linkCounts = w._linkCounts || { properties: 0, documents: 0, filings: 0 };
-                const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count';
-                const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
-                const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
-                const totalLinks = linkCounts.properties + linkCounts.documents + linkCounts.filings;
-                const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
-
-                // Icons - same Heroicons as Properties grid
-                const propsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>';
-                const docsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
-                const filingsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>';
-                const linkIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>';
-
-                // Clean row that opens modal on click
-                html += `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">`;
-                if (!isViewer) {
-                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}" aria-label="Select well ${escapeHtml(wellName)}"></td>`;
-                }
-                html += `<td class="well-info-cell">
-                        <div class="well-name-line">
-                            <strong>${wellName}</strong>
-                        </div>
-                        <div class="well-details-line">
-                            ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}
-                            <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
-                            ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
-                        </div>
-                    </td>
-                    <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                    <td>
-                        <div class="links-cell">
-                            <div class="link-breakdown">
-                                <span class="${propsClass}" title="Linked Properties">${propsIcon}${linkCounts.properties}</span>
-                                <span class="link-separator">│</span>
-                                <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
-                                <span class="link-separator">│</span>
-                                <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
-                            </div>
-                            <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${linkIcon}${totalLinks}</span>
-                        </div>
-                    </td>
-                </tr>`;
-            });
-            
-            html += '</tbody></table>';
-            
-            // Insert table with embedded accordions
-            document.getElementById('wellsContent').innerHTML = html;
-            
-            // Add event delegation for production hover helpers (dynamically created elements)
             setupProductionHoverHelpers();
-            
-            // Update bulk selection state after table render
             updateSelectAllState('wells');
             updateBulkActionVisibility();
         }

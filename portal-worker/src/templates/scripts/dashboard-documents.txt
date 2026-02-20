@@ -7906,6 +7906,103 @@
             }, 3000);
         }
         
+        // Virtual table scroller for documents
+        const documentsVS = createVirtualTableScroller({
+            container: document.getElementById('documentsContent'),
+            rowHeight: 54,
+            colCount: 7,
+            threshold: 100
+        });
+
+        function getDocumentsHeader() {
+            return '<thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllDocuments" title="Select all" aria-label="Select all documents"></th><th>Filename</th><th>Category</th><th>County</th><th>Status</th><th>Uploaded</th><th style="text-align: right;">Actions</th></tr></thead>';
+        }
+
+        function renderDocumentRow(doc) {
+            const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+
+            let confidenceScore = null;
+            if (doc.status === 'complete' && doc.parsedExtractedData?.field_scores) {
+                confidenceScore = calculateOverallScore(doc.parsedExtractedData.field_scores);
+            }
+
+            let statusColor, statusText, statusClass;
+            if (doc.status === 'complete') {
+                if (confidenceScore !== null && confidenceScore < 0.70) {
+                    statusColor = '#D97706'; statusText = 'Review'; statusClass = 'manual_review';
+                } else {
+                    statusColor = 'var(--success)'; statusText = 'Complete'; statusClass = 'complete';
+                }
+            } else if (doc.status === 'failed') {
+                statusColor = 'var(--error)'; statusText = 'Failed'; statusClass = 'failed';
+            } else if (doc.status === 'manual_review') {
+                statusColor = '#D97706'; statusText = 'Review'; statusClass = 'manual_review';
+            } else if (doc.status === 'pending') {
+                statusColor = '#F59E0B'; statusText = 'Queued'; statusClass = 'pending';
+            } else {
+                statusColor = '#F59E0B'; statusText = 'Processing'; statusClass = 'processing';
+            }
+
+            const statusStyle = (doc.status === 'processing' || doc.status === 'pending')
+                ? 'animation: pulse 1.5s ease-in-out infinite;' : '';
+
+            const confidenceDisplay = (doc.status === 'complete' && confidenceScore !== null)
+                ? ` <span style="opacity: 0.7; font-weight: 500;">${Math.round(confidenceScore * 100)}%</span>` : '';
+            const dotTitle = (doc.status === 'complete' && confidenceScore !== null)
+                ? `${statusText} (${Math.round(confidenceScore * 100)}% confidence)` : statusText;
+
+            let extractionBadge = '';
+            if (doc.status === 'complete' || doc.status === 'completed' || doc.status === 'manual_review') {
+                if (doc.enhanced_extraction === 1) {
+                    extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #EDE9FE; color: #7C3AED; margin-left: 4px;" title="Enhanced extraction (Opus)">AI+</span>';
+                } else {
+                    extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #FEF3C7; color: #92400E; margin-left: 4px;" title="Standard extraction">STD</span>';
+                }
+            }
+
+            const isParentMultiDoc = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
+            let displayCounty = null;
+            if (!isParentMultiDoc) {
+                displayCounty = doc.county
+                    || doc.parsedExtractedData?.county
+                    || doc.parsedExtractedData?.tracts?.[0]?.legal?.county
+                    || doc.parsedExtractedData?.recording?.county;
+            }
+
+            const checked = selectedDocuments.has(doc.id) ? ' checked' : '';
+            const filename = escapeHtml(doc.display_name || doc.filename);
+            const contentType = doc.content_type || 'application/pdf';
+            const rotation = doc.rotation_applied || 0;
+
+            let row = `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
+            row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"${checked} aria-label="Select document ${filename}"></td>`;
+            row += `<td><strong>${filename}</strong></td>`;
+            row += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
+            row += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
+            row += `<td>
+                <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}${confidenceDisplay}</span>${extractionBadge}
+                <span class="status-dot ${statusClass}" title="${dotTitle}"></span>
+            </td>`;
+            row += `<td>${uploadDate}</td>`;
+            row += `<td style="text-align: right;" onclick="event.stopPropagation()">
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button onclick="viewDocumentInModal('${doc.id}', '${filename}', false, '${contentType}', ${rotation})" title="View" class="btn-action-icon" style="background: #E0F2FE; color: #1E40AF;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </button>
+                    <button onclick="downloadDocument('${doc.id}')" title="Download" class="btn-action-icon">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>`;
+            row += '</tr>';
+            return row;
+        }
+
         function renderDocumentsList(documents) {
             // Parse extracted_data JSON for each document if it exists
             if (documents && documents.length > 0) {
@@ -7956,117 +8053,9 @@
                 return;
             }
             
-            // Build table like properties/wells
-            let html = '<table class="data-table" aria-label="Uploaded documents"><thead><tr>';
-            html += '<th class="bulk-only"><input type="checkbox" id="selectAllDocuments" title="Select all" aria-label="Select all documents"></th>';
-            html += '<th>Filename</th><th>Category</th><th>County</th><th>Status</th><th>Uploaded</th><th style="text-align: right;">Actions</th>';
-            html += '</tr></thead><tbody>';
-            
-            displayDocuments.forEach(doc => {
-                const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+            documentsVS.setData(displayDocuments, renderDocumentRow, getDocumentsHeader());
 
-                // Calculate confidence score for complete documents
-                let confidenceScore = null;
-                if (doc.status === 'complete' && doc.parsedExtractedData?.field_scores) {
-                    confidenceScore = calculateOverallScore(doc.parsedExtractedData.field_scores);
-                }
-
-                // Derive status display from confidence when complete
-                let statusColor, statusText, statusClass;
-                if (doc.status === 'complete') {
-                    if (confidenceScore !== null && confidenceScore < 0.70) {
-                        // Low confidence - needs review
-                        statusColor = '#D97706';
-                        statusText = 'Review';
-                        statusClass = 'manual_review';
-                    } else {
-                        statusColor = 'var(--success)';
-                        statusText = 'Complete';
-                        statusClass = 'complete';
-                    }
-                } else if (doc.status === 'failed') {
-                    statusColor = 'var(--error)';
-                    statusText = 'Failed';
-                    statusClass = 'failed';
-                } else if (doc.status === 'manual_review') {
-                    statusColor = '#D97706';
-                    statusText = 'Review';
-                    statusClass = 'manual_review';
-                } else if (doc.status === 'pending') {
-                    statusColor = '#F59E0B';
-                    statusText = 'Queued';
-                    statusClass = 'pending';
-                } else {
-                    statusColor = '#F59E0B';
-                    statusText = 'Processing';
-                    statusClass = 'processing';
-                }
-
-                // Add pulsing animation for processing documents
-                const statusStyle = (doc.status === 'processing' || doc.status === 'pending')
-                    ? 'animation: pulse 1.5s ease-in-out infinite;'
-                    : '';
-
-                html += `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
-                html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}" aria-label="Select document ${escapeHtml(doc.display_name || doc.filename)}"></td>`;
-                html += `<td><strong>${escapeHtml(doc.display_name || doc.filename)}</strong></td>`;
-                html += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
-                // Check doc.county first, then fall back to extracted_data.county
-                // For deeds, county is nested in tracts[0].legal.county
-                // Don't show county for multi_document parents (their county is often wrong - use children's counties instead)
-                const isParentMultiDoc = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
-                let displayCounty = null;
-                if (!isParentMultiDoc) {
-                    displayCounty = doc.county
-                        || doc.parsedExtractedData?.county
-                        || doc.parsedExtractedData?.tracts?.[0]?.legal?.county  // Deed schema
-                        || doc.parsedExtractedData?.recording?.county;  // Recording info fallback
-                }
-                html += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
-                // Status: text badge for desktop, dot for mobile
-                // Show confidence % for complete documents
-                const confidenceDisplay = (doc.status === 'complete' && confidenceScore !== null)
-                    ? ` <span style="opacity: 0.7; font-weight: 500;">${Math.round(confidenceScore * 100)}%</span>`
-                    : '';
-                const dotTitle = (doc.status === 'complete' && confidenceScore !== null)
-                    ? `${statusText} (${Math.round(confidenceScore * 100)}% confidence)`
-                    : statusText;
-                // Extraction mode badge (STD/AI+) for completed docs
-                let extractionBadge = '';
-                if (doc.status === 'complete' || doc.status === 'completed' || doc.status === 'manual_review') {
-                    if (doc.enhanced_extraction === 1) {
-                        extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #EDE9FE; color: #7C3AED; margin-left: 4px;" title="Enhanced extraction (Opus)">AI+</span>';
-                    } else {
-                        extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #FEF3C7; color: #92400E; margin-left: 4px;" title="Standard extraction">STD</span>';
-                    }
-                }
-                html += `<td>
-                    <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}${confidenceDisplay}</span>${extractionBadge}
-                    <span class="status-dot ${statusClass}" title="${dotTitle}"></span>
-                </td>`;
-                html += `<td>${uploadDate}</td>`;
-                html += `<td style="text-align: right;" onclick="event.stopPropagation()">
-                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                        <button onclick="viewDocumentInModal('${doc.id}', '${escapeHtml(doc.display_name || doc.filename)}', false, '${doc.content_type || 'application/pdf'}', ${doc.rotation_applied || 0})" title="View" class="btn-action-icon" style="background: #E0F2FE; color: #1E40AF;">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-                            </svg>
-                        </button>
-                        <button onclick="downloadDocument('${doc.id}')" title="Download" class="btn-action-icon">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </td>`;
-                html += '</tr>';
-            });
-            
-            html += '</tbody></table>';
-            container.innerHTML = html;
-            
-            // Add select all checkbox handler
+            // Add select all checkbox handler (thead rebuilt on setData)
             const selectAllCheckbox = document.getElementById('selectAllDocuments');
             if (selectAllCheckbox) {
                 selectAllCheckbox.addEventListener('change', (e) => {
@@ -8074,7 +8063,8 @@
                 });
             }
 
-            // Update re-link button visibility based on unlinked documents
+            updateSelectAllState('documents');
+            updateBulkActionVisibility();
             updateRelinkButtonVisibility();
         }
 /* __SPLIT_DOCS_B__ */

@@ -92,6 +92,9 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .data-table { width: 100%; border-collapse: collapse; }
+        /* Virtual scroll: sticky thead inside scroll container */
+        .data-table.vs-active thead { position: sticky; top: 0; z-index: 2; }
+        .data-table.vs-active thead th { background: var(--paper, #F8F9FA); }
         #propertiesContent .data-table { table-layout: auto; }
         
         /* Properties Table - Fixed widths for better alignment */
