@@ -4,10 +4,10 @@
  * Automatically creates links between properties and wells based on location matching
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserByIdD1First, fetchAllAirtableRecords } from '../services/airtable.js';
+import { getUserByIdD1First, getOrganizationD1First, fetchAllAirtableRecords } from '../services/airtable.js';
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected, createLinksInBatches } from '../utils/property-well-matching.js';
 import type { LateralLocation } from '../utils/property-well-matching.js';
@@ -295,25 +295,25 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     const userEmail = escapeAirtableValue(authUser.email);
 
     if (organizationId) {
-      // Organization user - get org name for filtering
-      const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        }
-      );
-
-      const orgData = await orgResponse.json();
-      const orgName = orgData.fields?.Name || '';
+      // Organization user - get org name for filtering (D1-first)
+      const orgData = await getOrganizationD1First(env, organizationId);
+      const orgName = orgData?.name || '';
 
       console.log(`[PropertyWellMatch] Organization name: ${orgName}`);
 
-      // Filter by organization name OR user email - properties may have Organization
-      // field empty but User field set (e.g., after bulk re-upload via Airtable)
-      const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
-      const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
-      propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-      wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
+      if (orgName) {
+        // Filter by organization name OR user email - properties may have Organization
+        // field empty but User field set (e.g., after bulk re-upload via Airtable)
+        const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
+        const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+        propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
+        wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
+      } else {
+        // Org name unavailable — fall back to user email only (safe: never matches ALL records)
+        console.warn(`[PropertyWellMatch] Org name empty for ${organizationId}, falling back to user email filter`);
+        propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+        wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+      }
     } else {
       // Solo user - filter by user email (as displayed in linked field)
       propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
