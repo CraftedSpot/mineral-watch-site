@@ -150,10 +150,11 @@
             padding: 14px;
             border: none;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
+            white-space: nowrap;
         }
         .plan-btn.primary {
             background: var(--red-dirt);
@@ -271,8 +272,7 @@
                 <button class="plan-btn primary" id="starterBtn" data-plan="starter">Select Starter</button>
             </div>
             
-            <div class="plan-card popular" id="standardCard">
-                <div class="popular-badge">Most Popular</div>
+            <div class="plan-card" id="standardCard">
                 <h3 class="plan-name">Standard</h3>
                 <div class="plan-price" id="standardPrice">$29<span>/mo</span></div>
                 <div class="plan-interval" id="standardInterval">billed monthly</div>
