@@ -4174,7 +4174,7 @@
                         <div class="shutin-summary-label">Total Idle Wells</div>
                         <div class="shutin-summary-value">${idleCount}</div>
                     </div>
-                    <div class="shutin-summary-card ${summary.hbpRisk > 0 ? 'card-critical' : ''}">
+                    <div class="shutin-summary-card ${summary.hbpRisk > 0 ? 'card-danger' : ''}">
                         <div class="shutin-summary-label">HBP Risk</div>
                         <div class="shutin-summary-value">${summary.hbpRisk}</div>
                     </div>
@@ -4182,11 +4182,11 @@
                         <div class="shutin-summary-label">Idle (3-6mo)</div>
                         <div class="shutin-summary-value">${summary.recentlyIdle}</div>
                     </div>
-                    <div class="shutin-summary-card ${summary.extendedIdle > 0 ? 'card-critical' : ''}">
+                    <div class="shutin-summary-card ${summary.extendedIdle > 0 ? 'card-orange' : ''}">
                         <div class="shutin-summary-label">Extended Idle (6-12mo)</div>
                         <div class="shutin-summary-value">${summary.extendedIdle}</div>
                     </div>
-                    <div class="shutin-summary-card ${(summary.noRecentProd || 0) > 0 ? 'card-critical' : ''}">
+                    <div class="shutin-summary-card ${(summary.noRecentProd || 0) > 0 ? 'card-muted' : ''}">
                         <div class="shutin-summary-label">Long-Term Idle (12+mo)</div>
                         <div class="shutin-summary-value">${summary.noRecentProd || 0}</div>
                     </div>
