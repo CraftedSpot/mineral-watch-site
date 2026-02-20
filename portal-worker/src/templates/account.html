@@ -692,7 +692,7 @@
                     // Show notification settings section for admins
                     document.getElementById('orgNotificationSettings').style.display = 'block';
                     // Load current settings
-                    document.getElementById('orgNotificationMode').value = org.defaultNotificationMode || 'Instant';
+                    document.getElementById('orgNotificationMode').value = org.defaultNotificationMode || 'Daily + Weekly';
                     document.getElementById('orgAllowOverride').checked = org.allowUserOverride !== false;
                 }
                 
@@ -1040,6 +1040,8 @@
                 // Show "Use Org Default" option
                 modeSelect.querySelector('option[value="Use Org Default"]').style.display = '';
                 modeSelect.value = user.notificationOverride || 'Use Org Default';
+                // If value didn't match any option (legacy value), fall back
+                if (modeSelect.selectedIndex === -1) modeSelect.value = 'Use Org Default';
                 // Update hint based on selection
                 updateNotificationModeHint(modeSelect.value, user.orgDefaultNotificationMode);
             } else {
@@ -1050,6 +1052,8 @@
                     ? user.notificationOverride
                     : 'Daily + Weekly';
                 modeSelect.value = currentMode;
+                // If value didn't match any option (legacy value), fall back
+                if (modeSelect.selectedIndex === -1) modeSelect.value = 'Daily + Weekly';
                 modeHint.textContent = 'Daily updates arrive each morning with your property alerts. Weekly reports include regional activity.';
             }
 

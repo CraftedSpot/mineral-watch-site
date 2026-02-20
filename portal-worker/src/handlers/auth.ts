@@ -236,6 +236,17 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     return jsonResponse({ error: 'User not found' }, 401);
   }
 
+  // Normalize legacy notification mode values to current option names
+  const normalizeNotificationMode = (mode: string | null | undefined): string | null => {
+    if (!mode) return null;
+    const map: Record<string, string> = {
+      'Instant': 'Daily + Weekly',
+      'Instant + Weekly': 'Daily + Weekly',
+      'Weekly Digest': 'Weekly Report',
+    };
+    return map[mode] || mode;
+  };
+
   // Fetch org notification preferences if user has an organization
   let orgDefaultNotificationMode: string | null = null;
   let orgAllowOverride = true;
@@ -249,7 +260,7 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
       );
       if (orgResponse.ok) {
         const org: any = await orgResponse.json();
-        orgDefaultNotificationMode = org.fields['Default Notification Mode'] || 'Instant';
+        orgDefaultNotificationMode = normalizeNotificationMode(org.fields['Default Notification Mode']) || 'Daily + Weekly';
         orgAllowOverride = org.fields['Allow User Override'] !== false;
       }
     } catch (err) {
@@ -272,7 +283,7 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     alertExpirations: user.fields['Alert Expirations'] !== false,
     alertOperatorTransfers: user.fields['Alert Operator Transfers'] !== false,
     expirationWarningDays: user.fields['Expiration Warning Days'] || 30,
-    notificationOverride: user.fields['Notification Override'] || null,
+    notificationOverride: normalizeNotificationMode(user.fields['Notification Override']),
     orgDefaultNotificationMode,
     orgAllowOverride,
     airtableUser: user

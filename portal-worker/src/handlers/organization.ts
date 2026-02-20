@@ -27,6 +27,17 @@ import {
   findUserByEmail
 } from '../services/airtable.js';
 
+// Normalize legacy notification mode values to current option names
+const NOTIFICATION_MODE_MAP: Record<string, string> = {
+  'Instant': 'Daily + Weekly',
+  'Instant + Weekly': 'Daily + Weekly',
+  'Weekly Digest': 'Weekly Report',
+};
+function normalizeNotificationMode(mode: string | null | undefined): string | null {
+  if (!mode) return null;
+  return NOTIFICATION_MODE_MAP[mode] || mode;
+}
+
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
@@ -114,7 +125,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
         createdDate: organization.fields['Created Time'],
         members: members,
         // Notification settings
-        defaultNotificationMode: organization.fields['Default Notification Mode'] || 'Instant',
+        defaultNotificationMode: normalizeNotificationMode(organization.fields['Default Notification Mode']) || 'Daily + Weekly',
         allowUserOverride: organization.fields['Allow User Override'] !== false
       }
     });
