@@ -20,7 +20,6 @@ import {
   normalizeSection,
   createLocationKey,
   CM_COUNTIES,
-  parseSectionsAffected,
   computeLateralSections,
   getAdjacentLocations,
   locationsMatch,
@@ -92,7 +91,6 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         w.bh_section,
         w.bh_township,
         w.bh_range,
-        w.sections_affected,
         w.well_name AS occ_well_name,
         w.well_number
       FROM client_wells cw
@@ -147,7 +145,6 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     const processedWells: WellRecord[] = [];
     let wellsWithNoSurface = 0;
     let wellsWithBH = 0;
-    let wellsWithSectionsAffected = 0;
     let lateralComputed = 0;
     let lateralSameTwn = 0;
     let lateralCrossTwn = 0;
@@ -173,16 +170,10 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       const bottomHoleLocation = createLocationKey(bhSection, bhTownship, bhRange, meridian);
       if (bottomHoleLocation) wellsWithBH++;
 
-      // Lateral sections: use sections_affected if available, else compute from surface→BH
+      // Lateral sections: compute from surface→BH locations
       let sectionsAffected: LateralLocation[] = [];
 
-      if (row.sections_affected) {
-        wellsWithSectionsAffected++;
-        const sectionNumbers = parseSectionsAffected(row.sections_affected);
-        sectionsAffected = sectionNumbers.map((s: number) => ({
-          section: s, township: township || '', range: range || ''
-        }));
-      } else if (surfaceSection && bhSection && surfaceSection !== bhSection) {
+      if (surfaceSection && bhSection && surfaceSection !== bhSection) {
         // Auto-compute lateral path
         if (township === bhTownship && range === bhRange) {
           // Same township — Bresenham trace
@@ -353,8 +344,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       dataQuality: {
         propertiesWithNoLocation,
         wellsWithNoSurface,
-        wellsWithBH,
-        wellsWithSectionsAffected
+        wellsWithBH
       },
       lateral: {
         computed: lateralComputed,
