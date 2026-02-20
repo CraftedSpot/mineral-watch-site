@@ -631,10 +631,11 @@
                 
                 try {
                     // Fetch all properties and find the one we need
-                    const res = await fetch('/api/properties');
+                    const res = await fetch('/api/properties/v2');
                     if (!res.ok) throw new Error('Failed to fetch properties');
-                    
-                    const allProperties = await res.json();
+
+                    const data = await res.json();
+                    const allProperties = data.records || [];
                     prop = allProperties.find(p => p.id === propId);
                     
                     if (!prop) {
