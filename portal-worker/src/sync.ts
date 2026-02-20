@@ -818,37 +818,27 @@ async function reconcileLinkCounts(env: any): Promise<void> {
         }
       }
 
-      // 3. Filing counts (direct STR match) — scoped to owner's properties
+      // 3. Filing counts — UNION ALL both match paths, COUNT(DISTINCT case_number) to deduplicate
       const filingMap = new Map<string, number>();
       const filingResult = await env.WELLS_DB.prepare(`
         SELECT p.airtable_record_id as prop_id,
-               COUNT(*) as cnt
+               COUNT(DISTINCT filings.case_number) as cnt
         FROM properties p
-        INNER JOIN occ_docket_entries ode
-          ON CAST(ode.section AS INTEGER) = CAST(p.section AS INTEGER)
-          AND UPPER(ode.township) = UPPER(p.township)
-          AND UPPER(ode.range) = UPPER(p.range)
+        INNER JOIN (
+          SELECT case_number, CAST(section AS INTEGER) as sec_int, UPPER(township) as twn_upper, UPPER(range) as rng_upper
+          FROM occ_docket_entries WHERE section IS NOT NULL
+          UNION ALL
+          SELECT case_number, CAST(section AS INTEGER) as sec_int, UPPER(township) as twn_upper, UPPER(range) as rng_upper
+          FROM docket_entry_sections WHERE section IS NOT NULL
+        ) filings
+          ON filings.sec_int = CAST(p.section AS INTEGER)
+          AND filings.twn_upper = UPPER(p.township)
+          AND filings.rng_upper = UPPER(p.range)
         WHERE p.section IS NOT NULL AND ${ownerWhere}
         GROUP BY p.airtable_record_id
       `).bind(...ownerParams).all();
       for (const r of filingResult.results as any[]) {
-        filingMap.set(r.prop_id, (filingMap.get(r.prop_id) || 0) + r.cnt);
-      }
-
-      // 4. Additional sections via junction table
-      const addlResult = await env.WELLS_DB.prepare(`
-        SELECT p.airtable_record_id as prop_id,
-               COUNT(DISTINCT des.case_number) as cnt
-        FROM properties p
-        INNER JOIN docket_entry_sections des
-          ON des.section = CAST(p.section AS TEXT)
-          AND des.township = p.township
-          AND des.range = p.range
-        WHERE p.section IS NOT NULL AND ${ownerWhere}
-        GROUP BY p.airtable_record_id
-      `).bind(...ownerParams).all();
-      for (const r of addlResult.results as any[]) {
-        filingMap.set(r.prop_id, (filingMap.get(r.prop_id) || 0) + r.cnt);
+        filingMap.set(r.prop_id, r.cnt);
       }
 
       // Build UPDATE statements — only update rows that changed
