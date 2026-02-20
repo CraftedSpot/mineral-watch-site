@@ -550,7 +550,7 @@
                 const billingActions = document.getElementById('billingActions');
                 
                 // Only hide for Free users without any billing history
-                if (plan === 'Free' && !currentUser.stripeCustomerId) {
+                if (plan === 'Free' && !currentUser.hasBillingHistory) {
                     billingActions.style.display = 'none';
                 } else if (plan !== 'Free') {
                     // Show everything for paid users

@@ -268,6 +268,7 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     }
   }
 
+  // Return only whitelisted fields — never expose Stripe IDs, Plan History, etc. to the browser
   return jsonResponse({
     id: user.id,
     email: user.fields.Email,
@@ -276,7 +277,7 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     status: user.fields.Status,
     role: user.fields.Role || null,
     organizationId,
-    stripeCustomerId: user.fields['Stripe Customer ID'] || null,
+    hasBillingHistory: !!user.fields['Stripe Customer ID'],
     alertPermits: user.fields['Alert Permits'] !== false,
     alertCompletions: user.fields['Alert Completions'] !== false,
     alertStatusChanges: user.fields['Alert Status Changes'] !== false,
@@ -285,8 +286,7 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     expirationWarningDays: user.fields['Expiration Warning Days'] || 30,
     notificationOverride: normalizeNotificationMode(user.fields['Notification Override']),
     orgDefaultNotificationMode,
-    orgAllowOverride,
-    airtableUser: user
+    orgAllowOverride
   });
 }
 
