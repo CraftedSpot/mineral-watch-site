@@ -625,7 +625,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
               AND doc_type IN ('check_stub', 'royalty_statement', 'revenue_statement')
               AND status = 'complete'
               AND (deleted_at IS NULL OR deleted_at = '')
-            ORDER BY uploaded_at DESC
+            ORDER BY upload_date DESC
             LIMIT 100
           `).bind(authUser.id).all();
 
