@@ -4167,31 +4167,7 @@
             // Get unique counties for filters (from idle wells only)
             const counties = [...new Set(idleWells.map(w => w.county).filter(Boolean))].sort();
 
-            // Summary cards (exclude no data wells from Total Idle)
-            const summaryHtml = `
-                <div class="shutin-summary-bar">
-                    <div class="shutin-summary-card">
-                        <div class="shutin-summary-label">Total Idle Wells</div>
-                        <div class="shutin-summary-value">${idleCount}</div>
-                    </div>
-                    <div class="shutin-summary-card ${summary.hbpRisk > 0 ? 'card-danger' : ''}">
-                        <div class="shutin-summary-label">HBP Risk</div>
-                        <div class="shutin-summary-value">${summary.hbpRisk}</div>
-                    </div>
-                    <div class="shutin-summary-card ${summary.recentlyIdle > 0 ? 'card-warning' : ''}">
-                        <div class="shutin-summary-label">Idle (3-6mo)</div>
-                        <div class="shutin-summary-value">${summary.recentlyIdle}</div>
-                    </div>
-                    <div class="shutin-summary-card ${summary.extendedIdle > 0 ? 'card-orange' : ''}">
-                        <div class="shutin-summary-label">Extended Idle (6-12mo)</div>
-                        <div class="shutin-summary-value">${summary.extendedIdle}</div>
-                    </div>
-                    <div class="shutin-summary-card ${(summary.noRecentProd || 0) > 0 ? 'card-muted' : ''}">
-                        <div class="shutin-summary-label">Long-Term Idle (12+mo)</div>
-                        <div class="shutin-summary-value">${summary.noRecentProd || 0}</div>
-                    </div>
-                </div>
-            `;
+            // Donut chart handles the full summary — no separate cards needed
 
             // Toolbar (no No Data filter needed — they're in their own section)
             const toolbarHtml = `
@@ -4261,7 +4237,6 @@
             `;
 
             document.getElementById('reportContent').innerHTML = `
-                ${summaryHtml}
                 ${donutHtml}
                 ${tabHtml}
                 <div id="shutInTabContent">
