@@ -454,11 +454,11 @@ export async function handleListWellsV2(request: Request, env: Env) {
   const wellLimit = planLimits.wells;
   const isSuperAdmin = !!(user as any).impersonating;
 
-  // Build WHERE clause (same pattern as Properties V2)
+  // Build WHERE clause — org members see all wells belonging to any user in the org
   const whereClause = organizationId
-    ? `WHERE cw.organization_id = ? OR cw.user_id = ?`
+    ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))`
     : `WHERE cw.user_id = ?`;
-  const bindParams = organizationId ? [organizationId, user.id] : [user.id];
+  const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
 
   // COUNT (no LIMIT — total records owned) + SELECT (with LIMIT) in parallel
   const countStmt = env.WELLS_DB.prepare(

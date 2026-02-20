@@ -37,11 +37,11 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
     const organizationId = userRecord.fields.Organization?.[0];
 
-    // Single D1 query — reads denormalized counts directly from properties
+    // Single D1 query — org members see all properties belonging to any user in the org
     const whereClause = organizationId
-      ? `WHERE organization_id = ? OR user_id = ?`
+      ? `WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `WHERE user_id = ?`;
-    const bindParams = organizationId ? [organizationId, user.id] : [user.id];
+    const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
 
     const result = await env.WELLS_DB.prepare(`
       SELECT airtable_record_id, id, well_count, document_count, filing_count

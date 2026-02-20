@@ -54,13 +54,13 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       });
     }
 
-    // Query wells by BOTH user_id and organization_id to capture all assigned wells
+    // Query wells — org members see all wells belonging to any user in the org
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      ? `SELECT api_number, well_name, county, well_status FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string }>;
 
@@ -284,13 +284,13 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       });
     }
 
-    // Query wells by BOTH user_id and organization_id to capture all assigned wells
+    // Query wells — org members see all wells belonging to any user in the org
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      ? `SELECT api_number, well_name, county FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `SELECT api_number, well_name, county FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string }>;
 
@@ -388,11 +388,11 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
     // Insight 3: New pooling orders (filed in last 30 days) near user's properties
     try {
       const propsQuery = userOrgId
-        ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+        ? `SELECT section, township, range FROM properties WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?)) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
         : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
 
       const propsResult = userOrgId
-        ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+        ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
         : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
 
       const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
@@ -526,13 +526,13 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       });
     }
 
-    // ---- Shared setup: wells query (once) ----
+    // ---- Shared setup: wells query (once) — org members see all org wells ----
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      ? `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string; airtable_id: string; ri_nri: number | null; wi_nri: number | null; orri_nri: number | null }>;
 
@@ -844,11 +844,11 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     async function queryPooling(): Promise<{ count: number; newCount: number; nearestDeadline: string | null; isUrgent: boolean }> {
       try {
         const propsQuery = userOrgId
-          ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+          ? `SELECT section, township, range FROM properties WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?)) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
           : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
 
         const propsResult = userOrgId
-          ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+          ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
           : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
 
         const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
@@ -1038,13 +1038,13 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       }
     }
 
-    // Get user's wells - query by BOTH user_id and organization_id to capture all assigned wells
+    // Get user's wells — org members see all wells belonging to any user in the org
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, operator FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      ? `SELECT api_number, well_name, county, operator FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `SELECT api_number, well_name, county, operator FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; operator: string | null }>;
     if (!wells || wells.length === 0) {
@@ -1522,13 +1522,13 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       }
     }
 
-    // Get user's wells
+    // Get user's wells — org members see all wells belonging to any user in the org
     const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, operator FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      ? `SELECT api_number, well_name, operator FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))`
       : `SELECT api_number, well_name, operator FROM client_wells WHERE user_id = ?`;
 
     const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; operator: string | null }>;
 
@@ -1913,11 +1913,11 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       }
     }
 
-    // Step 1: Get user's properties with TRS data
+    // Step 1: Get user's properties with TRS data — org members see all org properties
     const propsQuery = userOrgId
       ? `SELECT id, section, township, range, county, airtable_record_id
          FROM properties
-         WHERE (user_id = ? OR organization_id = ?)
+         WHERE (organization_id = ? OR user_id IN (SELECT id FROM users WHERE organization_id = ?))
            AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
       : `SELECT id, section, township, range, county, airtable_record_id
          FROM properties
@@ -1925,7 +1925,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
            AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
 
     const propsResult = userOrgId
-      ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+      ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
       : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
 
     const properties = propsResult.results as Array<{
@@ -2854,7 +2854,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
                w.formation_name, w.well_type, w.is_horizontal
         FROM client_wells cw
         JOIN wells w ON w.api_number = cw.api_number
-        WHERE cw.user_id = ? OR cw.organization_id = ?
+        WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))
       ),
       production AS (
         SELECT wpl.api_number, op.year_month,
@@ -2873,7 +2873,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
     `;
 
     const result = await env.WELLS_DB.prepare(query)
-      .bind(authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .bind(userOrgId || '', authUser.id, userOrgId || '', twentyFourMonthsAgo)
       .all();
 
     const rows = result.results as Array<{
@@ -3196,7 +3196,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
         SELECT cw.api_number, w.county, w.formation_name, w.is_horizontal
         FROM client_wells cw
         JOIN wells w ON w.api_number = cw.api_number
-        WHERE (cw.user_id = ? OR cw.organization_id = ?)
+        WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))
           AND w.county IS NOT NULL
       ),
       production AS (
@@ -3217,7 +3217,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
     `;
 
     const userWellsResult = await env.WELLS_DB.prepare(userWellsQuery)
-      .bind(authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .bind(userOrgId || '', authUser.id, userOrgId || '', twentyFourMonthsAgo)
       .all();
 
     const userWellRows = userWellsResult.results as Array<{
@@ -4663,13 +4663,13 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
         FROM otc_pun_tax_periods
         GROUP BY pun
       ) tp ON tp.pun = wpl.pun
-      WHERE cw.user_id = ? OR cw.organization_id = ?
+      WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))
     `;
 
     console.log('[Shut-In Detector] Querying wells for user:', authUser.id, 'org:', userOrgId || 'none');
 
     const allWellsResult = await env.WELLS_DB!.prepare(allWellsQuery)
-      .bind(authUser.id, userOrgId || '')
+      .bind(userOrgId || '', authUser.id, userOrgId || '')
       .all();
 
     console.log('[Shut-In Detector] Query returned', allWellsResult.results.length, 'rows');
@@ -5547,12 +5547,12 @@ export async function handleGetShutInDetectorMarkets(request: Request, env: Env)
       JOIN wells w ON w.api_number = cw.api_number
       LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
       LEFT JOIN puns p ON p.pun = wpl.pun
-      WHERE (cw.user_id = ? OR cw.organization_id = ?)
+      WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT id FROM users WHERE organization_id = ?))
         AND w.county IS NOT NULL
     `;
 
     const userWellsResult = await env.WELLS_DB!.prepare(userWellsQuery)
-      .bind(authUser.id, userOrgId || '')
+      .bind(userOrgId || '', authUser.id, userOrgId || '')
       .all();
 
     const userWellRows = userWellsResult.results as Array<{
