@@ -93,35 +93,57 @@
                 }
                 
                 // Pre-fetch BH section geometries for wells that need them
-                const bhSectionsToFetch = new Set();
+                const bhToFetch = new Map(); // cacheKey → { section, township, range }
                 for (const well of wells) {
                     if (well.bh_section && well.bh_township && well.bh_range) {
                         const bhCacheKey = `${well.bh_section}-${well.bh_township}-${well.bh_range}`;
-                        if (!geometryCache[bhCacheKey]) {
-                            bhSectionsToFetch.add({
-                                section: well.bh_section,
-                                township: well.bh_township,
-                                range: well.bh_range,
-                                county: well.county || ''
-                            });
+                        // Check memory cache
+                        if (geometryCache[bhCacheKey]) continue;
+                        // Check localStorage cache
+                        const stored = localStorage.getItem(`mw_section_${bhCacheKey}`);
+                        if (stored) {
+                            try {
+                                const _raw = JSON.parse(stored);
+                                geometryCache[bhCacheKey] = _raw && _raw.d !== undefined ? _raw.d : _raw;
+                                continue;
+                            } catch (e) { localStorage.removeItem(`mw_section_${bhCacheKey}`); }
+                        }
+                        if (!bhToFetch.has(bhCacheKey)) {
+                            bhToFetch.set(bhCacheKey, { section: well.bh_section, township: well.bh_township, range: well.bh_range });
                         }
                     }
                 }
-                
-                // Batch fetch missing BH geometries
-                if (bhSectionsToFetch.size > 0) {
-                    console.log(`Pre-fetching ${bhSectionsToFetch.size} BH section geometries...`);
-                    for (const bh of bhSectionsToFetch) {
-                        const geometry = await fetchSectionGeometry(bh.section, bh.township, bh.range, bh.county);
-                        if (geometry) {
-                            const cacheKey = `${bh.section}-${bh.township}-${bh.range}`;
-                            geometryCache[cacheKey] = geometry;
-                            console.log(`✅ Cached BH geometry for ${cacheKey}, type: ${geometry.geometry?.type}`);
-                        } else {
-                            console.warn(`❌ Failed to fetch BH geometry for ${bh.section}-${bh.township}-${bh.range}`);
+
+                // Batch fetch missing BH geometries via /api/plss-sections/batch
+                if (bhToFetch.size > 0) {
+                    console.log(`Batch-fetching ${bhToFetch.size} BH section geometries...`);
+                    const bhArray = [...bhToFetch.values()];
+                    // Chunk into batches of 500 (D1 batch limit)
+                    for (let i = 0; i < bhArray.length; i += 500) {
+                        const chunk = bhArray.slice(i, i + 500);
+                        try {
+                            const res = await fetch('/api/plss-sections/batch', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ sections: chunk })
+                            });
+                            if (res.ok) {
+                                const batchResults = await res.json();
+                                let found = 0;
+                                for (const [cacheKey, feature] of Object.entries(batchResults)) {
+                                    geometryCache[cacheKey] = feature;
+                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify({t:Date.now(),d:feature}));
+                                    found++;
+                                }
+                                console.log(`D1 BH batch ${Math.floor(i/500)+1}: ${found}/${chunk.length} found`);
+                            } else {
+                                console.warn('BH batch failed:', res.status);
+                            }
+                        } catch (err) {
+                            console.warn('BH batch error:', err);
                         }
                     }
-                    console.log(`Finished pre-fetching. Cache now has ${Object.keys(geometryCache).length} geometries`);
+                    console.log(`BH pre-fetch done. Cache now has ${Object.keys(geometryCache).length} geometries`);
                 }
                 
                 // Fetch D1 lateral data for tracked wells
