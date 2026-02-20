@@ -991,7 +991,7 @@
         /* Mobile Responsive */
         @media (max-width: 480px) {
             .modal-overlay { padding: 10px; align-items: flex-start; padding-top: 20px; }
-            .well-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; border-radius: 12px; }
+            .well-card, .property-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; border-radius: 12px; }
             .well-card.detail-modal { border-radius: 12px; }
             .two-col { flex-direction: column; gap: 12px; }
             .production-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1992,8 +1992,7 @@
                 align-items: center;
                 justify-content: center;
                 gap: 2px;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                min-width: 0;
             }
             .usage-item.usage-separator {
                 display: none !important;
@@ -2003,7 +2002,7 @@
                 display: flex !important;
             }
             .usage-count {
-                font-size: 28px;
+                font-size: 22px;
                 font-weight: 700;
                 line-height: 1;
             }
@@ -2011,9 +2010,10 @@
                 display: none;
             }
             .usage-label {
-                font-size: 11px;
+                font-size: 10px;
                 text-transform: uppercase;
-                letter-spacing: 0.5px;
+                letter-spacing: 0.3px;
+                white-space: nowrap;
             }
             .upgrade-link {
                 margin-left: 0;
@@ -2074,12 +2074,27 @@
                 min-height: 44px;
             }
             
-            /* Tabs mobile */
+            /* Tabs mobile - horizontal scroll with fade hint */
             .tabs {
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
                 padding-bottom: 2px;
+                position: relative;
+                scrollbar-width: none;
             }
+            .tabs::-webkit-scrollbar { display: none; }
+            .tabs::after {
+                content: '';
+                position: sticky;
+                right: 0;
+                top: 0;
+                flex-shrink: 0;
+                width: 32px;
+                height: 100%;
+                background: linear-gradient(to right, transparent, #F7FAFC);
+                pointer-events: none;
+            }
+            .tabs.scrolled-end::after { display: none; }
             .tab {
                 flex-shrink: 0;
                 padding: 12px 16px;

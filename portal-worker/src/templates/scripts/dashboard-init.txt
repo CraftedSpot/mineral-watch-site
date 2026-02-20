@@ -135,6 +135,15 @@
                 initWellsControls();
                 initPropertiesControls();
                 initDocumentsControls();
+
+                // Tab strip scroll fade hint — hide when scrolled to end
+                const tabsEl = document.querySelector('.tabs');
+                if (tabsEl) {
+                    tabsEl.addEventListener('scroll', () => {
+                        const atEnd = tabsEl.scrollLeft + tabsEl.clientWidth >= tabsEl.scrollWidth - 4;
+                        tabsEl.classList.toggle('scrolled-end', atEnd);
+                    });
+                }
             } catch (err) {
                 console.error('Dashboard init error:', err);
                 if (!window.currentUser) {
