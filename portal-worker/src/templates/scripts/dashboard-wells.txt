@@ -597,11 +597,30 @@
 
         function getWellsHeader() {
             const isViewer = currentUser?.role === 'Viewer';
+            const [sortField, sortDir] = wellsController.sortBy.split('-');
+            const arrow = (f) => sortField === f ? (sortDir === 'asc' ? ' \\u25B2' : ' \\u25BC') : '';
+            const thStyle = 'cursor:pointer;user-select:none;white-space:nowrap;';
+
             let h = '<colgroup>';
-            if (!isViewer) h += '<col class="col-select">';
-            h += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
+            if (!isViewer) h += '<col style="width:40px">';
+            h += '<col style="min-width:160px">';  // Well Name
+            h += '<col style="min-width:120px">';  // Operator
+            h += '<col style="width:120px">';       // Formation
+            h += '<col style="width:80px">';        // Breakeven
+            h += '<col style="width:170px">';       // Status
+            h += '<col style="width:100px">';       // Stressed At
+            h += '<col style="width:100px">';       // Critical At
+            h += '</colgroup><thead><tr>';
+
             if (!isViewer) h += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all" aria-label="Select all wells"></th>';
-            h += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead>';
+            h += '<th style="' + thStyle + '" onclick="onWellsHeaderSort(\'name\')">Well Name' + arrow('name') + '</th>';
+            h += '<th style="' + thStyle + '" onclick="onWellsHeaderSort(\'operator\')">Operator' + arrow('operator') + '</th>';
+            h += '<th style="' + thStyle + '" onclick="onWellsHeaderSort(\'formation\')">Formation' + arrow('formation') + '</th>';
+            h += '<th style="' + thStyle + 'text-align:right;" onclick="onWellsHeaderSort(\'breakeven\')">Breakeven' + arrow('breakeven') + '</th>';
+            h += '<th style="' + thStyle + 'text-align:center;" onclick="onWellsHeaderSort(\'status\')">Status' + arrow('status') + '</th>';
+            h += '<th style="' + thStyle + 'text-align:right;" onclick="onWellsHeaderSort(\'stressed_at\')">Stressed At' + arrow('stressed_at') + '</th>';
+            h += '<th style="' + thStyle + 'text-align:right;" onclick="onWellsHeaderSort(\'critical_at\')">Critical At' + arrow('critical_at') + '</th>';
+            h += '</tr></thead>';
             return h;
         }
 
