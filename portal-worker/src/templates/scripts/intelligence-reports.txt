@@ -5811,8 +5811,8 @@
 
         function riskLevelBadgeStyle(level) {
             switch (level) {
-                case 'comfortable': return 'background: #d1fae5; color: #065f46;';
-                case 'adequate': return 'background: #ccfbf1; color: #0f766e;';
+                case 'comfortable': return 'background: #dcfce7; color: #166534;';
+                case 'adequate': return 'background: #dbeafe; color: #1e40af;';
                 case 'tight': return 'background: #fef3c7; color: #92400e;';
                 case 'at_risk': return 'background: #fee2e2; color: #991b1b;';
                 default: return 'background: #f3f4f6; color: #374151;';
@@ -5821,8 +5821,8 @@
 
         function riskLevelColor(level) {
             switch (level) {
-                case 'comfortable': return '#10b981';
-                case 'adequate': return '#14b8a6';
+                case 'comfortable': return '#22c55e';
+                case 'adequate': return '#3b82f6';
                 case 'tight': return '#f59e0b';
                 case 'at_risk': return '#ef4444';
                 default: return '#9ca3af';
@@ -5887,11 +5887,11 @@
                         <div style="font-size: 0.75rem; color: var(--text-muted);">Tight</div>
                     </div>
                     <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #14b8a6;">${summary.adequateCount}</div>
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;">${summary.adequateCount}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);">Adequate</div>
                     </div>
                     <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;">${summary.comfortableCount}</div>
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #22c55e;">${summary.comfortableCount}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);">Comfortable</div>
                     </div>
                 </div>`;
@@ -6187,7 +6187,7 @@
                         </div>
                         <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
                             ${avgBE !== null ? '<div>Avg Breakeven: <strong>$' + avgBE.toFixed(0) + '/bbl</strong></div>' : ''}
-                            ${cushion !== null ? '<div>Net-Back Cushion: <strong style="color: ' + (cushion >= 0 ? '#10b981' : '#ef4444') + ';">' + (cushion >= 0 ? '+' : '') + '$' + cushion.toFixed(0) + '</strong></div>' : ''}
+                            ${cushion !== null ? '<div>Net-Back Cushion: <strong style="color: ' + (cushion >= 0 ? '#22c55e' : '#ef4444') + ';">' + (cushion >= 0 ? '+' : '') + '$' + cushion.toFixed(0) + '</strong></div>' : ''}
                             ${f.atRiskCount > 0 ? '<div style="color: #ef4444;"><strong>' + f.atRiskCount + '</strong> at risk</div>' : ''}
                         </div>
                         ${barHtml}
@@ -6266,11 +6266,11 @@
                         </p>
                         <div style="display: grid; gap: 0.5rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #10b981;"></span>
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #22c55e;"></span>
                                 <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Comfortable</strong> &mdash; More than 25% margin above breakeven</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #14b8a6;"></span>
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #3b82f6;"></span>
                                 <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Adequate</strong> &mdash; 10&ndash;25% margin above breakeven</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
