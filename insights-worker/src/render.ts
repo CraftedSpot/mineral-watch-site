@@ -107,7 +107,7 @@ const CSS_BASE = `
 html { overflow-x: hidden; }
 body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; overflow-x: hidden; max-width: 100vw; }
 h1, h2, h3, h4, .logo { font-family: 'Merriweather', serif; }
-.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; overflow-x: clip; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; overflow: clip; }
 a { color: inherit; }
 .skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: var(--oil-navy); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
 .skip-nav:focus { top: 0; }
