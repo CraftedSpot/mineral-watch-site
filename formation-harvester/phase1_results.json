@@ -135063,5 +135063,705 @@
     "effective_date": "1/30/1980",
     "well_name": "SCOVELL 1",
     "county": "Garfield"
+  },
+  {
+    "api_number": "3504722145",
+    "entry_id": 8008432,
+    "effective_date": "2/12/1980",
+    "well_name": "WEST 2-80",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722147",
+    "entry_id": 8008315,
+    "effective_date": "1/27/1980",
+    "well_name": "JOHN O'DONNELL 19-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722148",
+    "entry_id": 8008576,
+    "effective_date": "3/8/1980",
+    "well_name": "ROBERT HELBERG 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722149",
+    "entry_id": 8008183,
+    "effective_date": "12/29/1979",
+    "well_name": "GEORGE 12-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722154",
+    "entry_id": 2245271,
+    "effective_date": "5/14/1980",
+    "well_name": "POSPISIL 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722162",
+    "entry_id": 8016496,
+    "effective_date": "12/15/1980",
+    "well_name": "KELLER L-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722188",
+    "entry_id": 2245460,
+    "effective_date": "6/13/1980",
+    "well_name": "CLARK 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722194",
+    "entry_id": 2245814,
+    "effective_date": "8/11/1980",
+    "well_name": "J J BROWN 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722196",
+    "entry_id": 2245941,
+    "effective_date": "8/21/1980",
+    "well_name": "ELSIE WHITE 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722197",
+    "entry_id": 8008085,
+    "effective_date": "12/8/1979",
+    "well_name": "ROBERTSON 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722198",
+    "entry_id": 8009373,
+    "effective_date": "7/17/1980",
+    "well_name": "FREDERICK 12-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722215",
+    "entry_id": 2256116,
+    "effective_date": "6/1/1982",
+    "well_name": "EDNA LANG 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722221",
+    "entry_id": 8015765,
+    "effective_date": "9/3/1980",
+    "well_name": "WILSON A-2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722222",
+    "entry_id": 8009380,
+    "effective_date": "7/18/1980",
+    "well_name": "K ZALOUDEK 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722234",
+    "entry_id": 2247445,
+    "effective_date": "12/3/1980",
+    "well_name": "HENNEKE 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722256",
+    "entry_id": 2235442,
+    "effective_date": "6/16/1975",
+    "well_name": "BEEBY 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722266",
+    "entry_id": 8009440,
+    "effective_date": "7/25/1980",
+    "well_name": "EASTERLY 5-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722268",
+    "entry_id": 2247513,
+    "effective_date": "12/8/1980",
+    "well_name": "POSPISIL 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722272",
+    "entry_id": 8021235,
+    "effective_date": "4/15/1983",
+    "well_name": "EDIGER B-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722281",
+    "entry_id": 8009601,
+    "effective_date": "8/12/1980",
+    "well_name": "HUSTON 1-23",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722290",
+    "entry_id": 2257015,
+    "effective_date": "8/12/1982",
+    "well_name": "RALPH MAXEY 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722300",
+    "entry_id": 8009624,
+    "effective_date": "8/16/1980",
+    "well_name": "SEMRAD 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722307",
+    "entry_id": 8017014,
+    "effective_date": "3/9/1981",
+    "well_name": "REGIER 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722316",
+    "entry_id": 2246733,
+    "effective_date": "10/13/1980",
+    "well_name": "FICKEN 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722322",
+    "entry_id": 2246025,
+    "effective_date": "8/26/1980",
+    "well_name": "MERRITT 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722324",
+    "entry_id": 2245719,
+    "effective_date": "7/27/1980",
+    "well_name": "REX 34-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722332",
+    "entry_id": 8016959,
+    "effective_date": "2/27/1981",
+    "well_name": "KROEKER 1-23",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722338",
+    "entry_id": 8016096,
+    "effective_date": "11/12/1980",
+    "well_name": "WELCH 1-9",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722361",
+    "entry_id": 2247131,
+    "effective_date": "11/12/1980",
+    "well_name": "HAROLD WILLIAMS 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722365",
+    "entry_id": 8016009,
+    "effective_date": "10/30/1980",
+    "well_name": "HEDGES 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722368",
+    "entry_id": 8016492,
+    "effective_date": "12/13/1980",
+    "well_name": "REIM 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722372",
+    "entry_id": 2246625,
+    "effective_date": "10/8/1980",
+    "well_name": "VALTR 29-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722381",
+    "entry_id": 8015995,
+    "effective_date": "10/27/1980",
+    "well_name": "BUTTS 1-34",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722402",
+    "entry_id": 8017222,
+    "effective_date": "4/7/1981",
+    "well_name": "URBAN HELBERG 4",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722407",
+    "entry_id": 8017160,
+    "effective_date": "4/1/1981",
+    "well_name": "CHESTNUT 4",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722410",
+    "entry_id": 8015986,
+    "effective_date": "10/25/1980",
+    "well_name": "FRANK BIRD 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722413",
+    "entry_id": 8017022,
+    "effective_date": "3/11/1981",
+    "well_name": "MITCHELL 3",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722421",
+    "entry_id": 8017469,
+    "effective_date": "5/20/1981",
+    "well_name": "ANNA GREGG 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722424",
+    "entry_id": 2247768,
+    "effective_date": "12/20/1980",
+    "well_name": "PARKHURST 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722426",
+    "entry_id": 8017197,
+    "effective_date": "4/4/1981",
+    "well_name": "JOHNDROW 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722438",
+    "entry_id": 8016625,
+    "effective_date": "1/13/1981",
+    "well_name": "COFFIN 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722442",
+    "entry_id": 2249630,
+    "effective_date": "4/8/1981",
+    "well_name": "BULLIS 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722446",
+    "entry_id": 8016554,
+    "effective_date": "12/29/1980",
+    "well_name": "ASHBY 3",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722447",
+    "entry_id": 8016484,
+    "effective_date": "12/10/1980",
+    "well_name": "BLAKELEY 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722450",
+    "entry_id": 2250036,
+    "effective_date": "5/1/1981",
+    "well_name": "ANTON 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722459",
+    "entry_id": 2250318,
+    "effective_date": "5/15/1981",
+    "well_name": "SCHMINKE 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722479",
+    "entry_id": 2250384,
+    "effective_date": "5/19/1981",
+    "well_name": "MORAVEC 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722493",
+    "entry_id": 8017060,
+    "effective_date": "3/16/1981",
+    "well_name": "SNYDER 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722506",
+    "entry_id": 2249828,
+    "effective_date": "4/20/1981",
+    "well_name": "THOMAS 1-35",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722525",
+    "entry_id": 2249534,
+    "effective_date": "4/3/1981",
+    "well_name": "HORSLEY 3",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722540",
+    "entry_id": 8018283,
+    "effective_date": "8/27/1981",
+    "well_name": "L BRAKHAGE UNIT 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722546",
+    "entry_id": 8017376,
+    "effective_date": "5/1/1981",
+    "well_name": "LAGAN 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722547",
+    "entry_id": 2082554,
+    "effective_date": "5/1/1984",
+    "well_name": "P BINGHAM 1-30",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722553",
+    "entry_id": 8017441,
+    "effective_date": "5/15/1981",
+    "well_name": "GREER 32-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722554",
+    "entry_id": 8017381,
+    "effective_date": "5/2/1981",
+    "well_name": "LOUGHMAN 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722556",
+    "entry_id": 8018085,
+    "effective_date": "8/6/1981",
+    "well_name": "SIMONS 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722561",
+    "entry_id": 8018896,
+    "effective_date": "10/12/1981",
+    "well_name": "ANNA 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722562",
+    "entry_id": 8018152,
+    "effective_date": "8/17/1981",
+    "well_name": "LAUPPE 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722563",
+    "entry_id": 8018894,
+    "effective_date": "10/12/1981",
+    "well_name": "DAILEY 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722566",
+    "entry_id": 8019349,
+    "effective_date": "12/14/1981",
+    "well_name": "UNIVERSITY 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722575",
+    "entry_id": 2252924,
+    "effective_date": "8/6/1981",
+    "well_name": "H R WILLIAMS 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722579",
+    "entry_id": 2251967,
+    "effective_date": "6/10/1981",
+    "well_name": "WARTICK 1-29",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722580",
+    "entry_id": 2249812,
+    "effective_date": "4/18/1981",
+    "well_name": "B LEE 1-30",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722581",
+    "entry_id": 8017214,
+    "effective_date": "9/30/1988",
+    "well_name": "SCHNEIDER 2-12",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722588",
+    "entry_id": 8017077,
+    "effective_date": "3/18/1981",
+    "well_name": "WELLS 13-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722594",
+    "entry_id": 8018619,
+    "effective_date": "9/21/1981",
+    "well_name": "REUSSNER 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722604",
+    "entry_id": 8017154,
+    "effective_date": "3/31/1981",
+    "well_name": "TABORSKY VANCE 11-2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722619",
+    "entry_id": 2250439,
+    "effective_date": "5/22/1981",
+    "well_name": "VOSKUHL 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722623",
+    "entry_id": 8018013,
+    "effective_date": "7/31/1981",
+    "well_name": "TOEWS 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722636",
+    "entry_id": 8017739,
+    "effective_date": "7/8/1981",
+    "well_name": "BYRNES 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722647",
+    "entry_id": 2252901,
+    "effective_date": "8/3/1981",
+    "well_name": "BENNETT 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722651",
+    "entry_id": 2252070,
+    "effective_date": "6/17/1981",
+    "well_name": "JULIE ANN 1-28",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722660",
+    "entry_id": 8017410,
+    "effective_date": "9/30/1988",
+    "well_name": "ALICE 2-12",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722670",
+    "entry_id": 2253268,
+    "effective_date": "9/20/1981",
+    "well_name": "MALY 32-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722672",
+    "entry_id": 8017249,
+    "effective_date": "4/13/1981",
+    "well_name": "TRICKEY A-1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722674",
+    "entry_id": 8017881,
+    "effective_date": "7/17/1981",
+    "well_name": "SE SALT FORK SKINNER SAND UNIT 19-2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722677",
+    "entry_id": 8017534,
+    "effective_date": "6/3/1981",
+    "well_name": "ALICE 3-12",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722681",
+    "entry_id": 2250358,
+    "effective_date": "5/18/1981",
+    "well_name": "JOHNSON 3",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722687",
+    "entry_id": 2253600,
+    "effective_date": "10/29/1981",
+    "well_name": "FUKSA 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722697",
+    "entry_id": 8017614,
+    "effective_date": "6/23/1981",
+    "well_name": "MUNKRES 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722705",
+    "entry_id": 8017515,
+    "effective_date": "5/31/1981",
+    "well_name": "IVEN 1 A092-01",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722706",
+    "entry_id": 8017550,
+    "effective_date": "6/6/1981",
+    "well_name": "WELLS 13-4",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722708",
+    "entry_id": 2255003,
+    "effective_date": "3/16/1982",
+    "well_name": "BECKNER 1-35",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722714",
+    "entry_id": 8019233,
+    "effective_date": "11/23/1981",
+    "well_name": "VERA WINTER 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722719",
+    "entry_id": 8019197,
+    "effective_date": "11/16/1981",
+    "well_name": "GOMPF 1-30",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722720",
+    "entry_id": 2253125,
+    "effective_date": "9/1/1981",
+    "well_name": "PERRY 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722729",
+    "entry_id": 2253131,
+    "effective_date": "9/2/1981",
+    "well_name": "VAN HAUEN 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722734",
+    "entry_id": 8017662,
+    "effective_date": "6/29/1981",
+    "well_name": "IVEN 2 A092-02",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722765",
+    "entry_id": 2253221,
+    "effective_date": "9/12/1981",
+    "well_name": "KENNEDY 1-29A",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722766",
+    "entry_id": 8018448,
+    "effective_date": "9/10/1981",
+    "well_name": "BEASLEY 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722778",
+    "entry_id": 8017935,
+    "effective_date": "7/24/1981",
+    "well_name": "IVEN 3 A092-03",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722784",
+    "entry_id": 2253453,
+    "effective_date": "10/12/1981",
+    "well_name": "ANNA 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722808",
+    "entry_id": 2256926,
+    "effective_date": "8/4/1982",
+    "well_name": "WILLIE G KRAUSSE 2",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722809",
+    "entry_id": 2253220,
+    "effective_date": "9/12/1981",
+    "well_name": "LEJA 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722819",
+    "entry_id": 2254245,
+    "effective_date": "1/14/1982",
+    "well_name": "STAGGS 1-35",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722821",
+    "entry_id": 2254269,
+    "effective_date": "1/15/1982",
+    "well_name": "STAGGS 1-36",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722825",
+    "entry_id": 8019099,
+    "effective_date": "11/3/1981",
+    "well_name": "TEFFT 13-3",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722875",
+    "entry_id": 2253753,
+    "effective_date": "11/18/1981",
+    "well_name": "CARSON 1",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722877",
+    "entry_id": 8019339,
+    "effective_date": "12/12/1981",
+    "well_name": "BRAINARD 3-28",
+    "county": "Garfield"
+  },
+  {
+    "api_number": "3504722880",
+    "entry_id": 3226712,
+    "effective_date": "9/9/1981",
+    "well_name": "FARBER 4-1",
+    "county": "Garfield"
   }
 ]

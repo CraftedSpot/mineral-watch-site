@@ -6614,6 +6614,7 @@ interface RiskWellRow {
   is_gas_flag: number | null;
   profile_description: string | null;
   pun: string | null;
+  base_pun: string | null;
   last_prod_month: string | null;
   is_stale: number | null;
   decline_rate_12m: number | null;
@@ -6718,7 +6719,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
              rp.name as profile_name, rp.half_cycle_breakeven,
              rp.full_cycle_breakeven, rp.typical_loe_per_boe,
              rp.is_gas_flag, rp.description as profile_description,
-             wpl.pun, p.last_prod_month, p.is_stale, p.decline_rate_12m
+             wpl.pun, wpl.base_pun, p.last_prod_month, p.is_stale, p.decline_rate_12m
       FROM client_wells cw
       JOIN wells w ON w.api_number = cw.api_number
       LEFT JOIN well_risk_profiles rp ON rp.id = w.risk_profile_id
@@ -6750,8 +6751,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
 
     // Step 3: Gas-weighted detection via recent production
     const punsToCheck = allWells
-      .filter(w => w.pun)
-      .map(w => w.pun!);
+      .filter(w => w.base_pun)
+      .map(w => w.base_pun!);
 
     const gasWeightedPuns = new Set<string>();
 
@@ -6918,7 +6919,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     }> = [];
 
     for (const w of allWells) {
-      const isGasWeighted = w.pun ? gasWeightedPuns.has(w.pun) : false;
+      const isGasWeighted = w.base_pun ? gasWeightedPuns.has(w.base_pun) : false;
       const profileId = isGasWeighted ? 'gas-weighted' : (w.risk_profile_id || 'unknown-formation');
       const profileName = isGasWeighted ? 'Gas-Weighted' : (w.profile_name || 'Unknown Formation');
       const breakeven = isGasWeighted ? null : (w.half_cycle_breakeven ?? 38); // fallback to blended avg
