@@ -6749,66 +6749,280 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     const allWells = Array.from(wellsByApi.values());
     console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWells.length, 'wells');
 
-    // Step 3: Query per-well deductions from OTC financial data (trailing 12 months)
-    // Blended all-in discount across all product codes. Gas-heavy wells naturally
-    // show higher discounts (gathering/processing costs) → lower net-back → higher risk.
+    // Step 3: 5-level deduction precedence chain
+    // 1. Check stub observations (per-well exact) → highest confidence
+    // 2. Operator/county profile (aggregated from stubs + OTC) → derived
+    // 3. OTC financial data (per-well trailing 12mo) → gas-side accurate
+    // 4. County average from profiles → broad fallback
+    // 5. 20% default → last resort
     const wellDeductions = new Map<string, {
       totalDiscount: number;
       mktDeductionPct: number;
       taxPct: number;
+      source: string;
+      confidence: string;
     }>();
 
     const apiNumbers = allWells.map(w => w.api_number);
+    const unresolvedApis = new Set(apiNumbers);
+
     if (apiNumbers.length > 0) {
       const now3 = new Date();
       const twelveMonthsAgo = new Date(now3.getFullYear(), now3.getMonth() - 12, 1);
       const cutoff12m = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
-
       const DEDUCTION_BATCH = 50;
-      for (let i = 0; i < apiNumbers.length; i += DEDUCTION_BATCH) {
-        const batch = apiNumbers.slice(i, i + DEDUCTION_BATCH);
-        const placeholders = batch.map(() => '?').join(',');
 
-        try {
-          const deductionResult = await db.prepare(`
-            SELECT wpl.api_number,
-              SUM(opf.gross_value) as total_gross,
-              SUM(opf.net_value) as total_net,
-              SUM(opf.market_deduction) as total_mkt_deduction,
-              SUM(opf.gp_tax) as total_gp_tax,
-              SUM(opf.pe_tax) as total_pe_tax
-            FROM well_pun_links wpl
-            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
-            WHERE wpl.api_number IN (${placeholders})
-              AND opf.gross_value > 0
-              AND opf.year_month >= ?
-            GROUP BY wpl.api_number
-            HAVING SUM(opf.gross_value) > 500
-          `).bind(...batch, cutoff12m).all();
+      // --- Level 1: Check stub observations ---
+      try {
+        for (let i = 0; i < apiNumbers.length; i += DEDUCTION_BATCH) {
+          const batch = apiNumbers.slice(i, i + DEDUCTION_BATCH);
+          const placeholders = batch.map(() => '?').join(',');
+          const stubResult = await db.prepare(`
+            SELECT api_number,
+              AVG(effective_deduction_pct) as avg_deduction,
+              COUNT(*) as obs_count
+            FROM deduction_observations
+            WHERE api_number IN (${placeholders})
+              AND source = 'check_stub'
+            GROUP BY api_number
+            HAVING obs_count >= 2
+          `).bind(...batch).all();
 
-          for (const r of deductionResult.results as Array<{
-            api_number: string; total_gross: number; total_net: number;
-            total_mkt_deduction: number; total_gp_tax: number; total_pe_tax: number;
+          for (const r of stubResult.results as Array<{
+            api_number: string; avg_deduction: number; obs_count: number;
           }>) {
-            const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
-            const rawDiscount = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
-            // Floor at 15%: OTC doesn't track oil marketing deductions (gathering, transport, basis)
-            const totalDiscount = Math.max(0.15, Math.min(rawDiscount, 1));
-            const mktPct = r.total_gross > 0 ? (r.total_mkt_deduction / r.total_gross) : 0;
-            const tPct = r.total_gross > 0 ? ((r.total_gp_tax + r.total_pe_tax) / r.total_gross) : 0;
+            const discount = Math.max(0, Math.min(r.avg_deduction, 1));
             wellDeductions.set(r.api_number, {
-              totalDiscount,
-              mktDeductionPct: Math.max(0, mktPct),
-              taxPct: Math.max(0, tPct)
+              totalDiscount: discount,
+              mktDeductionPct: 0,
+              taxPct: 0,
+              source: 'check_stub',
+              confidence: r.obs_count >= 6 ? 'high' : r.obs_count >= 3 ? 'medium' : 'low'
             });
+            unresolvedApis.delete(r.api_number);
+          }
+        }
+      } catch (e) {
+        console.error('[Well Risk Profile] Level 1 (check stub) error:', e);
+      }
+      console.log('[Well Risk Profile] Level 1 (check stubs):', wellDeductions.size, 'wells resolved');
+
+      // --- Level 2: Operator/county profile ---
+      if (unresolvedApis.size > 0) {
+        try {
+          const unresolvedArr = Array.from(unresolvedApis);
+          // Build api → (operator_number, county) map
+          const apiOperatorMap = new Map<string, { operatorNumber: string; county: string }>();
+
+          // 2a: Resolve via PUN bridge (well_pun_links → otc_leases)
+          for (let i = 0; i < unresolvedArr.length; i += DEDUCTION_BATCH) {
+            const batch = unresolvedArr.slice(i, i + DEDUCTION_BATCH);
+            const placeholders = batch.map(() => '?').join(',');
+            const punResult = await db.prepare(`
+              SELECT wpl.api_number, ol.operator_number, ol.county
+              FROM well_pun_links wpl
+              JOIN otc_leases ol ON wpl.base_pun = ol.base_pun
+              WHERE wpl.api_number IN (${placeholders})
+                AND ol.operator_number IS NOT NULL
+            `).bind(...batch).all();
+            for (const r of punResult.results as Array<{
+              api_number: string; operator_number: string; county: string;
+            }>) {
+              apiOperatorMap.set(r.api_number, { operatorNumber: r.operator_number, county: r.county });
+            }
+          }
+
+          // 2b: For wells without PUN linkage, try operator_aliases on wells.operator
+          const noPunApis = unresolvedArr.filter(a => !apiOperatorMap.has(a));
+          if (noPunApis.length > 0) {
+            for (let i = 0; i < noPunApis.length; i += DEDUCTION_BATCH) {
+              const batch = noPunApis.slice(i, i + DEDUCTION_BATCH);
+              const placeholders = batch.map(() => '?').join(',');
+              const aliasResult = await db.prepare(`
+                SELECT w.api_number, oa.canonical_operator_number, w.county
+                FROM wells w
+                JOIN operator_aliases oa ON UPPER(TRIM(w.operator)) = oa.alias_name
+                WHERE w.api_number IN (${placeholders})
+              `).bind(...batch).all();
+              for (const r of aliasResult.results as Array<{
+                api_number: string; canonical_operator_number: string; county: string;
+              }>) {
+                if (!apiOperatorMap.has(r.api_number)) {
+                  apiOperatorMap.set(r.api_number, {
+                    operatorNumber: r.canonical_operator_number,
+                    county: r.county
+                  });
+                }
+              }
+            }
+          }
+
+          // 2c: Query profiles for all resolved operator+county combos
+          if (apiOperatorMap.size > 0) {
+            // Collect unique (operator_number, county) pairs
+            const combos = new Map<string, { opNum: string; county: string }>();
+            for (const [_, info] of apiOperatorMap) {
+              const key = `${info.operatorNumber}|${info.county}`;
+              combos.set(key, { opNum: info.operatorNumber, county: info.county });
+            }
+
+            // Query profiles — batch by operator_number (max 30 per query to stay under 100 bind params)
+            const uniqueOpNums = [...new Set(Array.from(combos.values()).map(c => c.opNum))];
+            const profileMap = new Map<string, { blended: number; confidence: string }>();
+
+            for (let i = 0; i < uniqueOpNums.length; i += 30) {
+              const opBatch = uniqueOpNums.slice(i, i + 30);
+              const placeholders = opBatch.map(() => '?').join(',');
+              const profileResult = await db.prepare(`
+                SELECT operator_number, county, blended_all_in_pct, confidence
+                FROM operator_deduction_profiles
+                WHERE operator_number IN (${placeholders})
+              `).bind(...opBatch).all();
+
+              for (const r of profileResult.results as Array<{
+                operator_number: string; county: string | null;
+                blended_all_in_pct: number; confidence: string;
+              }>) {
+                // Key: operator|county (county may be null for operator-wide default)
+                const key = `${r.operator_number}|${r.county || ''}`;
+                profileMap.set(key, { blended: r.blended_all_in_pct, confidence: r.confidence });
+              }
+            }
+
+            // Assign profiles to wells: prefer county-specific, fall back to operator-wide
+            for (const [api, info] of apiOperatorMap) {
+              if (!unresolvedApis.has(api)) continue;
+              const countyKey = `${info.operatorNumber}|${info.county}`;
+              const wideKey = `${info.operatorNumber}|`;
+              const profile = profileMap.get(countyKey) || profileMap.get(wideKey);
+              if (profile) {
+                wellDeductions.set(api, {
+                  totalDiscount: profile.blended,
+                  mktDeductionPct: 0,
+                  taxPct: 0,
+                  source: 'operator_profile',
+                  confidence: profile.confidence
+                });
+                unresolvedApis.delete(api);
+              }
+            }
           }
         } catch (e) {
-          console.error('[Well Risk Profile] Deduction batch error:', e);
+          console.error('[Well Risk Profile] Level 2 (operator profile) error:', e);
         }
+        console.log('[Well Risk Profile] Level 2 (operator profiles):', wellDeductions.size, 'wells resolved total');
       }
+
+      // --- Level 3: OTC per-well (existing query, now fallback only) ---
+      if (unresolvedApis.size > 0) {
+        const unresolvedArr = Array.from(unresolvedApis);
+        for (let i = 0; i < unresolvedArr.length; i += DEDUCTION_BATCH) {
+          const batch = unresolvedArr.slice(i, i + DEDUCTION_BATCH);
+          const placeholders = batch.map(() => '?').join(',');
+          try {
+            const deductionResult = await db.prepare(`
+              SELECT wpl.api_number,
+                SUM(opf.gross_value) as total_gross,
+                SUM(opf.net_value) as total_net,
+                SUM(opf.market_deduction) as total_mkt_deduction,
+                SUM(opf.gp_tax) as total_gp_tax,
+                SUM(opf.pe_tax) as total_pe_tax
+              FROM well_pun_links wpl
+              JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+              WHERE wpl.api_number IN (${placeholders})
+                AND opf.gross_value > 0
+                AND opf.year_month >= ?
+              GROUP BY wpl.api_number
+              HAVING SUM(opf.gross_value) > 500
+            `).bind(...batch, cutoff12m).all();
+
+            for (const r of deductionResult.results as Array<{
+              api_number: string; total_gross: number; total_net: number;
+              total_mkt_deduction: number; total_gp_tax: number; total_pe_tax: number;
+            }>) {
+              const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
+              const rawDiscount = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
+              const totalDiscount = Math.max(0.15, Math.min(rawDiscount, 1));
+              const mktPct = r.total_gross > 0 ? (r.total_mkt_deduction / r.total_gross) : 0;
+              const tPct = r.total_gross > 0 ? ((r.total_gp_tax + r.total_pe_tax) / r.total_gross) : 0;
+              wellDeductions.set(r.api_number, {
+                totalDiscount,
+                mktDeductionPct: Math.max(0, mktPct),
+                taxPct: Math.max(0, tPct),
+                source: 'otc',
+                confidence: 'medium'
+              });
+              unresolvedApis.delete(r.api_number);
+            }
+          } catch (e) {
+            console.error('[Well Risk Profile] Level 3 (OTC per-well) batch error:', e);
+          }
+        }
+        console.log('[Well Risk Profile] Level 3 (OTC per-well):', wellDeductions.size, 'wells resolved total');
+      }
+
+      // --- Level 4: County average from profiles ---
+      if (unresolvedApis.size > 0) {
+        try {
+          // Get county for unresolved wells
+          const wellCountyMap = new Map<string, string>();
+          for (const w of allWells) {
+            if (unresolvedApis.has(w.api_number) && w.county) {
+              wellCountyMap.set(w.api_number, w.county.toUpperCase());
+            }
+          }
+          const uniqueCounties = [...new Set(wellCountyMap.values())];
+
+          if (uniqueCounties.length > 0) {
+            // Query county averages from profiles (require >= 3 operators per county)
+            const countyAvgs = new Map<string, number>();
+            for (let i = 0; i < uniqueCounties.length; i += 30) {
+              const batch = uniqueCounties.slice(i, i + 30);
+              const placeholders = batch.map(() => '?').join(',');
+              const countyResult = await db.prepare(`
+                SELECT UPPER(county) as county,
+                  AVG(blended_all_in_pct) as avg_blended,
+                  COUNT(DISTINCT operator_number) as op_count
+                FROM operator_deduction_profiles
+                WHERE UPPER(county) IN (${placeholders})
+                  AND county IS NOT NULL
+                GROUP BY UPPER(county)
+                HAVING op_count >= 3
+              `).bind(...batch).all();
+
+              for (const r of countyResult.results as Array<{
+                county: string; avg_blended: number; op_count: number;
+              }>) {
+                countyAvgs.set(r.county, r.avg_blended);
+              }
+            }
+
+            // Assign county averages to unresolved wells
+            for (const [api, county] of wellCountyMap) {
+              if (!unresolvedApis.has(api)) continue;
+              const avg = countyAvgs.get(county);
+              if (avg !== undefined) {
+                wellDeductions.set(api, {
+                  totalDiscount: avg,
+                  mktDeductionPct: 0,
+                  taxPct: 0,
+                  source: 'county_avg',
+                  confidence: 'low'
+                });
+                unresolvedApis.delete(api);
+              }
+            }
+          }
+        } catch (e) {
+          console.error('[Well Risk Profile] Level 4 (county avg) error:', e);
+        }
+        console.log('[Well Risk Profile] Level 4 (county avg):', wellDeductions.size, 'wells resolved total');
+      }
+
+      // Level 5: remaining wells get 0.20 default in the per-well loop below
     }
 
-    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'wells');
+    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'of', apiNumbers.length, 'wells,', unresolvedApis.size, 'using default');
 
     // Step 4: Compute risk level per well
     let atRiskCount = 0;
@@ -6840,6 +7054,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       stressedAtWti: number | null;
       criticalAtWti: number | null;
       hasDeductionData: boolean;
+      deductionSource: string;
+      deductionConfidence: string;
       isStale: boolean;
       lastProdMonth: string | null;
       declineRate12m: number | null;
@@ -6850,9 +7066,9 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       const profileName = w.profile_name || 'Unknown Formation';
       const breakeven = w.half_cycle_breakeven ?? 38; // fallback to blended avg
 
-      // Look up per-well deduction data from OTC financial records
+      // Look up per-well deduction from 5-level precedence chain
       const deduction = wellDeductions.get(w.api_number);
-      const totalDiscount = deduction?.totalDiscount ?? 0.20; // 20% default when no OTC data
+      const totalDiscount = deduction?.totalDiscount ?? 0.20; // Level 5: 20% default
 
       // Net-back = WTI × (1 - blended all-in discount)
       // Gas-heavy wells naturally have higher discounts (gathering/processing costs)
@@ -6899,6 +7115,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         stressedAtWti,
         criticalAtWti,
         hasDeductionData: !!deduction,
+        deductionSource: deduction?.source || 'default',
+        deductionConfidence: deduction?.confidence || 'low',
         isStale: w.is_stale === 1,
         lastProdMonth: w.last_prod_month,
         declineRate12m: w.decline_rate_12m

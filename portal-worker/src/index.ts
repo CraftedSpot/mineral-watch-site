@@ -1478,6 +1478,32 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleFormationHarvestResults(request, env);
       }
 
+      // Operator deduction matrix admin endpoints (PROCESSING_API_KEY auth)
+      if (path === "/api/admin/bootstrap-operator-aliases" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleBootstrapOperatorAliases } = await import('./handlers/operator-deductions.js');
+        return handleBootstrapOperatorAliases(request, env);
+      }
+      if (path === "/api/admin/seed-operator-profiles" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleSeedOperatorProfiles } = await import('./handlers/operator-deductions.js');
+        return handleSeedOperatorProfiles(request, env);
+      }
+      if (path === "/api/admin/ingest-check-stub-deductions" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleIngestCheckStubDeductions } = await import('./handlers/operator-deductions.js');
+        return handleIngestCheckStubDeductions(request, env);
+      }
+
       // Property-well matching endpoint
       if (path === "/api/match-property-wells" && request.method === "POST") {
         return handleMatchPropertyWells(request, env);

@@ -6055,7 +6055,10 @@
                 const formStr = w.formationGroup || '<span style="color: var(--text-muted);">Unknown</span>';
                 const beStr = w.halfCycleBreakeven !== null ? '$' + w.halfCycleBreakeven : '\u2014';
                 const discountStr = w.totalDiscountPct !== null ? w.totalDiscountPct.toFixed(1) + '%' : '\u2014';
-                const discountColor = !w.hasDeductionData ? 'color: var(--text-muted); font-style: italic;' : '';
+                const dSrc = w.deductionSource || 'default';
+                const discountColor = dSrc === 'check_stub' ? 'font-weight: 600;'
+                    : dSrc === 'operator_profile' ? ''
+                    : 'color: var(--text-muted); font-style: italic;';
                 const netBackStr = w.netBackPrice !== null ? '$' + w.netBackPrice.toFixed(2) : '\u2014';
 
                 // Status pill: tier label colored by risk level
@@ -6089,7 +6092,7 @@
                     '<td style="padding: 0.5rem; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + (w.wellName || '').replace(/"/g, '&quot;') + '">' + (w.wellName || 'Unknown') + '</td>' +
                     '<td style="padding: 0.5rem;">' + formStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
-                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (w.hasDeductionData ? 'Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '% | Floor: 15%' : 'Default 20% (no OTC data)') + '">' + discountStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 20%') + '">' + discountStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; font-weight: 500;">' + netBackStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: center;">' + statusHtml + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; ' + stressedStyle + '">' + stressedStr + '</td>' +
@@ -6304,7 +6307,7 @@
             if (!lastWellRiskData) return;
             const wti = lastWellRiskData.wtiPrice.price;
 
-            const rows = [['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Formation Group', 'Profile', 'Breakeven ($/bbl)', 'WTI ($/bbl)', 'Deductions (%)', 'Net-Back ($/bbl)', 'Cushion ($)', 'Cushion (%)', 'Risk Level', 'Stressed At WTI ($)', 'Critical At WTI ($)', 'Has OTC Data']];
+            const rows = [['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Formation Group', 'Profile', 'Breakeven ($/bbl)', 'WTI ($/bbl)', 'Deductions (%)', 'Net-Back ($/bbl)', 'Cushion ($)', 'Cushion (%)', 'Risk Level', 'Stressed At WTI ($)', 'Critical At WTI ($)', 'Deduction Source']];
             for (const w of lastWellRiskData.wells) {
                 rows.push([
                     w.wellName || '', w.apiNumber || '', w.operator || '', w.county || '',
@@ -6318,7 +6321,7 @@
                     riskLevelLabel(w.riskLevel),
                     w.stressedAtWti !== null ? w.stressedAtWti.toFixed(0) : '',
                     w.criticalAtWti !== null ? w.criticalAtWti.toFixed(0) : '',
-                    w.hasDeductionData ? 'Yes' : 'No'
+                    w.deductionSource || 'default'
                 ]);
             }
 
