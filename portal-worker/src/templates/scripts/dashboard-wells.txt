@@ -1,89 +1,17 @@
         // Wells list controller (state + event binding via shared ListController)
-        // WTI price state (fetched once on load, used for tier computation + display)
-        let wellsWtiPrice = null;
-        let wellsWtiDate = null;
-
         const wellsController = createListController({
             defaultFilter: 'all',
-            defaultSort: 'stressed_at-asc',
+            defaultSort: 'name-asc',
             controlsId: 'wellsControls',
             searchId: 'wellsSearch',
             filterId: 'wellsFilter',
+            sortId: 'wellsSort',
             requirePlan: true,
             itemName: 'wells',
             renderFn: () => renderWellsTable(),
             filterFn: filterWells,
             sortFn: sortWells
         });
-
-        // Fetch WTI price for risk tier computation
-        async function fetchWellsWtiPrice() {
-            try {
-                const res = await fetch('https://mymineralwatch.com/api/prices');
-                if (!res.ok) return;
-                const data = await res.json();
-                if (data.wti && data.wti.price) {
-                    wellsWtiPrice = data.wti.price;
-                    wellsWtiDate = data.wti.date || null;
-                    const ann = document.getElementById('wellsWtiAnnotation');
-                    if (ann) ann.textContent = 'At $' + wellsWtiPrice.toFixed(2) + ' WTI';
-                    // Re-render if wells already loaded (price arrived late)
-                    if (typeof loadedWells !== 'undefined' && loadedWells.length > 0) {
-                        renderWellsTable(false);
-                    }
-                }
-            } catch (e) {
-                console.error('[wells] WTI price fetch failed:', e);
-            }
-        }
-        fetchWellsWtiPrice();
-
-        // Risk tier computation (client-side from WTI + breakeven)
-        function computeRiskTier(breakeven, wti) {
-            if (breakeven == null || wti == null) return null;
-            if (wti <= breakeven) return 'at_risk';
-            const cushion = (wti - breakeven) / wti;
-            if (cushion > 0.25) return 'comfortable';
-            if (cushion >= 0.10) return 'adequate';
-            return 'tight';
-        }
-
-        // Cost band from breakeven
-        function getCostBand(breakeven) {
-            if (breakeven == null) return null;
-            if (breakeven <= 30) return 'Low-cost';
-            if (breakeven <= 40) return 'Mid-cost';
-            return 'High-cost';
-        }
-
-        // Tier display label
-        function getTierLabel(tier) {
-            if (!tier) return '';
-            const labels = { comfortable: 'Comfortable', adequate: 'Adequate', tight: 'Tight', at_risk: 'At Risk' };
-            return labels[tier] || tier;
-        }
-
-        // Tier colors (risk-level-driven)
-        function getTierColor(tier) {
-            const colors = {
-                comfortable: { bg: '#059669', text: '#fff' },
-                adequate: { bg: '#2563EB', text: '#fff' },
-                tight: { bg: '#D97706', text: '#fff' },
-                at_risk: { bg: '#DC2626', text: '#fff' }
-            };
-            return colors[tier] || { bg: '#9CA3AF', text: '#fff' };
-        }
-
-        // Header click-to-sort handler
-        function onWellsHeaderSort(field) {
-            const current = wellsController.sortBy.split('-');
-            if (current[0] === field) {
-                wellsController.sortBy = field + '-' + (current[1] === 'asc' ? 'desc' : 'asc');
-            } else {
-                wellsController.sortBy = field + '-asc';
-            }
-            renderWellsTable();
-        }
 
         // Alias for backward compat — initWellsControls is called from dashboard-init
         const initWellsControls = () => wellsController.initControls();
@@ -247,48 +175,6 @@
                     const aDate = a.otc_last_prod_month || '';
                     const bDate = b.otc_last_prod_month || '';
                     return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
-
-                } else if (field === 'formation') {
-                    const aVal = (a.formation_group || '').toLowerCase();
-                    const bVal = (b.formation_group || '').toLowerCase();
-                    if (!aVal && !bVal) return 0;
-                    if (!aVal) return 1; // nulls last
-                    if (!bVal) return -1;
-                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
-
-                } else if (field === 'breakeven') {
-                    const aVal = a.half_cycle_breakeven;
-                    const bVal = b.half_cycle_breakeven;
-                    if (aVal == null && bVal == null) return 0;
-                    if (aVal == null) return 1; // nulls last
-                    if (bVal == null) return -1;
-                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
-
-                } else if (field === 'status') {
-                    // Custom rank: at_risk=0, tight=1, adequate=2, comfortable=3 (most-at-risk first on asc)
-                    const tierRank = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3 };
-                    const aTier = computeRiskTier(a.half_cycle_breakeven, wellsWtiPrice);
-                    const bTier = computeRiskTier(b.half_cycle_breakeven, wellsWtiPrice);
-                    const aRank = aTier ? (tierRank[aTier] ?? 4) : 5; // null/unassigned last
-                    const bRank = bTier ? (tierRank[bTier] ?? 4) : 5;
-                    return aRank < bRank ? -1 * multiplier : (aRank > bRank ? 1 * multiplier : 0);
-
-                } else if (field === 'stressed_at') {
-                    // Stressed At = breakeven / 0.90 (nulls last)
-                    const aVal = a.half_cycle_breakeven != null ? a.half_cycle_breakeven / 0.90 : null;
-                    const bVal = b.half_cycle_breakeven != null ? b.half_cycle_breakeven / 0.90 : null;
-                    if (aVal == null && bVal == null) return 0;
-                    if (aVal == null) return 1;
-                    if (bVal == null) return -1;
-                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
-
-                } else if (field === 'critical_at') {
-                    const aVal = a.half_cycle_breakeven;
-                    const bVal = b.half_cycle_breakeven;
-                    if (aVal == null && bVal == null) return 0;
-                    if (aVal == null) return 1;
-                    if (bVal == null) return -1;
-                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
                 }
 
                 return 0;
@@ -593,8 +479,8 @@
         // Virtual table scroller for wells
         const wellsVS = createVirtualTableScroller({
             container: document.getElementById('wellsContent'),
-            rowHeight: 52,
-            colCount: 8,
+            rowHeight: 64,
+            colCount: 4,
             threshold: 100,
             tableClass: 'data-table wells-table'
         });
