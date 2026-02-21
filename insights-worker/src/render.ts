@@ -28,6 +28,7 @@ const HEADER = `
 
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
+                <a href="/demo">Demo</a>
                 <a href="https://portal.mymineralwatch.com/portal/login?new=1" class="btn-start">Start Free</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
@@ -56,6 +57,7 @@ const FOOTER = `
         <h4>Company</h4>
         <a href="https://mymineralwatch.com/about">About</a>
         <a href="https://mymineralwatch.com/contact">Contact</a>
+        <a href="https://mymineralwatch.com/demo">Book a Demo</a>
       </div>
       <div class="footer-col">
         <h4>Legal</h4>
