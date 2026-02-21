@@ -270,6 +270,14 @@ export function renderInsightsHub(): string {
         .topic-card p { font-size: 12px; color: #718096; line-height: 1.5; }
         .topic-count { font-size: 11px; color: var(--red-dirt); font-weight: 600; margin-top: 10px; }
 
+        /* Mineral Owner Resources */
+        .owner-resources { padding: 40px 0; border-top: 1px solid var(--border); background: var(--paper); }
+        .owner-resources h2 { font-size: 22px; font-weight: 900; margin-bottom: 16px; }
+        .owner-resources-links { display: flex; flex-wrap: wrap; gap: 10px 28px; list-style: none; }
+        .owner-resources-links a { color: var(--red-dirt); font-weight: 600; font-size: 14px; text-decoration: none; }
+        .owner-resources-links a:hover { text-decoration: underline; }
+        .owner-resources-links a::after { content: ' \\2197'; font-size: 12px; }
+
         /* Newsletter CTA */
         .newsletter-section { padding: 60px 0; background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); color: white; text-align: center; }
         .newsletter-section h2 { font-size: 28px; font-weight: 900; margin-bottom: 12px; }
@@ -523,6 +531,19 @@ export function renderInsightsHub(): string {
         </section>
 
     </main>
+
+    <!-- Mineral Owner Resources -->
+    <section class="owner-resources">
+        <div class="container">
+            <h2>Mineral Owner Resources</h2>
+            <ul class="owner-resources-links">
+                <li><a href="https://www.naro-us.org/" target="_blank" rel="noopener">National Association of Royalty Owners (NARO)</a></li>
+                <li><a href="https://www.mineralrightsforum.com/" target="_blank" rel="noopener">Mineral Rights Forum</a></li>
+                <li><a href="https://oklahoma.gov/occ/divisions/oil-gas.html" target="_blank" rel="noopener">Oklahoma Corporation Commission</a></li>
+                <li><a href="https://imaging.occ.ok.gov/" target="_blank" rel="noopener">OCC Imaging (Well Records)</a></li>
+            </ul>
+        </div>
+    </section>
 
     <!-- CTA -->
     <section class="newsletter-section">
@@ -1045,6 +1066,16 @@ export function renderArticle(slug: string): string | null {
     `<a href="${r.href}" class="related-link">${esc(r.label)} &rarr;</a>`
   ).join('\n');
 
+  const resourcesHtml = article.resources?.length ? `
+    <section class="resources-section">
+        <div class="container">
+            <h2>Resources &amp; Further Reading</h2>
+            <ul class="resources-list">
+                ${article.resources.map(r => `<li><a href="${r.href}" target="_blank" rel="noopener">${esc(r.label)}</a></li>`).join('\n                ')}
+            </ul>
+        </div>
+    </section>` : '';
+
   const imageHtml = article.featuredImage
     ? `<div class="article-image"><img src="${article.featuredImage.src}" alt="${esc(article.featuredImage.alt)}" width="${article.featuredImage.width}" height="${article.featuredImage.height}" loading="eager"${article.featuredImage.objectPosition ? ` style="object-position:${article.featuredImage.objectPosition}"` : ''}></div>`
     : '';
@@ -1365,6 +1396,14 @@ export function renderArticle(slug: string): string | null {
         .guide-cta-inline a { color: var(--red-dirt); font-weight: 600; text-decoration: none; }
         .guide-cta-inline a:hover { text-decoration: underline; }
 
+        .resources-section { background: var(--paper); border-top: 1px solid var(--border); padding: 40px 0; }
+        .resources-section h2 { font-size: 22px; font-weight: 900; margin-bottom: 18px; }
+        .resources-list { list-style: none; display: flex; flex-wrap: wrap; gap: 10px 24px; }
+        .resources-list li { font-size: 14px; }
+        .resources-list a { color: var(--red-dirt); font-weight: 600; text-decoration: none; }
+        .resources-list a:hover { text-decoration: underline; }
+        .resources-list a::after { content: ' \\2197'; font-size: 12px; }
+
         .bottom-cta { background: linear-gradient(135deg, var(--oil-navy) 0%, #2D4A5E 100%); padding: 60px 0; text-align: center; color: white; }
         .bottom-cta h2 { font-size: 28px; margin-bottom: 12px; font-weight: 900; }
         .bottom-cta p { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 28px; max-width: 520px; margin-left: auto; margin-right: auto; line-height: 1.6; }
@@ -1559,6 +1598,8 @@ export function renderArticle(slug: string): string | null {
             </div>
         </div>
     </main>
+
+    ${resourcesHtml}
 
     <section class="bottom-cta">
         <div class="container">
@@ -1841,7 +1882,7 @@ const POOLING_ORDERS_BODY = `
 
 <p>A pooling order isn&rsquo;t something to panic about, but it is something to take seriously and act on quickly. The 20-day deadline is real, the default option is almost never the best option, and the financial differences between elections can be significant &mdash; especially if you own more than a few net mineral acres.</p>
 
-<p>The single most important thing you can do as an Oklahoma mineral owner is stay aware of what&rsquo;s happening on your sections. Pooling orders don&rsquo;t come out of nowhere &mdash; they&rsquo;re preceded by permits, spacing applications, and OCC docket filings that signal drilling activity months in advance. If you&rsquo;re monitoring your sections, a pooling order should never be a surprise.</p>
+<p>The single most important thing you can do as an Oklahoma mineral owner is stay aware of what&rsquo;s happening on your sections. Pooling orders don&rsquo;t come out of nowhere &mdash; they&rsquo;re preceded by permits, spacing applications, and <a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); font-weight: 600;">other OCC filings</a> that signal drilling activity months in advance. If you&rsquo;re monitoring your sections, a pooling order should never be a surprise.</p>
 `;
 
 const INHERITED_MINERAL_RIGHTS_BODY = `
@@ -3667,7 +3708,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
         <div class="play-detail">
             <div class="play-detail-item">
                 <h4>Core Counties</h4>
-                <p>Garvin, Grady, Stephens, Carter, with activity extending into McClain and Murray counties.</p>
+                <p><a href="/counties/garvin-county" style="color: var(--red-dirt); font-weight: 600;">Garvin</a>, <a href="/counties/grady-county" style="color: var(--red-dirt); font-weight: 600;">Grady</a>, <a href="/counties/stephens-county" style="color: var(--red-dirt); font-weight: 600;">Stephens</a>, <a href="/counties/carter-county" style="color: var(--red-dirt); font-weight: 600;">Carter</a>, with activity extending into <a href="/counties/mcclain-county" style="color: var(--red-dirt); font-weight: 600;">McClain</a> and Murray counties.</p>
             </div>
             <div class="play-detail-item">
                 <h4>Target Formations</h4>
@@ -3705,7 +3746,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
         <div class="play-detail">
             <div class="play-detail-item">
                 <h4>Core Counties</h4>
-                <p>Canadian, Kingfisher, Blaine, with activity extending into Major, Garfield, and Dewey counties.</p>
+                <p><a href="/counties/canadian-county" style="color: var(--red-dirt); font-weight: 600;">Canadian</a>, <a href="/counties/kingfisher-county" style="color: var(--red-dirt); font-weight: 600;">Kingfisher</a>, <a href="/counties/blaine-county" style="color: var(--red-dirt); font-weight: 600;">Blaine</a>, with activity extending into Major, Garfield, and Dewey counties.</p>
             </div>
             <div class="play-detail-item">
                 <h4>Target Formations</h4>
@@ -3743,7 +3784,7 @@ const SCOOP_STACK_OVERVIEW_BODY = `
         <div class="play-detail">
             <div class="play-detail-item">
                 <h4>Core Counties</h4>
-                <p>Caddo, Grady, McClain &mdash; bridging the SCOOP and STACK areas.</p>
+                <p><a href="/counties/caddo-county" style="color: var(--red-dirt); font-weight: 600;">Caddo</a>, <a href="/counties/grady-county" style="color: var(--red-dirt); font-weight: 600;">Grady</a>, <a href="/counties/mcclain-county" style="color: var(--red-dirt); font-weight: 600;">McClain</a> &mdash; bridging the SCOOP and STACK areas.</p>
             </div>
             <div class="play-detail-item">
                 <h4>Target Formations</h4>
