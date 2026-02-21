@@ -1,0 +1,12 @@
+[
+  {
+    "api_number": "3501907362",
+    "error": "OCC search failed: 500",
+    "timestamp": "2026-02-21 07:07:24"
+  },
+  {
+    "api_number": "3501923837",
+    "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Max retries exceeded with url: /OGCDWellRecords/SearchService.aspx/GetSearchListing (Caused by ConnectTimeoutError(<HTTPSConnection(host='public.occ.ok.gov', port=443) at 0x10c5d9950>, 'Connection to public.occ.ok.gov timed out. (connect timeout=None)'))",
+    "timestamp": "2026-02-21 09:27:07"
+  }
+]

@@ -73,8 +73,14 @@ KNOWN_FORMATIONS = [
 
 # Build a set of normalized known formations for matching
 _KNOWN_SET = {f.upper() for f in KNOWN_FORMATIONS}
-# Also match partial/prefix (e.g., "MISSISSI" → "MISSISSIPPIAN")
-_KNOWN_PREFIXES = [(f.upper()[:6], f.upper()) for f in KNOWN_FORMATIONS if len(f) >= 6]
+# Prefix matching for OCR garbling (e.g., "MISSISSI" → "MISSISSIPPIAN")
+# Only use prefixes that are unique to formations (exclude common English words)
+_PREFIX_EXCLUDE = {"FIRST ", "SECOND", "BROWN ", "PINK L", "GRANITE"}  # too generic
+_KNOWN_PREFIXES = [
+    (f.upper()[:8], f.upper())
+    for f in KNOWN_FORMATIONS
+    if len(f) >= 8 and f.upper()[:6] not in _PREFIX_EXCLUDE
+]
 
 
 def clean_formation(raw):
