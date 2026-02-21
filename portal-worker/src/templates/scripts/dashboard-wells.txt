@@ -243,6 +243,48 @@
                     const aDate = a.otc_last_prod_month || '';
                     const bDate = b.otc_last_prod_month || '';
                     return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
+
+                } else if (field === 'formation') {
+                    const aVal = (a.formation_group || '').toLowerCase();
+                    const bVal = (b.formation_group || '').toLowerCase();
+                    if (!aVal && !bVal) return 0;
+                    if (!aVal) return 1; // nulls last
+                    if (!bVal) return -1;
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+
+                } else if (field === 'breakeven') {
+                    const aVal = a.half_cycle_breakeven;
+                    const bVal = b.half_cycle_breakeven;
+                    if (aVal == null && bVal == null) return 0;
+                    if (aVal == null) return 1; // nulls last
+                    if (bVal == null) return -1;
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+
+                } else if (field === 'status') {
+                    // Custom rank: at_risk=0, tight=1, adequate=2, comfortable=3 (most-at-risk first on asc)
+                    const tierRank = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3 };
+                    const aTier = computeRiskTier(a.half_cycle_breakeven, wellsWtiPrice);
+                    const bTier = computeRiskTier(b.half_cycle_breakeven, wellsWtiPrice);
+                    const aRank = aTier ? (tierRank[aTier] ?? 4) : 5; // null/unassigned last
+                    const bRank = bTier ? (tierRank[bTier] ?? 4) : 5;
+                    return aRank < bRank ? -1 * multiplier : (aRank > bRank ? 1 * multiplier : 0);
+
+                } else if (field === 'stressed_at') {
+                    // Stressed At = breakeven / 0.90 (nulls last)
+                    const aVal = a.half_cycle_breakeven != null ? a.half_cycle_breakeven / 0.90 : null;
+                    const bVal = b.half_cycle_breakeven != null ? b.half_cycle_breakeven / 0.90 : null;
+                    if (aVal == null && bVal == null) return 0;
+                    if (aVal == null) return 1;
+                    if (bVal == null) return -1;
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+
+                } else if (field === 'critical_at') {
+                    const aVal = a.half_cycle_breakeven;
+                    const bVal = b.half_cycle_breakeven;
+                    if (aVal == null && bVal == null) return 0;
+                    if (aVal == null) return 1;
+                    if (bVal == null) return -1;
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
                 }
 
                 return 0;
@@ -547,8 +589,8 @@
         // Virtual table scroller for wells
         const wellsVS = createVirtualTableScroller({
             container: document.getElementById('wellsContent'),
-            rowHeight: 64,
-            colCount: 4,
+            rowHeight: 52,
+            colCount: 8,
             threshold: 100,
             tableClass: 'data-table wells-table'
         });
