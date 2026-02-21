@@ -6533,9 +6533,11 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
 export async function precomputeRiskProfiles(env: Env): Promise<void> {
   console.log('[Risk Profiles] Starting pre-compute...');
 
-  // Step 1: Refresh commodity prices in KV
+  // Step 1: Refresh commodity prices in KV (via service binding to tools-worker)
   try {
-    const priceResp = await fetch('https://mymineralwatch.com/api/prices');
+    const priceResp = env.TOOLS_WORKER
+      ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
+      : await fetch('https://mymineralwatch.com/api/prices');
     const prices = await priceResp.json() as Record<string, any>;
     await env.OCC_CACHE.put('commodity-prices-cached', JSON.stringify({
       wti: prices.wti?.price || null,
@@ -6685,10 +6687,12 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       } catch (e) { /* ignore */ }
     }
 
-    // Fallback: fetch live prices if not cached
+    // Fallback: fetch live prices if not cached (via service binding to tools-worker)
     if (wtiPrice === null) {
       try {
-        const priceResp = await fetch('https://mymineralwatch.com/api/prices');
+        const priceResp = env.TOOLS_WORKER
+          ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
+          : await fetch('https://mymineralwatch.com/api/prices');
         const prices = await priceResp.json() as Record<string, any>;
         wtiPrice = prices.wti?.price || null;
         henryHubPrice = prices.henryHub?.price || null;

@@ -33,6 +33,11 @@ service = "occ-fetcher"
 binding = "MARKETING_WORKER"
 service = "marketing-worker"
 
+# Service binding to tools-pages (commodity prices)
+[[services]]
+binding = "TOOLS_WORKER"
+service = "tools-pages"
+
 # D1 Database for Oklahoma Wells
 [[d1_databases]]
 binding = "WELLS_DB"
