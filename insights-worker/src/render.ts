@@ -1271,7 +1271,7 @@ export function renderArticle(slug: string): string | null {
         .faq-answer { font-size: 15px; color: #4A5568; line-height: 1.75; }
 
         /* Sidebar */
-        .article-sidebar { position: sticky; top: 30px; align-self: start; }
+        .article-sidebar { position: sticky; top: 30px; align-self: start; max-height: calc(100vh - 60px); overflow-y: auto; }
         .sidebar-card { background: var(--paper); border: 1px solid var(--border); border-radius: 4px; padding: 24px; margin-bottom: 20px; }
         .sidebar-card h3 { font-size: 15px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--red-dirt); }
         .toc-link { display: block; padding: 6px 0; font-size: 13px; color: var(--slate-blue); text-decoration: none; line-height: 1.5; border-left: 2px solid transparent; padding-left: 12px; transition: all 0.15s; }
