@@ -627,13 +627,8 @@
         function renderWellRow(w) {
             const isViewer = currentUser?.role === 'Viewer';
             const wellBaseName = w.well_name || '';
-            const wellName = wellBaseName ? escapeHtml(wellBaseName) : '<em style="color: #A0AEC0;">Unknown</em>';
-            const operator = w.operator ? escapeHtml(w.operator) : '<em style="color: #A0AEC0;">—</em>';
-            const operatorPhone = w.operator_phone || '';
-            const contactPerson = w.operator_contact || '';
+            const wellName = wellBaseName ? escapeHtml(wellBaseName) : '<em style="color:#A0AEC0;">Unknown</em>';
             const apiNumber = w.apiNumber || '';
-            const status = w.well_status || '—';
-
             const county = cleanCountyDisplay(w.county) || '';
             const section = w.section || '';
             const township = w.township || '';
@@ -641,63 +636,95 @@
             let locationDisplay = '';
             if (county) {
                 locationDisplay = county;
-                if (section && township && range) {
-                    locationDisplay += ` • ${section}-${township}-${range}`;
-                }
+                if (section && township && range) locationDisplay += ' ' + section + '-' + township + '-' + range;
             }
 
-            const operatorLink = w.operator
-                ? `<strong><span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator('${escapeHtmlAttr(w.operator)}')">${operator}</span></strong>`
-                : `<strong>${operator}</strong>`;
-            let operatorContactDisplay = operatorLink;
-            if (operatorPhone || contactPerson) {
-                const contactParts = [];
-                if (operatorPhone) {
-                    const cleanPhone = operatorPhone.replace(/[^0-9]/g, '');
-                    contactParts.push(`${formatPhoneNumber(cleanPhone)}`);
-                }
-                if (contactPerson) contactParts.push(`${contactPerson}`);
-                if (contactParts.length > 0) {
-                    operatorContactDisplay += ` ${contactParts.join(' • ')}`;
-                }
+            // Operator (clickable)
+            const operator = w.operator ? escapeHtml(w.operator) : '<span style="color:#A0AEC0;">—</span>';
+            const operatorCell = w.operator
+                ? '<span style="color:#2563eb;cursor:pointer;text-decoration:underline;" onclick="event.stopPropagation(); lookupAndOpenOperator(\'' + escapeHtmlAttr(w.operator) + '\')">' + operator + '</span>'
+                : operator;
+
+            // Formation
+            const formationGroup = w.formation_group || '';
+            const profileName = w.risk_profile_name || '';
+            const formationCell = formationGroup
+                ? '<span title="' + escapeHtml(profileName) + '">' + escapeHtml(formationGroup) + '</span>'
+                : '<span style="color:#A0AEC0;">—</span>';
+
+            // Risk data
+            const breakeven = w.half_cycle_breakeven;
+            const isGas = w.is_gas_flag === 1;
+            const hasProfile = breakeven != null || isGas;
+            const wti = wellsWtiPrice;
+
+            // Breakeven cell
+            let breakevenCell;
+            if (isGas) {
+                breakevenCell = '<span style="color:#6B7280;" title="Gas-weighted well — uses Henry Hub pricing">N/A</span>';
+            } else if (breakeven != null) {
+                breakevenCell = '$' + Math.round(breakeven);
+            } else {
+                breakevenCell = '<span style="color:#A0AEC0;">—</span>';
             }
 
-            const linkCounts = w._linkCounts || { properties: 0, documents: 0, filings: 0 };
-            const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count';
-            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
-            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
-            const totalLinks = linkCounts.properties + linkCounts.documents + linkCounts.filings;
-            const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
+            // Status pill
+            let statusCell;
+            if (isGas) {
+                statusCell = '<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:#6B7280;color:#fff;" title="Gas-weighted — no WTI breakeven">Gas-weighted</span>';
+            } else if (breakeven != null && wti != null) {
+                const tier = computeRiskTier(breakeven, wti);
+                const band = getCostBand(breakeven);
+                const tc = getTierColor(tier);
+                statusCell = '<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;background:' + tc.bg + ';color:' + tc.text + ';" title="Breakeven $' + Math.round(breakeven) + ' | Cushion ' + Math.round(((wti - breakeven) / wti) * 100) + '%">' + band + ' ' + getTierLabel(tier) + '</span>';
+            } else {
+                statusCell = '<span style="color:#A0AEC0;">—</span>';
+            }
+
+            // Stressed At: breakeven / 0.90 (price where cushion < 10%)
+            let stressedAtCell;
+            if (isGas) {
+                stressedAtCell = '<span style="color:#6B7280;">N/A</span>';
+            } else if (breakeven != null) {
+                const stressedAt = breakeven / 0.90;
+                let stressedStyle = '';
+                if (wti != null) {
+                    const gap = wti - stressedAt;
+                    if (gap <= 5) stressedStyle = 'color:#DC2626;font-weight:700;';
+                    else if (gap <= 10) stressedStyle = 'color:#D97706;font-weight:600;';
+                }
+                stressedAtCell = '<span style="' + stressedStyle + '">$' + Math.round(stressedAt) + '</span>';
+            } else {
+                stressedAtCell = '<span style="color:#A0AEC0;">—</span>';
+            }
+
+            // Critical At: just the breakeven itself
+            let criticalAtCell;
+            if (isGas) {
+                criticalAtCell = '<span style="color:#6B7280;">N/A</span>';
+            } else if (breakeven != null) {
+                criticalAtCell = '$' + Math.round(breakeven);
+            } else {
+                criticalAtCell = '<span style="color:#A0AEC0;">—</span>';
+            }
+
             const checked = selectedWells.has(w.id) ? ' checked' : '';
-
-            let row = `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">`;
+            let row = '<tr class="well-row" onclick="openWellDetailsModal(\'' + w.id + '\')" style="cursor:pointer;">';
             if (!isViewer) {
-                row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}"${checked} aria-label="Select well ${escapeHtml(wellName)}"></td>`;
+                row += '<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="' + w.id + '"' + checked + ' aria-label="Select well"></td>';
             }
-            row += `<td class="well-info-cell">
-                    <div class="well-name-line">
-                        <strong>${wellName}</strong>
-                    </div>
-                    <div class="well-details-line">
-                        ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}
-                        <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
-                        ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
-                    </div>
-                </td>
-                <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                <td>
-                    <div class="links-cell">
-                        <div class="link-breakdown">
-                            <span class="${propsClass}" title="Linked Properties">${wellPropsIcon}${linkCounts.properties}</span>
-                            <span class="link-separator">│</span>
-                            <span class="${docsClass}" title="Documents">${wellDocsIcon}${linkCounts.documents}</span>
-                            <span class="link-separator">│</span>
-                            <span class="${filingsClass}" title="OCC Filings">${wellFilingsIcon}${linkCounts.filings}</span>
-                        </div>
-                        <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${wellLinkIcon}${totalLinks}</span>
-                    </div>
-                </td>
-            </tr>`;
+            row += '<td style="padding:8px 10px;">'
+                + '<div style="font-weight:600;font-size:13px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">' + wellName + '</div>'
+                + '<div style="font-size:11px;color:#6B7280;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;">'
+                + (apiNumber ? apiNumber : '') + (locationDisplay ? (apiNumber ? ' · ' : '') + locationDisplay : '')
+                + '</div></td>';
+            row += '<td style="padding:8px 10px;font-size:13px;">' + operatorCell + '</td>';
+            row += '<td style="padding:8px 10px;font-size:13px;">' + formationCell + '</td>';
+            row += '<td style="padding:8px 10px;font-size:13px;text-align:right;">' + breakevenCell + '</td>';
+            row += '<td style="padding:8px 10px;text-align:center;">' + statusCell + '</td>';
+            row += '<td style="padding:8px 10px;font-size:13px;text-align:right;">' + stressedAtCell + '</td>';
+            row += '<td style="padding:8px 10px;font-size:13px;text-align:right;">' + criticalAtCell + '</td>';
+            row += '</tr>';
             return row;
         }
 
