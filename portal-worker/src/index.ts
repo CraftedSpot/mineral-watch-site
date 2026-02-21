@@ -1535,6 +1535,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         const { handleGetShutInResearch } = await import('./handlers/intelligence.js');
         return handleGetShutInResearch(request, env);
       }
+      if (path === "/api/intelligence/occ-filing-activity" && request.method === "GET") {
+        const { handleGetOccFilingActivity } = await import('./handlers/intelligence.js');
+        return handleGetOccFilingActivity(request, env);
+      }
 
       // Operator Directory API (contact info, no financial data - fast)
       if (path === "/api/operators/directory" && request.method === "GET") {

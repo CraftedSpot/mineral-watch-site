@@ -636,6 +636,13 @@
         .pooling-orders-table tbody tr:hover td { background: #fffbeb; }
         .pooling-orders-table tbody tr:last-child td { border-bottom: none; }
 
+        /* Filing type and distance badges (OCC Filing Activity report) */
+        .filing-type-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+        .filing-type-badge.type-pooling { background: #fff7ed; color: #c2410c; }
+        .filing-type-badge.type-spacing { background: #faf5ff; color: #7c3aed; }
+        .filing-type-badge.type-completion { background: #f0fdf4; color: #15803d; }
+        .filing-type-badge.type-permit { background: #eff6ff; color: #2563eb; }
+
         .operator-name { font-weight: 500; color: var(--oil-navy); }
         .formation-tag { display: inline-block; background: var(--paper); color: var(--slate-blue); padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.78rem; font-weight: 500; margin: 0.1rem 0.2rem 0.1rem 0; }
         .location-mono { font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; color: var(--slate-blue); }

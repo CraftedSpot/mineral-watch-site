@@ -6111,3 +6111,412 @@ export async function handleGetDeclineResearch(request: Request, env: Env): Prom
     }, 500);
   }
 }
+
+// =============================================
+// OCC FILING ACTIVITY REPORT
+// =============================================
+
+/**
+ * GET /api/intelligence/occ-filing-activity
+ *
+ * All OCC filings on and near the user's sections — pooling, spacing,
+ * horizontal wells, and more. Uses the same township±1 broad filter and
+ * distance-tier post-filtering as the pooling report.
+ */
+export async function handleGetOccFilingActivity(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('refresh') === '1';
+
+    // Check KV cache
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`occ-filing-activity:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[OCC Filing Activity] Cache read error:', e);
+      }
+    }
+
+    // Step 1: Get user's properties with TRS data
+    const propsQuery = userOrgId
+      ? `SELECT id, section, township, range, county, airtable_record_id
+         FROM properties
+         WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+      : `SELECT id, section, township, range, county, airtable_record_id
+         FROM properties
+         WHERE user_id = ?
+           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
+
+    const propsResult = userOrgId
+      ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
+      : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+
+    const properties = propsResult.results as Array<{
+      id: string;
+      section: string;
+      township: string;
+      range: string;
+      county: string;
+      airtable_record_id: string;
+    }>;
+
+    if (!properties || properties.length === 0) {
+      const emptyResponse = {
+        summary: {
+          totalFilings: 0,
+          sameSectionFilings: 0,
+          filingTypes: {},
+          topApplicants: [],
+          dateRange: { earliest: null, latest: null },
+          propertiesWithActivity: 0
+        },
+        byProperty: [],
+        byCounty: [],
+        marketResearch: null,
+        _message: 'No properties with location data found'
+      };
+      return jsonResponse(emptyResponse);
+    }
+
+    // Step 2: Build township±1 / range±1 sets for broad filter
+    const townships = new Set<string>();
+    const ranges = new Set<string>();
+
+    for (const p of properties) {
+      const twp = parseTownship(p.township);
+      const rng = parseRange(p.range);
+      if (twp && rng) {
+        townships.add(`${twp.num}${twp.dir}`);
+        townships.add(`${twp.num + 1}${twp.dir}`);
+        if (twp.num > 1) townships.add(`${twp.num - 1}${twp.dir}`);
+
+        ranges.add(`${rng.num}${rng.dir}`);
+        ranges.add(`${rng.num + 1}${rng.dir}`);
+        if (rng.num > 1) ranges.add(`${rng.num - 1}${rng.dir}`);
+      }
+    }
+
+    if (townships.size === 0) {
+      const emptyResponse = {
+        summary: {
+          totalFilings: 0,
+          sameSectionFilings: 0,
+          filingTypes: {},
+          topApplicants: [],
+          dateRange: { earliest: null, latest: null },
+          propertiesWithActivity: 0
+        },
+        byProperty: [],
+        byCounty: [],
+        marketResearch: null,
+        _message: 'Could not parse property locations'
+      };
+      return jsonResponse(emptyResponse);
+    }
+
+    // Step 3: Query occ_docket_entries with broad township/range filter
+    const twpArray = [...townships];
+    const rngArray = [...ranges];
+    const twpPlaceholders = twpArray.map(() => '?').join(',');
+    const rngPlaceholders = rngArray.map(() => '?').join(',');
+
+    const filingsResult = await env.WELLS_DB.prepare(`
+      SELECT id, case_number, relief_type, applicant, county,
+             section, township, range, hearing_date, status,
+             docket_date, source_url, order_number
+      FROM occ_docket_entries
+      WHERE township IN (${twpPlaceholders})
+        AND range IN (${rngPlaceholders})
+        AND docket_date >= date('now', '-12 months')
+      ORDER BY docket_date DESC
+    `).bind(...twpArray, ...rngArray).all();
+
+    const filingRows = filingsResult.results as Array<{
+      id: string;
+      case_number: string;
+      relief_type: string;
+      applicant: string;
+      county: string;
+      section: string;
+      township: string;
+      range: string;
+      hearing_date: string;
+      status: string;
+      docket_date: string;
+      source_url: string;
+      order_number: string;
+    }>;
+
+    // Step 4: Compute distance tier for each filing against all properties
+    type FilingWithDistance = typeof filingRows[0] & {
+      distanceTier: number;
+      distanceDescription: string;
+      nearestPropertyId: string | null;
+    };
+
+    const filingsWithDistance: FilingWithDistance[] = [];
+
+    for (const filing of filingRows) {
+      let bestTier = { tier: 99, description: 'Distant', propertyId: null as string | null };
+
+      for (const prop of properties) {
+        const tier = getDistanceTier(
+          parseInt(prop.section), prop.township, prop.range,
+          filing.section, filing.township, filing.range
+        );
+        if (tier.tier < bestTier.tier) {
+          bestTier = { tier: tier.tier, description: tier.description, propertyId: prop.id };
+        }
+      }
+
+      // Only include filings within distance tier 2
+      if (bestTier.tier <= 2) {
+        filingsWithDistance.push({
+          ...filing,
+          distanceTier: bestTier.tier,
+          distanceDescription: bestTier.description,
+          nearestPropertyId: bestTier.propertyId
+        });
+      }
+    }
+
+    // Step 5: Group by property
+    const propertyFilingsMap = new Map<string, FilingWithDistance[]>();
+    for (const filing of filingsWithDistance) {
+      if (filing.nearestPropertyId) {
+        if (!propertyFilingsMap.has(filing.nearestPropertyId)) {
+          propertyFilingsMap.set(filing.nearestPropertyId, []);
+        }
+        propertyFilingsMap.get(filing.nearestPropertyId)!.push(filing);
+      }
+    }
+
+    const byProperty: Array<{
+      propertyId: string;
+      propertyName: string;
+      section: string;
+      township: string;
+      range: string;
+      county: string;
+      filingCount: number;
+      sameSectionCount: number;
+      filings: Array<{
+        caseNumber: string;
+        reliefType: string;
+        applicant: string;
+        county: string;
+        section: string;
+        township: string;
+        range: string;
+        hearingDate: string;
+        status: string;
+        docketDate: string;
+        sourceUrl: string;
+        distanceTier: number;
+        distanceDescription: string;
+      }>;
+    }> = [];
+
+    for (const prop of properties) {
+      const propFilings = propertyFilingsMap.get(prop.id);
+      if (propFilings && propFilings.length > 0) {
+        propFilings.sort((a, b) => {
+          if (a.distanceTier !== b.distanceTier) return a.distanceTier - b.distanceTier;
+          return (b.docket_date || '').localeCompare(a.docket_date || '');
+        });
+
+        let sameSectionCount = 0;
+        for (const f of propFilings) {
+          if (f.distanceTier === 0) sameSectionCount++;
+        }
+
+        byProperty.push({
+          propertyId: prop.id,
+          propertyName: `Sec ${prop.section}-${prop.township}-${prop.range}`,
+          section: prop.section,
+          township: prop.township,
+          range: prop.range,
+          county: prop.county,
+          filingCount: propFilings.length,
+          sameSectionCount,
+          filings: propFilings.map(f => ({
+            caseNumber: f.case_number,
+            reliefType: f.relief_type,
+            applicant: f.applicant,
+            county: f.county,
+            section: f.section,
+            township: f.township,
+            range: f.range,
+            hearingDate: f.hearing_date,
+            status: f.status,
+            docketDate: f.docket_date,
+            sourceUrl: f.source_url,
+            distanceTier: f.distanceTier,
+            distanceDescription: f.distanceDescription
+          }))
+        });
+      }
+    }
+
+    byProperty.sort((a, b) => b.filingCount - a.filingCount);
+
+    // Step 6: Summary stats
+    const filingTypeMap: Record<string, number> = {};
+    const applicantMap: Record<string, number> = {};
+    const filingDates: string[] = [];
+    let sameSectionTotal = 0;
+
+    for (const filing of filingsWithDistance) {
+      if (filing.relief_type) {
+        filingTypeMap[filing.relief_type] = (filingTypeMap[filing.relief_type] || 0) + 1;
+      }
+      if (filing.applicant) {
+        applicantMap[filing.applicant] = (applicantMap[filing.applicant] || 0) + 1;
+      }
+      if (filing.docket_date) filingDates.push(filing.docket_date);
+      if (filing.distanceTier === 0) sameSectionTotal++;
+    }
+
+    const topApplicants = Object.entries(applicantMap)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+
+    filingDates.sort();
+
+    // Step 7: By-county breakdown (counties where user has properties)
+    const countyFilingMap = new Map<string, {
+      count: number;
+      applicants: Map<string, number>;
+      filingTypes: Map<string, number>;
+      latestDate: string;
+    }>();
+
+    for (const filing of filingsWithDistance) {
+      const county = filing.county || 'Unknown';
+      if (!countyFilingMap.has(county)) {
+        countyFilingMap.set(county, {
+          count: 0,
+          applicants: new Map(),
+          filingTypes: new Map(),
+          latestDate: ''
+        });
+      }
+      const cs = countyFilingMap.get(county)!;
+      cs.count++;
+      if (filing.applicant) {
+        cs.applicants.set(filing.applicant, (cs.applicants.get(filing.applicant) || 0) + 1);
+      }
+      if (filing.relief_type) {
+        cs.filingTypes.set(filing.relief_type, (cs.filingTypes.get(filing.relief_type) || 0) + 1);
+      }
+      if (filing.docket_date && filing.docket_date > cs.latestDate) {
+        cs.latestDate = filing.docket_date;
+      }
+    }
+
+    const byCounty = [...countyFilingMap.entries()].map(([county, cs]) => ({
+      county,
+      filingCount: cs.count,
+      topApplicants: [...cs.applicants.entries()]
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
+      filingTypes: Object.fromEntries(cs.filingTypes),
+      latestDate: cs.latestDate
+    })).sort((a, b) => b.filingCount - a.filingCount);
+
+    // Step 8: Market Research — statewide 90-day aggregations
+    const [hottestCountiesResult, topFilersResult, filingTypesResult] = await Promise.all([
+      env.WELLS_DB.prepare(`
+        SELECT county, COUNT(*) as cnt FROM occ_docket_entries
+        WHERE docket_date >= date('now', '-90 days') AND county IS NOT NULL AND county != ''
+        GROUP BY county ORDER BY cnt DESC LIMIT 10
+      `).all().catch(() => ({ results: [] })),
+
+      env.WELLS_DB.prepare(`
+        SELECT applicant, COUNT(*) as cnt FROM occ_docket_entries
+        WHERE docket_date >= date('now', '-90 days') AND applicant IS NOT NULL AND applicant != ''
+        GROUP BY applicant ORDER BY cnt DESC LIMIT 10
+      `).all().catch(() => ({ results: [] })),
+
+      env.WELLS_DB.prepare(`
+        SELECT relief_type, COUNT(*) as cnt FROM occ_docket_entries
+        WHERE docket_date >= date('now', '-90 days') AND relief_type IS NOT NULL AND relief_type != ''
+        GROUP BY relief_type ORDER BY cnt DESC
+      `).all().catch(() => ({ results: [] }))
+    ]);
+
+    const totalStatewideResult = await env.WELLS_DB.prepare(`
+      SELECT COUNT(*) as cnt FROM occ_docket_entries
+      WHERE docket_date >= date('now', '-90 days')
+    `).first<{ cnt: number }>().catch(() => ({ cnt: 0 }));
+
+    const marketResearch = {
+      hottestCounties: ((hottestCountiesResult.results || []) as any[]).map(r => ({
+        county: r.county,
+        count: r.cnt
+      })),
+      topFilers: ((topFilersResult.results || []) as any[]).map(r => ({
+        applicant: r.applicant,
+        count: r.cnt
+      })),
+      filingTypeBreakdown: Object.fromEntries(
+        ((filingTypesResult.results || []) as any[]).map(r => [r.relief_type, r.cnt])
+      ),
+      totalStatewideFilings90d: totalStatewideResult?.cnt || 0
+    };
+
+    const response = {
+      summary: {
+        totalFilings: filingsWithDistance.length,
+        sameSectionFilings: sameSectionTotal,
+        filingTypes: filingTypeMap,
+        topApplicants,
+        dateRange: {
+          earliest: filingDates.length > 0 ? filingDates[0] : null,
+          latest: filingDates.length > 0 ? filingDates[filingDates.length - 1] : null
+        },
+        propertiesWithActivity: byProperty.length
+      },
+      byProperty,
+      byCounty,
+      marketResearch
+    };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(`occ-filing-activity:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 });
+      } catch (e) {
+        console.error('[OCC Filing Activity] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[OCC Filing Activity] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load OCC filing activity',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}

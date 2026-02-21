@@ -5036,3 +5036,706 @@
             return html;
         }
 
+        // =============================================
+        // OCC FILING ACTIVITY REPORT
+        // =============================================
+
+        let lastOccFilingData = null;
+        let occFilingCurrentTab = 'properties';
+        let occFilingExpandedProperties = new Set();
+        let occFilingSearchTerm = '';
+        let occFilingCountyFilter = '';
+        let occFilingDistanceFilter = '';
+        let occFilingSortKey = 'filingCount';
+
+        async function loadOccFilingReport(forceRefresh = false) {
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            currentReportType = 'occ-filing-activity';
+            document.getElementById('reportBreadcrumb').textContent = 'OCC Filing Activity';
+            document.getElementById('reportTitle').textContent = 'OCC Filing Activity';
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Searching for OCC filings near your properties...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 20000);
+
+                const url = forceRefresh ? '/api/intelligence/occ-filing-activity?refresh=1' : '/api/intelligence/occ-filing-activity';
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('API returned ' + response.status);
+                }
+
+                const data = await response.json();
+                renderOccFilingReport(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('OCC filing report request timed out');
+                } else {
+                    console.error('Failed to load OCC filing report:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load OCC filing data. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadOccFilingReport()">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        function formatReliefType(type) {
+            if (!type) return 'OCC Filing';
+            const map = {
+                'POOLING': 'Pooling',
+                'SPACING': 'Spacing',
+                'INCREASED DENSITY': 'Increased Density',
+                'LOCATION EXCEPTION': 'Location Exception',
+                'CHANGE OF OPERATOR': 'Change of Operator',
+                'MULTI-UNIT HORIZONTAL': 'Multi-Unit Horizontal',
+                'HORIZONTAL WELL': 'Horizontal Well',
+                'WELL TRANSFER': 'Well Transfer',
+                'DISSOLUTION': 'Unit Dissolution',
+                'VACUUM': 'Vacuum Order',
+                'DISPOSAL WELL': 'Disposal Well',
+                'INCREASED WELL DENSITY': 'Increased Well Density'
+            };
+            const upper = type.toUpperCase();
+            if (map[upper]) return map[upper];
+            for (const [key, label] of Object.entries(map)) {
+                if (upper.includes(key)) return label;
+            }
+            return type.replace(/\b\w/g, c => c.toUpperCase()) || 'OCC Filing';
+        }
+
+        function reliefBadgeClass(type) {
+            if (!type) return 'type-permit';
+            const upper = type.toUpperCase();
+            if (upper.includes('POOLING')) return 'type-pooling';
+            if (upper.includes('SPACING') || upper.includes('DENSITY') || upper.includes('HORIZONTAL') || upper.includes('MULTI-UNIT')) return 'type-spacing';
+            if (upper.includes('COMPLETION')) return 'type-completion';
+            return 'type-permit';
+        }
+
+        function distanceBadgeStyle(tier) {
+            if (tier === 0) return 'background: var(--red-dirt, #c0392b); color: #fff;';
+            if (tier === 1) return 'background: #f59e0b; color: #fff;';
+            return 'background: #94a3b8; color: #fff;';
+        }
+
+        function formatOccDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const d = new Date(dateStr + 'T00:00:00');
+                return MONTH_ABBR[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+            } catch (e) { return dateStr; }
+        }
+
+        function formatOccDateShort(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const d = new Date(dateStr + 'T00:00:00');
+                return MONTH_ABBR[d.getMonth()] + ' ' + d.getDate();
+            } catch (e) { return dateStr; }
+        }
+
+        function renderOccFilingReport(data) {
+            const { summary, byProperty, byCounty, marketResearch } = data;
+            lastOccFilingData = data;
+            occFilingExpandedProperties = new Set();
+            occFilingCurrentTab = 'properties';
+            occFilingSearchTerm = '';
+            occFilingCountyFilter = '';
+            occFilingDistanceFilter = '';
+
+            // Header
+            document.getElementById('reportSubtitle').textContent = summary.totalFilings > 0
+                ? 'OCC filings on and near your mineral interest sections'
+                : 'No recent OCC filings found nearby';
+
+            document.getElementById('reportStatus').textContent = '';
+            const dateRange = summary.dateRange;
+            const metaText = dateRange && dateRange.earliest && dateRange.latest
+                ? `${formatOccDate(dateRange.earliest)} \u2013 ${formatOccDate(dateRange.latest)} \u00b7 Updated daily`
+                : 'Data from OCC docket entries';
+            document.getElementById('reportMeta').innerHTML = `${metaText} <button class="btn-refresh-small" onclick="loadOccFilingReport(true)" title="Refresh data">\u21bb</button>` +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Sourced from Oklahoma Corporation Commission, updated daily</div>';
+
+            if (summary.totalFilings === 0) {
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="hud-metrics">
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">0</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Nearby Filings</div>
+                                <div class="hud-badge-status">None found</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-summary-card">
+                        <h2 class="report-summary-title">No Recent OCC Filing Activity</h2>
+                        <p class="report-summary-text">
+                            We searched for OCC filings within 2 townships of your properties
+                            and found no activity in the last 12 months.
+                        </p>
+                    </div>
+                    <div class="report-footer">
+                        <p>Data sourced from Oklahoma Corporation Commission docket.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            // HUD Metrics (4 badges)
+            const uniqueApplicants = new Set();
+            for (const p of byProperty) {
+                for (const f of p.filings) {
+                    if (f.applicant) uniqueApplicants.add(f.applicant);
+                }
+            }
+            const topApplicant = summary.topApplicants && summary.topApplicants[0] ? summary.topApplicants[0].name : '';
+            const topApplicantShort = topApplicant.length > 20 ? topApplicant.substring(0, 20) + '...' : topApplicant;
+
+            html += `
+                <div class="hud-metrics pooling-hud">
+                    <div class="hud-badge">
+                        <div class="hud-badge-value">${summary.totalFilings}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Total Filings</div>
+                            <div class="hud-badge-status">Within 2 townships of your properties</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value" style="color: var(--red-dirt, #c0392b);">${summary.sameSectionFilings}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">On Your Sections</div>
+                            <div class="hud-badge-status">${summary.sameSectionFilings > 0 ? 'Direct section matches' : 'None on exact sections'}</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value pooling-emerald">${uniqueApplicants.size}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Active Operators</div>
+                            <div class="hud-badge-status">${topApplicantShort ? escapeHtml(topApplicantShort) + ' is most active' : 'In your area'}</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value pooling-blue">${summary.propertiesWithActivity}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Properties with Activity</div>
+                            <div class="hud-badge-status">${byProperty.length > 0 ? escapeHtml(byProperty[0].county || '') + ' leads' : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Tabs
+            html += `
+                <div class="pooling-tabs">
+                    <button class="pooling-tab active" data-tab="properties" onclick="switchOccFilingTab('properties')">
+                        My Properties <span class="tab-badge">${byProperty.length}</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="markets" onclick="switchOccFilingTab('markets')">
+                        My Markets <span class="tab-badge">${byCounty.length}</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="research" onclick="switchOccFilingTab('research')">
+                        Market Research
+                    </button>
+                </div>
+            `;
+
+            html += `<div id="occFiling-tab-contents">`;
+
+            // TAB 1: MY PROPERTIES
+            html += `<div id="occFiling-tab-properties" class="pooling-tab-content active">`;
+            html += renderOccFilingPropertiesTab(summary, byProperty, byCounty);
+            html += `</div>`;
+
+            // TAB 2: MY MARKETS
+            html += `<div id="occFiling-tab-markets" class="pooling-tab-content" style="display:none;">`;
+            html += renderOccFilingMarketsTab(byCounty);
+            html += `</div>`;
+
+            // TAB 3: MARKET RESEARCH
+            html += `<div id="occFiling-tab-research" class="pooling-tab-content" style="display:none;">`;
+            html += renderOccFilingResearchTab(marketResearch);
+            html += `</div>`;
+
+            html += `</div>`;
+
+            html += `
+                <div class="report-footer">
+                    Data sourced from Oklahoma Corporation Commission docket entries.<br>
+                    Showing filings from the past 12 months. \u00b7 Updated daily.
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+        }
+
+        function renderOccFilingPropertiesTab(summary, byProperty, byCounty) {
+            let html = '';
+
+            // Filing type summary strip
+            const filingTypes = summary.filingTypes || {};
+            const typeKeys = Object.keys(filingTypes).sort((a, b) => filingTypes[b] - filingTypes[a]);
+            if (typeKeys.length > 0) {
+                html += `
+                    <div class="pooling-royalty-summary">
+                        <div class="pooling-summary-label">Filing Types in Your Area</div>
+                        <div class="pooling-royalty-chips">
+                            ${typeKeys.slice(0, 6).map((k, i) => `
+                                <span class="pooling-royalty-chip ${i === 0 ? 'primary' : 'secondary'}">
+                                    ${escapeHtml(formatReliefType(k))} <span class="chip-count">${filingTypes[k]}</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Active operators bar
+            if (summary.topApplicants && summary.topApplicants.length > 0) {
+                html += `
+                    <div class="pooling-operators-bar">
+                        <span class="pooling-summary-label">Most Active Filers</span>
+                        ${summary.topApplicants.slice(0, 5).map(op => `
+                            <span class="pooling-operator-chip">
+                                ${escapeHtml(op.name)} <span class="chip-count">${op.count}</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Toolbar
+            const counties = [...new Set(byProperty.map(p => p.county).filter(Boolean))].sort();
+            html += `
+                <div class="pooling-toolbar">
+                    <div class="pooling-search-box">
+                        <span class="search-icon">\u2315</span>
+                        <input type="text" id="occFilingSearch" placeholder="Search applicants, case #..." oninput="filterOccFilingProperties()">
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Sort</label>
+                        <select id="occFilingSort" class="pooling-filter-select" onchange="filterOccFilingProperties()">
+                            <option value="filingCount-desc">Most Filings</option>
+                            <option value="sameSectionCount-desc">Most On-Section</option>
+                            <option value="propertyName-asc">By Name</option>
+                            <option value="county-asc">By County</option>
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">County</label>
+                        <select id="occFilingCounty" class="pooling-filter-select" onchange="filterOccFilingProperties()">
+                            <option value="">All Counties</option>
+                            ${counties.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Distance</label>
+                        <select id="occFilingDistance" class="pooling-filter-select" onchange="filterOccFilingProperties()">
+                            <option value="">All Distances</option>
+                            <option value="same">Same Section Only</option>
+                            <option value="adjacent">Adjacent</option>
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportOccFilingCsv()">\u2913 Export CSV</button>
+                </div>
+            `;
+
+            html += `<div id="occFiling-properties-list">`;
+            html += renderOccFilingPropertyList(byProperty);
+            html += `</div>`;
+
+            return html;
+        }
+
+        function renderOccFilingPropertyList(properties) {
+            if (!properties || properties.length === 0) {
+                return '<div class="pooling-empty">No properties match your filters</div>';
+            }
+
+            let html = '';
+
+            for (const prop of properties) {
+                const propId = (prop.propertyId || prop.propertyName).replace(/[^a-zA-Z0-9]/g, '-');
+                const sameSection = prop.sameSectionCount || 0;
+                const isExpanded = occFilingExpandedProperties.has(propId);
+
+                html += `
+                    <div class="pooling-property-group" id="occ-prop-group-${propId}">
+                        <div class="pooling-property-header" onclick="toggleOccFilingProperty('${propId}')">
+                            <div class="pooling-header-left">
+                                <span class="expand-chevron" id="occ-chevron-${propId}">${isExpanded ? '\u25BC' : '\u25B6'}</span>
+                                <span class="pooling-prop-name">${escapeHtml(prop.propertyName)}</span>
+                                <span class="pooling-prop-location">${escapeHtml(prop.county || '')}</span>
+                            </div>
+                            <div class="pooling-header-right">
+                                <div class="pooling-prop-stat">
+                                    <div class="pooling-stat-value">${prop.filingCount}</div>
+                                    <div class="pooling-stat-label">Filings</div>
+                                </div>
+                                <div class="pooling-prop-stat">
+                                    <div class="pooling-stat-value" style="${sameSection > 0 ? 'color: var(--red-dirt, #c0392b);' : ''}">${sameSection}</div>
+                                    <div class="pooling-stat-label">On Section</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pooling-property-content" id="occ-content-${propId}" style="display:${isExpanded ? 'block' : 'none'};">
+                            ${renderOccFilingTable(prop.filings, propId)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderOccFilingTable(filings, propId) {
+            if (!filings || filings.length === 0) {
+                return '<p class="pooling-empty">No filings</p>';
+            }
+
+            let html = `
+                <div style="overflow-x: auto;">
+                <table class="pooling-orders-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Applicant</th>
+                            <th>Case #</th>
+                            <th>Location</th>
+                            <th>Status</th>
+                            <th>Distance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const f of filings) {
+                const reliefLabel = formatReliefType(f.reliefType);
+                const badgeClass = reliefBadgeClass(f.reliefType);
+                const distStyle = distanceBadgeStyle(f.distanceTier);
+                const caseLink = f.sourceUrl
+                    ? `<a href="${escapeHtml(f.sourceUrl)}" target="_blank" rel="noopener" class="vt-well-link">${escapeHtml(f.caseNumber || '\u2014')}</a>`
+                    : escapeHtml(f.caseNumber || '\u2014');
+                const location = f.section && f.township && f.range
+                    ? `${f.section}-${f.township}-${f.range}`
+                    : '\u2014';
+
+                html += `
+                    <tr>
+                        <td style="white-space: nowrap;">${formatOccDateShort(f.docketDate)}</td>
+                        <td><span class="filing-type-badge ${badgeClass}">${escapeHtml(reliefLabel)}</span></td>
+                        <td>${escapeHtml(f.applicant || '\u2014')}</td>
+                        <td>${caseLink}</td>
+                        <td style="white-space: nowrap;">${escapeHtml(location)}</td>
+                        <td>${escapeHtml(f.status || '\u2014')}</td>
+                        <td><span class="distance-badge" style="${distStyle} padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; white-space: nowrap;">${escapeHtml(f.distanceDescription)}</span></td>
+                    </tr>
+                `;
+            }
+
+            html += '</tbody></table></div>';
+            return html;
+        }
+
+        function toggleOccFilingProperty(propId) {
+            const content = document.getElementById('occ-content-' + propId);
+            const chevron = document.getElementById('occ-chevron-' + propId);
+            if (!content) return;
+
+            const isExpanded = content.style.display !== 'none';
+            content.style.display = isExpanded ? 'none' : 'block';
+            if (chevron) chevron.textContent = isExpanded ? '\u25B6' : '\u25BC';
+
+            if (isExpanded) {
+                occFilingExpandedProperties.delete(propId);
+            } else {
+                occFilingExpandedProperties.add(propId);
+            }
+        }
+
+        function switchOccFilingTab(tab) {
+            occFilingCurrentTab = tab;
+            // Update the tab buttons
+            const tabButtons = document.querySelectorAll('.pooling-tabs .pooling-tab');
+            tabButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            document.querySelectorAll('#occFiling-tab-contents .pooling-tab-content').forEach(content => {
+                content.style.display = content.id === 'occFiling-tab-' + tab ? 'block' : 'none';
+            });
+        }
+
+        function filterOccFilingProperties() {
+            if (!lastOccFilingData) return;
+
+            const search = (document.getElementById('occFilingSearch')?.value || '').toLowerCase();
+            const county = document.getElementById('occFilingCounty')?.value || '';
+            const distance = document.getElementById('occFilingDistance')?.value || '';
+
+            let filtered = [...lastOccFilingData.byProperty];
+
+            if (search) {
+                filtered = filtered.filter(p => {
+                    const propMatch = p.propertyName.toLowerCase().includes(search) ||
+                        (p.county || '').toLowerCase().includes(search);
+                    const filingMatch = p.filings.some(f =>
+                        (f.applicant || '').toLowerCase().includes(search) ||
+                        (f.caseNumber || '').toLowerCase().includes(search) ||
+                        (f.reliefType || '').toLowerCase().includes(search)
+                    );
+                    return propMatch || filingMatch;
+                });
+            }
+
+            if (county) {
+                filtered = filtered.filter(p => p.county === county);
+            }
+
+            if (distance === 'same') {
+                filtered = filtered.filter(p => (p.sameSectionCount || 0) > 0);
+            } else if (distance === 'adjacent') {
+                filtered = filtered.filter(p =>
+                    p.filings.some(f => f.distanceTier <= 1)
+                );
+            }
+
+            // Sort
+            const sortVal = document.getElementById('occFilingSort')?.value || 'filingCount-desc';
+            const [sortKey, sortDir] = sortVal.split('-');
+            filtered.sort((a, b) => {
+                let aVal = a[sortKey] ?? 0;
+                let bVal = b[sortKey] ?? 0;
+                if (typeof aVal === 'string') {
+                    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+
+            document.getElementById('occFiling-properties-list').innerHTML = renderOccFilingPropertyList(filtered);
+        }
+
+        function renderOccFilingMarketsTab(byCounty) {
+            if (!byCounty || byCounty.length === 0) {
+                return '<div class="pooling-empty">No county data available</div>';
+            }
+
+            let html = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        OCC filing activity in counties where you own mineral rights.
+                        See which operators are most active and what types of filings dominate.
+                    </p>
+                </div>
+                <div class="pooling-markets-grid">
+            `;
+
+            for (const county of byCounty) {
+                const topFilers = (county.topApplicants || []).slice(0, 3);
+                const filingTypes = county.filingTypes || {};
+                const typeKeys = Object.keys(filingTypes).sort((a, b) => filingTypes[b] - filingTypes[a]).slice(0, 4);
+
+                html += `
+                    <div class="pooling-market-card">
+                        <div class="market-card-header">
+                            <span class="market-county">${escapeHtml(county.county)}</span>
+                            <span class="market-order-count">${county.filingCount} filing${county.filingCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="market-card-body">
+                            ${topFilers.length > 0 ? `
+                                <div style="margin-bottom: 0.75rem;">
+                                    <div class="market-stat-name" style="margin-bottom: 0.25rem;">Top Filers</div>
+                                    ${topFilers.map(f => `
+                                        <div class="insight-top-item" style="padding: 0.25rem 0;">
+                                            <span class="insight-item-name" style="font-size: 0.85rem;">${escapeHtml(f.name)}</span>
+                                            <span class="insight-item-val" style="font-size: 0.85rem;">${f.count}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                            ${typeKeys.length > 0 ? `
+                                <div>
+                                    <div class="market-stat-name" style="margin-bottom: 0.25rem;">Filing Types</div>
+                                    ${typeKeys.map(k => `
+                                        <div class="insight-top-item" style="padding: 0.25rem 0;">
+                                            <span class="insight-item-name" style="font-size: 0.85rem;">${escapeHtml(formatReliefType(k))}</span>
+                                            <span class="insight-item-val" style="font-size: 0.85rem;">${filingTypes[k]}</span>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                            ${county.latestDate ? `
+                                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.375rem;">
+                                    Latest: ${formatOccDateShort(county.latestDate)}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function renderOccFilingResearchTab(marketResearch) {
+            if (!marketResearch) {
+                return '<div class="pooling-empty">No statewide data available</div>';
+            }
+
+            const hottestCounties = marketResearch.hottestCounties || [];
+            const topFilers = marketResearch.topFilers || [];
+            const filingTypeBreakdown = marketResearch.filingTypeBreakdown || {};
+            const totalStatewide = marketResearch.totalStatewideFilings90d || 0;
+            const typeKeys = Object.keys(filingTypeBreakdown).sort((a, b) => filingTypeBreakdown[b] - filingTypeBreakdown[a]);
+
+            let html = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                    <p class="pooling-tab-intro" style="margin-bottom: 0;">
+                        Statewide OCC filing activity over the last 90 days.
+                        ${totalStatewide > 0 ? `<strong>${totalStatewide.toLocaleString()}</strong> total filings across Oklahoma.` : ''}
+                    </p>
+                    <button class="pooling-btn-export" onclick="exportOccFilingResearchCsv()" style="flex-shrink: 0; margin-left: 1rem;">\u2913 Export CSV</button>
+                </div>
+                <div class="pooling-insight-cards">
+            `;
+
+            // Hottest Counties
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Hottest Counties (90 Days)</div>
+                    ${hottestCounties.length > 0 ? hottestCounties.map(c => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(c.county)}</span>
+                            <span class="insight-item-val">${c.count}<span class="insight-item-sub">filings</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Most Active Filers
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Most Active Filers</div>
+                    ${topFilers.length > 0 ? topFilers.map(f => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(f.applicant)}</span>
+                            <span class="insight-item-val">${f.count}<span class="insight-item-sub">filings</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Filing Type Breakdown
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Filing Type Breakdown</div>
+                    ${typeKeys.length > 0 ? typeKeys.slice(0, 10).map(k => {
+                        const pct = totalStatewide > 0 ? Math.round(filingTypeBreakdown[k] / totalStatewide * 100) : 0;
+                        return `
+                            <div class="insight-top-item">
+                                <span class="insight-item-name">${escapeHtml(formatReliefType(k))}</span>
+                                <span class="insight-item-val">${filingTypeBreakdown[k]}<span class="insight-item-sub">${pct}%</span></span>
+                            </div>
+                        `;
+                    }).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            html += '</div>';
+            return html;
+        }
+
+        function exportOccFilingCsv() {
+            if (!lastOccFilingData || !lastOccFilingData.byProperty) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            const rows = [];
+            rows.push(['Property', 'Section', 'Township', 'Range', 'County', 'Date', 'Type', 'Applicant', 'Case #', 'Status', 'Filing Location', 'Distance', 'Source URL']);
+
+            for (const prop of lastOccFilingData.byProperty) {
+                for (const f of prop.filings) {
+                    const location = f.section && f.township && f.range
+                        ? `${f.section}-${f.township}-${f.range}` : '';
+                    rows.push([
+                        prop.propertyName,
+                        prop.section,
+                        prop.township,
+                        prop.range,
+                        prop.county || '',
+                        f.docketDate || '',
+                        formatReliefType(f.reliefType),
+                        f.applicant || '',
+                        f.caseNumber || '',
+                        f.status || '',
+                        location,
+                        f.distanceDescription || '',
+                        f.sourceUrl || ''
+                    ]);
+                }
+            }
+
+            const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'occ-filing-activity-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportOccFilingResearchCsv() {
+            if (!lastOccFilingData || !lastOccFilingData.marketResearch) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            const mr = lastOccFilingData.marketResearch;
+            const rows = [];
+            rows.push(['Category', 'Name', 'Count']);
+
+            for (const c of (mr.hottestCounties || [])) {
+                rows.push(['Hottest County', c.county, c.count]);
+            }
+            for (const f of (mr.topFilers || [])) {
+                rows.push(['Top Filer', f.applicant, f.count]);
+            }
+            for (const [type, count] of Object.entries(mr.filingTypeBreakdown || {})) {
+                rows.push(['Filing Type', formatReliefType(type), count]);
+            }
+
+            const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'occ-filing-research-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
