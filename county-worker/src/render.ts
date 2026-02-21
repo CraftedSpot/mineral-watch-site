@@ -26,6 +26,36 @@ function formatDate(dateStr: string): { month: string; day: string; year: string
   };
 }
 
+// Add contextual links to guide pages (first occurrence of each phrase only, skip if inside <a>)
+function addGuideLinks(html: string): string {
+  const rules = [
+    { pattern: /pooling orders?/gi, href: '/insights/guides/understanding-pooling-orders', key: 'pooling' },
+    { pattern: /spacing (?:applications?|orders?)/gi, href: '/insights/guides/occ-filing-types', key: 'spacing' },
+    { pattern: /increased density/gi, href: '/insights/guides/occ-filing-types', key: 'density' },
+    { pattern: /division orders?/gi, href: '/insights/guides/division-orders-101', key: 'division' },
+    { pattern: /20[- ]days?/gi, href: '/insights/guides/understanding-pooling-orders', key: '20day' },
+    { pattern: /royalty checks?/gi, href: '/insights/guides/auditing-royalty-checks', key: 'royalty' },
+  ];
+  const linked = new Set<string>();
+  for (const { pattern, href, key } of rules) {
+    if (linked.has(key)) continue;
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(html)) !== null) {
+      // Skip if inside an anchor tag
+      const before = html.substring(0, m.index);
+      const opens = (before.match(/<a[\s>]/g) || []).length;
+      const closes = (before.match(/<\/a>/g) || []).length;
+      if (opens > closes) continue;
+      const link = `<a href="${href}" style="color:var(--red-dirt)">${m[0]}</a>`;
+      html = html.substring(0, m.index) + link + html.substring(m.index + m[0].length);
+      linked.add(key);
+      break;
+    }
+  }
+  return html;
+}
+
 const TYPE_CLASS: Record<string, string> = {
   permit: 'type-permit',
   completion: 'type-completion',
@@ -252,7 +282,10 @@ export function renderCountyPage(
   const detail = COUNTY_DETAILS[slug];
   const countyName = county.name;
   const heroDesc = detail?.heroDescription ?? genericHero(countyName);
-  const overviewHtml = detail?.overviewHtml ?? genericOverview(countyName);
+  let overviewHtml = addGuideLinks(detail?.overviewHtml ?? genericOverview(countyName));
+  if (detail?.play && /SCOOP|STACK/i.test(detail.play)) {
+    overviewHtml += `\n      <p>Learn more about what this means for your minerals in our <a href="/insights/guides/scoop-stack-overview" style="color:var(--red-dirt)">SCOOP &amp; STACK Play Overview</a>.</p>`;
+  }
 
   // Build activity feed HTML
   let activityHtml = '';
@@ -439,7 +472,13 @@ ${HEADER}
                         <div style="font-size: 14px; line-height: 1.8;">
                             <p style="margin-bottom: 10px;"><a href="/features" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">See All Features &rarr;</a></p>
                             <p style="margin-bottom: 10px;"><a href="/pricing" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">View Pricing Plans &rarr;</a></p>
-                            <p><a href="/contact" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">Contact Us &rarr;</a></p>
+                            <p style="margin-bottom: 10px;"><a href="/contact" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">Contact Us &rarr;</a></p>
+                        </div>
+                        <h3 style="margin-top: 20px;">Related Guides</h3>
+                        <div style="font-size: 14px; line-height: 1.8;">
+                            <p style="margin-bottom: 10px;"><a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">Understanding Pooling Orders &rarr;</a></p>
+                            <p style="margin-bottom: 10px;"><a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">Every OCC Filing Type Explained &rarr;</a></p>
+                            <p><a href="/insights/guides/auditing-royalty-checks" style="color: var(--red-dirt); text-decoration: none; font-weight: 500;">How to Audit Your Royalty Checks &rarr;</a></p>
                         </div>
                     </div>
                 </aside>
