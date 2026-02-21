@@ -62,18 +62,58 @@ export function normalizeDocketSection(raw) {
   return null;
 }
 
+// All 77 Oklahoma counties, longest first for greedy matching
+const OK_COUNTIES = [
+  'Roger Mills', 'Le Flore', 'Pottawatomie', 'Pushmataha',
+  'Washington', 'Kingfisher', 'McCurtain', 'Cleveland', 'Comanche',
+  'Cimarron', 'Muskogee', 'Pittsburg', 'Pottawatomie', 'Sequoyah',
+  'Woodward', 'McIntosh', 'Okfuskee', 'Oklahoma', 'Okmulgee',
+  'Pontotoc', 'Seminole', 'Stephens', 'Tillman', 'Wagoner',
+  'McClain', 'Marshall', 'Haskell', 'Johnston', 'Cherokee',
+  'Choctaw', 'Delaware', 'Garfield', 'Latimer', 'Lincoln',
+  'Alfalfa', 'Beckham', 'Caddo', 'Canadian', 'Carter', 'Cotton',
+  'Craig', 'Creek', 'Custer', 'Dewey', 'Ellis', 'Garvin',
+  'Grady', 'Grant', 'Greer', 'Harmon', 'Harper', 'Hughes',
+  'Jackson', 'Jefferson', 'Kay', 'Kiowa', 'Logan', 'Love',
+  'Major', 'Mayes', 'Murray', 'Noble', 'Nowata', 'Osage',
+  'Ottawa', 'Pawnee', 'Payne', 'Rogers', 'Texas', 'Tulsa',
+  'Washita', 'Woods', 'Adair', 'Atoka', 'Beaver', 'Blaine',
+  'Bryan', 'Coal',
+].sort((a, b) => b.length - a.length);
+
+// Map for case-insensitive lookup
+const COUNTY_LOOKUP = new Map(OK_COUNTIES.map(c => [c.toUpperCase(), c]));
+
 /**
- * Normalize county name: trim, title case
+ * Normalize county name: match against known OK counties, then title-case
  */
 export function normalizeCounty(raw) {
   if (!raw) return null;
 
   const str = raw.toString().trim();
-  // Remove any trailing asterisks or parenthetical notes
   const clean = str.replace(/\s*\(\*\).*$/, '').replace(/\*$/, '').trim();
 
-  // Title case
-  return clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase();
+  // Try exact match against known counties (case-insensitive)
+  const found = COUNTY_LOOKUP.get(clean.toUpperCase());
+  if (found) return found;
+
+  // Title case fallback for unknown inputs
+  return clean.replace(/\b\w+/g, w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+}
+
+/**
+ * Extract county name from a legal description string by matching against known OK counties.
+ * Handles multi-word counties like "Roger Mills" and "Le Flore".
+ */
+export function extractCountyFromLegal(legalStr) {
+  if (!legalStr) return null;
+  const upper = legalStr.toUpperCase();
+  for (const county of OK_COUNTIES) {
+    if (upper.includes(county.toUpperCase())) {
+      return county;
+    }
+  }
+  return null;
 }
 
 /**
@@ -279,23 +319,9 @@ export function parseAllLegalDescriptions(legalStr) {
     }
   }
 
-  // Extract county (typically at the end)
-  const countyMatch = legalStr.match(/([A-Za-z]+)(?:\s*\(\*\))?$/);
-  if (countyMatch) {
-    const potentialCounty = countyMatch[1].trim();
-    // Validate it's not a direction (N, S, E, W) or common word
-    if (potentialCounty.length > 2 && !['AND', 'THE', 'FOR'].includes(potentialCounty.toUpperCase())) {
-      county = normalizeCounty(potentialCounty);
-    }
-  }
-
-  // Also try to extract county from middle of string (after STR patterns)
-  if (!county) {
-    const midCountyMatch = legalStr.match(/R\d{1,2}[EW]\s+([A-Za-z]{3,})/i);
-    if (midCountyMatch) {
-      county = normalizeCounty(midCountyMatch[1]);
-    }
-  }
+  // Extract county by matching against known Oklahoma counties
+  // (handles multi-word names like "Roger Mills" and "Le Flore")
+  county = extractCountyFromLegal(legalStr);
 
   if (allLocations.length === 0) {
     return null;
