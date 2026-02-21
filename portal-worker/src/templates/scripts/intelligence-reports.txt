@@ -6059,6 +6059,11 @@
                 const discountColor = dSrc === 'check_stub' ? 'font-weight: 600;'
                     : dSrc === 'operator_profile' ? ''
                     : 'color: var(--text-muted); font-style: italic;';
+                const srcLabel = dSrc === 'check_stub' ? 'Stub'
+                    : dSrc === 'operator_profile' ? 'Op'
+                    : dSrc === 'county_avg' ? 'Cty'
+                    : dSrc === 'otc' ? 'OTC' : '';
+                const srcBadge = srcLabel ? '<div style="font-size: 0.55rem; text-transform: uppercase; letter-spacing: 0.04em; margin-top: 1px; color: ' + (dSrc === 'check_stub' ? '#10b981' : dSrc === 'operator_profile' ? '#3b82f6' : dSrc === 'county_avg' ? '#8b5cf6' : '#94a3b8') + ';">' + srcLabel + '</div>' : '';
                 const netBackStr = w.netBackPrice !== null ? '$' + w.netBackPrice.toFixed(2) : '\u2014';
 
                 // Status pill: tier label colored by risk level
@@ -6092,7 +6097,7 @@
                     '<td style="padding: 0.5rem; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + (w.wellName || '').replace(/"/g, '&quot;') + '">' + (w.wellName || 'Unknown') + '</td>' +
                     '<td style="padding: 0.5rem;">' + formStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
-                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 20%') + '">' + discountStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 20%') + '">' + discountStr + srcBadge + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; font-weight: 500;">' + netBackStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: center;">' + statusHtml + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; ' + stressedStyle + '">' + stressedStr + '</td>' +
