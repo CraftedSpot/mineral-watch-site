@@ -56,6 +56,8 @@ const CSS = `
 body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background-color: #fff; }
 h1, h2, h3, .logo { font-family: 'Merriweather', serif; }
 .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+.skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: var(--oil-navy); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+.skip-nav:focus { top: 0; }
 header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--border); }
 .header-inner { display: flex; justify-content: space-between; align-items: center; }
 .logo { font-size: 22px; font-weight: 900; color: var(--oil-navy); letter-spacing: -0.5px; text-decoration: none; }
@@ -180,6 +182,7 @@ const HEADER = `
 
                 <a href="/about">About</a>
                 <a href="/contact">Contact</a>
+                <a href="/demo">Demo</a>
                 <a href="https://portal.mymineralwatch.com/portal/login?new=1" class="btn-start">Start Free</a>
                 <a href="https://portal.mymineralwatch.com" class="btn-login">Sign In</a>
             </nav>
@@ -208,6 +211,7 @@ const FOOTER = `
         <h4>Company</h4>
         <a href="https://mymineralwatch.com/about">About</a>
         <a href="https://mymineralwatch.com/contact">Contact</a>
+        <a href="https://mymineralwatch.com/demo">Book a Demo</a>
       </div>
       <div class="footer-col">
         <h4>Legal</h4>
@@ -358,6 +362,7 @@ export function renderCountyPage(
     <style>${CSS}</style>
 </head>
 <body>
+<a href="#main-content" class="skip-nav">Skip to main content</a>
 ${HEADER}
 
     <div class="breadcrumb">
@@ -397,7 +402,7 @@ ${HEADER}
         </div>
     </section>
 
-    <main>
+    <main id="main-content">
         <div class="container">
             <div class="content-grid">
                 <div>
@@ -511,6 +516,7 @@ export function renderCountyIndex(counties: CountyIndexRow[]): string {
     <style>${CSS}${INDEX_CSS}</style>
 </head>
 <body>
+<a href="#main-content" class="skip-nav">Skip to main content</a>
 ${HEADER}
 
     <div class="breadcrumb">
@@ -526,7 +532,7 @@ ${HEADER}
         </div>
     </section>
 
-    <main>
+    <main id="main-content">
         <div class="container">
             <div class="county-grid">
                 ${cardsHtml}
@@ -567,8 +573,9 @@ export function render404(): string {
     <style>${CSS}</style>
 </head>
 <body>
+<a href="#main-content" class="skip-nav">Skip to main content</a>
 ${HEADER}
-    <main style="text-align:center;padding:80px 20px;">
+    <main id="main-content" style="text-align:center;padding:80px 20px;">
         <h1 style="font-size:48px;margin-bottom:16px;">404</h1>
         <p style="font-size:18px;color:var(--slate-blue);margin-bottom:28px;">County not found. Browse all Oklahoma counties below.</p>
         <a href="/counties/" class="hero-cta">View All Counties &rarr;</a>

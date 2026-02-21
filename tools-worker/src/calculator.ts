@@ -7,7 +7,7 @@ export function renderCalculator(): string {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <title>Oklahoma Mineral Calculator — NRI, Royalties, Pooling &amp; Valuation | Mineral Watch</title>
+    <title>Oklahoma Mineral Calculator — NRI &amp; Royalties | Mineral Watch</title>
     <meta name="description" content="Free Oklahoma mineral calculator. Compute your NRI, estimate royalties, compare pooling elections, and verify division orders.">
     <link rel="canonical" href="https://mymineralwatch.com/tools/mineral-calculator">
     <meta property="og:type" content="website">

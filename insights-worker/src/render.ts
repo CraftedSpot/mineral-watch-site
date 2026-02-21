@@ -107,7 +107,7 @@ const CSS_BASE = `
 html { overflow-x: hidden; }
 body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; overflow-x: hidden; max-width: 100vw; }
 h1, h2, h3, h4, .logo { font-family: 'Merriweather', serif; }
-.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; overflow: clip; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
 a { color: inherit; }
 .skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: var(--oil-navy); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
 .skip-nav:focus { top: 0; }
@@ -684,7 +684,7 @@ const ARTICLES: Record<string, Article> = {
   'inherited-mineral-rights': {
     slug: 'inherited-mineral-rights',
     title: 'Inherited Mineral Rights in Oklahoma',
-    description: 'Just inherited mineral rights in Oklahoma? This complete guide walks you through what you own, how to confirm your interest, what to do with royalty checks, and how to protect your inheritance.',
+    description: 'Just inherited mineral rights in Oklahoma? Learn what you own, how to confirm your interest, handle royalty checks, and protect your inheritance.',
     canonical: 'https://mymineralwatch.com/insights/guides/inherited-mineral-rights',
     ogImage: 'https://mymineralwatch.com/assets/insights/inherited-mineral-rights-guide.jpg',
     tag: 'Essential Guide',
@@ -746,7 +746,7 @@ const ARTICLES: Record<string, Article> = {
   'occ-filing-types': {
     slug: 'occ-filing-types',
     title: 'Every OCC Filing Type, Explained',
-    description: 'A complete reference guide to Oklahoma Corporation Commission filing types. Learn what permits, pooling orders, spacing applications, increased density orders, and other OCC filings mean for your mineral rights.',
+    description: 'Reference guide to OCC filing types. Learn what permits, pooling orders, spacing applications, and density orders mean for your mineral rights.',
     canonical: 'https://mymineralwatch.com/insights/guides/occ-filing-types',
     ogImage: 'https://mymineralwatch.com/assets/insights/occ-filing-types-guide.jpg',
     tag: 'Reference Guide',
@@ -1000,7 +1000,7 @@ const ARTICLES: Record<string, Article> = {
   'scoop-stack-overview': {
     slug: 'scoop-stack-overview',
     title: 'SCOOP & STACK Overview for Mineral Owners',
-    description: 'A mineral owner\u2019s guide to Oklahoma\u2019s SCOOP, STACK, and MERGE plays. Understand the formations being drilled, which counties are affected, who the major operators are, and what it means for your mineral rights.',
+    description: 'Guide to Oklahoma\u2019s SCOOP, STACK, and MERGE plays. Formations, active counties, major operators, and what it means for your mineral rights.',
     canonical: 'https://mymineralwatch.com/insights/guides/scoop-stack-overview',
     ogImage: 'https://mymineralwatch.com/assets/insights/scoop-stack-overview-guide.jpg',
     tag: 'Analysis',
