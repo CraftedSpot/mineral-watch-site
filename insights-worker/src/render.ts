@@ -104,8 +104,8 @@ const CSS_VARS = `
 
 const CSS_BASE = `
 * { margin: 0; padding: 0; box-sizing: border-box; }
-html { overflow-x: hidden; }
-body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; overflow-x: hidden; max-width: 100vw; }
+html { overflow-x: clip; }
+body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; max-width: 100vw; }
 h1, h2, h3, h4, .logo { font-family: 'Merriweather', serif; }
 .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
 a { color: inherit; }
@@ -1276,6 +1276,7 @@ export function renderArticle(slug: string): string | null {
         .sidebar-card h3 { font-size: 15px; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--red-dirt); }
         .toc-link { display: block; padding: 6px 0; font-size: 13px; color: var(--slate-blue); text-decoration: none; line-height: 1.5; border-left: 2px solid transparent; padding-left: 12px; transition: all 0.15s; }
         .toc-link:hover { color: var(--red-dirt); border-left-color: var(--red-dirt); }
+        .toc-link.active { color: var(--red-dirt); border-left-color: var(--red-dirt); font-weight: 600; }
         .sidebar-cta { background: var(--oil-navy); color: white; border: none; border-top: 4px solid var(--red-dirt); }
         .sidebar-cta h3 { color: white; border-bottom-color: rgba(255,255,255,0.15); }
         .sidebar-cta p { color: rgba(255,255,255,0.8); font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
@@ -1624,6 +1625,27 @@ export function renderArticle(slug: string): string | null {
     ${FOOTER}
     ${MENU_SCRIPT}
     <script>document.addEventListener('click',function(e){var m=document.querySelector('.share-modal.open');if(m&&!m.parentElement.contains(e.target))m.classList.remove('open')})</script>
+    <script>
+    (function(){
+        var links = document.querySelectorAll('.toc-link');
+        if (!links.length) return;
+        var ids = [];
+        links.forEach(function(a){ ids.push(a.getAttribute('href').slice(1)); });
+        var current = '';
+        var observer = new IntersectionObserver(function(entries){
+            entries.forEach(function(e){
+                if (e.isIntersecting) current = e.target.id;
+            });
+            links.forEach(function(a){
+                a.classList.toggle('active', a.getAttribute('href') === '#' + current);
+            });
+        }, { rootMargin: '-80px 0px -60% 0px' });
+        ids.forEach(function(id){
+            var el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+    })();
+    </script>
 
 </body>
 </html>`;
