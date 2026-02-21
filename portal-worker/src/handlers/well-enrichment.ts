@@ -43,6 +43,8 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
     const query = `
       SELECT
         formation_name,
+        formation_canonical,
+        formation_group,
         measured_total_depth,
         true_vertical_depth,
         completion_date,
@@ -100,6 +102,8 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
       data: {
         // Formation and depth data
         formation_name: result.formation_name || null,
+        formation_canonical: result.formation_canonical || null,
+        formation_group: result.formation_group || null,
         measured_total_depth: result.measured_total_depth || null,
         true_vertical_depth: result.true_vertical_depth || null,
         lateral_length: result.lateral_length || calculatedLateralLength || null,

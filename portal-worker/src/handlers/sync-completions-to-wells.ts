@@ -49,6 +49,12 @@ async function syncWellCompletion(
       updates.push('formation_name = COALESCE(formation_name, ?)');
       values.push(completionData.formationName);
       fieldsUpdated.push('formation_name');
+
+      // Also set formation_canonical and formation_group from normalization table
+      updates.push('formation_canonical = COALESCE(formation_canonical, (SELECT canonical_name FROM formation_normalization WHERE raw_name = ?))');
+      values.push(completionData.formationName);
+      updates.push('formation_group = COALESCE(formation_group, (SELECT formation_group FROM formation_normalization WHERE raw_name = ?))');
+      values.push(completionData.formationName);
     }
 
     if (completionData.formationDepth) {

@@ -94,13 +94,15 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
           bh_longitude,
           lateral_length,
           formation_name,
+          formation_canonical,
+          formation_group,
           formation_depth,
           true_vertical_depth,
           measured_total_depth,
           ip_oil_bbl,
           ip_gas_mcf,
           ip_water_bbl
-        FROM wells 
+        FROM wells
         WHERE api_number = ?
       `).bind(apiNumber).first();
       
@@ -141,6 +143,8 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
             lateralLength: d1Result.lateral_length,
             // Additional completion data
             formationName: d1Result.formation_name,
+            formationCanonical: d1Result.formation_canonical,
+            formationGroup: d1Result.formation_group,
             formationDepth: d1Result.formation_depth,
             tvd: d1Result.true_vertical_depth,
             md: d1Result.measured_total_depth,
@@ -377,7 +381,7 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
         w.api_number, w.well_name, w.well_number, w.operator, w.county,
         w.section, w.township, w.range, w.meridian,
         w.well_type, w.well_status, w.latitude, w.longitude,
-        w.formation_name, w.formation_depth, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
+        w.formation_name, w.formation_canonical, w.formation_group, w.formation_depth, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
         w.spud_date, w.completion_date, w.first_production_date,
         w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
         w.bh_latitude, w.bh_longitude, w.bh_section, w.bh_township, w.bh_range,
@@ -585,6 +589,8 @@ export async function handleListWellsV2(request: Request, env: Env) {
 
       // Enrichment data from OCC wells table
       formation_name: row.formation_name || null,
+      formation_canonical: row.formation_canonical || null,
+      formation_group: row.formation_group || null,
       measured_total_depth: row.measured_total_depth || null,
       true_vertical_depth: row.true_vertical_depth || null,
       lateral_length: row.lateral_length || null,

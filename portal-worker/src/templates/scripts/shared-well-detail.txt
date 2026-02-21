@@ -439,6 +439,8 @@
                             range: json.data.range || bd.range || '',
                             county: bd.county || json.data.county || '',
                             formation_name: json.data.formation_name || bd.formation || bd.wellType || '',
+                            formation_canonical: json.data.formation_canonical || '',
+                            formation_group: json.data.formation_group || '',
                             well_status: bd.status || bd.well_status || json.data.well_status || '',
                             well_type: bd.wellType || bd.well_type || json.data.well_type || '',
                             operator: bd.operator || json.data.operator || '',
@@ -477,7 +479,7 @@
             const section = well.section || '';
             const township = well.township || '';
             const range = well.range || '';
-            const formation = _wdTitleCase(well.formation_name || '');
+            const formation = well.formation_canonical || _wdTitleCase(well.formation_name || '');
             const depth = well.measured_total_depth ? `${Number(well.measured_total_depth).toLocaleString()} ft` : '';
             const ipOil = well.ip_oil_bbl ? `${Number(well.ip_oil_bbl).toLocaleString()} BBL/day` : '';
             const ipGas = well.ip_gas_mcf ? `${Number(well.ip_gas_mcf).toLocaleString()} MCF/day` : '';

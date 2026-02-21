@@ -156,6 +156,8 @@ try:
                 escaped = escape_sql_string(value)
                 if escaped:
                     update_fields.append(f"formation_name = '{escaped}'")
+                    update_fields.append(f"formation_canonical = (SELECT canonical_name FROM formation_normalization WHERE raw_name = '{escaped}')")
+                    update_fields.append(f"formation_group = (SELECT formation_group FROM formation_normalization WHERE raw_name = '{escaped}')")
         
         # Depths
         for field, col_key, db_field in [

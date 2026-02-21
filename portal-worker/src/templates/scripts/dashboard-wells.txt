@@ -385,7 +385,7 @@
 
             const status = w.well_status || '—';
             const wellType = w.well_type || '—';
-            const formationName = w.formation_name || '';
+            const formationName = w.formation_canonical || w.formation_name || '';
             const formationDepth = w.measured_total_depth || w.true_vertical_depth;
             const formationDisplay = formationName && formationDepth
                 ? `${formationName} @ ${formatNumber(formationDepth)} ft`
@@ -1183,7 +1183,7 @@
             document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(well.county) || '—';
 
             // Formation badge in status row - show only if formation exists
-            const formationName = well.formation_name;
+            const formationName = well.formation_canonical || well.formation_name;
             const formationItem = document.getElementById('wellDetailsFormationItem');
             const formationBadge = document.getElementById('wellDetailsFormationBadge');
             if (formationName) {

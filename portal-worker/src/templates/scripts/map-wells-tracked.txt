@@ -508,7 +508,7 @@
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
 
             // Get formation name but filter out invalid values
-            let formationRaw = well.formation_name || '';
+            let formationRaw = well.formation_canonical || well.formation_name || '';
             const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
             const formation = invalidFormations.includes(formationRaw.toLowerCase()) ? '' : toTitleCase(formationRaw);
 
