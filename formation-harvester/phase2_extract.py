@@ -169,11 +169,12 @@ def extract_formation_from_text(text):
     """
     Extract producing formation name from OCR'd Page 1 text.
 
+    Only returns known Oklahoma formation names to avoid OCR artifacts.
     Strategy (in priority order):
-    1. Known formation name near "FORMATION" label
-    2. Known formation name near "ZONES" or "SANDS" section
-    3. Text immediately after "FORMATION" label (if not a header word)
-    4. Known formation name anywhere in the text
+    1. Known formation near "FORMATION" label (the form field)
+    2. Known formation near "ZONES" or "SANDS" section
+    3. Known formation in the upper form section (first 60 lines — above
+       the signatures/address block where "Oklahoma City" lives)
     """
     if not text:
         return None
@@ -181,13 +182,10 @@ def extract_formation_from_text(text):
     lines = text.split('\n')
 
     # Strategy 1: Find "FORMATION" label and check nearby lines for known formations
-    # The FORMATION field on the 1002A is in the upper-right section
     for i, line in enumerate(lines):
-        # Look for standalone "FORMATION" (the field label, not "FORMATION RECORD")
         if re.search(r'\bFORMATION\b', line, re.IGNORECASE) and \
            not re.search(r'FORMATION\s*(RECORD|LOG)', line, re.IGNORECASE) and \
            not re.search(r'PRODUCING\s+FORMATION', line, re.IGNORECASE):
-            # Check this line and nearby lines for known formation names
             context = ' '.join(lines[max(0, i-2):min(len(lines), i+3)])
             match = match_known_formation(context)
             if match:
@@ -196,26 +194,18 @@ def extract_formation_from_text(text):
     # Strategy 2: Find "OIL OR GAS ZONES" / "OIL OR GAS SANDS" section
     for i, line in enumerate(lines):
         if re.search(r'(OIL\s+OR\s+GAS\s+(ZONES?|SANDS?))', line, re.IGNORECASE):
-            # Check following lines for known formation names
             context = ' '.join(lines[i:min(len(lines), i+8)])
             match = match_known_formation(context)
             if match:
                 return match
 
-    # Strategy 3: Text right after "FORMATION" label
-    for i, line in enumerate(lines):
-        m = re.search(r'\bFORMATION\s+([A-Za-z][A-Za-z\s\-]+)', line, re.IGNORECASE)
-        if m:
-            candidate = m.group(1).strip()
-            # Skip header words
-            if not re.match(r'(RECORD|LOG|REPORT|OKLAHOMA|COMMISSION|CONSERVATION)', candidate, re.IGNORECASE):
-                result = clean_formation(candidate)
-                if result:
-                    return result
-
-    # Strategy 4 intentionally omitted — matching known formations anywhere
-    # in the full page text causes too many false positives from the OCC
-    # address, column headers, and stratigraphic descriptions.
+    # Strategy 3: Known formation in upper form section (first 60 lines)
+    # This catches formations mentioned in completion type, zone names, etc.
+    # Excludes the lower section where OCC address/signatures live.
+    upper_text = '\n'.join(lines[:60])
+    match = match_known_formation(upper_text)
+    if match:
+        return match
 
     return None
 
