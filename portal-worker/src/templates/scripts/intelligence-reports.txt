@@ -5871,28 +5871,55 @@
                     <div style="margin-left: auto; font-size: 0.75rem; color: #64748b;">${priceDate} &middot; ${wtiPrice.source || 'OilPriceAPI'}</div>
                 </div>`;
 
-            // HUD Metrics
+            // HUD Metrics with donut chart
+            const total = summary.totalWells || 1;
+            const slices = [
+                { count: summary.atRiskCount || 0, color: '#ef4444', label: 'At Risk' },
+                { count: summary.tightCount || 0, color: '#f59e0b', label: 'Tight' },
+                { count: summary.adequateCount || 0, color: '#3b82f6', label: 'Adequate' },
+                { count: summary.comfortableCount || 0, color: '#22c55e', label: 'Comfortable' }
+            ];
+            let donutPaths = '';
+            let cumPct = 0;
+            for (const s of slices) {
+                if (s.count === 0) continue;
+                const pct = s.count / total;
+                const startAngle = cumPct * 2 * Math.PI - Math.PI / 2;
+                cumPct += pct;
+                const endAngle = cumPct * 2 * Math.PI - Math.PI / 2;
+                const largeArc = pct > 0.5 ? 1 : 0;
+                const x1 = 50 + 40 * Math.cos(startAngle);
+                const y1 = 50 + 40 * Math.sin(startAngle);
+                const x2 = 50 + 40 * Math.cos(endAngle);
+                const y2 = 50 + 40 * Math.sin(endAngle);
+                if (pct >= 0.999) {
+                    donutPaths += '<circle cx="50" cy="50" r="40" fill="none" stroke="' + s.color + '" stroke-width="16"/>';
+                } else {
+                    donutPaths += '<path d="M ' + x1.toFixed(2) + ' ' + y1.toFixed(2) + ' A 40 40 0 ' + largeArc + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + '" fill="none" stroke="' + s.color + '" stroke-width="16"/>';
+                }
+            }
+            const donutSvg = '<svg viewBox="0 0 100 100" width="120" height="120" style="flex-shrink: 0;">' + donutPaths + '<text x="50" y="46" text-anchor="middle" fill="var(--text-primary)" font-size="16" font-weight="700">' + summary.totalWells + '</text><text x="50" y="60" text-anchor="middle" fill="var(--text-muted)" font-size="8">wells</text></svg>';
+
             const hudBadges = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">${summary.totalWells}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Total Wells</div>
-                    </div>
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #ef4444;">${summary.atRiskCount}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">At Risk</div>
-                    </div>
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;">${summary.tightCount}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Tight</div>
-                    </div>
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;">${summary.adequateCount}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Adequate</div>
-                    </div>
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #22c55e;">${summary.comfortableCount}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Comfortable</div>
+                <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; align-items: center;">
+                    <div style="display: flex; justify-content: center;">${donutSvg}</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 0.75rem; flex: 1;">
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 1.75rem; font-weight: 700; color: #ef4444;">${summary.atRiskCount}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">At Risk</div>
+                        </div>
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;">${summary.tightCount}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Tight</div>
+                        </div>
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;">${summary.adequateCount}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Adequate</div>
+                        </div>
+                        <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                            <div style="font-size: 1.75rem; font-weight: 700; color: #22c55e;">${summary.comfortableCount}</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Comfortable</div>
+                        </div>
                     </div>
                 </div>`;
 
@@ -6017,6 +6044,9 @@
                 case 'name':
                     wells.sort((a, b) => dir * (a.wellName || '').localeCompare(b.wellName || ''));
                     break;
+                case 'operator':
+                    wells.sort((a, b) => dir * (a.operator || 'ZZZ').localeCompare(b.operator || 'ZZZ'));
+                    break;
                 case 'formation':
                     wells.sort((a, b) => dir * (a.formationGroup || 'ZZZ').localeCompare(b.formationGroup || 'ZZZ'));
                     break;
@@ -6073,32 +6103,36 @@
                 // Status pill: tier label colored by risk level
                 const statusHtml = '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle(w.riskLevel) + '">' + riskLevelLabel(w.riskLevel) + '</span>';
 
-                // Stressed At — amber when within $10 of current WTI
+                // Operator — truncate for display
+                const opStr = w.operator && w.operator !== 'Unknown' ? w.operator : '<span style="color: var(--text-muted);">\u2014</span>';
+
+                // Stressed At — amber when within $15, red when above current WTI
                 let stressedStr = '\u2014';
                 let stressedStyle = '';
                 if (w.stressedAtWti !== null) {
                     stressedStr = '$' + w.stressedAtWti.toFixed(0);
-                    if (wti - w.stressedAtWti <= 10 && wti >= w.stressedAtWti) {
+                    if (w.stressedAtWti >= wti) {
+                        stressedStyle = 'color: #ef4444; font-weight: 700;';
+                    } else if (wti - w.stressedAtWti <= 15) {
                         stressedStyle = 'color: #f59e0b; font-weight: 600;';
-                    } else if (wti < w.stressedAtWti) {
-                        stressedStyle = 'color: #ef4444; font-weight: 600;';
                     }
                 }
 
-                // Critical At — red when within $5 of current WTI
+                // Critical At — amber when within $10, red when above current WTI
                 let criticalStr = '\u2014';
                 let criticalStyle = '';
                 if (w.criticalAtWti !== null) {
                     criticalStr = '$' + w.criticalAtWti.toFixed(0);
-                    if (wti - w.criticalAtWti <= 5 && wti >= w.criticalAtWti) {
+                    if (w.criticalAtWti >= wti) {
+                        criticalStyle = 'color: #ef4444; font-weight: 700;';
+                    } else if (wti - w.criticalAtWti <= 10) {
                         criticalStyle = 'color: #f59e0b; font-weight: 600;';
-                    } else if (wti < w.criticalAtWti) {
-                        criticalStyle = 'color: #ef4444; font-weight: 600;';
                     }
                 }
 
                 return '<tr style="border-bottom: 1px solid var(--border-subtle);">' +
                     '<td style="padding: 0.5rem; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + (w.wellName || '').replace(/"/g, '&quot;') + '">' + (w.wellName || 'Unknown') + '</td>' +
+                    '<td style="padding: 0.5rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem;" title="' + (w.operator || '').replace(/"/g, '&quot;') + '">' + opStr + '</td>' +
                     '<td style="padding: 0.5rem;">' + formStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 20%') + '">' + discountStr + srcBadge + '</td>' +
@@ -6115,6 +6149,7 @@
                         <thead>
                             <tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-subtle);">
                                 <th style="${thStyle} text-align: left;" onclick="onRiskHeaderSort('name')">Well Name${sortArrow('name')}</th>
+                                <th style="${thStyle} text-align: left;" onclick="onRiskHeaderSort('operator')">Operator${sortArrow('operator')}</th>
                                 <th style="${thStyle} text-align: left;" onclick="onRiskHeaderSort('formation')">Formation${sortArrow('formation')}</th>
                                 <th style="${thStyleR}" onclick="onRiskHeaderSort('breakeven')">Breakeven${sortArrow('breakeven')}</th>
                                 <th style="${thStyleR}" onclick="onRiskHeaderSort('deductions')" title="All-in discount from OTC tax records">Deductions${sortArrow('deductions')}</th>
