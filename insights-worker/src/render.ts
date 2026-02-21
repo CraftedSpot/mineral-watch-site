@@ -107,8 +107,10 @@ const CSS_BASE = `
 html { overflow-x: hidden; }
 body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #fff; overflow-x: hidden; max-width: 100vw; }
 h1, h2, h3, h4, .logo { font-family: 'Merriweather', serif; }
-.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; overflow-x: hidden; }
+.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; overflow-x: clip; }
 a { color: inherit; }
+.skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: var(--oil-navy); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+.skip-nav:focus { top: 0; }
 
 /* Header */
 header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--border); }
@@ -299,6 +301,7 @@ export function renderInsightsHub(): string {
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     ${HEADER}
 
@@ -310,7 +313,7 @@ export function renderInsightsHub(): string {
         </div>
     </section>
 
-    <main>
+    <main id="main-content">
 
         <!-- Featured Article -->
         <section class="featured-section">
@@ -1501,6 +1504,7 @@ export function renderArticle(slug: string): string | null {
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     <div class="print-header">
         <div class="print-header-logo">Mineral Watch</div>
@@ -1524,7 +1528,8 @@ export function renderArticle(slug: string): string | null {
         </div>
     </div>
 
-    <main>
+    <main id="main-content">
+        <article>
         <div class="container">
             <div class="article-hero">
                 <div class="article-hero-inner">
@@ -1577,10 +1582,10 @@ export function renderArticle(slug: string): string | null {
             </div>
 
             <div class="article-layout">
-                <article class="article-body">
+                <div class="article-body">
                     ${imageHtml}
                     ${article.body}
-                </article>
+                </div>
 
                 <aside class="article-sidebar">
                     <div class="sidebar-card">
@@ -1599,6 +1604,7 @@ export function renderArticle(slug: string): string | null {
                 </aside>
             </div>
         </div>
+        </article>
     </main>
 
     ${resourcesHtml}
@@ -1649,8 +1655,9 @@ export function render404(): string {
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
     ${HEADER}
-    <main class="not-found">
+    <main id="main-content" class="not-found">
         <h1>404</h1>
         <p>This page doesn&rsquo;t exist yet.</p>
         <a href="/insights">&larr; Back to Insights</a>

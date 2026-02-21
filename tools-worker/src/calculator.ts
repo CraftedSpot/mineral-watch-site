@@ -655,9 +655,12 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
     .result-box .result-value { font-size: 22px; }
     .calc-main { padding: 24px 16px 48px; }
 }
+.skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: #1C2B36; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+.skip-nav:focus { top: 0; }
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
 
 <!-- ── Header ── -->
 <header>
@@ -683,7 +686,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 </header>
 
 <!-- ── Hero + Tabs ── -->
-<div class="calc-hero">
+<div class="calc-hero" id="main-content">
     <div class="eyebrow">Mineral Watch Tools</div>
     <h1>Oklahoma Mineral Calculator</h1>
     <p class="subtitle">Five tools in one. Calculate your decimal, verify division orders, estimate royalties, compare pooling elections, and value your minerals.</p>
