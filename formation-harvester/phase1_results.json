@@ -79532,5 +79532,530 @@
     "effective_date": "9/20/1954",
     "well_name": "J C MOORE 19",
     "county": "Comanche"
+  },
+  {
+    "api_number": "3503101652",
+    "entry_id": 1629214,
+    "effective_date": "9/14/1963",
+    "well_name": "KULICH 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101655",
+    "entry_id": 1628714,
+    "effective_date": "4/23/1963",
+    "well_name": "KULICH 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101657",
+    "entry_id": 1645042,
+    "effective_date": "9/29/1972",
+    "well_name": "KULICH 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101664",
+    "entry_id": 1629400,
+    "effective_date": "11/11/1963",
+    "well_name": "CONTINENTAL 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101667",
+    "entry_id": 1628698,
+    "effective_date": "4/16/1963",
+    "well_name": "CONTINENTAL 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101676",
+    "entry_id": 1848176,
+    "effective_date": "8/20/1943",
+    "well_name": "HALLUM 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101696",
+    "entry_id": 1623162,
+    "effective_date": "7/13/1960",
+    "well_name": "RESERVATION 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101697",
+    "entry_id": 1623178,
+    "effective_date": "7/15/1960",
+    "well_name": "RESERVATION 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101698",
+    "entry_id": 1623174,
+    "effective_date": "7/15/1960",
+    "well_name": "RESERVATION 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101709",
+    "entry_id": 1848664,
+    "effective_date": "8/8/1944",
+    "well_name": "MAY E SPENCER 13",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101710",
+    "entry_id": 1848733,
+    "effective_date": "9/22/1944",
+    "well_name": "MAY E SPENCER 17",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101712",
+    "entry_id": 1628506,
+    "effective_date": "2/27/1963",
+    "well_name": "SPENCER-RESERVATION 14W (SPENCER 14)",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101714",
+    "entry_id": 1848148,
+    "effective_date": "7/30/1943",
+    "well_name": "MAY E SPENCER 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101718",
+    "entry_id": 1848692,
+    "effective_date": "8/25/1944",
+    "well_name": "MAY E SPENCER 15",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101719",
+    "entry_id": 1848078,
+    "effective_date": "5/17/1943",
+    "well_name": "MAY E SPENCER 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101720",
+    "entry_id": 1848600,
+    "effective_date": "6/26/1944",
+    "well_name": "MAY E SPENCER 11",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101723",
+    "entry_id": 1848152,
+    "effective_date": "8/5/1943",
+    "well_name": "MAY E SPENCER 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101725",
+    "entry_id": 1848233,
+    "effective_date": "9/20/1943",
+    "well_name": "MAY E SPENCER 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101731",
+    "entry_id": 1872693,
+    "effective_date": "7/23/1955",
+    "well_name": "HOOPER 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101738",
+    "entry_id": 1870567,
+    "effective_date": "7/28/1954",
+    "well_name": "E L DILLING 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101749",
+    "entry_id": 1870746,
+    "effective_date": "9/10/1954",
+    "well_name": "DILLING 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101791",
+    "entry_id": 1865982,
+    "effective_date": "6/26/1950",
+    "well_name": "STATE SCHOOL LAND D-2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101793",
+    "entry_id": 1866623,
+    "effective_date": "3/13/1951",
+    "well_name": "STATE SCHOOL LAND D-4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101810",
+    "entry_id": 1848190,
+    "effective_date": "8/30/1943",
+    "well_name": "HENRY CLINE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101815",
+    "entry_id": 1848310,
+    "effective_date": "11/2/1943",
+    "well_name": "HENRY CLINE 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101816",
+    "entry_id": 1865876,
+    "effective_date": "5/16/1950",
+    "well_name": "CLINE 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101848",
+    "entry_id": 1873237,
+    "effective_date": "11/7/1955",
+    "well_name": "SANDERS 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101886",
+    "entry_id": 1872273,
+    "effective_date": "5/8/1955",
+    "well_name": "HAGLE 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101888",
+    "entry_id": 1872801,
+    "effective_date": "8/11/1955",
+    "well_name": "HAGLE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101889",
+    "entry_id": 1873994,
+    "effective_date": "4/1/1956",
+    "well_name": "HAGLE 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101895",
+    "entry_id": 1778876,
+    "effective_date": "3/11/1997",
+    "well_name": "LAKE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101898",
+    "entry_id": 1610110,
+    "effective_date": "1/3/1959",
+    "well_name": "NEVA JANE SHIEFER 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101911",
+    "entry_id": 1874005,
+    "effective_date": "4/4/1956",
+    "well_name": "G T SPENCER 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101912",
+    "entry_id": 1875903,
+    "effective_date": "2/7/1957",
+    "well_name": "G T SPENCER 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101913",
+    "entry_id": 1877044,
+    "effective_date": "12/10/1957",
+    "well_name": "G T SPENCER 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101914",
+    "entry_id": 1627504,
+    "effective_date": "9/8/1962",
+    "well_name": "SPENCER 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101916",
+    "entry_id": 1875722,
+    "effective_date": "12/27/1956",
+    "well_name": "G T SPENCER 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101917",
+    "entry_id": 1874965,
+    "effective_date": "9/18/1956",
+    "well_name": "G T SPENCER 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101918",
+    "entry_id": 1610112,
+    "effective_date": "1/5/1959",
+    "well_name": "G T SPENCER 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101948",
+    "entry_id": 1662822,
+    "effective_date": "9/1/1977",
+    "well_name": "TAYLOR 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101949",
+    "entry_id": 1662845,
+    "effective_date": "9/3/1977",
+    "well_name": "Taylor 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101953",
+    "entry_id": 1872743,
+    "effective_date": "7/31/1955",
+    "well_name": "A R Keck 8",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101954",
+    "entry_id": 1872686,
+    "effective_date": "7/22/1955",
+    "well_name": "KECK 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101973",
+    "entry_id": 1627541,
+    "effective_date": "9/15/1962",
+    "well_name": "GLOVER 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101975",
+    "entry_id": 1610187,
+    "effective_date": "2/1/1959",
+    "well_name": "KIRKLAND 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102036",
+    "entry_id": 1845947,
+    "effective_date": "1/9/1931",
+    "well_name": "L BOWEN 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102040",
+    "entry_id": 1659697,
+    "effective_date": "3/13/1976",
+    "well_name": "STOUT 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102050",
+    "entry_id": 1626993,
+    "effective_date": "5/18/1962",
+    "well_name": "SCHOOL LAND 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102054",
+    "entry_id": 1868375,
+    "effective_date": "12/10/1952",
+    "well_name": "PAYETTE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102146",
+    "entry_id": 1877183,
+    "effective_date": "1/20/1958",
+    "well_name": "H S MANN 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102167",
+    "entry_id": 1865031,
+    "effective_date": "11/22/1949",
+    "well_name": "J L BROWN 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102403",
+    "entry_id": 1629234,
+    "effective_date": "9/20/1963",
+    "well_name": "ONA 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102406",
+    "entry_id": 1630014,
+    "effective_date": "4/18/1964",
+    "well_name": "ODEGARD STATE 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102407",
+    "entry_id": 1629881,
+    "effective_date": "3/20/1964",
+    "well_name": "ODEGARD STATE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102408",
+    "entry_id": 1873767,
+    "effective_date": "2/20/1956",
+    "well_name": "RUTH IRENE B-1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102409",
+    "entry_id": 1629459,
+    "effective_date": "12/1/1963",
+    "well_name": "RUTH IRENE STATE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102410",
+    "entry_id": 1629701,
+    "effective_date": "1/30/1964",
+    "well_name": "RUTH IRENE STATE 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102411",
+    "entry_id": 1629648,
+    "effective_date": "1/19/1964",
+    "well_name": "RUTH IRENE STATE 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102412",
+    "entry_id": 1629681,
+    "effective_date": "1/24/1964",
+    "well_name": "RUTH IRENE STATE 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102413",
+    "entry_id": 1629786,
+    "effective_date": "2/25/1964",
+    "well_name": "RUTH IRENE STATE 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102452",
+    "entry_id": 1842959,
+    "effective_date": "2/7/1921",
+    "well_name": "CHOATASE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102456",
+    "entry_id": 1844760,
+    "effective_date": "2/15/1926",
+    "well_name": "W T PRICE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102459",
+    "entry_id": 1844529,
+    "effective_date": "4/15/1925",
+    "well_name": "PRICE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102463",
+    "entry_id": 1674069,
+    "effective_date": "4/15/1980",
+    "well_name": "CHAMBERS 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102471",
+    "entry_id": 1631649,
+    "effective_date": "9/10/1965",
+    "well_name": "HOUSHOLDER 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102474",
+    "entry_id": 1872591,
+    "effective_date": "7/6/1955",
+    "well_name": "STATE SCHOOL LAND 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102475",
+    "entry_id": 1630947,
+    "effective_date": "10/15/1964",
+    "well_name": "SCHOOL LAND 9",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102486",
+    "entry_id": 1628294,
+    "effective_date": "1/7/1963",
+    "well_name": "CURRY UNIT 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102511",
+    "entry_id": 1624041,
+    "effective_date": "8/26/1960",
+    "well_name": "GLOVER 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503102563",
+    "entry_id": 1847807,
+    "effective_date": "4/5/1942",
+    "well_name": "SCHOOL LAND B-16",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503107031",
+    "entry_id": 1632161,
+    "effective_date": "2/19/1966",
+    "well_name": "RUTH IRENE STATE 12",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503120004",
+    "entry_id": 1632313,
+    "effective_date": "4/19/1966",
+    "well_name": "CAPSHAW-STATE 13",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503120006",
+    "entry_id": 1632333,
+    "effective_date": "4/22/1966",
+    "well_name": "CAPSHAW-STATE 14",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503120008",
+    "entry_id": 1632460,
+    "effective_date": "6/2/1966",
+    "well_name": "HARLESS 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503120009",
+    "entry_id": 1632552,
+    "effective_date": "7/2/1966",
+    "well_name": "STATE LEASE 16-CS-5924 5",
+    "county": "Comanche"
   }
 ]
