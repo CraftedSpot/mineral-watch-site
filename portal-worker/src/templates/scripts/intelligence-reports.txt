@@ -6269,7 +6269,17 @@
                             All-in Discount = 1 &minus; (Net Value &minus; GP Tax &minus; PE Tax) / Gross Value
                         </div>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0.5rem 0 0;">
-                            The all-in discount is computed <strong>per well</strong> from trailing 12-month OTC tax records. It captures marketing deductions (gas gathering/processing), gross production tax (~7%), and petroleum excise tax. A <strong>15% floor</strong> is applied because OTC data does not track oil-side deductions (gathering, transportation, basis differentials) &mdash; those happen at the operator level via check stubs. Currently <strong>${deductionWells} wells</strong> have OTC financial data (portfolio average: ${avgDisc}% discount). Wells without OTC data use a 20% default.
+                            Deduction rates are resolved through a <strong>5-level precedence chain</strong>, from most to least specific:
+                        </p>
+                        <ol style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8; margin: 0.5rem 0; padding-left: 1.25rem;">
+                            <li><strong>Check Stub</strong> <span style="color: #22c55e;">(Stub)</span> &mdash; Per-well exact deductions extracted from operator check stubs. Highest confidence.</li>
+                            <li><strong>Operator Profile</strong> <span style="color: #3b82f6;">(Op)</span> &mdash; Blended deduction rate for the operator+county pair, aggregated from OTC financial data across all their wells. Matched via PUN linkage or name matching.</li>
+                            <li><strong>OTC Per-Well</strong> <span style="color: #94a3b8;">(OTC)</span> &mdash; Trailing 12-month OTC tax records for the individual well. Captures gas gathering/processing, GP tax (~7%), and PE tax. A 15% floor is applied because OTC does not track oil-side deductions.</li>
+                            <li><strong>County Average</strong> <span style="color: #8b5cf6;">(Cty)</span> &mdash; Average deduction rate across all operator profiles in the county (requires 3+ operators).</li>
+                            <li><strong>Default</strong> &mdash; 20% blended discount when no other data is available.</li>
+                        </ol>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0.5rem 0 0;">
+                            The colored badge below each deduction value indicates which source was used. Currently <strong>${deductionWells} wells</strong> have well-specific data (portfolio average: ${avgDisc}% discount).
                         </p>
                     </div>
 
@@ -6329,7 +6339,7 @@
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Data sources</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            <strong>Deductions:</strong> Per-well all-in discount from Oklahoma Tax Commission (OTC) gross production reports &mdash; trailing 12-month actuals including marketing deductions, GP tax, and PE tax.
+                            <strong>Deductions:</strong> 5-level precedence &mdash; (1) operator check stubs (extracted per-well actuals), (2) operator/county profiles (aggregated from OTC financial data across 685+ operators), (3) per-well OTC trailing 12-month tax records, (4) county averages, (5) 20% default.
                             <strong>Formation data:</strong> OCC Form 1002A completion reports, normalized to geological groups.
                             <strong>Prices:</strong> OilPriceAPI/EIA, refreshed daily.
                             <strong>Breakeven:</strong> Dallas Fed Energy Survey, public operator filings (Devon, Coterra, Continental, SandRidge), Oklahoma stripper well commission data.
@@ -6339,7 +6349,7 @@
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Limitations</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Breakeven estimates use <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. Wells without OTC financial data use a 20% default discount (the Oklahoma average). OTC data lags by 2&ndash;3 months from the reporting period.
+                            Breakeven estimates use <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. Operator profiles are derived from OTC data which lags 2&ndash;3 months. OTC data does not capture oil-side marketing deductions &mdash; a 15% floor compensates for this, but actual oil deductions vary by operator (8&ndash;37% observed range). As more check stubs are uploaded, per-well accuracy improves.
                         </p>
                     </div>
                 </div>`;
