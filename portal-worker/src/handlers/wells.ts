@@ -491,9 +491,11 @@ export async function handleListWellsV2(request: Request, env: Env) {
       w.bh_latitude, w.bh_longitude,
       w.bh_section AS occ_bh_section, w.bh_township AS occ_bh_township,
       w.bh_range AS occ_bh_range,
-      o.phone AS operator_phone, o.contact_name AS operator_contact
+      o.phone AS operator_phone, o.contact_name AS operator_contact,
+      wrp.name AS risk_profile_name, wrp.half_cycle_breakeven, wrp.is_gas_flag
     FROM client_wells cw
     LEFT JOIN wells w ON w.api_number = cw.api_number
+    LEFT JOIN well_risk_profiles wrp ON wrp.id = w.risk_profile_id
     LEFT JOIN operators o
       ON UPPER(TRIM(REPLACE(REPLACE(COALESCE(w.operator, cw.operator), '.', ''), ',', '')))
          = o.operator_name_normalized
@@ -638,6 +640,11 @@ export async function handleListWellsV2(request: Request, env: Env) {
       orri_nri_source: row.orri_nri_source || null,
       orri_nri_source_doc_id: row.orri_nri_source_doc_id || null,
       orri_nri_source_date: row.orri_nri_source_date || null,
+
+      // Risk profile data from well_risk_profiles
+      risk_profile_name: row.risk_profile_name || null,
+      half_cycle_breakeven: row.half_cycle_breakeven != null ? row.half_cycle_breakeven : null,
+      is_gas_flag: row.is_gas_flag ? 1 : 0,
 
       // Flag indicating if OCC wells table had data
       hasD1Data: !!row.occ_well_name

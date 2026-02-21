@@ -78286,5 +78286,1251 @@
     "effective_date": "6/10/1977",
     "well_name": "MCKENNEY 1",
     "county": "Coal"
+  },
+  {
+    "api_number": "3502920166",
+    "entry_id": 2135560,
+    "effective_date": "5/9/1977",
+    "well_name": "CUNNINGHAM 1-14",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920168",
+    "entry_id": 2135620,
+    "effective_date": "5/20/1977",
+    "well_name": "FAIRLESS 1-23",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920169",
+    "entry_id": 1488664,
+    "effective_date": "7/21/1977",
+    "well_name": "BOB CODY 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920172",
+    "entry_id": 1489494,
+    "effective_date": "8/26/1977",
+    "well_name": "H D BINNS 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920173",
+    "entry_id": 1488695,
+    "effective_date": "8/4/1977",
+    "well_name": "DAVIS 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920176",
+    "entry_id": 1489357,
+    "effective_date": "8/9/1977",
+    "well_name": "SHORES 2-11",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920179",
+    "entry_id": 1489611,
+    "effective_date": "9/15/1977",
+    "well_name": "LEON LANOY 1-13-C",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920180",
+    "entry_id": 1489393,
+    "effective_date": "8/11/1977",
+    "well_name": "CUNNINGHAM 24-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920192",
+    "entry_id": 1490309,
+    "effective_date": "1/2/1978",
+    "well_name": "W J BATTLES 1-19",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920194",
+    "entry_id": 1490521,
+    "effective_date": "2/17/1978",
+    "well_name": "REGINA MAYER 4-20",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920199",
+    "entry_id": 1490790,
+    "effective_date": "4/6/1978",
+    "well_name": "DAVIS 7",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920200",
+    "entry_id": 1491544,
+    "effective_date": "8/12/1978",
+    "well_name": "DAVIS 8",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920202",
+    "entry_id": 1490994,
+    "effective_date": "5/9/1978",
+    "well_name": "DAVIS 9",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920204",
+    "entry_id": 1491519,
+    "effective_date": "8/8/1978",
+    "well_name": "MURRAY 1-35",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920216",
+    "entry_id": 1492344,
+    "effective_date": "12/7/1978",
+    "well_name": "DAVIS 11",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920225",
+    "entry_id": 1522064,
+    "effective_date": "10/1/1980",
+    "well_name": "CHILES-DOME 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920226",
+    "entry_id": 2140357,
+    "effective_date": "12/25/1978",
+    "well_name": "CHILES-DOME 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920227",
+    "entry_id": 2158378,
+    "effective_date": "7/10/1980",
+    "well_name": "CHILES-DOME 5",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920228",
+    "entry_id": 2162423,
+    "effective_date": "10/2/1980",
+    "well_name": "CHILES-DOME 3",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920229",
+    "entry_id": 2162566,
+    "effective_date": "10/10/1980",
+    "well_name": "CHILES-DOME 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920237",
+    "entry_id": 2142022,
+    "effective_date": "7/6/1979",
+    "well_name": "WARREN JONES A 1-32",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920241",
+    "entry_id": 1493424,
+    "effective_date": "6/21/1979",
+    "well_name": "SAWYERS 3",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920244",
+    "entry_id": 1495030,
+    "effective_date": "2/15/1980",
+    "well_name": "LAVOIE 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920249",
+    "entry_id": 2158321,
+    "effective_date": "7/6/1980",
+    "well_name": "MCENTIRE ESTATE 10-A",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920250",
+    "entry_id": 2156456,
+    "effective_date": "3/11/1980",
+    "well_name": "WELLS 1-26",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920255",
+    "entry_id": 2156455,
+    "effective_date": "3/11/1980",
+    "well_name": "CHILES-DOME 10",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920256",
+    "entry_id": 2158124,
+    "effective_date": "6/22/1980",
+    "well_name": "CHILES-DOME 12",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920257",
+    "entry_id": 2158410,
+    "effective_date": "7/12/1980",
+    "well_name": "CHILES-DOME 7",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920258",
+    "entry_id": 2156537,
+    "effective_date": "3/21/1980",
+    "well_name": "CHILES-DOME 6",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920260",
+    "entry_id": 1521977,
+    "effective_date": "9/15/1980",
+    "well_name": "CHILES-DOME 8",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920262",
+    "entry_id": 2158288,
+    "effective_date": "7/2/1980",
+    "well_name": "CHILES-DOME 13",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920265",
+    "entry_id": 2162796,
+    "effective_date": "10/23/1980",
+    "well_name": "CHILES-DOME 16",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920266",
+    "entry_id": 2162251,
+    "effective_date": "9/22/1980",
+    "well_name": "CHILES-DOME 9",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920267",
+    "entry_id": 2162190,
+    "effective_date": "9/17/1980",
+    "well_name": "CHILES-DOME 11",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920268",
+    "entry_id": 2161487,
+    "effective_date": "8/3/1980",
+    "well_name": "WALKUP 1-27",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920269",
+    "entry_id": 2162524,
+    "effective_date": "10/7/1980",
+    "well_name": "CHILES-DOME 15",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920270",
+    "entry_id": 2162295,
+    "effective_date": "9/25/1980",
+    "well_name": "CHILES-DOME 14",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920276",
+    "entry_id": 1524140,
+    "effective_date": "9/22/1981",
+    "well_name": "RIDDLE 1-27",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920277",
+    "entry_id": 1547011,
+    "effective_date": "6/11/1986",
+    "well_name": "ROLLINS 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920280",
+    "entry_id": 1523355,
+    "effective_date": "5/29/1981",
+    "well_name": "CRANE 1-28",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920282",
+    "entry_id": 1524185,
+    "effective_date": "9/30/1981",
+    "well_name": "GREGORY-ROGERS B-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920285",
+    "entry_id": 2167063,
+    "effective_date": "6/3/1981",
+    "well_name": "JONES 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920289",
+    "entry_id": 1522948,
+    "effective_date": "6/24/1981",
+    "well_name": "AR CODY 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920297",
+    "entry_id": 2174412,
+    "effective_date": "7/11/1982",
+    "well_name": "CROW 34-A",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920298",
+    "entry_id": 1525344,
+    "effective_date": "12/28/1981",
+    "well_name": "BRALY 31-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920299",
+    "entry_id": 1525356,
+    "effective_date": "12/30/1981",
+    "well_name": "KIFER 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920300",
+    "entry_id": 1529510,
+    "effective_date": "12/10/1982",
+    "well_name": "CLELLAND A-2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920302",
+    "entry_id": 2172985,
+    "effective_date": "3/31/1982",
+    "well_name": "VITOSH 1-28",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920315",
+    "entry_id": 1532696,
+    "effective_date": "10/8/1983",
+    "well_name": "PALMER ROYALTY 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920324",
+    "entry_id": 1535323,
+    "effective_date": "5/18/1984",
+    "well_name": "HOWELL ROYALTY 1-31",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920333",
+    "entry_id": 1537311,
+    "effective_date": "10/22/1984",
+    "well_name": "LOWINA BROWN 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920339",
+    "entry_id": 1537027,
+    "effective_date": "9/27/1984",
+    "well_name": "CENTRAHOMA TOWNSITE 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920343",
+    "entry_id": 2187343,
+    "effective_date": "1/16/1985",
+    "well_name": "CLARA 1-30",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920357",
+    "entry_id": 1541609,
+    "effective_date": "8/31/1985",
+    "well_name": "CROW 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920361",
+    "entry_id": 1566248,
+    "effective_date": "9/30/1988",
+    "well_name": "CRANE 1-28 (ROBBINS 1)",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920362",
+    "entry_id": 2225024,
+    "effective_date": "11/3/1986",
+    "well_name": "BANDIT 30-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920365",
+    "entry_id": 1545015,
+    "effective_date": "3/7/1986",
+    "well_name": "MILLER 2-B 3",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920377",
+    "entry_id": 1553140,
+    "effective_date": "3/20/1987",
+    "well_name": "BANDIT 24-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920378",
+    "entry_id": 1553117,
+    "effective_date": "3/20/1987",
+    "well_name": "BANDIT 25-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920381",
+    "entry_id": 1558119,
+    "effective_date": "9/23/1987",
+    "well_name": "MORGAN 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920387",
+    "entry_id": 2243391,
+    "effective_date": "11/25/1987",
+    "well_name": "WITHERSPOON 14-1A",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920398",
+    "entry_id": 1567847,
+    "effective_date": "2/8/1989",
+    "well_name": "CRANE 2-28",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920405",
+    "entry_id": 1569654,
+    "effective_date": "8/10/1989",
+    "well_name": "HOWARD 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920408",
+    "entry_id": 1571471,
+    "effective_date": "1/10/1990",
+    "well_name": "CUNNINGHAM 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920415",
+    "entry_id": 1571336,
+    "effective_date": "12/30/1989",
+    "well_name": "MORAN 2-36",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502920416",
+    "entry_id": 1572069,
+    "effective_date": "3/27/1990",
+    "well_name": "CRANE 1-28",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502930005",
+    "entry_id": 1472435,
+    "effective_date": "8/2/1965",
+    "well_name": "PARKS-NORRIS 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502930007",
+    "entry_id": 2699924,
+    "effective_date": "9/22/1999",
+    "well_name": "STATLER 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502930013",
+    "entry_id": 1473284,
+    "effective_date": "11/24/1965",
+    "well_name": "EMA JOHNSON 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502930054",
+    "entry_id": 1424214,
+    "effective_date": "6/26/1956",
+    "well_name": "BETASSO 3",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960003",
+    "entry_id": 1375439,
+    "effective_date": "2/11/1946",
+    "well_name": "WOODS B-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960014",
+    "entry_id": 1521911,
+    "effective_date": "8/28/1980",
+    "well_name": "JOHNS 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960015",
+    "entry_id": 2779288,
+    "effective_date": "6/2/2003",
+    "well_name": "BETASSO 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960016",
+    "entry_id": 1423515,
+    "effective_date": "4/19/1956",
+    "well_name": "BETASSO 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960022",
+    "entry_id": 1425647,
+    "effective_date": "11/28/1956",
+    "well_name": "WOODS 5",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960023",
+    "entry_id": 1425979,
+    "effective_date": "12/31/1956",
+    "well_name": "WOODS 6",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960024",
+    "entry_id": 1426276,
+    "effective_date": "2/14/1957",
+    "well_name": "WOOD 7",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960025",
+    "entry_id": 1426896,
+    "effective_date": "5/17/1957",
+    "well_name": "WOODS 8",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960035",
+    "entry_id": 1430212,
+    "effective_date": "9/2/1958",
+    "well_name": "E CLELLAND 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960036",
+    "entry_id": 1397253,
+    "effective_date": "11/20/1948",
+    "well_name": "KING 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960037",
+    "entry_id": 1398081,
+    "effective_date": "6/3/1949",
+    "well_name": "M KING A 3A",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960038",
+    "entry_id": 1405281,
+    "effective_date": "3/8/1951",
+    "well_name": "M KING A 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960047",
+    "entry_id": 1437425,
+    "effective_date": "11/2/1961",
+    "well_name": "MIKE MAYER JR A-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960052",
+    "entry_id": 1406035,
+    "effective_date": "6/30/1951",
+    "well_name": "MARY STYRON 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960053",
+    "entry_id": 1407889,
+    "effective_date": "2/21/1952",
+    "well_name": "DANIELS 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960054",
+    "entry_id": 1411374,
+    "effective_date": "4/2/1953",
+    "well_name": "DANIELS 3",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960059",
+    "entry_id": 1408828,
+    "effective_date": "6/14/1952",
+    "well_name": "HUGHES 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960062",
+    "entry_id": 1418839,
+    "effective_date": "12/8/1954",
+    "well_name": "HUGHES 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960065",
+    "entry_id": 1416283,
+    "effective_date": "4/24/1954",
+    "well_name": "POPE A-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960066",
+    "entry_id": 1417849,
+    "effective_date": "9/3/1954",
+    "well_name": "POPE B 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960069",
+    "entry_id": 1413828,
+    "effective_date": "10/21/1953",
+    "well_name": "POPE 4",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960070",
+    "entry_id": 1408711,
+    "effective_date": "5/29/1952",
+    "well_name": "HUGHES-POPE 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960103",
+    "entry_id": 1365306,
+    "effective_date": "9/12/1938",
+    "well_name": "LOWENA BROWN 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960106",
+    "entry_id": 1363915,
+    "effective_date": "12/3/1937",
+    "well_name": "J M SAYWERS 1-A",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960111",
+    "entry_id": 1363463,
+    "effective_date": "9/1/1937",
+    "well_name": "CLELLAND 2",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960118",
+    "entry_id": 1406840,
+    "effective_date": "10/6/1951",
+    "well_name": "ALLEN 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960129",
+    "entry_id": 1429374,
+    "effective_date": "4/16/1958",
+    "well_name": "BADLEY A-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502960130",
+    "entry_id": 1430813,
+    "effective_date": "12/3/1958",
+    "well_name": "BADLEY B-1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3502976003",
+    "entry_id": 1577731,
+    "effective_date": "1/1/1900",
+    "well_name": "BLOCK 1",
+    "county": "Coal"
+  },
+  {
+    "api_number": "3503100363",
+    "entry_id": 1618769,
+    "effective_date": "11/4/1959",
+    "well_name": "PAYETTE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100373",
+    "entry_id": 1642334,
+    "effective_date": "8/26/1970",
+    "well_name": "NEASE 1 (GOLDIE NEASE 6)",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100416",
+    "entry_id": 1609427,
+    "effective_date": "5/18/1958",
+    "well_name": "PRICE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100430",
+    "entry_id": 1607863,
+    "effective_date": "4/2/1958",
+    "well_name": "HARDY 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100431",
+    "entry_id": 1625896,
+    "effective_date": "9/27/1961",
+    "well_name": "COUCH 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100465",
+    "entry_id": 1625301,
+    "effective_date": "5/18/1961",
+    "well_name": "FESLER 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100466",
+    "entry_id": 1625943,
+    "effective_date": "10/5/1961",
+    "well_name": "FESLER 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100467",
+    "entry_id": 1626098,
+    "effective_date": "11/5/1961",
+    "well_name": "FESLER 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100519",
+    "entry_id": 1607900,
+    "effective_date": "4/7/1958",
+    "well_name": "STATE SCHOOL LAND 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100521",
+    "entry_id": 1871572,
+    "effective_date": "1/13/1955",
+    "well_name": "SCHOOL LAND 1-D",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100525",
+    "entry_id": 1630337,
+    "effective_date": "6/2/1964",
+    "well_name": "ODEGARD STATE 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100530",
+    "entry_id": 1745707,
+    "effective_date": "7/1/1988",
+    "well_name": "RUTH IRENE STATE 13",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100533",
+    "entry_id": 1629777,
+    "effective_date": "2/24/1964",
+    "well_name": "RUTH IRENE STATE 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100535",
+    "entry_id": 1629957,
+    "effective_date": "4/4/1964",
+    "well_name": "RUTH IRENE 8",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100536",
+    "entry_id": 1629955,
+    "effective_date": "4/4/1964",
+    "well_name": "RUTH IRENE STATE 9",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100537",
+    "entry_id": 1630666,
+    "effective_date": "8/12/1964",
+    "well_name": "RUTH IRENE STATE 11",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100547",
+    "entry_id": 1630373,
+    "effective_date": "6/10/1964",
+    "well_name": "CAPSHAW STATE 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100548",
+    "entry_id": 1630519,
+    "effective_date": "7/24/1964",
+    "well_name": "CAPSHAW STATE 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100549",
+    "entry_id": 1629909,
+    "effective_date": "3/26/1964",
+    "well_name": "CAPSHAW 1-A",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100550",
+    "entry_id": 1632353,
+    "effective_date": "4/30/1966",
+    "well_name": "CAPSHAW 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100551",
+    "entry_id": 1630270,
+    "effective_date": "5/20/1964",
+    "well_name": "CAPSHAW 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100552",
+    "entry_id": 1630508,
+    "effective_date": "7/20/1964",
+    "well_name": "SCHOOL LAND 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100553",
+    "entry_id": 1630576,
+    "effective_date": "8/5/1964",
+    "well_name": "SCHOOL LAND 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100554",
+    "entry_id": 1630788,
+    "effective_date": "8/21/1964",
+    "well_name": "SCHOOL LAND 8",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100556",
+    "entry_id": 1629964,
+    "effective_date": "4/8/1964",
+    "well_name": "CAPSHAW 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100557",
+    "entry_id": 1630074,
+    "effective_date": "5/7/1964",
+    "well_name": "CAPSHAW STATE 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100558",
+    "entry_id": 1630091,
+    "effective_date": "5/10/1964",
+    "well_name": "Capshaw State 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100559",
+    "entry_id": 1630523,
+    "effective_date": "7/25/1964",
+    "well_name": "CAPSHAW STATE 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100560",
+    "entry_id": 1870010,
+    "effective_date": "4/22/1954",
+    "well_name": "SCHOOL 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100561",
+    "entry_id": 1871470,
+    "effective_date": "12/26/1954",
+    "well_name": "SCHOOL LAND 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100566",
+    "entry_id": 1689472,
+    "effective_date": "8/10/1983",
+    "well_name": "SCHOOLAND RUBY 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100592",
+    "entry_id": 2651017,
+    "effective_date": "4/4/1948",
+    "well_name": "N FULLERTON 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100593",
+    "entry_id": 1855442,
+    "effective_date": "4/22/1948",
+    "well_name": "N. FULLERTON 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100594",
+    "entry_id": 3263432,
+    "effective_date": "9/5/2018",
+    "well_name": "NELLIE FULLERTON 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100637",
+    "entry_id": 1627017,
+    "effective_date": "5/25/1962",
+    "well_name": "WILSON 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100656",
+    "entry_id": 1609626,
+    "effective_date": "7/28/1958",
+    "well_name": "WATSON 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100667",
+    "entry_id": 1877076,
+    "effective_date": "12/19/1957",
+    "well_name": "MEADVILLE B-1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100668",
+    "entry_id": 1607319,
+    "effective_date": "2/27/1958",
+    "well_name": "MEADVILLE 2-B",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100770",
+    "entry_id": 1246854,
+    "effective_date": "4/7/1958",
+    "well_name": "MEADVILLE B-4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100773",
+    "entry_id": 1876608,
+    "effective_date": "8/14/1957",
+    "well_name": "MEADVILLE 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100774",
+    "entry_id": 1876473,
+    "effective_date": "7/8/1957",
+    "well_name": "MEADVILLE 3-A",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100775",
+    "entry_id": 1786277,
+    "effective_date": "2/2/1998",
+    "well_name": "MEADVILLE 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100886",
+    "entry_id": 2641537,
+    "effective_date": "6/30/1957",
+    "well_name": "HUNTER 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100887",
+    "entry_id": 2641538,
+    "effective_date": "8/28/1957",
+    "well_name": "HUNTER 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100888",
+    "entry_id": 1609522,
+    "effective_date": "6/14/1958",
+    "well_name": "HUNTER 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100889",
+    "entry_id": 1659645,
+    "effective_date": "3/1/1976",
+    "well_name": "STOUT 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100992",
+    "entry_id": 1659794,
+    "effective_date": "3/25/1976",
+    "well_name": "STOUT 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503100994",
+    "entry_id": 1607781,
+    "effective_date": "3/15/1958",
+    "well_name": "CLARK A-1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101079",
+    "entry_id": 1746363,
+    "effective_date": "3/25/1992",
+    "well_name": "PALMER A-6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101104",
+    "entry_id": 1855873,
+    "effective_date": "7/11/1948",
+    "well_name": "BOWMAN 8",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101111",
+    "entry_id": 1863022,
+    "effective_date": "11/20/1948",
+    "well_name": "BOWMAN 11",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101112",
+    "entry_id": 1610055,
+    "effective_date": "12/15/1958",
+    "well_name": "IRVL D BOWMAN 14",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101113",
+    "entry_id": 1863441,
+    "effective_date": "2/9/1949",
+    "well_name": "SHULL 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101115",
+    "entry_id": 1863632,
+    "effective_date": "3/18/1949",
+    "well_name": "SHULL 6",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101116",
+    "entry_id": 1863703,
+    "effective_date": "4/3/1949",
+    "well_name": "SHULL 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101121",
+    "entry_id": 1864122,
+    "effective_date": "6/15/1949",
+    "well_name": "SHULL 11",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101122",
+    "entry_id": 1864164,
+    "effective_date": "6/20/1949",
+    "well_name": "SHULL 12",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101124",
+    "entry_id": 1864230,
+    "effective_date": "7/5/1949",
+    "well_name": "SHULL 14",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101125",
+    "entry_id": 1864258,
+    "effective_date": "7/11/1949",
+    "well_name": "SHULL 15",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101129",
+    "entry_id": 1745958,
+    "effective_date": "1/1/1900",
+    "well_name": "SHULL 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101150",
+    "entry_id": 1866226,
+    "effective_date": "10/1/1950",
+    "well_name": "BLANCHE G SHULL 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101151",
+    "entry_id": 1866279,
+    "effective_date": "10/22/1950",
+    "well_name": "BLANCHE G SHULL 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101153",
+    "entry_id": 1866350,
+    "effective_date": "11/23/1950",
+    "well_name": "BLANCHE G SHULL 4",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101154",
+    "entry_id": 1866363,
+    "effective_date": "11/28/1950",
+    "well_name": "BLANCHE G SHULL 5",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101155",
+    "entry_id": 1866557,
+    "effective_date": "2/12/1951",
+    "well_name": "BLANCHE G SHULL 7",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101157",
+    "entry_id": 1866755,
+    "effective_date": "4/25/1951",
+    "well_name": "BLANCHE G SHULL 9",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101159",
+    "entry_id": 1867017,
+    "effective_date": "7/20/1951",
+    "well_name": "BLANCHE G SHULL 11",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101160",
+    "entry_id": 1867035,
+    "effective_date": "7/28/1951",
+    "well_name": "BLANCHE G SHULL 12",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101161",
+    "entry_id": 1869164,
+    "effective_date": "9/10/1953",
+    "well_name": "SHULL 13",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101163",
+    "entry_id": 1866142,
+    "effective_date": "9/2/1950",
+    "well_name": "CORRIE M GARVIN 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101164",
+    "entry_id": 1866256,
+    "effective_date": "10/12/1950",
+    "well_name": "CORRIE M GARVIN 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101165",
+    "entry_id": 1872189,
+    "effective_date": "4/25/1955",
+    "well_name": "GARVIN 3",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101200",
+    "entry_id": 1863959,
+    "effective_date": "5/20/1949",
+    "well_name": "SHULL 9",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101212",
+    "entry_id": 1863618,
+    "effective_date": "3/15/1949",
+    "well_name": "EAGLE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101213",
+    "entry_id": 1877081,
+    "effective_date": "12/20/1957",
+    "well_name": "TROPE 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101214",
+    "entry_id": 1876932,
+    "effective_date": "11/4/1957",
+    "well_name": "TROPE 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101261",
+    "entry_id": 1607918,
+    "effective_date": "4/10/1958",
+    "well_name": "NORTON 1",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101262",
+    "entry_id": 1609623,
+    "effective_date": "7/26/1958",
+    "well_name": "NORTON 2",
+    "county": "Comanche"
+  },
+  {
+    "api_number": "3503101477",
+    "entry_id": 1870788,
+    "effective_date": "9/20/1954",
+    "well_name": "J C MOORE 19",
+    "county": "Comanche"
   }
 ]
