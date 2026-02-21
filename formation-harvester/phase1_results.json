@@ -167886,5 +167886,677 @@
     "effective_date": "1/25/1990",
     "well_name": "TYLER 1",
     "county": "Haskell"
+  },
+  {
+    "api_number": "3506120833",
+    "entry_id": 1974928,
+    "effective_date": "1/16/1990",
+    "well_name": "WENDLANDT 2-17",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120835",
+    "entry_id": 1452551,
+    "effective_date": "11/19/1989",
+    "well_name": "ARY 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120836",
+    "entry_id": 1974901,
+    "effective_date": "12/15/1989",
+    "well_name": "GARLAND 2-32",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120837",
+    "entry_id": 1974949,
+    "effective_date": "2/20/1990",
+    "well_name": "FRANK HIGHTOWER 2",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120841",
+    "entry_id": 1453197,
+    "effective_date": "6/5/1990",
+    "well_name": "BULLARD UNIT 2",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120933",
+    "entry_id": 1976626,
+    "effective_date": "9/2/1992",
+    "well_name": "C M HODGES 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120979",
+    "entry_id": 1977042,
+    "effective_date": "1/4/1993",
+    "well_name": "KING 8-16",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506120985",
+    "entry_id": 1977050,
+    "effective_date": "1/5/1993",
+    "well_name": "FELDICK 6-18",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121003",
+    "entry_id": 1977065,
+    "effective_date": "1/8/1993",
+    "well_name": "GEMMILL 4-9",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121004",
+    "entry_id": 1977070,
+    "effective_date": "1/8/1993",
+    "well_name": "GEMMILL 5-9",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121005",
+    "entry_id": 1977062,
+    "effective_date": "1/7/1993",
+    "well_name": "GEMMILL 6-9",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121009",
+    "entry_id": 1977058,
+    "effective_date": "1/6/1993",
+    "well_name": "KING 4-16",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121015",
+    "entry_id": 1977436,
+    "effective_date": "7/15/1993",
+    "well_name": "FENTON 1-18",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121017",
+    "entry_id": 1977438,
+    "effective_date": "7/19/1993",
+    "well_name": "FENTON 3-18",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121733",
+    "entry_id": 1255264,
+    "effective_date": "8/10/2003",
+    "well_name": "RADER 9",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121860",
+    "entry_id": 2501673,
+    "effective_date": "7/10/2003",
+    "well_name": "STOCKTON 2-3",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506121909",
+    "entry_id": 2501672,
+    "effective_date": "12/25/2003",
+    "well_name": "SPEARS 2-6",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506122123",
+    "entry_id": 2684771,
+    "effective_date": "3/20/2005",
+    "well_name": "DELLINGER 1-17H",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130000",
+    "entry_id": 1444425,
+    "effective_date": "4/29/1965",
+    "well_name": "A H COX UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130002",
+    "entry_id": 1971227,
+    "effective_date": "6/13/1965",
+    "well_name": "ROYE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130004",
+    "entry_id": 2651113,
+    "effective_date": "7/20/2004",
+    "well_name": "EVANS UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130007",
+    "entry_id": 1444359,
+    "effective_date": "12/25/1964",
+    "well_name": "FELLNER 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130011",
+    "entry_id": 2757241,
+    "effective_date": "12/31/1964",
+    "well_name": "WILLIAM OLIVER UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130012",
+    "entry_id": 1971156,
+    "effective_date": "12/3/1964",
+    "well_name": "PEARL PATTERSON 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130013",
+    "entry_id": 1973792,
+    "effective_date": "7/7/1987",
+    "well_name": "FEDERAL COLLEGE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130014",
+    "entry_id": 1971155,
+    "effective_date": "11/30/1964",
+    "well_name": "MCKINNEY 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130015",
+    "entry_id": 1444328,
+    "effective_date": "11/4/1964",
+    "well_name": "BEN MCDANIEL\t1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130018",
+    "entry_id": 1971150,
+    "effective_date": "11/10/1964",
+    "well_name": "ROBERT HULSEY 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130024",
+    "entry_id": 1971322,
+    "effective_date": "1/17/1966",
+    "well_name": "SLATER 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130029",
+    "entry_id": 1971273,
+    "effective_date": "9/20/1965",
+    "well_name": "SLOAN UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130033",
+    "entry_id": 1971269,
+    "effective_date": "9/11/1965",
+    "well_name": "MCCURTAIN 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130035",
+    "entry_id": 1971341,
+    "effective_date": "3/4/1966",
+    "well_name": "BURGE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130036",
+    "entry_id": 1971234,
+    "effective_date": "6/22/1965",
+    "well_name": "CHARLES A OVERSTREET 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130039",
+    "entry_id": 1444443,
+    "effective_date": "5/28/1965",
+    "well_name": "L B BURRIS 2",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130057",
+    "entry_id": 2640175,
+    "effective_date": "2/11/1991",
+    "well_name": "CHURN HEIRS UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130058",
+    "entry_id": 1971292,
+    "effective_date": "10/28/1965",
+    "well_name": "JOE SMITH 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130064",
+    "entry_id": 1971237,
+    "effective_date": "6/30/1965",
+    "well_name": "J FRED DITTMAN 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130065",
+    "entry_id": 1444467,
+    "effective_date": "7/9/1965",
+    "well_name": "KRISHER UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130070",
+    "entry_id": 1971252,
+    "effective_date": "8/16/1965",
+    "well_name": "MCCAFFERTY UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130071",
+    "entry_id": 1444483,
+    "effective_date": "8/4/1965",
+    "well_name": "CASON UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130074",
+    "entry_id": 1444415,
+    "effective_date": "4/19/1965",
+    "well_name": "INEZ SMITH 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130075",
+    "entry_id": 1971184,
+    "effective_date": "3/1/1965",
+    "well_name": "LIZZABELLE REES 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130076",
+    "entry_id": 2651177,
+    "effective_date": "7/21/2004",
+    "well_name": "U S GOVERNMENT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130077",
+    "entry_id": 1973154,
+    "effective_date": "5/26/1984",
+    "well_name": "SMITH 2-9",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130078",
+    "entry_id": 1971177,
+    "effective_date": "1/26/1965",
+    "well_name": "CUMMINGS ESTATE 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130081",
+    "entry_id": 1971186,
+    "effective_date": "3/9/1965",
+    "well_name": "ROBERTSON 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130085",
+    "entry_id": 1971221,
+    "effective_date": "5/27/1965",
+    "well_name": "PRICE SELF UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130086",
+    "entry_id": 1971222,
+    "effective_date": "5/30/1965",
+    "well_name": "FRANK HIGHTOWER UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130092",
+    "entry_id": 1971304,
+    "effective_date": "11/22/1965",
+    "well_name": "FARAFIELD FARMS UNIT A-1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130095",
+    "entry_id": 1444589,
+    "effective_date": "1/6/1966",
+    "well_name": "MCKINNON UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130099",
+    "entry_id": 1971376,
+    "effective_date": "5/23/1966",
+    "well_name": "FEDERAL STEELE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506130178",
+    "entry_id": 1971290,
+    "effective_date": "10/25/1965",
+    "well_name": "ABBATH A-1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160009",
+    "entry_id": 1444026,
+    "effective_date": "4/23/1962",
+    "well_name": "A A ALDRIDGE UNIT(ALDRIDGE#1)\t1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160010",
+    "entry_id": 1970950,
+    "effective_date": "1/24/1962",
+    "well_name": "ALDRIDGE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160012",
+    "entry_id": 1971056,
+    "effective_date": "11/8/1963",
+    "well_name": "MIDGLEY 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160015",
+    "entry_id": 1444137,
+    "effective_date": "6/9/1963",
+    "well_name": "ROSE 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160019",
+    "entry_id": 1444039,
+    "effective_date": "6/21/1962",
+    "well_name": "C C JENNINGS 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160021",
+    "entry_id": 2651112,
+    "effective_date": "7/20/2004",
+    "well_name": "PHILLIP HAYES UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160028",
+    "entry_id": 1971043,
+    "effective_date": "9/12/1963",
+    "well_name": "J C FOSTER UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160031",
+    "entry_id": 1444098,
+    "effective_date": "12/29/1962",
+    "well_name": "COBLENTZ-HALL 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160032",
+    "entry_id": 1443971,
+    "effective_date": "9/3/1961",
+    "well_name": "BUFORD GUTHRIE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160033",
+    "entry_id": 1444234,
+    "effective_date": "3/25/1964",
+    "well_name": "SNOW 1-3",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160035",
+    "entry_id": 1444159,
+    "effective_date": "8/8/1963",
+    "well_name": "FURRY UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160036",
+    "entry_id": 1443953,
+    "effective_date": "6/30/1961",
+    "well_name": "GLADYS HENDERSON 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160037",
+    "entry_id": 1443969,
+    "effective_date": "9/1/1961",
+    "well_name": "ADAMS STATE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160039",
+    "entry_id": 1444265,
+    "effective_date": "7/5/1964",
+    "well_name": "DRAIN\t1-A",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160045",
+    "entry_id": 1443866,
+    "effective_date": "3/1/1960",
+    "well_name": "WILLIAMS 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160047",
+    "entry_id": 1443930,
+    "effective_date": "3/24/1961",
+    "well_name": "SMITH CARR UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160049",
+    "entry_id": 1444309,
+    "effective_date": "10/15/1964",
+    "well_name": "JONES UNIT D-1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160050",
+    "entry_id": 1444065,
+    "effective_date": "9/7/1962",
+    "well_name": "JONES MILLER 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160051",
+    "entry_id": 1443992,
+    "effective_date": "11/1/1961",
+    "well_name": "JOHNSON UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160054",
+    "entry_id": 1443957,
+    "effective_date": "7/19/1961",
+    "well_name": "COX RUSHING UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160055",
+    "entry_id": 1444067,
+    "effective_date": "9/13/1962",
+    "well_name": "HARRIS UNIT",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160056",
+    "entry_id": 1443984,
+    "effective_date": "9/30/1961",
+    "well_name": "WIMBERLY UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160060",
+    "entry_id": 1444040,
+    "effective_date": "6/25/1962",
+    "well_name": "WOODMORE UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160061",
+    "entry_id": 1444108,
+    "effective_date": "2/11/1963",
+    "well_name": "WOODMORE 35-1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160062",
+    "entry_id": 1444185,
+    "effective_date": "11/5/1963",
+    "well_name": "WM J TERRELL UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160072",
+    "entry_id": 1444250,
+    "effective_date": "5/10/1964",
+    "well_name": "COX-RAPER 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160076",
+    "entry_id": 1970936,
+    "effective_date": "10/16/1961",
+    "well_name": "RICHISON UNIT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160077",
+    "entry_id": 1970927,
+    "effective_date": "8/31/1961",
+    "well_name": "SCOTT 2",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160079",
+    "entry_id": 1971069,
+    "effective_date": "1/14/1964",
+    "well_name": "HIGHTOWER 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160080",
+    "entry_id": 1971035,
+    "effective_date": "7/15/1963",
+    "well_name": "STANLEY WRIGHT 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160082",
+    "entry_id": 1971004,
+    "effective_date": "1/18/1963",
+    "well_name": "EVANS 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160084",
+    "entry_id": 1970987,
+    "effective_date": "9/30/1962",
+    "well_name": "CONDO 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506160086",
+    "entry_id": 1971047,
+    "effective_date": "9/27/1963",
+    "well_name": "E O FITZGERALD 1",
+    "county": "Haskell"
+  },
+  {
+    "api_number": "3506300051",
+    "entry_id": 2082784,
+    "effective_date": "3/17/1963",
+    "well_name": "TRUMBO 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300058",
+    "entry_id": 1410389,
+    "effective_date": "12/23/1952",
+    "well_name": "BAILEY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300065",
+    "entry_id": 1398562,
+    "effective_date": "8/21/1949",
+    "well_name": "DALTON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300075",
+    "entry_id": 1412059,
+    "effective_date": "5/31/1953",
+    "well_name": "MATTIE SCALES 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300083",
+    "entry_id": 1521629,
+    "effective_date": "6/25/1980",
+    "well_name": "SHELTON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300099",
+    "entry_id": 2060948,
+    "effective_date": "8/11/1950",
+    "well_name": "G R ECKLES 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300118",
+    "entry_id": 1491814,
+    "effective_date": "9/20/1978",
+    "well_name": "STOUT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300150",
+    "entry_id": 1397014,
+    "effective_date": "9/7/1948",
+    "well_name": "WHITELY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300159",
+    "entry_id": 1378640,
+    "effective_date": "8/17/1947",
+    "well_name": "FREAM C-1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300163",
+    "entry_id": 2056015,
+    "effective_date": "4/17/1948",
+    "well_name": "NICKS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300167",
+    "entry_id": 2061011,
+    "effective_date": "8/19/1950",
+    "well_name": "UMSTED 1",
+    "county": "Hughes"
   }
 ]
