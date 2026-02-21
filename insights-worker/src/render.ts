@@ -588,6 +588,7 @@ interface Article {
   related: { href: string; label: string }[];
   ctaTitle: string;
   ctaText: string;
+  resources?: { label: string; href: string }[];
   featuredImage?: { src: string; alt: string; width: number; height: number; objectPosition?: string };
   jsonLdExtra?: string;
 }
@@ -629,6 +630,11 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
       { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
       { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+    ],
+    resources: [
+      { label: 'OCC Docket Search', href: 'https://oklahoma.gov/occ/court-dockets.html' },
+      { label: 'National Association of Royalty Owners (NARO)', href: 'https://naro-us.org' },
+      { label: 'Oklahoma Statute Title 52 \u00a787.1 \u2014 Pooling', href: 'https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=94003' },
     ],
     ctaTitle: "Don't Let a Deadline Catch You Off Guard",
     ctaText: 'Pooling order data, production tracking, OCC alerts, and AI document extraction — know what\u2019s happening on your sections before the letter arrives.',
