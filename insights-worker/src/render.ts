@@ -179,7 +179,7 @@ export function renderInsightsHub(): string {
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-    <title>Mineral Rights Insights — Guides, Analysis & County Data | Mineral Watch</title>
+    <title>Mineral Rights Insights & Guides | Mineral Watch</title>
     <meta name="description" content="Educational guides, OCC filing explainers, county drilling activity, and mineral rights resources for Oklahoma mineral owners. From pooling orders to production analysis.">
     <link rel="canonical" href="https://mymineralwatch.com/insights">
     <meta property="og:type" content="website">
@@ -595,7 +595,7 @@ interface Article {
 const ARTICLES: Record<string, Article> = {
   'understanding-pooling-orders': {
     slug: 'understanding-pooling-orders',
-    title: 'Understanding Pooling Orders: What Oklahoma Mineral Owners Need to Know',
+    title: 'Pooling Orders: What Oklahoma Owners Must Know',
     description: 'A complete guide to Oklahoma pooling orders for mineral owners. Learn what a pooling order means, your election options, how to evaluate bonus rates, common mistakes, and when to hire an attorney.',
     canonical: 'https://mymineralwatch.com/insights/guides/understanding-pooling-orders',
     ogImage: 'https://mymineralwatch.com/assets/insights/pooling-orders-guide.jpg',
@@ -651,7 +651,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'inherited-mineral-rights': {
     slug: 'inherited-mineral-rights',
-    title: 'Inherited Mineral Rights in Oklahoma: A Complete Guide',
+    title: 'Inherited Mineral Rights in Oklahoma',
     description: 'Just inherited mineral rights in Oklahoma? This complete guide walks you through what you own, how to confirm your interest, what to do with royalty checks, and how to protect your inheritance.',
     canonical: 'https://mymineralwatch.com/insights/guides/inherited-mineral-rights',
     ogImage: 'https://mymineralwatch.com/assets/insights/inherited-mineral-rights-guide.jpg',
@@ -708,7 +708,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'occ-filing-types': {
     slug: 'occ-filing-types',
-    title: 'Every Type of OCC Filing, Explained: A Guide for Oklahoma Mineral Owners',
+    title: 'Every OCC Filing Type, Explained',
     description: 'A complete reference guide to Oklahoma Corporation Commission filing types. Learn what permits, pooling orders, spacing applications, increased density orders, and other OCC filings mean for your mineral rights.',
     canonical: 'https://mymineralwatch.com/insights/guides/occ-filing-types',
     ogImage: 'https://mymineralwatch.com/assets/insights/occ-filing-types-guide.jpg',
@@ -768,7 +768,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'division-orders-101': {
     slug: 'division-orders-101',
-    title: 'Division Orders 101: What Oklahoma Mineral Owners Need to Know',
+    title: 'Division Orders 101 for Mineral Owners',
     description: 'A complete guide to division orders for Oklahoma mineral owners. Learn what a division order is, how to verify your decimal interest, whether to sign it, and what to do if the numbers look wrong.',
     canonical: 'https://mymineralwatch.com/insights/guides/division-orders-101',
     ogImage: 'https://mymineralwatch.com/assets/insights/division-orders-guide.jpg',
@@ -824,7 +824,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'navigating-occ-website': {
     slug: 'navigating-occ-website',
-    title: 'How to Navigate the OCC Website: A Mineral Owner\u2019s Guide to Oklahoma Corporation Commission Online Tools',
+    title: 'How to Navigate the OCC Website',
     description: 'Step-by-step guide to using the Oklahoma Corporation Commission website. Learn how to search well records, find spacing and pooling orders, look up drilling permits, and monitor filings on your mineral sections.',
     canonical: 'https://mymineralwatch.com/insights/guides/navigating-occ-website',
     ogImage: 'https://mymineralwatch.com/assets/insights/navigating-occ-website-guide.jpg',
@@ -884,7 +884,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'auditing-royalty-checks': {
     slug: 'auditing-royalty-checks',
-    title: 'How to Audit Your Royalty Checks: A Step-by-Step Guide for Oklahoma Mineral Owners',
+    title: 'How to Audit Your Royalty Checks',
     description: 'A practical guide to auditing your Oklahoma oil and gas royalty checks. Learn how to verify production volumes, pricing, deductions, and net revenue interest \u2014 and what to do when the numbers don\u2019t add up.',
     canonical: 'https://mymineralwatch.com/insights/guides/auditing-royalty-checks',
     ogImage: 'https://mymineralwatch.com/assets/insights/auditing-royalty-checks-guide.jpg',
@@ -941,7 +941,7 @@ const ARTICLES: Record<string, Article> = {
   },
   'scoop-stack-overview': {
     slug: 'scoop-stack-overview',
-    title: 'SCOOP & STACK Play Overview for Mineral Owners: Formations, Counties, and What It Means for Your Royalties',
+    title: 'SCOOP & STACK Overview for Mineral Owners',
     description: 'A mineral owner\u2019s guide to Oklahoma\u2019s SCOOP, STACK, and MERGE plays. Understand the formations being drilled, which counties are affected, who the major operators are, and what it means for your mineral rights.',
     canonical: 'https://mymineralwatch.com/insights/guides/scoop-stack-overview',
     ogImage: 'https://mymineralwatch.com/assets/insights/scoop-stack-overview-guide.jpg',
