@@ -140,6 +140,8 @@ main { padding: 60px 0; }
 .operators-table tr:hover { background: var(--paper); }
 .operator-name { font-weight: 600; }
 .operator-wells { font-family: 'Merriweather', serif; font-weight: 700; color: var(--red-dirt); }
+.operator-filings { font-family: 'Merriweather', serif; font-weight: 700; color: var(--slate-blue); }
+.operator-filings.quiet { color: #CBD5E0; font-weight: 400; }
 .county-overview { margin-bottom: 50px; }
 .county-overview h2 { font-size: 22px; margin-bottom: 16px; }
 .county-overview p { color: #4A5568; font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
@@ -315,13 +317,17 @@ export function renderCountyPage(
   } else {
     operatorsHtml = `
       <table class="operators-table">
-          <thead><tr><th>Operator</th><th>Active Wells</th></tr></thead>
+          <thead><tr><th>Operator</th><th>Active Wells</th><th>Filings (90d)</th></tr></thead>
           <tbody>`;
     for (const op of operators) {
+      const filingsCell = op.recent_filings > 0
+        ? `<td class="operator-filings">${num(op.recent_filings)}</td>`
+        : `<td class="operator-filings quiet">&mdash;</td>`;
       operatorsHtml += `
             <tr>
                 <td class="operator-name">${esc(op.operator || 'Unknown')}</td>
                 <td class="operator-wells">${num(op.active_wells)}</td>
+                ${filingsCell}
             </tr>`;
     }
     operatorsHtml += '</tbody></table>';

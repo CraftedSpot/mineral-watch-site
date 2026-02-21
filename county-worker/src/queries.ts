@@ -9,6 +9,7 @@ export interface CountyStats {
 export interface OperatorRow {
   operator: string;
   active_wells: number;
+  recent_filings: number;
 }
 
 export interface ActivityItem {
@@ -86,13 +87,26 @@ function mapReliefToType(reliefType: string): 'permit' | 'completion' | 'pooling
   return 'permit';
 }
 
+// Normalize operator names for matching between wells table and docket entries
+// Wells: "COTERRA ENERGY OPERATING CO."  Docket: "COTERRA ENERGY OPERATING CO"
+function normalizeOperator(name: string): string {
+  return name
+    .toUpperCase()
+    .replace(/[.,]+/g, '')
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\(.*?\)\s*/g, ' ')
+    .replace(/[.,\s]+(LLC|LP|INC|LTD|CO|CORP|COMPANY|PARTNERSHIP)[.,\s]*$/g, '')
+    .trim();
+}
+
 // Fetch all stats + operators + activity for a county page
 export async function fetchCountyData(db: D1Database, countyUpper: string, countyName: string) {
   const docket = buildDocketCountyMatch(countyName);
 
   // Run all queries in parallel
   const [wellStats, permitCount, completionCount, poolingCount, operators,
-         recentPermits, recentCompletions, recentPooling, docketCount, recentDocket] =
+         recentPermits, recentCompletions, recentPooling, docketCount, recentDocket,
+         recentFilers] =
     await Promise.all([
       // 1. Total + active wells
       db.prepare(
@@ -167,6 +181,13 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
          WHERE (${docket.where}) AND docket_date >= date('now', '-90 days')
          ORDER BY docket_date DESC LIMIT 10`
       ).bind(...docket.params).all().catch(() => ({ results: [] })),
+
+      // 11. Top filers in last 90 days (fetch 20 so we can match against top 5 operators)
+      db.prepare(
+        `SELECT applicant, COUNT(*) as filings FROM occ_docket_entries
+         WHERE (${docket.where}) AND docket_date >= date('now', '-90 days')
+         GROUP BY applicant ORDER BY filings DESC LIMIT 20`
+      ).bind(...docket.params).all().catch(() => ({ results: [] })),
     ]);
 
   // Build stats — use docket count for "OCC Filings", fall back to pooling count
@@ -234,9 +255,27 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
   activity.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const topActivity = activity.slice(0, 8);
 
+  // Merge operator wells with recent filing counts
+  const filingsByOperator = new Map<string, number>();
+  for (const row of (recentFilers.results || []) as any[]) {
+    if (row.applicant) {
+      filingsByOperator.set(normalizeOperator(row.applicant), row.filings as number);
+    }
+  }
+
+  const operatorsWithFilings: OperatorRow[] = ((operators.results || []) as any[]).map(op => {
+    const normalized = normalizeOperator(op.operator || '');
+    const filings = filingsByOperator.get(normalized) || 0;
+    return {
+      operator: op.operator,
+      active_wells: op.active_wells,
+      recent_filings: filings,
+    };
+  });
+
   return {
     stats,
-    operators: (operators.results || []) as OperatorRow[],
+    operators: operatorsWithFilings,
     activity: topActivity,
   };
 }
