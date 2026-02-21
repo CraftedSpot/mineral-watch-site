@@ -6771,8 +6771,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         try {
           const gasResult = await db.prepare(`
             SELECT base_pun,
-              SUM(CASE WHEN product_code IN ('3','5','6') THEN volume ELSE 0 END) as gas_vol,
-              SUM(CASE WHEN product_code = '1' THEN volume ELSE 0 END) as oil_vol
+              SUM(CASE WHEN product_code IN ('3','5','6') THEN gross_volume ELSE 0 END) as gas_vol,
+              SUM(CASE WHEN product_code = '1' THEN gross_volume ELSE 0 END) as oil_vol
             FROM otc_production
             WHERE base_pun IN (${placeholders})
               AND year_month >= ?
