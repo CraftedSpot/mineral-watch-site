@@ -5836,8 +5836,9 @@
             const { wtiPrice, henryHubPrice, summary, wells, byProfile, byFormation } = data;
 
             // Header badges
+            const netBackStr = summary.portfolioNetBack ? ' (net-back $' + summary.portfolioNetBack.toFixed(2) + ')' : '';
             document.getElementById('reportSubtitle').textContent =
-                summary.totalWells + ' wells analyzed at $' + wtiPrice.price.toFixed(2) + '/bbl WTI';
+                summary.totalWells + ' wells analyzed at $' + wtiPrice.price.toFixed(2) + '/bbl WTI' + netBackStr;
 
             const statusEl = document.getElementById('reportStatus');
             if (summary.atRiskCount > 0) {
@@ -5934,6 +5935,20 @@
 
         // ---- RISK OVERVIEW TAB ----
 
+        // Sort state for click-to-sort headers
+        let riskSortCol = 'stressed';
+        let riskSortDir = 'asc';
+
+        function onRiskHeaderSort(col) {
+            if (riskSortCol === col) {
+                riskSortDir = riskSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                riskSortCol = col;
+                riskSortDir = (col === 'name' || col === 'formation') ? 'asc' : 'asc';
+            }
+            renderRiskTable();
+        }
+
         function renderRiskOverviewTab(data) {
             const { wells, summary } = data;
             const wti = data.wtiPrice.price;
@@ -5941,6 +5956,10 @@
             // Build filter options
             const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
             const riskLevels = ['all', 'at_risk', 'tight', 'adequate', 'comfortable', 'gas_weighted'];
+
+            const deductionNote = summary.wellsWithDeductionData > 0
+                ? '<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem;">' + summary.wellsWithDeductionData + ' wells with OTC deduction data (avg ' + (summary.avgDiscountPct || 20).toFixed(1) + '% discount)</span>'
+                : '';
 
             let html = `
                 <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center;">
@@ -5955,14 +5974,9 @@
                         style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
                         ${riskLevels.map(l => '<option value="' + l + '">' + (l === 'all' ? 'All Risk Levels' : riskLevelLabel(l)) + '</option>').join('')}
                     </select>
-                    <select id="riskSortSelect" onchange="filterRiskTable()"
-                        style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
-                        <option value="risk">Sort: Risk Level</option>
-                        <option value="cushion">Sort: Cushion</option>
-                        <option value="name">Sort: Well Name</option>
-                    </select>
                     <button onclick="exportWellRiskCsv()" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem; cursor: pointer;" title="Export CSV">CSV</button>
                     <button onclick="loadWellRiskProfileReport(true)" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem; cursor: pointer;" title="Refresh data">Refresh</button>
+                    ${deductionNote}
                 </div>
                 <div id="riskTableContainer"></div>`;
 
@@ -5990,13 +6004,13 @@
             const container = document.getElementById('riskTableContainer');
             if (!container) return;
 
+            const wti = lastWellRiskData.wtiPrice.price;
             let wells = [...lastWellRiskData.wells];
 
             // Apply filters
             const search = (document.getElementById('riskSearchInput')?.value || '').toLowerCase();
             const county = document.getElementById('riskCountyFilter')?.value || '';
             const level = document.getElementById('riskLevelFilter')?.value || 'all';
-            const sort = document.getElementById('riskSortSelect')?.value || 'risk';
 
             if (search) {
                 wells = wells.filter(w =>
@@ -6008,14 +6022,36 @@
             if (county) wells = wells.filter(w => w.county === county);
             if (level !== 'all') wells = wells.filter(w => w.riskLevel === level);
 
-            // Sort
+            // Click-to-sort
             const riskOrder = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3, gas_weighted: 4 };
-            if (sort === 'risk') {
-                wells.sort((a, b) => (riskOrder[a.riskLevel] ?? 5) - (riskOrder[b.riskLevel] ?? 5));
-            } else if (sort === 'cushion') {
-                wells.sort((a, b) => (a.cushionDollar ?? 999) - (b.cushionDollar ?? 999));
-            } else if (sort === 'name') {
-                wells.sort((a, b) => (a.wellName || '').localeCompare(b.wellName || ''));
+            const dir = riskSortDir === 'asc' ? 1 : -1;
+            switch (riskSortCol) {
+                case 'name':
+                    wells.sort((a, b) => dir * (a.wellName || '').localeCompare(b.wellName || ''));
+                    break;
+                case 'formation':
+                    wells.sort((a, b) => dir * (a.formationGroup || 'ZZZ').localeCompare(b.formationGroup || 'ZZZ'));
+                    break;
+                case 'breakeven':
+                    wells.sort((a, b) => dir * ((a.halfCycleBreakeven ?? 999) - (b.halfCycleBreakeven ?? 999)));
+                    break;
+                case 'deductions':
+                    wells.sort((a, b) => dir * ((a.totalDiscountPct ?? 999) - (b.totalDiscountPct ?? 999)));
+                    break;
+                case 'netback':
+                    wells.sort((a, b) => dir * ((a.netBackPrice ?? 999) - (b.netBackPrice ?? 999)));
+                    break;
+                case 'status':
+                    wells.sort((a, b) => dir * ((riskOrder[a.riskLevel] ?? 5) - (riskOrder[b.riskLevel] ?? 5)));
+                    break;
+                case 'stressed':
+                    wells.sort((a, b) => dir * ((a.stressedAtWti ?? 999) - (b.stressedAtWti ?? 999)));
+                    break;
+                case 'critical':
+                    wells.sort((a, b) => dir * ((a.criticalAtWti ?? 999) - (b.criticalAtWti ?? 999)));
+                    break;
+                default:
+                    wells.sort((a, b) => (a.stressedAtWti ?? 999) - (b.stressedAtWti ?? 999));
             }
 
             if (wells.length === 0) {
@@ -6023,41 +6059,75 @@
                 return;
             }
 
+            // Sort indicator helper
+            function sortArrow(col) {
+                if (riskSortCol !== col) return '';
+                return ' ' + (riskSortDir === 'asc' ? '\u25B2' : '\u25BC');
+            }
+            const thStyle = 'padding: 0.625rem 0.5rem; font-weight: 600; color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; user-select: none; white-space: nowrap;';
+            const thStyleR = thStyle + ' text-align: right;';
+
             let rows = wells.map(w => {
-                const cushionStr = w.isGasWeighted ? '<span style="color: #8b5cf6;">N/A</span>' :
-                    (w.cushionDollar !== null ?
-                        '<span style="color: ' + (w.cushionDollar >= 0 ? '#10b981' : '#ef4444') + '; font-weight: 600;">' +
-                        (w.cushionDollar >= 0 ? '+' : '') + '$' + w.cushionDollar.toFixed(0) +
-                        ' <span style="font-weight: 400; font-size: 0.75rem;">(' + (w.cushionPct >= 0 ? '+' : '') + w.cushionPct.toFixed(0) + '%)</span></span>'
-                    : '—');
-
-                const beStr = w.halfCycleBreakeven !== null ? '$' + w.halfCycleBreakeven : '—';
                 const formStr = w.formationGroup || '<span style="color: var(--text-muted);">Unknown</span>';
+                const beStr = w.halfCycleBreakeven !== null ? '$' + w.halfCycleBreakeven : '\u2014';
+                const discountStr = w.totalDiscountPct !== null ? w.totalDiscountPct.toFixed(1) + '%' : '\u2014';
+                const discountColor = !w.hasDeductionData ? 'color: var(--text-muted); font-style: italic;' : '';
+                const netBackStr = w.netBackPrice !== null ? '$' + w.netBackPrice.toFixed(2) : '\u2014';
 
-                return `
-                    <tr>
-                        <td style="font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(w.wellName || '').replace(/"/g, '&quot;')}">${w.wellName || 'Unknown'}</td>
-                        <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(w.operator || '').replace(/"/g, '&quot;')}">${w.operator || 'Unknown'}</td>
-                        <td>${formStr}</td>
-                        <td>${w.profileName || '—'}</td>
-                        <td><span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; ${riskLevelBadgeStyle(w.riskLevel)}">${w.isGasWeighted ? 'Gas' : riskLevelLabel(w.riskLevel)}</span></td>
-                        <td style="text-align: right;">${beStr}</td>
-                        <td style="text-align: right;">${cushionStr}</td>
-                    </tr>`;
+                // Status pill: tier label colored by risk level
+                const statusHtml = w.isGasWeighted
+                    ? '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle('gas_weighted') + '">Gas</span>'
+                    : '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle(w.riskLevel) + '">' + riskLevelLabel(w.riskLevel) + '</span>';
+
+                // Stressed At — amber when within $10 of current WTI
+                let stressedStr = '\u2014';
+                let stressedStyle = '';
+                if (w.stressedAtWti !== null) {
+                    stressedStr = '$' + w.stressedAtWti.toFixed(0);
+                    if (wti - w.stressedAtWti <= 10 && wti >= w.stressedAtWti) {
+                        stressedStyle = 'color: #f59e0b; font-weight: 600;';
+                    } else if (wti < w.stressedAtWti) {
+                        stressedStyle = 'color: #ef4444; font-weight: 600;';
+                    }
+                }
+
+                // Critical At — red when within $5 of current WTI
+                let criticalStr = '\u2014';
+                let criticalStyle = '';
+                if (w.criticalAtWti !== null) {
+                    criticalStr = '$' + w.criticalAtWti.toFixed(0);
+                    if (wti - w.criticalAtWti <= 5 && wti >= w.criticalAtWti) {
+                        criticalStyle = 'color: #f59e0b; font-weight: 600;';
+                    } else if (wti < w.criticalAtWti) {
+                        criticalStyle = 'color: #ef4444; font-weight: 600;';
+                    }
+                }
+
+                return '<tr style="border-bottom: 1px solid var(--border-subtle);">' +
+                    '<td style="padding: 0.5rem; font-weight: 500; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' + (w.wellName || '').replace(/"/g, '&quot;') + '">' + (w.wellName || 'Unknown') + '</td>' +
+                    '<td style="padding: 0.5rem;">' + formStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (w.hasDeductionData ? 'Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '% | Floor: 15%' : 'Default 20% (no OTC data)') + '">' + discountStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; font-weight: 500;">' + netBackStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: center;">' + statusHtml + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + stressedStyle + '">' + stressedStr + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + criticalStyle + '">' + criticalStr + '</td>' +
+                    '</tr>';
             }).join('');
 
             container.innerHTML = `
                 <div style="overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 8px;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
                         <thead>
-                            <tr style="background: var(--bg-tertiary); border-bottom: 1px solid var(--border-subtle);">
-                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Well Name</th>
-                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Operator</th>
-                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Formation</th>
-                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Profile</th>
-                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Risk</th>
-                                <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Breakeven</th>
-                                <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Cushion</th>
+                            <tr style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-subtle);">
+                                <th style="${thStyle} text-align: left;" onclick="onRiskHeaderSort('name')">Well Name${sortArrow('name')}</th>
+                                <th style="${thStyle} text-align: left;" onclick="onRiskHeaderSort('formation')">Formation${sortArrow('formation')}</th>
+                                <th style="${thStyleR}" onclick="onRiskHeaderSort('breakeven')">Breakeven${sortArrow('breakeven')}</th>
+                                <th style="${thStyleR}" onclick="onRiskHeaderSort('deductions')" title="All-in discount from OTC tax records">Deductions${sortArrow('deductions')}</th>
+                                <th style="${thStyleR}" onclick="onRiskHeaderSort('netback')" title="WTI × (1 - deductions)">Net-Back${sortArrow('netback')}</th>
+                                <th style="${thStyle} text-align: center;" onclick="onRiskHeaderSort('status')">Status${sortArrow('status')}</th>
+                                <th style="${thStyleR}" onclick="onRiskHeaderSort('stressed')" title="WTI price where margin drops to 10%">Stressed At${sortArrow('stressed')}</th>
+                                <th style="${thStyleR}" onclick="onRiskHeaderSort('critical')" title="WTI price where net-back equals breakeven">Critical At${sortArrow('critical')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -6073,8 +6143,10 @@
         // ---- BY FORMATION TAB ----
 
         function renderRiskFormationTab(data) {
-            const { byFormation, wtiPrice } = data;
+            const { byFormation, wtiPrice, summary } = data;
             const wti = wtiPrice.price;
+            const avgDiscount = (summary.avgDiscountPct || 20) / 100;
+            const netBack = wti * (1 - avgDiscount);
 
             if (!byFormation || byFormation.length === 0) {
                 return '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No formation data available.</div>';
@@ -6091,8 +6163,8 @@
 
             let cards = byFormation.map(f => {
                 const avgBE = f.avgBreakeven;
-                const cushion = avgBE !== null ? (wti - avgBE) : null;
-                const cushionPct = avgBE !== null && avgBE > 0 ? ((cushion / avgBE) * 100) : null;
+                const cushion = avgBE !== null ? (netBack - avgBE) : null;
+                const cushionPct = avgBE !== null && netBack > 0 ? ((cushion / netBack) * 100) : null;
 
                 // Risk distribution bar
                 let barHtml = '';
@@ -6101,10 +6173,10 @@
                     const total = f.wellCount;
                     const segments = profileEntries.map(([pid, count]) => {
                         const pct = (count / total * 100).toFixed(1);
-                        const level = pid === 'gas-weighted' ? 'gas_weighted' :
-                            (avgBE !== null ? getRiskLevelFrontend(wti, avgBE) : 'adequate');
+                        const profileBE = getProfileBreakeven(pid);
+                        const profileNetBack = wti * (1 - avgDiscount);
                         const color = riskLevelColor(pid === 'gas-weighted' ? 'gas_weighted' :
-                            getRiskLevelFrontend(wti, getProfileBreakeven(pid)));
+                            getRiskLevelFrontend(profileNetBack, profileBE));
                         return '<div style="width: ' + pct + '%; background: ' + color + '; height: 8px;" title="' + (profileNames[pid] || pid) + ': ' + count + '"></div>';
                     }).join('');
                     barHtml = '<div style="display: flex; border-radius: 4px; overflow: hidden; margin: 0.5rem 0;">' + segments + '</div>';
@@ -6123,7 +6195,7 @@
                         </div>
                         <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
                             ${avgBE !== null ? '<div>Avg Breakeven: <strong>$' + avgBE.toFixed(0) + '/bbl</strong></div>' : ''}
-                            ${cushion !== null ? '<div>Cushion: <strong style="color: ' + (cushion >= 0 ? '#10b981' : '#ef4444') + ';">' + (cushion >= 0 ? '+' : '') + '$' + cushion.toFixed(0) + '</strong></div>' : ''}
+                            ${cushion !== null ? '<div>Net-Back Cushion: <strong style="color: ' + (cushion >= 0 ? '#10b981' : '#ef4444') + ';">' + (cushion >= 0 ? '+' : '') + '$' + cushion.toFixed(0) + '</strong></div>' : ''}
                             ${f.atRiskCount > 0 ? '<div style="color: #ef4444;"><strong>' + f.atRiskCount + '</strong> at risk</div>' : ''}
                         </div>
                         ${barHtml}
@@ -6145,8 +6217,8 @@
             return map[profileId] || 38;
         }
 
-        function getRiskLevelFrontend(wti, breakeven) {
-            const cushionPct = ((wti - breakeven) / breakeven) * 100;
+        function getRiskLevelFrontend(netBack, breakeven) {
+            const cushionPct = netBack > 0 ? ((netBack - breakeven) / netBack) * 100 : -100;
             if (cushionPct > 25) return 'comfortable';
             if (cushionPct > 10) return 'adequate';
             if (cushionPct > 0) return 'tight';
@@ -6156,8 +6228,24 @@
         // ---- METHODOLOGY TAB ----
 
         function renderRiskMethodologyTab(data) {
+            const avgDisc = data.summary.avgDiscountPct ? data.summary.avgDiscountPct.toFixed(1) : '20.0';
+            const deductionWells = data.summary.wellsWithDeductionData || 0;
             return `
                 <div style="max-width: 720px;">
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Net-back pricing</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            This report uses <strong>net-back pricing</strong> instead of raw WTI to evaluate risk. The net-back price is what the mineral owner actually receives after all deductions:
+                        </p>
+                        <div style="background: var(--bg-tertiary); border-radius: 8px; padding: 1rem; margin: 0.75rem 0; font-family: monospace; font-size: 0.875rem; color: var(--text-primary);">
+                            Net-Back = WTI &times; (1 &minus; All-in Discount)<br>
+                            All-in Discount = 1 &minus; (Net Value &minus; GP Tax &minus; PE Tax) / Gross Value
+                        </div>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0.5rem 0 0;">
+                            The all-in discount is computed <strong>per well</strong> from trailing 12-month OTC tax records. It captures marketing deductions (gas gathering/processing), gross production tax (~7%), and petroleum excise tax. A <strong>15% floor</strong> is applied because OTC data does not track oil-side deductions (gathering, transportation, basis differentials) &mdash; those happen at the operator level via check stubs. Currently <strong>${deductionWells} wells</strong> have OTC financial data (portfolio average: ${avgDisc}% discount). Wells without OTC data use a 20% default.
+                        </p>
+                    </div>
+
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">What is half-cycle breakeven?</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
@@ -6182,20 +6270,20 @@
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Risk level thresholds</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0 0 0.5rem;">
-                            Risk is measured as a <strong>percentage cushion above breakeven</strong>, which naturally scales across low and high oil price environments:
+                            Risk is measured as a <strong>net-back margin</strong>: (net-back &minus; breakeven) / net-back. This naturally scales across different price environments and deduction levels:
                         </p>
                         <div style="display: grid; gap: 0.5rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #10b981;"></span>
-                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Comfortable</strong> &mdash; More than 25% above breakeven</span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Comfortable</strong> &mdash; More than 25% margin above breakeven</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #14b8a6;"></span>
-                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Adequate</strong> &mdash; 10&ndash;25% above breakeven</span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Adequate</strong> &mdash; 10&ndash;25% margin above breakeven</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #f59e0b;"></span>
-                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Tight</strong> &mdash; 0&ndash;10% above breakeven</span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Tight</strong> &mdash; 0&ndash;10% margin above breakeven</span>
                             </div>
                             <div style="display: flex; align-items: center; gap: 0.75rem;">
                                 <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #ef4444;"></span>
@@ -6205,23 +6293,33 @@
                     </div>
 
                     <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Price sensitivity columns</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            <strong>Stressed At</strong> shows the WTI price where a well&rsquo;s net-back margin drops to 10% (the tight threshold). <strong>Critical At</strong> shows the WTI price where the net-back equals breakeven &mdash; below this, the well operates at a loss. These thresholds are personalized per well based on actual deduction rates from OTC data. Wells with higher deductions have higher stress thresholds, making their margins more sensitive to WTI drops.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Gas-weighted wells</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Wells where gas production (converted to BOE at 6:1) exceeds twice the oil production are flagged as <strong>gas-weighted</strong>. Their economics depend on Henry Hub natural gas pricing, not WTI crude oil. These wells are identified separately and are not scored against the oil breakeven threshold. A dedicated gas breakeven analysis is planned for Phase 2.
+                            Wells where gas production (converted to BOE at 6:1) exceeds twice the oil production are flagged as <strong>gas-weighted</strong>. Their economics depend on natural gas pricing, not WTI crude oil. Where available, a <strong>realized gas price</strong> is computed from OTC data (actual revenue per MCF) rather than relying on Henry Hub index prices. These wells are identified separately and are not scored against the oil breakeven threshold.
                         </p>
                     </div>
 
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Data sources</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Formation data is extracted from <strong>OCC Form 1002A completion reports</strong>, normalized to standard geological groups. Commodity prices are from the <strong>OilPriceAPI/EIA</strong>, cached and refreshed daily. Breakeven estimates are sourced from the Dallas Fed Energy Survey (2025), public operator 10-K/10-Q filings (Devon, Coterra, Continental, SandRidge), and Oklahoma stripper well commission data.
+                            <strong>Deductions:</strong> Per-well all-in discount from Oklahoma Tax Commission (OTC) gross production reports &mdash; trailing 12-month actuals including marketing deductions, GP tax, and PE tax.
+                            <strong>Formation data:</strong> OCC Form 1002A completion reports, normalized to geological groups.
+                            <strong>Prices:</strong> OilPriceAPI/EIA, refreshed daily.
+                            <strong>Breakeven:</strong> Dallas Fed Energy Survey, public operator filings (Devon, Coterra, Continental, SandRidge), Oklahoma stripper well commission data.
                         </p>
                     </div>
 
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Limitations</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Phase 1 uses <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. These profiles provide directional risk assessment, not precise per-well cost accounting. County-level and production-rate refinements are planned for Phase 2.
+                            Breakeven estimates use <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. Wells without OTC financial data use a 20% default discount (the Oklahoma average). OTC data lags by 2&ndash;3 months from the reporting period.
                         </p>
                     </div>
                 </div>`;
@@ -6233,15 +6331,21 @@
             if (!lastWellRiskData) return;
             const wti = lastWellRiskData.wtiPrice.price;
 
-            const rows = [['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Formation Group', 'Profile', 'Breakeven ($/bbl)', 'WTI ($/bbl)', 'Cushion ($)', 'Cushion (%)', 'Risk Level']];
+            const rows = [['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Formation Group', 'Profile', 'Breakeven ($/bbl)', 'WTI ($/bbl)', 'Deductions (%)', 'Net-Back ($/bbl)', 'Cushion ($)', 'Cushion (%)', 'Risk Level', 'Stressed At WTI ($)', 'Critical At WTI ($)', 'Has OTC Data']];
             for (const w of lastWellRiskData.wells) {
                 rows.push([
                     w.wellName || '', w.apiNumber || '', w.operator || '', w.county || '',
                     w.formationCanonical || '', w.formationGroup || '',
                     w.profileName || '', w.halfCycleBreakeven !== null ? w.halfCycleBreakeven : '',
-                    wti, w.cushionDollar !== null ? w.cushionDollar.toFixed(2) : '',
+                    wti,
+                    w.totalDiscountPct !== null ? w.totalDiscountPct.toFixed(1) : '',
+                    w.netBackPrice !== null ? w.netBackPrice.toFixed(2) : '',
+                    w.cushionDollar !== null ? w.cushionDollar.toFixed(2) : '',
                     w.cushionPct !== null ? w.cushionPct.toFixed(1) : '',
-                    riskLevelLabel(w.riskLevel)
+                    riskLevelLabel(w.riskLevel),
+                    w.stressedAtWti !== null ? w.stressedAtWti.toFixed(0) : '',
+                    w.criticalAtWti !== null ? w.criticalAtWti.toFixed(0) : '',
+                    w.hasDeductionData ? 'Yes' : 'No'
                 ]);
             }
 
