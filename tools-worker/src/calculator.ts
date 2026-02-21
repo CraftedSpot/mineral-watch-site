@@ -8,15 +8,15 @@ export function renderCalculator(): string {
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Oklahoma Mineral Calculator — NRI, Royalties, Pooling &amp; Valuation | Mineral Watch</title>
-    <meta name="description" content="Free mineral rights calculator for Oklahoma. Calculate your decimal interest (NRI), verify division orders, estimate royalties, compare pooling elections, and value your minerals.">
+    <meta name="description" content="Free Oklahoma mineral calculator. Compute your NRI, estimate royalties, compare pooling elections, and verify division orders.">
     <link rel="canonical" href="https://mymineralwatch.com/tools/mineral-calculator">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mymineralwatch.com/tools/mineral-calculator">
     <meta property="og:title" content="Oklahoma Mineral Calculator — NRI, Royalties, Pooling &amp; Valuation | Mineral Watch">
-    <meta property="og:description" content="Free mineral rights calculator for Oklahoma. Calculate your decimal interest (NRI), verify division orders, estimate royalties, compare pooling elections, and value your minerals.">
+    <meta property="og:description" content="Free Oklahoma mineral calculator. Compute your NRI, estimate royalties, compare pooling elections, and verify division orders.">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Oklahoma Mineral Calculator | Mineral Watch">
-    <meta name="twitter:description" content="Free mineral rights calculator for Oklahoma. Calculate your NRI, verify division orders, estimate royalties, compare pooling elections, and value your minerals.">
+    <meta name="twitter:description" content="Free Oklahoma mineral calculator. Compute your NRI, estimate royalties, compare pooling elections, and verify division orders.">
 
     <script type="application/ld+json">
     {

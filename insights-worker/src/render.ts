@@ -180,16 +180,16 @@ export function renderInsightsHub(): string {
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
     <title>Mineral Rights Insights & Guides | Mineral Watch</title>
-    <meta name="description" content="Educational guides, OCC filing explainers, county drilling activity, and mineral rights resources for Oklahoma mineral owners. From pooling orders to production analysis.">
+    <meta name="description" content="Guides on pooling orders, division orders, royalty audits, OCC filings, and more. Free resources for Oklahoma mineral owners.">
     <link rel="canonical" href="https://mymineralwatch.com/insights">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://mymineralwatch.com/insights">
-    <meta property="og:title" content="Mineral Rights Insights — Guides, Analysis & County Data | Mineral Watch">
-    <meta property="og:description" content="Educational guides, OCC filing explainers, county drilling activity, and mineral rights resources for Oklahoma mineral owners.">
+    <meta property="og:title" content="Mineral Rights Insights & Guides | Mineral Watch">
+    <meta property="og:description" content="Guides on pooling orders, division orders, royalty audits, OCC filings, and more. Free resources for Oklahoma mineral owners.">
     <meta property="og:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Mineral Rights Insights | Mineral Watch">
-    <meta name="twitter:description" content="Educational guides, OCC filing explainers, county drilling activity, and mineral rights resources for Oklahoma mineral owners.">
+    <meta name="twitter:description" content="Guides on pooling orders, division orders, royalty audits, OCC filings, and more. Free resources for Oklahoma mineral owners.">
     <meta name="twitter:image" content="https://mymineralwatch.com/assets/pooling-bonus-rates-by-township.png">
     <script type="application/ld+json">
     {
@@ -596,7 +596,7 @@ const ARTICLES: Record<string, Article> = {
   'understanding-pooling-orders': {
     slug: 'understanding-pooling-orders',
     title: 'Pooling Orders: What Oklahoma Owners Must Know',
-    description: 'A complete guide to Oklahoma pooling orders for mineral owners. Learn what a pooling order means, your election options, how to evaluate bonus rates, common mistakes, and when to hire an attorney.',
+    description: 'Understand your pooling order options, evaluate bonus rates, avoid common mistakes, and know when to hire an attorney. A guide for Oklahoma mineral owners.',
     canonical: 'https://mymineralwatch.com/insights/guides/understanding-pooling-orders',
     ogImage: 'https://mymineralwatch.com/assets/insights/pooling-orders-guide.jpg',
     tag: 'Essential Guide',
@@ -769,7 +769,7 @@ const ARTICLES: Record<string, Article> = {
   'division-orders-101': {
     slug: 'division-orders-101',
     title: 'Division Orders 101 for Mineral Owners',
-    description: 'A complete guide to division orders for Oklahoma mineral owners. Learn what a division order is, how to verify your decimal interest, whether to sign it, and what to do if the numbers look wrong.',
+    description: 'What is a division order, should you sign it, and how do you verify your decimal interest? A practical guide for Oklahoma mineral owners.',
     canonical: 'https://mymineralwatch.com/insights/guides/division-orders-101',
     ogImage: 'https://mymineralwatch.com/assets/insights/division-orders-guide.jpg',
     tag: 'Essential Guide',
@@ -825,7 +825,7 @@ const ARTICLES: Record<string, Article> = {
   'navigating-occ-website': {
     slug: 'navigating-occ-website',
     title: 'How to Navigate the OCC Website',
-    description: 'Step-by-step guide to using the Oklahoma Corporation Commission website. Learn how to search well records, find spacing and pooling orders, look up drilling permits, and monitor filings on your mineral sections.',
+    description: 'Learn how to search well records, find pooling and spacing orders, and monitor OCC filings on your mineral sections. Step-by-step with screenshots.',
     canonical: 'https://mymineralwatch.com/insights/guides/navigating-occ-website',
     ogImage: 'https://mymineralwatch.com/assets/insights/navigating-occ-website-guide.jpg',
     tag: 'Guide',
@@ -885,7 +885,7 @@ const ARTICLES: Record<string, Article> = {
   'auditing-royalty-checks': {
     slug: 'auditing-royalty-checks',
     title: 'How to Audit Your Royalty Checks',
-    description: 'A practical guide to auditing your Oklahoma oil and gas royalty checks. Learn how to verify production volumes, pricing, deductions, and net revenue interest \u2014 and what to do when the numbers don\u2019t add up.',
+    description: 'Verify production volumes, pricing, deductions, and NRI on your Oklahoma royalty checks. Practical steps to catch errors and recover underpayments.',
     canonical: 'https://mymineralwatch.com/insights/guides/auditing-royalty-checks',
     ogImage: 'https://mymineralwatch.com/assets/insights/auditing-royalty-checks-guide.jpg',
     tag: 'Analysis',
