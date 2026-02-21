@@ -27,6 +27,10 @@
                     wellsWtiDate = data.wti.date || null;
                     const ann = document.getElementById('wellsWtiAnnotation');
                     if (ann) ann.textContent = 'At $' + wellsWtiPrice.toFixed(2) + ' WTI';
+                    // Re-render if wells already loaded (price arrived late)
+                    if (typeof loadedWells !== 'undefined' && loadedWells.length > 0) {
+                        renderWellsTable(false);
+                    }
                 }
             } catch (e) {
                 console.error('[wells] WTI price fetch failed:', e);
