@@ -6520,3 +6520,452 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
     }, 500);
   }
 }
+
+// ============================
+// WELL RISK PROFILE REPORT
+// ============================
+
+/**
+ * Pre-compute risk profile assignments on all wells.
+ * Called from daily cron (0 8 * * *) after OTC sync.
+ * Also caches WTI/Henry Hub prices in KV.
+ */
+export async function precomputeRiskProfiles(env: Env): Promise<void> {
+  console.log('[Risk Profiles] Starting pre-compute...');
+
+  // Step 1: Refresh commodity prices in KV
+  try {
+    const priceResp = await fetch('https://tools.mymineralwatch.com/api/prices');
+    const prices = await priceResp.json() as Record<string, any>;
+    await env.OCC_CACHE.put('commodity-prices-cached', JSON.stringify({
+      wti: prices.wti?.price || null,
+      henryHub: prices.henryHub?.price || null,
+      updatedAt: new Date().toISOString(),
+      source: prices.source || 'tools-worker'
+    }), { expirationTtl: 86400 });
+    console.log('[Risk Profiles] Cached commodity prices: WTI=$' + (prices.wti?.price || '?'));
+  } catch (e) {
+    console.error('[Risk Profiles] Failed to cache prices:', e);
+  }
+
+  // Step 2: Reset + batch UPDATE wells with risk_profile_id
+  const db = env.WELLS_DB!;
+
+  // 0. Reset all profiles (ensures re-evaluation on data corrections)
+  await db.prepare('UPDATE wells SET risk_profile_id = NULL').run();
+
+  // 1. SCOOP/STACK Horizontal (highest confidence)
+  await db.prepare(
+    `UPDATE wells SET risk_profile_id = 'scoop-stack-hz'
+     WHERE is_horizontal = 1
+       AND formation_group IN ('Mississippian', 'Woodford', 'Springer')`
+  ).run();
+
+  // 2. Other Horizontal
+  await db.prepare(
+    `UPDATE wells SET risk_profile_id = 'other-hz'
+     WHERE is_horizontal = 1
+       AND risk_profile_id IS NULL`
+  ).run();
+
+  // 3. Deep Conventional Vertical
+  await db.prepare(
+    `UPDATE wells SET risk_profile_id = 'deep-conventional'
+     WHERE is_horizontal = 0
+       AND formation_group IN ('Hunton', 'Viola', 'Simpson', 'Arbuckle')`
+  ).run();
+
+  // 4. Conventional Vertical (has formation data)
+  await db.prepare(
+    `UPDATE wells SET risk_profile_id = 'conventional-vert'
+     WHERE is_horizontal = 0
+       AND formation_group IS NOT NULL
+       AND risk_profile_id IS NULL`
+  ).run();
+
+  // 5. Unknown Formation (no formation data at all)
+  await db.prepare(
+    `UPDATE wells SET risk_profile_id = 'unknown-formation'
+     WHERE risk_profile_id IS NULL`
+  ).run();
+
+  console.log('[Risk Profiles] Pre-compute complete.');
+}
+
+interface RiskWellRow {
+  client_well_id: string;
+  api_number: string;
+  cw_well_name: string | null;
+  well_name: string | null;
+  operator: string | null;
+  county: string | null;
+  well_type: string | null;
+  formation_name: string | null;
+  formation_canonical: string | null;
+  formation_group: string | null;
+  risk_profile_id: string | null;
+  completion_date: string | null;
+  profile_name: string | null;
+  half_cycle_breakeven: number | null;
+  full_cycle_breakeven: number | null;
+  typical_loe_per_boe: number | null;
+  is_gas_flag: number | null;
+  profile_description: string | null;
+  pun: string | null;
+  last_prod_month: string | null;
+  is_stale: number | null;
+  decline_rate_12m: number | null;
+}
+
+function getRiskLevel(wtiPrice: number, breakeven: number): { level: string; cushionPct: number; cushionDollar: number } {
+  const cushionDollar = wtiPrice - breakeven;
+  const cushionPct = (cushionDollar / breakeven) * 100;
+  let level: string;
+  if (cushionPct > 25) level = 'comfortable';
+  else if (cushionPct > 10) level = 'adequate';
+  else if (cushionPct > 0) level = 'tight';
+  else level = 'at_risk';
+  return { level, cushionPct, cushionDollar };
+}
+
+/**
+ * GET /api/intelligence/well-risk-profile
+ *
+ * Breakeven analysis for user's tracked wells at current WTI price.
+ * Formation-based profile assignment determines breakeven; risk level
+ * computed as % cushion above breakeven.
+ */
+export async function handleGetWellRiskProfile(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    // Check KV cache
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`well-risk-profile:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Well Risk Profile] Cache read error:', e);
+      }
+    }
+
+    // Step 1: Get cached WTI price
+    let wtiPrice: number | null = null;
+    let henryHubPrice: number | null = null;
+    let priceDate: string | null = null;
+    let priceSource = 'tools-worker';
+
+    if (env.OCC_CACHE) {
+      try {
+        const cachedPrices = await env.OCC_CACHE.get('commodity-prices-cached', 'json') as {
+          wti: number | null; henryHub: number | null; updatedAt: string; source: string;
+        } | null;
+        if (cachedPrices) {
+          wtiPrice = cachedPrices.wti;
+          henryHubPrice = cachedPrices.henryHub;
+          priceDate = cachedPrices.updatedAt;
+          priceSource = cachedPrices.source;
+        }
+      } catch (e) { /* ignore */ }
+    }
+
+    // Fallback: fetch live prices if not cached
+    if (wtiPrice === null) {
+      try {
+        const priceResp = await fetch('https://tools.mymineralwatch.com/api/prices');
+        const prices = await priceResp.json() as Record<string, any>;
+        wtiPrice = prices.wti?.price || null;
+        henryHubPrice = prices.henryHub?.price || null;
+        priceDate = new Date().toISOString();
+        priceSource = prices.source || 'tools-worker';
+      } catch (e) {
+        console.error('[Well Risk Profile] Price fetch failed:', e);
+      }
+    }
+
+    if (wtiPrice === null) {
+      return jsonResponse({ error: 'Unable to retrieve current oil prices. Please try again later.' }, 503);
+    }
+
+    // Step 2: Query user's tracked wells with risk profile data
+    const db = env.WELLS_DB!;
+
+    const wellsQuery = `
+      SELECT cw.id as client_well_id, cw.api_number, cw.well_name as cw_well_name,
+             w.well_name, w.operator, w.county, w.well_type,
+             w.formation_name, w.formation_canonical, w.formation_group,
+             w.risk_profile_id, w.completion_date,
+             rp.name as profile_name, rp.half_cycle_breakeven,
+             rp.full_cycle_breakeven, rp.typical_loe_per_boe,
+             rp.is_gas_flag, rp.description as profile_description,
+             wpl.pun, p.last_prod_month, p.is_stale, p.decline_rate_12m
+      FROM client_wells cw
+      JOIN wells w ON w.api_number = cw.api_number
+      LEFT JOIN well_risk_profiles rp ON rp.id = w.risk_profile_id
+      LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
+      LEFT JOIN puns p ON p.pun = wpl.pun
+      WHERE (cw.organization_id = ? OR cw.user_id IN
+        (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+    `;
+
+    const wellsResult = await db.prepare(wellsQuery)
+      .bind(userOrgId || '', userOrgId || '')
+      .all();
+
+    const rows = wellsResult.results as unknown as RiskWellRow[];
+
+    // Deduplicate by api_number (keep row with latest production)
+    const wellsByApi = new Map<string, RiskWellRow>();
+    for (const row of rows) {
+      const existing = wellsByApi.get(row.api_number);
+      if (!existing) {
+        wellsByApi.set(row.api_number, row);
+      } else if (row.last_prod_month && (!existing.last_prod_month || row.last_prod_month > existing.last_prod_month)) {
+        wellsByApi.set(row.api_number, row);
+      }
+    }
+
+    const allWells = Array.from(wellsByApi.values());
+    console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWells.length, 'wells');
+
+    // Step 3: Gas-weighted detection via recent production
+    const punsToCheck = allWells
+      .filter(w => w.pun)
+      .map(w => w.pun!);
+
+    const gasWeightedPuns = new Set<string>();
+
+    if (punsToCheck.length > 0) {
+      // Last 6 months cutoff
+      const now = new Date();
+      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      const cutoff = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+      // Batch in groups of 30 (D1 param limit)
+      const BATCH_SIZE = 30;
+      for (let i = 0; i < punsToCheck.length; i += BATCH_SIZE) {
+        const batch = punsToCheck.slice(i, i + BATCH_SIZE);
+        const placeholders = batch.map(() => '?').join(',');
+
+        try {
+          const gasResult = await db.prepare(`
+            SELECT base_pun,
+              SUM(CASE WHEN product_code IN ('3','5','6') THEN volume ELSE 0 END) as gas_vol,
+              SUM(CASE WHEN product_code = '1' THEN volume ELSE 0 END) as oil_vol
+            FROM otc_production
+            WHERE base_pun IN (${placeholders})
+              AND year_month >= ?
+            GROUP BY base_pun
+          `).bind(...batch, cutoff).all();
+
+          for (const r of gasResult.results as Array<{ base_pun: string; gas_vol: number; oil_vol: number }>) {
+            const gasBoe = (r.gas_vol || 0) / 6; // MCF to BOE
+            const oilBoe = r.oil_vol || 0;
+            if (gasBoe > 2 * oilBoe && gasBoe > 0) {
+              gasWeightedPuns.add(r.base_pun);
+            }
+          }
+        } catch (e) {
+          console.error('[Well Risk Profile] Gas detection batch error:', e);
+        }
+      }
+    }
+
+    console.log('[Well Risk Profile] Gas-weighted PUNs:', gasWeightedPuns.size);
+
+    // Step 4: Compute risk level per well
+    let atRiskCount = 0;
+    let tightCount = 0;
+    let adequateCount = 0;
+    let comfortableCount = 0;
+    let gasWeightedCount = 0;
+    let scoredCushionSum = 0;
+    let scoredCount = 0;
+
+    const wells: Array<{
+      clientWellId: string;
+      wellName: string;
+      apiNumber: string;
+      operator: string;
+      county: string;
+      wellType: string;
+      formationCanonical: string | null;
+      formationGroup: string | null;
+      profileId: string;
+      profileName: string;
+      halfCycleBreakeven: number | null;
+      riskLevel: string;
+      cushionDollar: number | null;
+      cushionPct: number | null;
+      isGasWeighted: boolean;
+      isStale: boolean;
+      lastProdMonth: string | null;
+      declineRate12m: number | null;
+    }> = [];
+
+    for (const w of allWells) {
+      const isGasWeighted = w.pun ? gasWeightedPuns.has(w.pun) : false;
+      const profileId = isGasWeighted ? 'gas-weighted' : (w.risk_profile_id || 'unknown-formation');
+      const profileName = isGasWeighted ? 'Gas-Weighted' : (w.profile_name || 'Unknown Formation');
+      const breakeven = isGasWeighted ? null : (w.half_cycle_breakeven ?? 38); // fallback to blended avg
+
+      let riskLevel: string;
+      let cushionDollar: number | null = null;
+      let cushionPct: number | null = null;
+
+      if (isGasWeighted) {
+        riskLevel = 'gas_weighted';
+        gasWeightedCount++;
+      } else {
+        const risk = getRiskLevel(wtiPrice, breakeven!);
+        riskLevel = risk.level;
+        cushionDollar = Math.round(risk.cushionDollar * 100) / 100;
+        cushionPct = Math.round(risk.cushionPct * 10) / 10;
+        scoredCushionSum += risk.cushionDollar;
+        scoredCount++;
+
+        if (riskLevel === 'at_risk') atRiskCount++;
+        else if (riskLevel === 'tight') tightCount++;
+        else if (riskLevel === 'adequate') adequateCount++;
+        else comfortableCount++;
+      }
+
+      wells.push({
+        clientWellId: w.client_well_id,
+        wellName: w.well_name || w.cw_well_name || 'Unknown',
+        apiNumber: w.api_number,
+        operator: w.operator || 'Unknown',
+        county: w.county || 'Unknown',
+        wellType: w.well_type || 'Unknown',
+        formationCanonical: w.formation_canonical,
+        formationGroup: w.formation_group,
+        profileId,
+        profileName,
+        halfCycleBreakeven: isGasWeighted ? null : breakeven,
+        riskLevel,
+        cushionDollar,
+        cushionPct,
+        isGasWeighted,
+        isStale: w.is_stale === 1,
+        lastProdMonth: w.last_prod_month,
+        declineRate12m: w.decline_rate_12m
+      });
+    }
+
+    // Step 5: Build byProfile summary
+    const profileMap = new Map<string, { profileId: string; profileName: string; halfCycleBreakeven: number | null; wellCount: number; riskLevel: string; isGasFlag: boolean }>();
+    for (const w of wells) {
+      const existing = profileMap.get(w.profileId);
+      if (!existing) {
+        const isGas = w.profileId === 'gas-weighted';
+        profileMap.set(w.profileId, {
+          profileId: w.profileId,
+          profileName: w.profileName,
+          halfCycleBreakeven: w.halfCycleBreakeven,
+          wellCount: 1,
+          riskLevel: isGas ? 'gas_weighted' : getRiskLevel(wtiPrice, w.halfCycleBreakeven || 38).level,
+          isGasFlag: isGas
+        });
+      } else {
+        existing.wellCount++;
+      }
+    }
+
+    const byProfile = Array.from(profileMap.values()).sort((a, b) => {
+      const order: Record<string, number> = { 'scoop-stack-hz': 1, 'other-hz': 2, 'deep-conventional': 3, 'conventional-vert': 4, 'unknown-formation': 5, 'gas-weighted': 6 };
+      return (order[a.profileId] || 99) - (order[b.profileId] || 99);
+    });
+
+    // Step 6: Build byFormation summary
+    const formationMap = new Map<string, {
+      formationGroup: string;
+      wellCount: number;
+      breakevenSum: number;
+      breakevenCount: number;
+      profileDistribution: Record<string, number>;
+      atRiskCount: number;
+    }>();
+
+    for (const w of wells) {
+      const fg = w.formationGroup || 'Unknown';
+      let entry = formationMap.get(fg);
+      if (!entry) {
+        entry = { formationGroup: fg, wellCount: 0, breakevenSum: 0, breakevenCount: 0, profileDistribution: {}, atRiskCount: 0 };
+        formationMap.set(fg, entry);
+      }
+      entry.wellCount++;
+      if (w.halfCycleBreakeven !== null) {
+        entry.breakevenSum += w.halfCycleBreakeven;
+        entry.breakevenCount++;
+      }
+      entry.profileDistribution[w.profileId] = (entry.profileDistribution[w.profileId] || 0) + 1;
+      if (w.riskLevel === 'at_risk') entry.atRiskCount++;
+    }
+
+    const byFormation = Array.from(formationMap.values())
+      .map(f => ({
+        formationGroup: f.formationGroup,
+        wellCount: f.wellCount,
+        avgBreakeven: f.breakevenCount > 0 ? Math.round(f.breakevenSum / f.breakevenCount * 100) / 100 : null,
+        profileDistribution: f.profileDistribution,
+        atRiskCount: f.atRiskCount
+      }))
+      .sort((a, b) => b.wellCount - a.wellCount);
+
+    // Step 7: Build response
+    const profileCount = wells.filter(w => w.profileId !== 'unknown-formation').length;
+    const coverageRate = allWells.length > 0 ? Math.round((profileCount / allWells.length) * 100) : 0;
+
+    const responseData = {
+      wtiPrice: { price: wtiPrice, date: priceDate, source: priceSource },
+      henryHubPrice: henryHubPrice ? { price: henryHubPrice, date: priceDate } : null,
+      summary: {
+        totalWells: allWells.length,
+        atRiskCount,
+        tightCount,
+        adequateCount,
+        comfortableCount,
+        gasWeightedCount,
+        avgCushion: scoredCount > 0 ? Math.round(scoredCushionSum / scoredCount * 100) / 100 : 0,
+        coverageRate
+      },
+      wells,
+      byProfile,
+      byFormation
+    };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(`well-risk-profile:${cacheId}`, JSON.stringify(responseData), { expirationTtl: 3600 });
+      } catch (e) {
+        console.error('[Well Risk Profile] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(responseData);
+
+  } catch (error) {
+    console.error('[Well Risk Profile] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load well risk profile',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}

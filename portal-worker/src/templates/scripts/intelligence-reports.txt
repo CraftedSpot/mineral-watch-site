@@ -5739,3 +5739,519 @@
             URL.revokeObjectURL(url);
         }
 
+        // =============================================
+        // WELL RISK PROFILE REPORT
+        // =============================================
+
+        let lastWellRiskData = null;
+        let riskCurrentTab = 'overview';
+
+        async function loadWellRiskProfileReport(forceRefresh = false) {
+            history.pushState({ intelView: 'report' }, '');
+            intelViewOpen = 'report';
+            currentReportType = 'well-risk-profile';
+            riskCurrentTab = 'overview';
+
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            document.getElementById('reportBreadcrumb').textContent = 'Well Risk Profile';
+            document.getElementById('reportTitle').textContent = 'Well Risk Profile';
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Analyzing breakeven economics for your wells...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 20000);
+
+                const url = forceRefresh ? '/api/intelligence/well-risk-profile?refresh=1' : '/api/intelligence/well-risk-profile';
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) throw new Error('API returned ' + response.status);
+
+                const data = await response.json();
+                lastWellRiskData = data;
+                renderWellRiskProfileReport(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Well risk profile request timed out');
+                } else {
+                    console.error('Failed to load well risk profile:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load risk profile data. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadWellRiskProfileReport(true)">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        function riskLevelLabel(level) {
+            switch (level) {
+                case 'comfortable': return 'Comfortable';
+                case 'adequate': return 'Adequate';
+                case 'tight': return 'Tight';
+                case 'at_risk': return 'At Risk';
+                case 'gas_weighted': return 'Gas';
+                default: return level;
+            }
+        }
+
+        function riskLevelBadgeStyle(level) {
+            switch (level) {
+                case 'comfortable': return 'background: #d1fae5; color: #065f46;';
+                case 'adequate': return 'background: #ccfbf1; color: #0f766e;';
+                case 'tight': return 'background: #fef3c7; color: #92400e;';
+                case 'at_risk': return 'background: #fee2e2; color: #991b1b;';
+                case 'gas_weighted': return 'background: #ede9fe; color: #5b21b6;';
+                default: return 'background: #f3f4f6; color: #374151;';
+            }
+        }
+
+        function riskLevelColor(level) {
+            switch (level) {
+                case 'comfortable': return '#10b981';
+                case 'adequate': return '#14b8a6';
+                case 'tight': return '#f59e0b';
+                case 'at_risk': return '#ef4444';
+                case 'gas_weighted': return '#8b5cf6';
+                default: return '#9ca3af';
+            }
+        }
+
+        function renderWellRiskProfileReport(data) {
+            const { wtiPrice, henryHubPrice, summary, wells, byProfile, byFormation } = data;
+
+            // Header badges
+            document.getElementById('reportSubtitle').textContent =
+                summary.totalWells + ' wells analyzed at $' + wtiPrice.price.toFixed(2) + '/bbl WTI';
+
+            const statusEl = document.getElementById('reportStatus');
+            if (summary.atRiskCount > 0) {
+                statusEl.textContent = summary.atRiskCount + ' at risk';
+                statusEl.className = 'report-status report-status-danger';
+            } else if (summary.tightCount > 0) {
+                statusEl.textContent = 'All above breakeven';
+                statusEl.className = 'report-status report-status-warning';
+            } else {
+                statusEl.textContent = 'Portfolio healthy';
+                statusEl.className = 'report-status report-status-success';
+            }
+
+            document.getElementById('reportMeta').textContent =
+                'Profile coverage: ' + summary.coverageRate + '%';
+
+            // WTI Price Banner
+            const priceDate = wtiPrice.date ? new Date(wtiPrice.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Unknown';
+            let priceBanner = `
+                <div style="background: linear-gradient(135deg, #1e3a5f, #0f172a); color: #fff; padding: 1rem 1.25rem; border-radius: 10px; margin-bottom: 1.25rem; display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">WTI Crude</div>
+                        <div style="font-size: 1.5rem; font-weight: 700;">$${wtiPrice.price.toFixed(2)}<span style="font-size: 0.875rem; font-weight: 400; color: #94a3b8;">/bbl</span></div>
+                    </div>`;
+            if (henryHubPrice) {
+                priceBanner += `
+                    <div style="border-left: 1px solid rgba(255,255,255,0.2); padding-left: 1.5rem;">
+                        <div style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em;">Henry Hub</div>
+                        <div style="font-size: 1.5rem; font-weight: 700;">$${henryHubPrice.price.toFixed(2)}<span style="font-size: 0.875rem; font-weight: 400; color: #94a3b8;">/MCF</span></div>
+                    </div>`;
+            }
+            priceBanner += `
+                    <div style="margin-left: auto; font-size: 0.75rem; color: #64748b;">${priceDate} &middot; ${wtiPrice.source || 'OilPriceAPI'}</div>
+                </div>`;
+
+            // HUD Metrics
+            const hudBadges = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: var(--text-primary);">${summary.totalWells}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Total Wells</div>
+                    </div>
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #ef4444;">${summary.atRiskCount}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">At Risk</div>
+                    </div>
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;">${summary.tightCount}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Tight</div>
+                    </div>
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;">${summary.comfortableCount + summary.adequateCount}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Comfortable</div>
+                    </div>
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
+                        <div style="font-size: 1.75rem; font-weight: 700; color: #8b5cf6;">${summary.gasWeightedCount}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Gas-Weighted</div>
+                    </div>
+                </div>`;
+
+            // Tabs
+            const tabs = `
+                <div id="riskTabs" style="display: flex; gap: 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: 1.25rem;">
+                    <button class="pooling-tab active" data-tab="overview" onclick="switchRiskTab('overview')" style="padding: 0.625rem 1.25rem;">Risk Overview</button>
+                    <button class="pooling-tab" data-tab="formation" onclick="switchRiskTab('formation')" style="padding: 0.625rem 1.25rem;">By Formation</button>
+                    <button class="pooling-tab" data-tab="methodology" onclick="switchRiskTab('methodology')" style="padding: 0.625rem 1.25rem;">Methodology</button>
+                </div>
+                <div id="riskTabContent"></div>`;
+
+            document.getElementById('reportContent').innerHTML = priceBanner + hudBadges + tabs;
+            switchRiskTab('overview');
+        }
+
+        function switchRiskTab(tab) {
+            riskCurrentTab = tab;
+
+            const tabContainer = document.getElementById('riskTabs');
+            if (tabContainer) {
+                tabContainer.querySelectorAll('.pooling-tab').forEach(t => t.classList.remove('active'));
+                tabContainer.querySelector('.pooling-tab[data-tab="' + tab + '"]')?.classList.add('active');
+            }
+
+            const content = document.getElementById('riskTabContent');
+            if (!content || !lastWellRiskData) return;
+
+            if (tab === 'overview') {
+                content.innerHTML = renderRiskOverviewTab(lastWellRiskData);
+            } else if (tab === 'formation') {
+                content.innerHTML = renderRiskFormationTab(lastWellRiskData);
+            } else if (tab === 'methodology') {
+                content.innerHTML = renderRiskMethodologyTab(lastWellRiskData);
+            }
+        }
+
+        // ---- RISK OVERVIEW TAB ----
+
+        function renderRiskOverviewTab(data) {
+            const { wells, summary } = data;
+            const wti = data.wtiPrice.price;
+
+            // Build filter options
+            const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+            const riskLevels = ['all', 'at_risk', 'tight', 'adequate', 'comfortable', 'gas_weighted'];
+
+            let html = `
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center;">
+                    <input type="text" id="riskSearchInput" placeholder="Search well or operator..." oninput="filterRiskTable()"
+                        style="flex: 1; min-width: 180px; padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
+                    <select id="riskCountyFilter" onchange="filterRiskTable()"
+                        style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
+                        <option value="">All Counties</option>
+                        ${counties.map(c => '<option value="' + c + '">' + c + '</option>').join('')}
+                    </select>
+                    <select id="riskLevelFilter" onchange="filterRiskTable()"
+                        style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
+                        ${riskLevels.map(l => '<option value="' + l + '">' + (l === 'all' ? 'All Risk Levels' : riskLevelLabel(l)) + '</option>').join('')}
+                    </select>
+                    <select id="riskSortSelect" onchange="filterRiskTable()"
+                        style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem;">
+                        <option value="risk">Sort: Risk Level</option>
+                        <option value="cushion">Sort: Cushion</option>
+                        <option value="name">Sort: Well Name</option>
+                    </select>
+                    <button onclick="exportWellRiskCsv()" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem; cursor: pointer;" title="Export CSV">CSV</button>
+                    <button onclick="loadWellRiskProfileReport(true)" style="padding: 0.5rem 0.75rem; border: 1px solid var(--border-subtle); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 0.8125rem; cursor: pointer;" title="Refresh data">Refresh</button>
+                </div>
+                <div id="riskTableContainer"></div>`;
+
+            if (summary.gasWeightedCount > 0) {
+                html += `
+                    <div style="margin-top: 1rem; padding: 0.875rem 1rem; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; font-size: 0.8125rem; color: #5b21b6; line-height: 1.5;">
+                        <strong style="color: #7c3aed;">Gas-weighted wells</strong> produce primarily natural gas. Their economics depend on
+                        Henry Hub pricing${data.henryHubPrice ? ' ($' + data.henryHubPrice.price.toFixed(2) + '/MCF)' : ''}, not WTI crude. These wells are flagged separately
+                        and not scored against the oil breakeven threshold.
+                    </div>`;
+            }
+
+            // Render table after DOM is ready
+            setTimeout(() => renderRiskTable(), 0);
+
+            return html;
+        }
+
+        function filterRiskTable() {
+            renderRiskTable();
+        }
+
+        function renderRiskTable() {
+            if (!lastWellRiskData) return;
+            const container = document.getElementById('riskTableContainer');
+            if (!container) return;
+
+            let wells = [...lastWellRiskData.wells];
+
+            // Apply filters
+            const search = (document.getElementById('riskSearchInput')?.value || '').toLowerCase();
+            const county = document.getElementById('riskCountyFilter')?.value || '';
+            const level = document.getElementById('riskLevelFilter')?.value || 'all';
+            const sort = document.getElementById('riskSortSelect')?.value || 'risk';
+
+            if (search) {
+                wells = wells.filter(w =>
+                    (w.wellName || '').toLowerCase().includes(search) ||
+                    (w.operator || '').toLowerCase().includes(search) ||
+                    (w.apiNumber || '').includes(search)
+                );
+            }
+            if (county) wells = wells.filter(w => w.county === county);
+            if (level !== 'all') wells = wells.filter(w => w.riskLevel === level);
+
+            // Sort
+            const riskOrder = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3, gas_weighted: 4 };
+            if (sort === 'risk') {
+                wells.sort((a, b) => (riskOrder[a.riskLevel] ?? 5) - (riskOrder[b.riskLevel] ?? 5));
+            } else if (sort === 'cushion') {
+                wells.sort((a, b) => (a.cushionDollar ?? 999) - (b.cushionDollar ?? 999));
+            } else if (sort === 'name') {
+                wells.sort((a, b) => (a.wellName || '').localeCompare(b.wellName || ''));
+            }
+
+            if (wells.length === 0) {
+                container.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No wells match the current filters.</div>';
+                return;
+            }
+
+            let rows = wells.map(w => {
+                const cushionStr = w.isGasWeighted ? '<span style="color: #8b5cf6;">N/A</span>' :
+                    (w.cushionDollar !== null ?
+                        '<span style="color: ' + (w.cushionDollar >= 0 ? '#10b981' : '#ef4444') + '; font-weight: 600;">' +
+                        (w.cushionDollar >= 0 ? '+' : '') + '$' + w.cushionDollar.toFixed(0) +
+                        ' <span style="font-weight: 400; font-size: 0.75rem;">(' + (w.cushionPct >= 0 ? '+' : '') + w.cushionPct.toFixed(0) + '%)</span></span>'
+                    : '—');
+
+                const beStr = w.halfCycleBreakeven !== null ? '$' + w.halfCycleBreakeven : '—';
+                const formStr = w.formationGroup || '<span style="color: var(--text-muted);">Unknown</span>';
+
+                return `
+                    <tr>
+                        <td style="font-weight: 500; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(w.wellName || '').replace(/"/g, '&quot;')}">${w.wellName || 'Unknown'}</td>
+                        <td style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${(w.operator || '').replace(/"/g, '&quot;')}">${w.operator || 'Unknown'}</td>
+                        <td>${formStr}</td>
+                        <td>${w.profileName || '—'}</td>
+                        <td><span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: 500; ${riskLevelBadgeStyle(w.riskLevel)}">${w.isGasWeighted ? 'Gas' : riskLevelLabel(w.riskLevel)}</span></td>
+                        <td style="text-align: right;">${beStr}</td>
+                        <td style="text-align: right;">${cushionStr}</td>
+                    </tr>`;
+            }).join('');
+
+            container.innerHTML = `
+                <div style="overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+                        <thead>
+                            <tr style="background: var(--bg-tertiary); border-bottom: 1px solid var(--border-subtle);">
+                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Well Name</th>
+                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Operator</th>
+                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Formation</th>
+                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Profile</th>
+                                <th style="text-align: left; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Risk</th>
+                                <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Breakeven</th>
+                                <th style="text-align: right; padding: 0.625rem 0.75rem; font-weight: 600; color: var(--text-muted); font-size: 0.75rem;">Cushion</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows}
+                        </tbody>
+                    </table>
+                </div>
+                <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                    Showing ${wells.length} of ${lastWellRiskData.wells.length} wells
+                </div>`;
+        }
+
+        // ---- BY FORMATION TAB ----
+
+        function renderRiskFormationTab(data) {
+            const { byFormation, wtiPrice } = data;
+            const wti = wtiPrice.price;
+
+            if (!byFormation || byFormation.length === 0) {
+                return '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">No formation data available.</div>';
+            }
+
+            const profileNames = {
+                'scoop-stack-hz': 'SCOOP/STACK Hz',
+                'other-hz': 'Other Hz',
+                'deep-conventional': 'Deep Conv.',
+                'conventional-vert': 'Conv. Vertical',
+                'unknown-formation': 'Unknown',
+                'gas-weighted': 'Gas'
+            };
+
+            let cards = byFormation.map(f => {
+                const avgBE = f.avgBreakeven;
+                const cushion = avgBE !== null ? (wti - avgBE) : null;
+                const cushionPct = avgBE !== null && avgBE > 0 ? ((cushion / avgBE) * 100) : null;
+
+                // Risk distribution bar
+                let barHtml = '';
+                const profileEntries = Object.entries(f.profileDistribution || {});
+                if (profileEntries.length > 0) {
+                    const total = f.wellCount;
+                    const segments = profileEntries.map(([pid, count]) => {
+                        const pct = (count / total * 100).toFixed(1);
+                        const level = pid === 'gas-weighted' ? 'gas_weighted' :
+                            (avgBE !== null ? getRiskLevelFrontend(wti, avgBE) : 'adequate');
+                        const color = riskLevelColor(pid === 'gas-weighted' ? 'gas_weighted' :
+                            getRiskLevelFrontend(wti, getProfileBreakeven(pid)));
+                        return '<div style="width: ' + pct + '%; background: ' + color + '; height: 8px;" title="' + (profileNames[pid] || pid) + ': ' + count + '"></div>';
+                    }).join('');
+                    barHtml = '<div style="display: flex; border-radius: 4px; overflow: hidden; margin: 0.5rem 0;">' + segments + '</div>';
+                }
+
+                // Profile breakdown
+                const profileList = profileEntries.map(([pid, count]) =>
+                    (profileNames[pid] || pid) + ' (' + count + ')'
+                ).join(', ');
+
+                return `
+                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1.25rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-primary);">${f.formationGroup}</h4>
+                            <span style="font-size: 0.875rem; font-weight: 600; color: var(--text-secondary);">${f.wellCount} well${f.wellCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                            ${avgBE !== null ? '<div>Avg Breakeven: <strong>$' + avgBE.toFixed(0) + '/bbl</strong></div>' : ''}
+                            ${cushion !== null ? '<div>Cushion: <strong style="color: ' + (cushion >= 0 ? '#10b981' : '#ef4444') + ';">' + (cushion >= 0 ? '+' : '') + '$' + cushion.toFixed(0) + '</strong></div>' : ''}
+                            ${f.atRiskCount > 0 ? '<div style="color: #ef4444;"><strong>' + f.atRiskCount + '</strong> at risk</div>' : ''}
+                        </div>
+                        ${barHtml}
+                        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">${profileList}</div>
+                    </div>`;
+            }).join('');
+
+            return `
+                <div style="display: grid; gap: 0.75rem;">
+                    ${cards}
+                </div>`;
+        }
+
+        function getProfileBreakeven(profileId) {
+            const map = {
+                'scoop-stack-hz': 28, 'other-hz': 35, 'deep-conventional': 45,
+                'conventional-vert': 40, 'unknown-formation': 38
+            };
+            return map[profileId] || 38;
+        }
+
+        function getRiskLevelFrontend(wti, breakeven) {
+            const cushionPct = ((wti - breakeven) / breakeven) * 100;
+            if (cushionPct > 25) return 'comfortable';
+            if (cushionPct > 10) return 'adequate';
+            if (cushionPct > 0) return 'tight';
+            return 'at_risk';
+        }
+
+        // ---- METHODOLOGY TAB ----
+
+        function renderRiskMethodologyTab(data) {
+            return `
+                <div style="max-width: 720px;">
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">What is half-cycle breakeven?</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            Half-cycle breakeven is the oil price needed to cover <strong>lease operating expenses (LOE)</strong> only &mdash; the ongoing costs of keeping an existing well producing. Unlike full-cycle breakeven (which includes drilling &amp; completion costs), half-cycle reflects <strong>sunk cost economics</strong>: for a well that is already drilled, D&amp;C costs are irrelevant. A well is only worth shutting in when oil drops below its half-cycle breakeven.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">How profiles are assigned</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            Each well is assigned a risk profile based on two factors: <strong>formation group</strong> (from OCC 1002A completion reports) and <strong>well type</strong> (horizontal vs. vertical). The combination determines which breakeven range applies:
+                        </p>
+                        <ul style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8; margin: 0.5rem 0; padding-left: 1.25rem;">
+                            <li><strong>SCOOP/STACK Horizontal</strong> &mdash; Mississippian, Woodford, Springer formations &middot; $28/bbl</li>
+                            <li><strong>Other Horizontal</strong> &mdash; Granite Wash, Cleveland, Morrow, etc. &middot; $35/bbl</li>
+                            <li><strong>Deep Conventional</strong> &mdash; Hunton, Viola, Simpson, Arbuckle verticals &middot; $45/bbl</li>
+                            <li><strong>Conventional Vertical</strong> &mdash; Other vertical wells with known formations &middot; $40/bbl</li>
+                            <li><strong>Unknown Formation</strong> &mdash; Blended Oklahoma average &middot; $38/bbl</li>
+                        </ul>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Risk level thresholds</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0 0 0.5rem;">
+                            Risk is measured as a <strong>percentage cushion above breakeven</strong>, which naturally scales across low and high oil price environments:
+                        </p>
+                        <div style="display: grid; gap: 0.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #10b981;"></span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Comfortable</strong> &mdash; More than 25% above breakeven</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #14b8a6;"></span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Adequate</strong> &mdash; 10&ndash;25% above breakeven</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #f59e0b;"></span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>Tight</strong> &mdash; 0&ndash;10% above breakeven</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: #ef4444;"></span>
+                                <span style="font-size: 0.875rem; color: var(--text-secondary);"><strong>At Risk</strong> &mdash; Below breakeven (operating at a loss)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Gas-weighted wells</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            Wells where gas production (converted to BOE at 6:1) exceeds twice the oil production are flagged as <strong>gas-weighted</strong>. Their economics depend on Henry Hub natural gas pricing, not WTI crude oil. These wells are identified separately and are not scored against the oil breakeven threshold. A dedicated gas breakeven analysis is planned for Phase 2.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Data sources</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            Formation data is extracted from <strong>OCC Form 1002A completion reports</strong>, normalized to standard geological groups. Commodity prices are from the <strong>OilPriceAPI/EIA</strong>, cached and refreshed daily. Breakeven estimates are sourced from the Dallas Fed Energy Survey (2025), public operator 10-K/10-Q filings (Devon, Coterra, Continental, SandRidge), and Oklahoma stripper well commission data.
+                        </p>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;">
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Limitations</h3>
+                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                            Phase 1 uses <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. These profiles provide directional risk assessment, not precise per-well cost accounting. County-level and production-rate refinements are planned for Phase 2.
+                        </p>
+                    </div>
+                </div>`;
+        }
+
+        // ---- CSV EXPORT ----
+
+        function exportWellRiskCsv() {
+            if (!lastWellRiskData) return;
+            const wti = lastWellRiskData.wtiPrice.price;
+
+            const rows = [['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Formation Group', 'Profile', 'Breakeven ($/bbl)', 'WTI ($/bbl)', 'Cushion ($)', 'Cushion (%)', 'Risk Level']];
+            for (const w of lastWellRiskData.wells) {
+                rows.push([
+                    w.wellName || '', w.apiNumber || '', w.operator || '', w.county || '',
+                    w.formationCanonical || '', w.formationGroup || '',
+                    w.profileName || '', w.halfCycleBreakeven !== null ? w.halfCycleBreakeven : '',
+                    wti, w.cushionDollar !== null ? w.cushionDollar.toFixed(2) : '',
+                    w.cushionPct !== null ? w.cushionPct.toFixed(1) : '',
+                    riskLevelLabel(w.riskLevel)
+                ]);
+            }
+
+            const csv = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'well-risk-profile-' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+

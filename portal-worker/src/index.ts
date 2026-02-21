@@ -247,13 +247,20 @@ var index_default = {
     const cronExpression = event.cron;
     console.log(`Cron triggered: ${cronExpression}`);
 
-    // Daily OTC sync (8am UTC / 2am CT)
+    // Daily OTC sync (8am UTC / 2am CT) + risk profile pre-compute
     if (cronExpression === '0 8 * * *') {
       console.log('Running daily OTC production sync...');
       try {
         await triggerOTCSync(env);
       } catch (error) {
         console.error('OTC sync trigger failed:', error);
+      }
+      // Pre-compute well risk profiles + cache WTI
+      try {
+        const { precomputeRiskProfiles } = await import('./handlers/intelligence.js');
+        await precomputeRiskProfiles(env);
+      } catch (error) {
+        console.error('Risk profile compute failed:', error);
       }
       return;
     }
@@ -1538,6 +1545,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/intelligence/occ-filing-activity" && request.method === "GET") {
         const { handleGetOccFilingActivity } = await import('./handlers/intelligence.js');
         return handleGetOccFilingActivity(request, env);
+      }
+      if (path === "/api/intelligence/well-risk-profile" && request.method === "GET") {
+        const { handleGetWellRiskProfile } = await import('./handlers/intelligence.js');
+        return handleGetWellRiskProfile(request, env);
       }
 
       // Operator Directory API (contact info, no financial data - fast)
