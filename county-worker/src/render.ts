@@ -142,6 +142,12 @@ main { padding: 60px 0; }
 .operator-wells { font-family: 'Merriweather', serif; font-weight: 700; color: var(--red-dirt); }
 .operator-filings { font-family: 'Merriweather', serif; font-weight: 700; color: var(--slate-blue); }
 .operator-filings.quiet { color: #CBD5E0; font-weight: 400; }
+.op-tabs { display: flex; gap: 0; margin-bottom: 0; }
+.op-tab { padding: 8px 16px; font-size: 13px; font-weight: 600; color: #596674; background: none; border: 1px solid var(--border); border-bottom: none; cursor: pointer; transition: all 0.15s; }
+.op-tab:first-child { border-radius: 4px 0 0 0; }
+.op-tab:last-child { border-radius: 0 4px 0 0; border-left: none; }
+.op-tab.active { color: var(--oil-navy); background: var(--paper); border-bottom: 2px solid var(--red-dirt); }
+.op-tab:not(.active):hover { color: var(--oil-navy); background: #f1f5f9; }
 .county-overview { margin-bottom: 50px; }
 .county-overview h2 { font-size: 22px; margin-bottom: 16px; }
 .county-overview p { color: #4A5568; font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
@@ -275,7 +281,8 @@ document.querySelector('.menu-toggle').addEventListener('click', function() {
 export function renderCountyPage(
   slug: string,
   stats: CountyStats,
-  operators: OperatorRow[],
+  operatorsByWells: OperatorRow[],
+  operatorsByFilings: OperatorRow[],
   activity: ActivityItem[],
 ): string {
   const county = COUNTIES[slug];
@@ -310,27 +317,52 @@ export function renderCountyPage(
     }
   }
 
-  // Build operators table
+  // Build operators table with toggle tabs
   let operatorsHtml = '';
-  if (operators.length === 0) {
+  if (operatorsByWells.length === 0 && operatorsByFilings.length === 0) {
     operatorsHtml = '<p style="color:#596674;padding:20px 0;">No active operators found.</p>';
   } else {
-    operatorsHtml = `
-      <table class="operators-table">
-          <thead><tr><th>Operator</th><th>Active Wells</th><th>Filings (90d)</th></tr></thead>
-          <tbody>`;
-    for (const op of operators) {
+    const hasFilings = operatorsByFilings.length > 0;
+
+    // Build "By Wells" tbody rows
+    let wellsRows = '';
+    for (const op of operatorsByWells) {
       const filingsCell = op.recent_filings > 0
         ? `<td class="operator-filings">${num(op.recent_filings)}</td>`
         : `<td class="operator-filings quiet">&mdash;</td>`;
-      operatorsHtml += `
+      wellsRows += `
             <tr>
                 <td class="operator-name">${esc(op.operator || 'Unknown')}</td>
                 <td class="operator-wells">${num(op.active_wells)}</td>
                 ${filingsCell}
             </tr>`;
     }
-    operatorsHtml += '</tbody></table>';
+
+    // Build "By Filings" tbody rows
+    let filingsRows = '';
+    for (const op of operatorsByFilings) {
+      const wellsCell = op.active_wells > 0
+        ? `<td class="operator-wells">${num(op.active_wells)}</td>`
+        : `<td class="operator-wells quiet">&mdash;</td>`;
+      filingsRows += `
+            <tr>
+                <td class="operator-name">${esc(op.operator || 'Unknown')}</td>
+                ${wellsCell}
+                <td class="operator-filings">${num(op.recent_filings)}</td>
+            </tr>`;
+    }
+
+    operatorsHtml = hasFilings ? `
+      <div class="op-tabs">
+          <button class="op-tab active" data-tab="wells">By Wells</button>
+          <button class="op-tab" data-tab="filings">By Filings (90d)</button>
+      </div>` : '';
+    operatorsHtml += `
+      <table class="operators-table">
+          <thead><tr><th>Operator</th><th>Active Wells</th><th>Filings (90d)</th></tr></thead>
+          <tbody id="op-tbody-wells">${wellsRows}</tbody>
+          <tbody id="op-tbody-filings" style="display:none">${filingsRows}</tbody>
+      </table>`;
   }
 
   // Sidebar: quick facts
@@ -502,6 +534,21 @@ ${HEADER}
 
 ${FOOTER}
 ${MENU_SCRIPT}
+<script>
+(function(){
+    var tabs = document.querySelectorAll('.op-tab');
+    if (!tabs.length) return;
+    tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() {
+            var t = this.getAttribute('data-tab');
+            tabs.forEach(function(b) { b.classList.remove('active'); });
+            this.classList.add('active');
+            document.getElementById('op-tbody-wells').style.display = t === 'wells' ? '' : 'none';
+            document.getElementById('op-tbody-filings').style.display = t === 'filings' ? '' : 'none';
+        });
+    });
+})();
+</script>
 </body>
 </html>`;
 }

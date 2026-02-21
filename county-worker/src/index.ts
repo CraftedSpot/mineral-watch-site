@@ -48,8 +48,8 @@ async function handleCounty(env: Env, slug: string): Promise<Response> {
   const countyName = county.name;
 
   try {
-    const { stats, operators, activity } = await fetchCountyData(env.DB, countyUpper, countyName);
-    const html = renderCountyPage(slug, stats, operators, activity);
+    const { stats, operatorsByWells, operatorsByFilings, activity } = await fetchCountyData(env.DB, countyUpper, countyName);
+    const html = renderCountyPage(slug, stats, operatorsByWells, operatorsByFilings, activity);
 
     return new Response(html, {
       headers: {
@@ -66,7 +66,7 @@ async function handleCounty(env: Env, slug: string): Promise<Response> {
       recentPermits: 0,
       recentCompletions: 0,
       recentPooling: 0,
-    }, [], []);
+    }, [], [], []);
 
     return new Response(html, {
       headers: {
