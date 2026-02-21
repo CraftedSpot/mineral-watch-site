@@ -168558,5 +168558,1363 @@
     "effective_date": "8/19/1950",
     "well_name": "UMSTED 1",
     "county": "Hughes"
+  },
+  {
+    "api_number": "3506300198",
+    "entry_id": 1541817,
+    "effective_date": "9/10/1985",
+    "well_name": "WILLIAMS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300199",
+    "entry_id": 1379263,
+    "effective_date": "11/27/1947",
+    "well_name": "SANDLIN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300274",
+    "entry_id": 1434602,
+    "effective_date": "7/23/1960",
+    "well_name": "MCKINZIE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300276",
+    "entry_id": 2076284,
+    "effective_date": "8/3/1960",
+    "well_name": "STANFORD 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300285",
+    "entry_id": 1437997,
+    "effective_date": "2/20/1962",
+    "well_name": "BOND A 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300287",
+    "entry_id": 1430241,
+    "effective_date": "9/7/1958",
+    "well_name": "SARKEYS UNIT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300288",
+    "entry_id": 1430447,
+    "effective_date": "10/6/1958",
+    "well_name": "PARNOSKY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300302",
+    "entry_id": 2077589,
+    "effective_date": "3/31/1961",
+    "well_name": "MEYER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300334",
+    "entry_id": 1577679,
+    "effective_date": "7/5/1973",
+    "well_name": "OSBORN-SEABORN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300365",
+    "entry_id": 1421969,
+    "effective_date": "10/28/1955",
+    "well_name": "MOTT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300366",
+    "entry_id": 2054056,
+    "effective_date": "10/8/1955",
+    "well_name": "LON PARKS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300368",
+    "entry_id": 2047536,
+    "effective_date": "5/25/1955",
+    "well_name": "MEADORS B 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300385",
+    "entry_id": 1419844,
+    "effective_date": "3/17/1955",
+    "well_name": "CAHILL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300413",
+    "entry_id": 1371927,
+    "effective_date": "5/28/1943",
+    "well_name": "B L PRICE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300426",
+    "entry_id": 1422324,
+    "effective_date": "12/5/1955",
+    "well_name": "BAILEY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300427",
+    "entry_id": 1372750,
+    "effective_date": "3/21/1944",
+    "well_name": "DANNENBURG 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300430",
+    "entry_id": 1372691,
+    "effective_date": "3/9/1944",
+    "well_name": "J F MEYERS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300630",
+    "entry_id": 1379165,
+    "effective_date": "11/5/1947",
+    "well_name": "PROTHRO 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300658",
+    "entry_id": 1487624,
+    "effective_date": "8/14/1976",
+    "well_name": "FOX 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300802",
+    "entry_id": 1380630,
+    "effective_date": "8/8/1948",
+    "well_name": "GOODEN 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300805",
+    "entry_id": 1498966,
+    "effective_date": "11/28/1926",
+    "well_name": "THOMAS LONG 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300806",
+    "entry_id": 1487722,
+    "effective_date": "9/27/1976",
+    "well_name": "BILBY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300810",
+    "entry_id": 1483900,
+    "effective_date": "4/27/1973",
+    "well_name": "TOM WALKER 8",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300814",
+    "entry_id": 1403416,
+    "effective_date": "6/20/1950",
+    "well_name": "MARY CULLER 2 A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300815",
+    "entry_id": 1487114,
+    "effective_date": "4/24/1975",
+    "well_name": "MARY CULLER 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300816",
+    "entry_id": 1403522,
+    "effective_date": "7/3/1950",
+    "well_name": "MARY CULLER 10",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300817",
+    "entry_id": 1421423,
+    "effective_date": "8/17/1955",
+    "well_name": "SCOTT 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300818",
+    "entry_id": 1421581,
+    "effective_date": "9/5/1955",
+    "well_name": "SULTAN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300824",
+    "entry_id": 1461196,
+    "effective_date": "4/1/1963",
+    "well_name": "JONES 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300840",
+    "entry_id": 2069069,
+    "effective_date": "8/12/1958",
+    "well_name": "KEATON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300842",
+    "entry_id": 1577754,
+    "effective_date": "7/2/1949",
+    "well_name": "DAILEY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300843",
+    "entry_id": 1493517,
+    "effective_date": "7/1/1979",
+    "well_name": "JESSE BRUNER 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300844",
+    "entry_id": 1403165,
+    "effective_date": "5/12/1950",
+    "well_name": "FOSTER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300849",
+    "entry_id": 1417911,
+    "effective_date": "9/10/1954",
+    "well_name": "KING 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300859",
+    "entry_id": 1528352,
+    "effective_date": "8/27/1982",
+    "well_name": "KEESEE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300860",
+    "entry_id": 1532028,
+    "effective_date": "8/11/1983",
+    "well_name": "LEAH 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300862",
+    "entry_id": 1418024,
+    "effective_date": "9/24/1954",
+    "well_name": "KING 8",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300864",
+    "entry_id": 1526849,
+    "effective_date": "4/18/1982",
+    "well_name": "KING MORRIS 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300865",
+    "entry_id": 1536130,
+    "effective_date": "7/22/1984",
+    "well_name": "OLIVO 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300868",
+    "entry_id": 1463422,
+    "effective_date": "3/18/1964",
+    "well_name": "WILSON B-1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300871",
+    "entry_id": 1419406,
+    "effective_date": "1/29/1955",
+    "well_name": "MOORE 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300872",
+    "entry_id": 1546789,
+    "effective_date": "6/1/1986",
+    "well_name": "SIMPSON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300874",
+    "entry_id": 1421678,
+    "effective_date": "9/16/1955",
+    "well_name": "WILLIAMS 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300875",
+    "entry_id": 1543170,
+    "effective_date": "12/16/1985",
+    "well_name": "SULTAN 2 (ROGERS 3)",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300882",
+    "entry_id": 1379752,
+    "effective_date": "3/5/1948",
+    "well_name": "LYTAL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300894",
+    "entry_id": 1372891,
+    "effective_date": "5/5/1944",
+    "well_name": "TURNER NELL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300898",
+    "entry_id": 1541806,
+    "effective_date": "9/9/1985",
+    "well_name": "MOSS 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300899",
+    "entry_id": 1463492,
+    "effective_date": "4/8/1964",
+    "well_name": "WILSON A-2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300901",
+    "entry_id": 1380000,
+    "effective_date": "4/25/1948",
+    "well_name": "LONNIE BUCK 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300908",
+    "entry_id": 1438566,
+    "effective_date": "5/24/1962",
+    "well_name": "SINGLETON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300911",
+    "entry_id": 2754872,
+    "effective_date": "8/1/1964",
+    "well_name": "HUGHES BOOCH SAND UNIT 5-W",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300912",
+    "entry_id": 2004335,
+    "effective_date": "2/22/1923",
+    "well_name": "MARTHA E GREGORY C-3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300913",
+    "entry_id": 1496525,
+    "effective_date": "4/14/1923",
+    "well_name": "MARTHA E GREGORY C-4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300921",
+    "entry_id": 1460408,
+    "effective_date": "12/21/1962",
+    "well_name": "C DAVIS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300922",
+    "entry_id": 2063133,
+    "effective_date": "3/15/1957",
+    "well_name": "DIAMOND-VIERSEN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300924",
+    "entry_id": 1413013,
+    "effective_date": "8/18/1953",
+    "well_name": "R C CHILES 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300925",
+    "entry_id": 1413402,
+    "effective_date": "9/15/1953",
+    "well_name": "CHILES 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300926",
+    "entry_id": 1413635,
+    "effective_date": "10/3/1953",
+    "well_name": "R C CHILES 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300927",
+    "entry_id": 1413766,
+    "effective_date": "10/16/1953",
+    "well_name": "R C CHILES 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300929",
+    "entry_id": 1419946,
+    "effective_date": "3/28/1955",
+    "well_name": "R C CHILES 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300930",
+    "entry_id": 1562730,
+    "effective_date": "4/3/1955",
+    "well_name": "R C CHILES 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300931",
+    "entry_id": 1420434,
+    "effective_date": "5/8/1955",
+    "well_name": "R C CHILES 8",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300932",
+    "entry_id": 1420455,
+    "effective_date": "5/12/1955",
+    "well_name": "R C CHILES 9",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300933",
+    "entry_id": 1420631,
+    "effective_date": "5/29/1955",
+    "well_name": "R C CHILES 10",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300935",
+    "entry_id": 1424247,
+    "effective_date": "7/13/1956",
+    "well_name": "CHILES 12",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300936",
+    "entry_id": 1424378,
+    "effective_date": "7/9/1956",
+    "well_name": "CHILES 14",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300937",
+    "entry_id": 1424449,
+    "effective_date": "7/16/1956",
+    "well_name": "CHILES 15",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300938",
+    "entry_id": 1424495,
+    "effective_date": "7/23/1956",
+    "well_name": "CHILES 16",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300939",
+    "entry_id": 1427492,
+    "effective_date": "8/1/1957",
+    "well_name": "CHILES 17",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300940",
+    "entry_id": 1427562,
+    "effective_date": "8/6/1957",
+    "well_name": "CHILES 19",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300941",
+    "entry_id": 1427677,
+    "effective_date": "8/19/1957",
+    "well_name": "CHILES 20",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300942",
+    "entry_id": 1422319,
+    "effective_date": "12/4/1955",
+    "well_name": "WILBANKS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300943",
+    "entry_id": 1425891,
+    "effective_date": "12/22/1956",
+    "well_name": "WILBANKS 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300944",
+    "entry_id": 1427368,
+    "effective_date": "7/18/1957",
+    "well_name": "WILBANKS 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300948",
+    "entry_id": 2067266,
+    "effective_date": "12/27/1957",
+    "well_name": "ED GEORGE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300957",
+    "entry_id": 1408475,
+    "effective_date": "4/29/1952",
+    "well_name": "MAJOR CULLER 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300958",
+    "entry_id": 1403198,
+    "effective_date": "5/17/1950",
+    "well_name": "MARY CULLER 9",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300994",
+    "entry_id": 2083486,
+    "effective_date": "5/23/1963",
+    "well_name": "ANNA BURKE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300997",
+    "entry_id": 2082584,
+    "effective_date": "2/25/1963",
+    "well_name": "GARRETT 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300998",
+    "entry_id": 2647646,
+    "effective_date": "7/14/1965",
+    "well_name": "GARRETT 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506300999",
+    "entry_id": 2084673,
+    "effective_date": "10/3/1963",
+    "well_name": "LOWRIMORE B 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301003",
+    "entry_id": 2058890,
+    "effective_date": "6/27/1956",
+    "well_name": "TURNER NOLEN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301015",
+    "entry_id": 2081015,
+    "effective_date": "9/12/1962",
+    "well_name": "PERRYMAN C-4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301021",
+    "entry_id": 2056802,
+    "effective_date": "8/3/1948",
+    "well_name": "W H HAMPTON 5",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301027",
+    "entry_id": 2052121,
+    "effective_date": "6/25/1946",
+    "well_name": "W E OGLE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301048",
+    "entry_id": 1427007,
+    "effective_date": "6/3/1957",
+    "well_name": "MABLE GARNER 10",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301068",
+    "entry_id": 1417329,
+    "effective_date": "7/15/1954",
+    "well_name": "HICKORY 12",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301076",
+    "entry_id": 2051628,
+    "effective_date": "3/31/1946",
+    "well_name": "J F Meyers 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301077",
+    "entry_id": 2054683,
+    "effective_date": "7/22/1947",
+    "well_name": "J F MYERS 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301083",
+    "entry_id": 1408286,
+    "effective_date": "4/4/1952",
+    "well_name": "OLA PRICE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301094",
+    "entry_id": 2049956,
+    "effective_date": "6/8/1944",
+    "well_name": "BOYD 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301103",
+    "entry_id": 1373438,
+    "effective_date": "10/6/1944",
+    "well_name": "H F BILBY 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301111",
+    "entry_id": 1375997,
+    "effective_date": "6/8/1946",
+    "well_name": "B L PRICE 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301143",
+    "entry_id": 1462508,
+    "effective_date": "7/12/1963",
+    "well_name": "MCKENZIE UNIT 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301151",
+    "entry_id": 2088125,
+    "effective_date": "9/28/1964",
+    "well_name": "STANDIFIRD 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301162",
+    "entry_id": 1463371,
+    "effective_date": "3/2/1964",
+    "well_name": "MCGIRT 9",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301163",
+    "entry_id": 1399990,
+    "effective_date": "4/1/1950",
+    "well_name": "MCGIRT 5S",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301208",
+    "entry_id": 2073464,
+    "effective_date": "12/17/1949",
+    "well_name": "E S OSBORN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301227",
+    "entry_id": 1552941,
+    "effective_date": "8/6/1999",
+    "well_name": "WHITE OAK ROYALTY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301243",
+    "entry_id": 1423658,
+    "effective_date": "5/3/1956",
+    "well_name": "BIDDLE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301279",
+    "entry_id": 1412460,
+    "effective_date": "7/1/1953",
+    "well_name": "SIMPSON NARCOME 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301291",
+    "entry_id": 1405354,
+    "effective_date": "3/20/1951",
+    "well_name": "LIZZIE MOORE 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301309",
+    "entry_id": 2040743,
+    "effective_date": "11/7/1954",
+    "well_name": "LATIMER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301322",
+    "entry_id": 2084211,
+    "effective_date": "8/7/1963",
+    "well_name": "STANFORD 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301361",
+    "entry_id": 2062522,
+    "effective_date": "12/12/1950",
+    "well_name": "MEADORS 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301374",
+    "entry_id": 2060642,
+    "effective_date": "7/4/1950",
+    "well_name": "E S OSBORN 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301417",
+    "entry_id": 2091524,
+    "effective_date": "10/14/1965",
+    "well_name": "CRAWFORD 2 (CRAWFORD 1)",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301432",
+    "entry_id": 2737089,
+    "effective_date": "7/26/1960",
+    "well_name": "CANARD 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301433",
+    "entry_id": 1434380,
+    "effective_date": "6/15/1960",
+    "well_name": "CANARD A-2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301451",
+    "entry_id": 1434825,
+    "effective_date": "8/27/1960",
+    "well_name": "DOUGLASS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301497",
+    "entry_id": 1398375,
+    "effective_date": "7/21/1949",
+    "well_name": "BUCHNER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301503",
+    "entry_id": 1398105,
+    "effective_date": "6/7/1949",
+    "well_name": "MARY CULLER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301507",
+    "entry_id": 1399728,
+    "effective_date": "2/25/1950",
+    "well_name": "MARY CULLER 5",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301509",
+    "entry_id": 1400157,
+    "effective_date": "4/21/1950",
+    "well_name": "MARY CULLER 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301510",
+    "entry_id": 1400248,
+    "effective_date": "5/3/1950",
+    "well_name": "MARY CULLER 8",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301527",
+    "entry_id": 1433562,
+    "effective_date": "1/30/1960",
+    "well_name": "HULSMAN 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301531",
+    "entry_id": 1437357,
+    "effective_date": "10/24/1961",
+    "well_name": "STARKS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301536",
+    "entry_id": 2071272,
+    "effective_date": "1/12/1959",
+    "well_name": "LACKEY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301537",
+    "entry_id": 2076657,
+    "effective_date": "10/5/1960",
+    "well_name": "WALKER HEIRS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301538",
+    "entry_id": 1423281,
+    "effective_date": "3/27/1956",
+    "well_name": "HULSMAN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301541",
+    "entry_id": 1420107,
+    "effective_date": "4/10/1955",
+    "well_name": "EVANS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301543",
+    "entry_id": 1423098,
+    "effective_date": "3/9/1956",
+    "well_name": "EVANS 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301546",
+    "entry_id": 1422788,
+    "effective_date": "1/31/1956",
+    "well_name": "ALBERT TURNER 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301547",
+    "entry_id": 1420405,
+    "effective_date": "5/6/1955",
+    "well_name": "SHEDD 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301548",
+    "entry_id": 1421910,
+    "effective_date": "10/21/1955",
+    "well_name": "ALBERT TURNER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301550",
+    "entry_id": 1420594,
+    "effective_date": "5/25/1955",
+    "well_name": "CHRISTI 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301551",
+    "entry_id": 1416833,
+    "effective_date": "6/8/1954",
+    "well_name": "MOORE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301552",
+    "entry_id": 1417898,
+    "effective_date": "9/9/1954",
+    "well_name": "MOORE 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301554",
+    "entry_id": 1428387,
+    "effective_date": "11/25/1957",
+    "well_name": "BROADDUS 5",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301555",
+    "entry_id": 1420889,
+    "effective_date": "6/21/1955",
+    "well_name": "BROADDUS 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301556",
+    "entry_id": 1416782,
+    "effective_date": "6/2/1954",
+    "well_name": "BROADDUS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301557",
+    "entry_id": 1415396,
+    "effective_date": "2/20/1954",
+    "well_name": "BROADDUS 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301558",
+    "entry_id": 1420578,
+    "effective_date": "5/24/1955",
+    "well_name": "MILAM 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301560",
+    "entry_id": 1420276,
+    "effective_date": "4/25/1955",
+    "well_name": "MILAM 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301563",
+    "entry_id": 1397532,
+    "effective_date": "3/16/1949",
+    "well_name": "MARTIN MOORE A-1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301565",
+    "entry_id": 2030597,
+    "effective_date": "2/12/1954",
+    "well_name": "ANDERSON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301568",
+    "entry_id": 2053739,
+    "effective_date": "9/21/1955",
+    "well_name": "HENRY 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301572",
+    "entry_id": 1422026,
+    "effective_date": "11/5/1955",
+    "well_name": "JOHNSON 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301574",
+    "entry_id": 1438526,
+    "effective_date": "5/16/1962",
+    "well_name": "KERR-SLEDGE 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301575",
+    "entry_id": 1462925,
+    "effective_date": "10/27/1963",
+    "well_name": "KERR-SLEDGE 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301576",
+    "entry_id": 1426424,
+    "effective_date": "3/7/1957",
+    "well_name": "SMITH 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301577",
+    "entry_id": 1460436,
+    "effective_date": "12/28/1962",
+    "well_name": "SMITH 2-A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301578",
+    "entry_id": 1460789,
+    "effective_date": "2/23/1963",
+    "well_name": "SMITH 3-A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301586",
+    "entry_id": 2926489,
+    "effective_date": "6/19/1972",
+    "well_name": "SCREECHOWL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301592",
+    "entry_id": 1434608,
+    "effective_date": "7/24/1960",
+    "well_name": "TURNER 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301597",
+    "entry_id": 1371756,
+    "effective_date": "4/9/1943",
+    "well_name": "HALL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301611",
+    "entry_id": 1421590,
+    "effective_date": "9/6/1955",
+    "well_name": "BOND 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301612",
+    "entry_id": 1422782,
+    "effective_date": "1/30/1956",
+    "well_name": "BOND 2-A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301613",
+    "entry_id": 1421882,
+    "effective_date": "10/17/1955",
+    "well_name": "BOND 1A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301616",
+    "entry_id": 1423878,
+    "effective_date": "5/28/1956",
+    "well_name": "BOND A 3A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301617",
+    "entry_id": 1421973,
+    "effective_date": "10/29/1955",
+    "well_name": "BOND 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301618",
+    "entry_id": 1424032,
+    "effective_date": "6/11/1956",
+    "well_name": "BOND A 4A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301619",
+    "entry_id": 1422315,
+    "effective_date": "12/3/1955",
+    "well_name": "TUSS BOND 5",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301620",
+    "entry_id": 1422462,
+    "effective_date": "12/20/1955",
+    "well_name": "TUSS BOND 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301621",
+    "entry_id": 2814410,
+    "effective_date": "7/15/2007",
+    "well_name": "BOND 8",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301622",
+    "entry_id": 1422646,
+    "effective_date": "1/11/1956",
+    "well_name": "BOND 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301624",
+    "entry_id": 1430695,
+    "effective_date": "11/10/1958",
+    "well_name": "BOND 11",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301625",
+    "entry_id": 1430335,
+    "effective_date": "9/21/1958",
+    "well_name": "BOND 10",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301678",
+    "entry_id": 1418227,
+    "effective_date": "10/15/1954",
+    "well_name": "DOLLIE WITTY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301679",
+    "entry_id": 1417724,
+    "effective_date": "8/20/1954",
+    "well_name": "WITTY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301688",
+    "entry_id": 2081030,
+    "effective_date": "9/14/1962",
+    "well_name": "RENA STEPHENS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301696",
+    "entry_id": 1421599,
+    "effective_date": "9/8/1955",
+    "well_name": "PARKER 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301703",
+    "entry_id": 1429834,
+    "effective_date": "7/5/1958",
+    "well_name": "PARKER-BROWN 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301704",
+    "entry_id": 1429771,
+    "effective_date": "6/26/1958",
+    "well_name": "PARKER-BROWN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301705",
+    "entry_id": 1430256,
+    "effective_date": "9/10/1958",
+    "well_name": "BELL-BROWN 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301719",
+    "entry_id": 1416173,
+    "effective_date": "4/17/1954",
+    "well_name": "BROADUS 2-A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301723",
+    "entry_id": 1415064,
+    "effective_date": "1/28/1954",
+    "well_name": "BROADDUS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301724",
+    "entry_id": 1439543,
+    "effective_date": "11/10/1962",
+    "well_name": "BROADUS 4",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301734",
+    "entry_id": 1430756,
+    "effective_date": "11/22/1958",
+    "well_name": "BOND 5A",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301738",
+    "entry_id": 1397139,
+    "effective_date": "10/17/1948",
+    "well_name": "BILBY 1-B (DOLLIE WITTY 2)",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301739",
+    "entry_id": 1431152,
+    "effective_date": "1/20/1959",
+    "well_name": "WITTY 4 (WITTY 3)",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301741",
+    "entry_id": 1436475,
+    "effective_date": "6/5/1961",
+    "well_name": "MCKINZIE 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301743",
+    "entry_id": 1436721,
+    "effective_date": "7/10/1961",
+    "well_name": "BUSBY ROYALTY 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301744",
+    "entry_id": 1435118,
+    "effective_date": "10/15/1960",
+    "well_name": "BUSBY ROYALTY 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301745",
+    "entry_id": 1436029,
+    "effective_date": "3/29/1961",
+    "well_name": "SMITH 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301749",
+    "entry_id": 1412874,
+    "effective_date": "8/7/1953",
+    "well_name": "SCOTT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301750",
+    "entry_id": 1519064,
+    "effective_date": "11/19/1929",
+    "well_name": "SCOTT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301796",
+    "entry_id": 1374521,
+    "effective_date": "7/30/1945",
+    "well_name": "KENDALL 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301799",
+    "entry_id": 1429690,
+    "effective_date": "6/12/1958",
+    "well_name": "KENDALL 5",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301800",
+    "entry_id": 1429871,
+    "effective_date": "7/10/1958",
+    "well_name": "KENDALL 6",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301801",
+    "entry_id": 1375404,
+    "effective_date": "2/5/1946",
+    "well_name": "KENDALL 7",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301802",
+    "entry_id": 1577938,
+    "effective_date": "9/15/1980",
+    "well_name": "KENDALL 11",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301827",
+    "entry_id": 1374669,
+    "effective_date": "8/30/1945",
+    "well_name": "ROGER SCOTT 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301829",
+    "entry_id": 1438638,
+    "effective_date": "6/6/1962",
+    "well_name": "ROGER SCOTT 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301842",
+    "entry_id": 1429559,
+    "effective_date": "5/20/1958",
+    "well_name": "HARRIS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301846",
+    "entry_id": 1431648,
+    "effective_date": "4/9/1959",
+    "well_name": "KENDALL 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301902",
+    "entry_id": 1375124,
+    "effective_date": "11/25/1945",
+    "well_name": "FRANK HOWELL 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301905",
+    "entry_id": 1425313,
+    "effective_date": "10/19/1956",
+    "well_name": "LYTAL 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301910",
+    "entry_id": 1422566,
+    "effective_date": "1/1/1956",
+    "well_name": "BOTTOMS 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301919",
+    "entry_id": 1426016,
+    "effective_date": "1/4/1957",
+    "well_name": "WHITE 2",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301936",
+    "entry_id": 1415179,
+    "effective_date": "2/6/1954",
+    "well_name": "PARKS C 3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301990",
+    "entry_id": 1376406,
+    "effective_date": "8/12/1946",
+    "well_name": "ECKLES B-3",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506301993",
+    "entry_id": 3042817,
+    "effective_date": "5/18/1944",
+    "well_name": "GEORGE ECKLES 1",
+    "county": "Hughes"
+  },
+  {
+    "api_number": "3506302026",
+    "entry_id": 1426233,
+    "effective_date": "2/8/1957",
+    "well_name": "BADGER 2",
+    "county": "Hughes"
   }
 ]

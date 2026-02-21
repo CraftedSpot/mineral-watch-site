@@ -425,7 +425,7 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
   try {
     // Find all check stub documents with extracted data
     const docsResult = await db.prepare(`
-      SELECT id, well_api_number, well_name, extracted_data
+      SELECT id, well_id, extracted_data
       FROM documents
       WHERE doc_type = 'check_stub'
         AND extracted_data IS NOT NULL
@@ -433,7 +433,7 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
     `).all();
 
     const docs = docsResult.results as Array<{
-      id: string; well_api_number: string | null; well_name: string | null;
+      id: string; well_id: string | null;
       extracted_data: string;
     }>;
 
@@ -451,7 +451,7 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
         const stmts: D1PreparedStatement[] = [];
 
         for (const well of data.wells) {
-          const apiNumber = well.api_number || doc.well_api_number;
+          const apiNumber = well.api_number || data.api_number;
           if (!apiNumber) continue;
 
           const operatorName = well.operator || data.operator || '';
@@ -561,7 +561,7 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
                 source_document_id = excluded.source_document_id
             `).bind(
               apiNumber,
-              well.well_name || doc.well_name || null,
+              well.well_name || data.well_name || null,
               operatorName,
               operatorNumber,
               county,
