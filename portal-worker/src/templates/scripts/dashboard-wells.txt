@@ -1,17 +1,85 @@
         // Wells list controller (state + event binding via shared ListController)
+        // WTI price state (fetched once on load, used for tier computation + display)
+        let wellsWtiPrice = null;
+        let wellsWtiDate = null;
+
         const wellsController = createListController({
             defaultFilter: 'all',
-            defaultSort: 'name-asc',
+            defaultSort: 'stressed_at-asc',
             controlsId: 'wellsControls',
             searchId: 'wellsSearch',
             filterId: 'wellsFilter',
-            sortId: 'wellsSort',
             requirePlan: true,
             itemName: 'wells',
             renderFn: () => renderWellsTable(),
             filterFn: filterWells,
             sortFn: sortWells
         });
+
+        // Fetch WTI price for risk tier computation
+        async function fetchWellsWtiPrice() {
+            try {
+                const res = await fetch('https://mymineralwatch.com/api/prices');
+                if (!res.ok) return;
+                const data = await res.json();
+                if (data.wti && data.wti.price) {
+                    wellsWtiPrice = data.wti.price;
+                    wellsWtiDate = data.wti.date || null;
+                    const ann = document.getElementById('wellsWtiAnnotation');
+                    if (ann) ann.textContent = 'At $' + wellsWtiPrice.toFixed(2) + ' WTI';
+                }
+            } catch (e) {
+                console.error('[wells] WTI price fetch failed:', e);
+            }
+        }
+        fetchWellsWtiPrice();
+
+        // Risk tier computation (client-side from WTI + breakeven)
+        function computeRiskTier(breakeven, wti) {
+            if (breakeven == null || wti == null) return null;
+            if (wti <= breakeven) return 'at_risk';
+            const cushion = (wti - breakeven) / wti;
+            if (cushion > 0.25) return 'comfortable';
+            if (cushion >= 0.10) return 'adequate';
+            return 'tight';
+        }
+
+        // Cost band from breakeven
+        function getCostBand(breakeven) {
+            if (breakeven == null) return null;
+            if (breakeven <= 30) return 'Low-cost';
+            if (breakeven <= 40) return 'Mid-cost';
+            return 'High-cost';
+        }
+
+        // Tier display label
+        function getTierLabel(tier) {
+            if (!tier) return '';
+            const labels = { comfortable: 'Comfortable', adequate: 'Adequate', tight: 'Tight', at_risk: 'At Risk' };
+            return labels[tier] || tier;
+        }
+
+        // Tier colors (risk-level-driven)
+        function getTierColor(tier) {
+            const colors = {
+                comfortable: { bg: '#059669', text: '#fff' },
+                adequate: { bg: '#2563EB', text: '#fff' },
+                tight: { bg: '#D97706', text: '#fff' },
+                at_risk: { bg: '#DC2626', text: '#fff' }
+            };
+            return colors[tier] || { bg: '#9CA3AF', text: '#fff' };
+        }
+
+        // Header click-to-sort handler
+        function onWellsHeaderSort(field) {
+            const current = wellsController.sortBy.split('-');
+            if (current[0] === field) {
+                wellsController.sortBy = field + '-' + (current[1] === 'asc' ? 'desc' : 'asc');
+            } else {
+                wellsController.sortBy = field + '-asc';
+            }
+            renderWellsTable();
+        }
 
         // Alias for backward compat — initWellsControls is called from dashboard-init
         const initWellsControls = () => wellsController.initControls();
