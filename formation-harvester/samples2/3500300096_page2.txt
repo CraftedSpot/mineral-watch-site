@@ -1,0 +1,55 @@
+FOB,MATION RECORD
+Give detalted description and thickness of all formations drilled through, contents of sand, whether dry, water, oil or gas
+Top Top I Bottom
+Red Bed - 0 790
+Shale and san 790 1404
+and shalde Lime 1404 2668
+Shale ' 2668 2710
+ShaleA and lime 2710 3040
+Shale, lime and shells 3040 3137
+Shale ~3137 ,3240
+Shells and shale 3240 3338
+Shale 3338 3585
+Lime and shale 3585 3872
+Shale 3872 4195
+Shale and lime 4195 4253
+Anhydrite Lime 4253 4293
+Lime 4293 4408
+Shale 4408 4452
+Aadydrite and shale 4452 4484
+Shale 4484 4617
+sana 4617 4632
+Shale and eead 4632 4646
+Sandy shale 4646 4770
+Lime, sand and shale 4770 4822
+Shale 4822 4905
+Sandy shale 4905 5004
+Sand and shale 5004 5078
+Shale and lime 5078 5287
+Sand 5287 5350
+I.ime 5350 5369
+Lime and shale 5369 ;Si92
+Sandy lime and Layton e 5392 5312
+Lime, akale and sand 5312 5468
+Sand 5468 5487
+Lime 5487 5535
+Limet shale and sand 5535 5682
+Sandy shale 5682 5722
+Shale and lime 5722 5774
+Sandy shale 5774 5800
+Lime and shale 5800 5857
+Lime 5857 5875
+Sandy lime 5875 5879
+Lime 5879 5890
+Shale 5890 5896
+Lime 5896 5919
+Limo and shale 5919 5922
+HarB lime 5922 5925
+Lime shale 5925
+--- -_-~--~-----=--=m
+I, the undersigned, being first duly sworn upon oath, state that tht w;ell record is true, correct and complete according
+to the records of this office and to the best of my knowledge and be
+l ame and tltle of repreaentatlve of ifany-
+-SubsCribed and saurn to before me th;a C' ~ ..day o
+eapSres f My Commission
+P blic

@@ -1460,6 +1460,24 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleBackfillBhCoordinates(request, env);
       }
 
+      // Formation harvest endpoints (PROCESSING_API_KEY auth)
+      if (path === "/api/admin/wells-missing-formation" && request.method === "GET") {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleGetWellsMissingFormation } = await import('./handlers/formation-harvest.js');
+        return handleGetWellsMissingFormation(request, env);
+      }
+      if (path === "/api/admin/formation-harvest-results" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleFormationHarvestResults } = await import('./handlers/formation-harvest.js');
+        return handleFormationHarvestResults(request, env);
+      }
+
       // Property-well matching endpoint
       if (path === "/api/match-property-wells" && request.method === "POST") {
         return handleMatchPropertyWells(request, env);

@@ -1,0 +1,27 @@
+~(RULE 3-205) FORMATION RECORD 0202~~
+Give fottnattan names and tops, if available, or descriptions and thickness of
+formations drilled through.
+Formation Top Solto/c Formation Top Bottom
+#2 GLADYS
+Surf. Csg 0 934
+sh & anhydrite 934 2340
+sdy sh & in strgrs 2340 3825
+shale 3825 4210
+in & sd strgrs 4210 5155
+shale 5155 5280
+sdy sh (LAYTON ZONE) 5280 5344
+sand (LAYTON) 5344 5452
+sdy sh 5452 5479
+lm (HOGSHOOTER) 5479 5502
+sh-bkn, in 5502 5704
+in strgrs (OSWEGO) 5704 5850
+sh 5 850 5901
+in (VERDIGRIS) 5901 5912
+sh 5912 6010
+sdy sh (REDFORK ZONE) 6010 6028
+sdy sh 6028 6100
+in - sdy in (MANNING) 6100 6150
+shale 6150 6214
+in (MERFIMEC) 6214 6304
+in, cherty (MISS. SOLID) 6304 6600
+TOTAL DEPTH IN MISS . 6600 ~
