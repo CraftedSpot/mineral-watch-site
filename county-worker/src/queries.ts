@@ -255,27 +255,45 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
   activity.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const topActivity = activity.slice(0, 8);
 
-  // Merge operator wells with recent filing counts
+  // Build cross-reference maps for operator matching
   const filingsByOperator = new Map<string, number>();
+  const filerDisplayNames = new Map<string, string>();
   for (const row of (recentFilers.results || []) as any[]) {
     if (row.applicant) {
-      filingsByOperator.set(normalizeOperator(row.applicant), row.filings as number);
+      const norm = normalizeOperator(row.applicant);
+      filingsByOperator.set(norm, row.filings as number);
+      if (!filerDisplayNames.has(norm)) filerDisplayNames.set(norm, row.applicant);
     }
   }
 
-  const operatorsWithFilings: OperatorRow[] = ((operators.results || []) as any[]).map(op => {
-    const normalized = normalizeOperator(op.operator || '');
-    const filings = filingsByOperator.get(normalized) || 0;
+  const wellsByOperator = new Map<string, number>();
+  for (const op of (operators.results || []) as any[]) {
+    if (op.operator) {
+      wellsByOperator.set(normalizeOperator(op.operator), op.active_wells as number);
+    }
+  }
+
+  // Top 5 by wells, with filing counts merged in
+  const operatorsByWells: OperatorRow[] = ((operators.results || []) as any[]).slice(0, 5).map(op => ({
+    operator: op.operator,
+    active_wells: op.active_wells,
+    recent_filings: filingsByOperator.get(normalizeOperator(op.operator || '')) || 0,
+  }));
+
+  // Top 5 by filings, with well counts merged in
+  const operatorsByFilings: OperatorRow[] = ((recentFilers.results || []) as any[]).slice(0, 5).map(row => {
+    const norm = normalizeOperator(row.applicant || '');
     return {
-      operator: op.operator,
-      active_wells: op.active_wells,
-      recent_filings: filings,
+      operator: row.applicant,
+      active_wells: wellsByOperator.get(norm) || 0,
+      recent_filings: row.filings as number,
     };
   });
 
   return {
     stats,
-    operators: operatorsWithFilings,
+    operatorsByWells,
+    operatorsByFilings,
     activity: topActivity,
   };
 }
