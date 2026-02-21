@@ -280,8 +280,8 @@ export async function handleSeedOperatorProfiles(request: Request, env: Env): Pr
         }>) {
           const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
           const rawBlended = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
-          // Floor at 15%: OTC doesn't capture oil marketing deductions
-          const blended = Math.max(0.15, Math.min(rawBlended, 1));
+          // Floor at 25%: OTC doesn't capture oil marketing deductions
+          const blended = Math.max(0.25, Math.min(rawBlended, 1));
           const gasGatheringPct = r.total_gross > 0 ? r.gas_gathering / r.total_gross : 0;
           const taxPct = r.total_gross > 0 ? (r.total_gp_tax + r.total_pe_tax) / r.total_gross : 0;
           // Oil marketing = residual (blended - gas gathering - tax)

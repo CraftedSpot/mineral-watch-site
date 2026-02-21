@@ -6942,7 +6942,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
             }>) {
               const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
               const rawDiscount = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
-              const totalDiscount = Math.max(0.15, Math.min(rawDiscount, 1));
+              const totalDiscount = Math.max(0.25, Math.min(rawDiscount, 1));
               const mktPct = r.total_gross > 0 ? (r.total_mkt_deduction / r.total_gross) : 0;
               const tPct = r.total_gross > 0 ? ((r.total_gp_tax + r.total_pe_tax) / r.total_gross) : 0;
               wellDeductions.set(r.api_number, {

@@ -6274,7 +6274,7 @@
                         <ol style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8; margin: 0.5rem 0; padding-left: 1.25rem;">
                             <li><strong>Check Stub</strong> <span style="color: #22c55e;">(Stub)</span> &mdash; Per-well exact deductions extracted from operator check stubs. Highest confidence.</li>
                             <li><strong>Operator Profile</strong> <span style="color: #3b82f6;">(Op)</span> &mdash; Blended deduction rate for the operator+county pair, aggregated from OTC financial data across all their wells. Matched via PUN linkage or name matching.</li>
-                            <li><strong>OTC Per-Well</strong> <span style="color: #94a3b8;">(OTC)</span> &mdash; Trailing 12-month OTC tax records for the individual well. Captures gas gathering/processing, GP tax (~7%), and PE tax. A 15% floor is applied because OTC does not track oil-side deductions.</li>
+                            <li><strong>OTC Per-Well</strong> <span style="color: #94a3b8;">(OTC)</span> &mdash; Trailing 12-month OTC tax records for the individual well. Captures gas gathering/processing, GP tax (~7%), and PE tax. A 25% floor is applied because OTC does not track oil-side deductions.</li>
                             <li><strong>County Average</strong> <span style="color: #8b5cf6;">(Cty)</span> &mdash; Average deduction rate across all operator profiles in the county (requires 3+ operators).</li>
                             <li><strong>Default</strong> &mdash; 20% blended discount when no other data is available.</li>
                         </ol>
@@ -6349,7 +6349,7 @@
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Limitations</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Breakeven estimates use <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. Operator profiles are derived from OTC data which lags 2&ndash;3 months. OTC data does not capture oil-side marketing deductions &mdash; a 15% floor compensates for this, but actual oil deductions vary by operator (8&ndash;37% observed range). As more check stubs are uploaded, per-well accuracy improves.
+                            Breakeven estimates use <strong>formation-level averages</strong>. Individual well economics may vary based on depth, water cut, workover history, and operator efficiency. Operator profiles are derived from OTC data which lags 2&ndash;3 months. OTC data does not capture oil-side marketing deductions &mdash; a 25% floor compensates for this, but actual oil deductions vary by operator (8&ndash;37% observed range). As more check stubs are uploaded, per-well accuracy improves.
                         </p>
                     </div>
                 </div>`;
