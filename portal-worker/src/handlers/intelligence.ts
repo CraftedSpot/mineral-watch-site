@@ -6749,63 +6749,21 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     const allWells = Array.from(wellsByApi.values());
     console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWells.length, 'wells');
 
-    // Step 3: Gas-weighted detection via recent production
-    const punsToCheck = allWells
-      .filter(w => w.base_pun)
-      .map(w => w.base_pun!);
-
-    const gasWeightedPuns = new Set<string>();
-
-    if (punsToCheck.length > 0) {
-      // Last 6 months cutoff
-      const now = new Date();
-      const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 6, 1);
-      const cutoff = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
-
-      // Batch in groups of 30 (D1 param limit)
-      const BATCH_SIZE = 30;
-      for (let i = 0; i < punsToCheck.length; i += BATCH_SIZE) {
-        const batch = punsToCheck.slice(i, i + BATCH_SIZE);
-        const placeholders = batch.map(() => '?').join(',');
-
-        try {
-          const gasResult = await db.prepare(`
-            SELECT base_pun,
-              SUM(CASE WHEN product_code IN ('3','5','6') THEN gross_volume ELSE 0 END) as gas_vol,
-              SUM(CASE WHEN product_code = '1' THEN gross_volume ELSE 0 END) as oil_vol
-            FROM otc_production
-            WHERE base_pun IN (${placeholders})
-              AND year_month >= ?
-            GROUP BY base_pun
-          `).bind(...batch, cutoff).all();
-
-          for (const r of gasResult.results as Array<{ base_pun: string; gas_vol: number; oil_vol: number }>) {
-            const gasBoe = (r.gas_vol || 0) / 6; // MCF to BOE
-            const oilBoe = r.oil_vol || 0;
-            if (gasBoe > 2 * oilBoe && gasBoe > 0) {
-              gasWeightedPuns.add(r.base_pun);
-            }
-          }
-        } catch (e) {
-          console.error('[Well Risk Profile] Gas detection batch error:', e);
-        }
-      }
-    }
-
-    console.log('[Well Risk Profile] Gas-weighted PUNs:', gasWeightedPuns.size);
-
-    // Step 3b: Query per-well deductions from OTC financial data (trailing 12 months)
+    // Step 3: Query per-well deductions + gas-weighting from OTC financial data (trailing 12 months)
+    // Gas-weighted detection uses REVENUE share (gas revenue > 50% of total), not volume.
+    // Volume-based (BOE at 6:1) over-flags because MCF numbers naturally dwarf BBL.
     const wellDeductions = new Map<string, {
       totalDiscount: number;
       mktDeductionPct: number;
       taxPct: number;
     }>();
+    const gasWeightedApis = new Set<string>();
     const gasRealizedPrices = new Map<string, number>();
 
     const apiNumbers = allWells.map(w => w.api_number);
     if (apiNumbers.length > 0) {
-      const now3b = new Date();
-      const twelveMonthsAgo = new Date(now3b.getFullYear(), now3b.getMonth() - 12, 1);
+      const now3 = new Date();
+      const twelveMonthsAgo = new Date(now3.getFullYear(), now3.getMonth() - 12, 1);
       const cutoff12m = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
       const DEDUCTION_BATCH = 50;
@@ -6814,13 +6772,16 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         const placeholders = batch.map(() => '?').join(',');
 
         try {
+          // Combined query: deductions + gas revenue share
           const deductionResult = await db.prepare(`
             SELECT wpl.api_number,
               SUM(opf.gross_value) as total_gross,
               SUM(opf.net_value) as total_net,
               SUM(opf.market_deduction) as total_mkt_deduction,
               SUM(opf.gp_tax) as total_gp_tax,
-              SUM(opf.pe_tax) as total_pe_tax
+              SUM(opf.pe_tax) as total_pe_tax,
+              SUM(CASE WHEN opf.product_code IN ('3', '5') THEN opf.gross_value ELSE 0 END) as gas_revenue,
+              SUM(CASE WHEN opf.product_code IN ('3', '5') THEN opf.gross_volume ELSE 0 END) as gas_volume
             FROM well_pun_links wpl
             JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
             WHERE wpl.api_number IN (${placeholders})
@@ -6833,6 +6794,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
           for (const r of deductionResult.results as Array<{
             api_number: string; total_gross: number; total_net: number;
             total_mkt_deduction: number; total_gp_tax: number; total_pe_tax: number;
+            gas_revenue: number; gas_volume: number;
           }>) {
             // All-in discount: market deductions + taxes
             // OTC net_value = gross_value - market_deduction (taxes NOT subtracted)
@@ -6848,28 +6810,16 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
               mktDeductionPct: Math.max(0, mktPct),
               taxPct: Math.max(0, tPct)
             });
-          }
 
-          // Realized gas price for gas-weighted wells
-          const gasFinResult = await db.prepare(`
-            SELECT wpl.api_number,
-              SUM(opf.gross_value) as gas_value,
-              SUM(opf.gross_volume) as gas_volume
-            FROM well_pun_links wpl
-            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
-            WHERE wpl.api_number IN (${placeholders})
-              AND opf.product_code IN ('5', '6')
-              AND opf.gross_value > 0
-              AND opf.year_month >= ?
-            GROUP BY wpl.api_number
-            HAVING SUM(opf.gross_volume) > 0
-          `).bind(...batch, cutoff12m).all();
+            // Gas-weighted: gas revenue > 50% of total revenue
+            const gasShare = r.total_gross > 0 ? (r.gas_revenue / r.total_gross) : 0;
+            if (gasShare > 0.50) {
+              gasWeightedApis.add(r.api_number);
+            }
 
-          for (const r of gasFinResult.results as Array<{
-            api_number: string; gas_value: number; gas_volume: number;
-          }>) {
+            // Realized gas price ($/MCF) for gas-producing wells
             if (r.gas_volume > 0) {
-              gasRealizedPrices.set(r.api_number, r.gas_value / r.gas_volume);
+              gasRealizedPrices.set(r.api_number, r.gas_revenue / r.gas_volume);
             }
           }
         } catch (e) {
@@ -6878,7 +6828,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       }
     }
 
-    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'wells, gas prices for', gasRealizedPrices.size);
+    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'wells, gas-weighted:', gasWeightedApis.size, ', gas prices for', gasRealizedPrices.size);
 
     // Step 4: Compute risk level per well
     let atRiskCount = 0;
@@ -6919,7 +6869,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     }> = [];
 
     for (const w of allWells) {
-      const isGasWeighted = w.base_pun ? gasWeightedPuns.has(w.base_pun) : false;
+      const isGasWeighted = gasWeightedApis.has(w.api_number);
       const profileId = isGasWeighted ? 'gas-weighted' : (w.risk_profile_id || 'unknown-formation');
       const profileName = isGasWeighted ? 'Gas-Weighted' : (w.profile_name || 'Unknown Formation');
       const breakeven = isGasWeighted ? null : (w.half_cycle_breakeven ?? 38); // fallback to blended avg

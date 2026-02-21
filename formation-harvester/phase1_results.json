@@ -137863,5 +137863,1363 @@
     "effective_date": "10/8/1947",
     "well_name": "FRANK ROMINE 1",
     "county": "Garvin"
+  },
+  {
+    "api_number": "3504900522",
+    "entry_id": 1867445,
+    "effective_date": "1/8/1952",
+    "well_name": "PARTON MINNIE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900526",
+    "entry_id": 1868809,
+    "effective_date": "5/5/1953",
+    "well_name": "HUGHES B-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900527",
+    "entry_id": 1868759,
+    "effective_date": "4/18/1953",
+    "well_name": "G L ROSE 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900535",
+    "entry_id": 1674049,
+    "effective_date": "4/12/1980",
+    "well_name": "MICHELLE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900550",
+    "entry_id": 1371132,
+    "effective_date": "7/17/1942",
+    "well_name": "M A TETER 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900576",
+    "entry_id": 2359057,
+    "effective_date": "10/16/1960",
+    "well_name": "TETER 14",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900617",
+    "entry_id": 1628207,
+    "effective_date": "12/22/1962",
+    "well_name": "NEWBERRY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900682",
+    "entry_id": 1843349,
+    "effective_date": "11/21/1921",
+    "well_name": "W B HERVEY A-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900781",
+    "entry_id": 1843643,
+    "effective_date": "7/18/1922",
+    "well_name": "ADA SELBY 1-33",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900798",
+    "entry_id": 1843434,
+    "effective_date": "2/9/1922",
+    "well_name": "DERDEYN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900850",
+    "entry_id": 1844906,
+    "effective_date": "6/19/1926",
+    "well_name": "W J BURR 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900873",
+    "entry_id": 1854465,
+    "effective_date": "7/24/1947",
+    "well_name": "CLARENCE LACY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900876",
+    "entry_id": 1689686,
+    "effective_date": "9/9/1983",
+    "well_name": "RICHARDSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900888",
+    "entry_id": 1869922,
+    "effective_date": "4/3/1954",
+    "well_name": "EASON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900909",
+    "entry_id": 1872491,
+    "effective_date": "6/18/1955",
+    "well_name": "RUTH PERKINS HOLLIS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900937",
+    "entry_id": 1628127,
+    "effective_date": "12/3/1962",
+    "well_name": "DAVIS UNIT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900982",
+    "entry_id": 1667417,
+    "effective_date": "9/2/1979",
+    "well_name": "T E MCNEER 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900985",
+    "entry_id": 1856292,
+    "effective_date": "9/16/1948",
+    "well_name": "MASON BURNS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504900995",
+    "entry_id": 1625755,
+    "effective_date": "8/22/1961",
+    "well_name": "SWAGSU 239",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901002",
+    "entry_id": 1607857,
+    "effective_date": "3/31/1958",
+    "well_name": "WILLENS MULLICAN UNIT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901004",
+    "entry_id": 1846391,
+    "effective_date": "4/30/1937",
+    "well_name": "CRAIG 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901005",
+    "entry_id": 1872831,
+    "effective_date": "8/17/1955",
+    "well_name": "ROSE-VOSE 4 2S",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901006",
+    "entry_id": 1844419,
+    "effective_date": "9/2/1924",
+    "well_name": "TOM PERNELL 12 ACCOUNT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901008",
+    "entry_id": 1844082,
+    "effective_date": "6/7/1923",
+    "well_name": "TOM PERNELL 11 ACCOUNT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901009",
+    "entry_id": 1845807,
+    "effective_date": "10/8/1929",
+    "well_name": "T PERNELL ACCOUNT 1 14",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901018",
+    "entry_id": 1674432,
+    "effective_date": "6/3/1980",
+    "well_name": "RINGER GANN 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901019",
+    "entry_id": 1844232,
+    "effective_date": "10/30/1923",
+    "well_name": "ZARA GANN 5",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901020",
+    "entry_id": 1843570,
+    "effective_date": "5/25/1922",
+    "well_name": "RINGER GANN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901027",
+    "entry_id": 1843863,
+    "effective_date": "1/12/1923",
+    "well_name": "R J MAULDIN B-9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901029",
+    "entry_id": 1843991,
+    "effective_date": "4/10/1923",
+    "well_name": "R J MAULDIN B-10",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901036",
+    "entry_id": 1674222,
+    "effective_date": "5/2/1980",
+    "well_name": "WALTER ORR 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901039",
+    "entry_id": 1630899,
+    "effective_date": "9/24/1964",
+    "well_name": "BLANTON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901043",
+    "entry_id": 1568151,
+    "effective_date": "3/3/1989",
+    "well_name": "M A TETER 9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901055",
+    "entry_id": 1628724,
+    "effective_date": "4/26/1963",
+    "well_name": "NEWBERRY 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901073",
+    "entry_id": 1630620,
+    "effective_date": "8/8/1964",
+    "well_name": "THOMAS PERNELL ACCOUNT 1 3-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901078",
+    "entry_id": 1845312,
+    "effective_date": "7/15/1927",
+    "well_name": "DERDEYN 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901095",
+    "entry_id": 2525344,
+    "effective_date": "5/15/2004",
+    "well_name": "PENNELL 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901117",
+    "entry_id": 1843673,
+    "effective_date": "8/13/1922",
+    "well_name": "H DERDEYN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901123",
+    "entry_id": 1856240,
+    "effective_date": "9/7/1948",
+    "well_name": "MOSS 5",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901125",
+    "entry_id": 1856033,
+    "effective_date": "8/4/1948",
+    "well_name": "MOSS 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901127",
+    "entry_id": 1789166,
+    "effective_date": "12/31/1948",
+    "well_name": "SW EOLA UNIT 4-6",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901130",
+    "entry_id": 1855906,
+    "effective_date": "7/17/1948",
+    "well_name": "HENDERSON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901132",
+    "entry_id": 1789767,
+    "effective_date": "6/25/1998",
+    "well_name": "SW EOLA UNIT 4-5 (RINGER 5)",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901133",
+    "entry_id": 1790869,
+    "effective_date": "7/28/1998",
+    "well_name": "SW EOLA UNIT 4-3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901135",
+    "entry_id": 1631724,
+    "effective_date": "11/3/1965",
+    "well_name": "JANE ROYALTY CORP 3-W",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901137",
+    "entry_id": 1631709,
+    "effective_date": "10/22/1965",
+    "well_name": "JANE ROYALTY CORP 1-W",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901139",
+    "entry_id": 1844191,
+    "effective_date": "9/8/1923",
+    "well_name": "W A GANN 1 A/C 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901140",
+    "entry_id": 1844155,
+    "effective_date": "7/22/1923",
+    "well_name": "W A GANN 1 A/C 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901143",
+    "entry_id": 1624974,
+    "effective_date": "3/15/1961",
+    "well_name": "ROSE 1 SWD",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901148",
+    "entry_id": 1844088,
+    "effective_date": "6/12/1923",
+    "well_name": "W A GANN ACCOUNT 2 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901150",
+    "entry_id": 1844236,
+    "effective_date": "11/12/1923",
+    "well_name": "W A GANN ACCOUNT 2 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901163",
+    "entry_id": 1844533,
+    "effective_date": "4/20/1925",
+    "well_name": "HARKREADER 9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901172",
+    "entry_id": 1843645,
+    "effective_date": "7/22/1922",
+    "well_name": "W B HERVEY B-2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901191",
+    "entry_id": 1863243,
+    "effective_date": "12/22/1948",
+    "well_name": "FREEMAN 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901192",
+    "entry_id": 1866603,
+    "effective_date": "3/4/1951",
+    "well_name": "RUSSELL 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901200",
+    "entry_id": 1631192,
+    "effective_date": "1/21/1965",
+    "well_name": "ROBERTS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901208",
+    "entry_id": 1848598,
+    "effective_date": "6/25/1944",
+    "well_name": "R L FREEMAN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901212",
+    "entry_id": 1624139,
+    "effective_date": "9/7/1960",
+    "well_name": "EOLA NW BLOCK SAND UNIT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901215",
+    "entry_id": 3213538,
+    "effective_date": "4/26/1956",
+    "well_name": "J E MORRIS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901224",
+    "entry_id": 1848590,
+    "effective_date": "6/21/1944",
+    "well_name": "GAT RUSSELL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901233",
+    "entry_id": 1876728,
+    "effective_date": "9/9/1957",
+    "well_name": "MARTHA MITCHELL ACKLEY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901251",
+    "entry_id": 1622733,
+    "effective_date": "4/3/1960",
+    "well_name": "NE PURDY UNIT F-17-S",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901254",
+    "entry_id": 1685724,
+    "effective_date": "9/1/1982",
+    "well_name": "NE PURDY UNIT M-17D",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901304",
+    "entry_id": 1622583,
+    "effective_date": "8/18/1998",
+    "well_name": "NE PURDY SPRINGER A E8-S",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901308",
+    "entry_id": 1685939,
+    "effective_date": "9/13/1982",
+    "well_name": "NE PURDY UNITS H-9D",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901330",
+    "entry_id": 1746227,
+    "effective_date": "9/15/1993",
+    "well_name": "H K MOORE 2-17",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901358",
+    "entry_id": 1868818,
+    "effective_date": "5/9/1953",
+    "well_name": "NE PURDY HART SAND UNIT R 26-W (B B PARR 3)",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901364",
+    "entry_id": 1868689,
+    "effective_date": "3/24/1953",
+    "well_name": "DENSON 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901441",
+    "entry_id": 1876486,
+    "effective_date": "7/10/1957",
+    "well_name": "EMMA B WILSON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901475",
+    "entry_id": 1863557,
+    "effective_date": "3/2/1949",
+    "well_name": "CURRY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901497",
+    "entry_id": 1730386,
+    "effective_date": "6/23/1989",
+    "well_name": "WALDRON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901499",
+    "entry_id": 1869426,
+    "effective_date": "11/29/1953",
+    "well_name": "CHARLES DENSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901501",
+    "entry_id": 1870102,
+    "effective_date": "5/16/1954",
+    "well_name": "ROBERTA G 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901511",
+    "entry_id": 1869224,
+    "effective_date": "9/28/1953",
+    "well_name": "MCCOY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901517",
+    "entry_id": 1872921,
+    "effective_date": "9/3/1955",
+    "well_name": "ARNER 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901524",
+    "entry_id": 1869900,
+    "effective_date": "8/18/1998",
+    "well_name": "NE PURDY HART SAND UNIT S-16",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901561",
+    "entry_id": 1865849,
+    "effective_date": "5/5/1950",
+    "well_name": "CRYSTAL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901629",
+    "entry_id": 1849707,
+    "effective_date": "4/28/1946",
+    "well_name": "GAT RUSSELL 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901631",
+    "entry_id": 1436077,
+    "effective_date": "4/11/1961",
+    "well_name": "PERRIN GRANT 19",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901691",
+    "entry_id": 1460658,
+    "effective_date": "2/5/1963",
+    "well_name": "NABORS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901698",
+    "entry_id": 2379561,
+    "effective_date": "3/24/1966",
+    "well_name": "DUKER UNIT 11",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901896",
+    "entry_id": 1864809,
+    "effective_date": "10/19/1949",
+    "well_name": "I L STEWARD C-1 (SW ANTIOCH GIBSON SAND UNIT 149)",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901938",
+    "entry_id": 1627414,
+    "effective_date": "8/12/1962",
+    "well_name": "MCDANIEL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901948",
+    "entry_id": 2739308,
+    "effective_date": "6/21/1952",
+    "well_name": "GRANT 4-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901951",
+    "entry_id": 1755656,
+    "effective_date": "9/28/1993",
+    "well_name": "LANE D-5",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901953",
+    "entry_id": 1866120,
+    "effective_date": "8/24/1950",
+    "well_name": "PANTHER CREEK UNIT S-18 (BROOKSHER 1)",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901956",
+    "entry_id": 1874304,
+    "effective_date": "5/23/1956",
+    "well_name": "ROBBERSON SKAGGS SAND UNIT 4-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901973",
+    "entry_id": 1427503,
+    "effective_date": "8/2/1957",
+    "well_name": "YOUNGBLOOD SPRINGER 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901994",
+    "entry_id": 1629447,
+    "effective_date": "11/27/1963",
+    "well_name": "WEATHERFORD 5 SWD",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504901996",
+    "entry_id": 1777248,
+    "effective_date": "12/10/1996",
+    "well_name": "PATSY B-1 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504902000",
+    "entry_id": 1856469,
+    "effective_date": "10/11/1948",
+    "well_name": "JARMAN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504902003",
+    "entry_id": 1424323,
+    "effective_date": "7/5/1956",
+    "well_name": "WEBB 8-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504909526",
+    "entry_id": 1692471,
+    "effective_date": "9/1/1984",
+    "well_name": "NE PURDY SPRINGER A K-9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920001",
+    "entry_id": 2379706,
+    "effective_date": "4/13/1966",
+    "well_name": "DUKER UNIT 13",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920005",
+    "entry_id": 1631096,
+    "effective_date": "12/20/1964",
+    "well_name": "JANE ROYALTY CORP 8",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920013",
+    "entry_id": 1632374,
+    "effective_date": "5/6/1966",
+    "well_name": "HUMBLE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920014",
+    "entry_id": 1474843,
+    "effective_date": "7/8/1966",
+    "well_name": "DENSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920041",
+    "entry_id": 2380148,
+    "effective_date": "7/3/1966",
+    "well_name": "DUNKIN 7",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920043",
+    "entry_id": 2380508,
+    "effective_date": "9/6/1966",
+    "well_name": "DUNKIN 1-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920044",
+    "entry_id": 1474659,
+    "effective_date": "6/12/1966",
+    "well_name": "MEDLOCK 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920066",
+    "entry_id": 1475181,
+    "effective_date": "9/7/1966",
+    "well_name": "DENSON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920072",
+    "entry_id": 1475195,
+    "effective_date": "9/10/1966",
+    "well_name": "GRANT 8",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920075",
+    "entry_id": 1475343,
+    "effective_date": "10/10/1966",
+    "well_name": "ROBBERSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920096",
+    "entry_id": 1475449,
+    "effective_date": "10/28/1966",
+    "well_name": "GOMER SMITH JR ETAL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920105",
+    "entry_id": 2380836,
+    "effective_date": "10/20/1966",
+    "well_name": "ROLLOW 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920106",
+    "entry_id": 1633473,
+    "effective_date": "12/15/1966",
+    "well_name": "SE EOLA MSU WSW 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920110",
+    "entry_id": 2381004,
+    "effective_date": "11/15/1966",
+    "well_name": "FREEMAN 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920123",
+    "entry_id": 1475607,
+    "effective_date": "11/28/1966",
+    "well_name": "GOMER SMITH JR ETAL 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920129",
+    "entry_id": 1581331,
+    "effective_date": "3/17/1993",
+    "well_name": "GOMER SMITH 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920131",
+    "entry_id": 1633570,
+    "effective_date": "1/4/1967",
+    "well_name": "KEELE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920154",
+    "entry_id": 1637697,
+    "effective_date": "2/15/1967",
+    "well_name": "FREEMAN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920156",
+    "entry_id": 1637859,
+    "effective_date": "3/9/1967",
+    "well_name": "WALKER-RIDDLE 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920195",
+    "entry_id": 1638622,
+    "effective_date": "8/3/1967",
+    "well_name": "BLANTON 11",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920206",
+    "entry_id": 1638735,
+    "effective_date": "8/20/1967",
+    "well_name": "ALICE OSBORNE 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920221",
+    "entry_id": 1638995,
+    "effective_date": "10/5/1967",
+    "well_name": "HARGIS 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920226",
+    "entry_id": 1639268,
+    "effective_date": "10/25/1967",
+    "well_name": "BLANTON 13",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920230",
+    "entry_id": 1675406,
+    "effective_date": "9/1/1980",
+    "well_name": "DUNLAP 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920231",
+    "entry_id": 1640289,
+    "effective_date": "5/25/1968",
+    "well_name": "CAMPBELL-MAXEY 3-36",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920235",
+    "entry_id": 1640065,
+    "effective_date": "3/27/1968",
+    "well_name": "HART UNIT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920257",
+    "entry_id": 1639899,
+    "effective_date": "2/12/1968",
+    "well_name": "HARGIS 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920264",
+    "entry_id": 1640535,
+    "effective_date": "8/1/1968",
+    "well_name": "COLLINS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920266",
+    "entry_id": 1640223,
+    "effective_date": "5/5/1968",
+    "well_name": "THOMAS PERNELL ACCOUNT 1 19",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920277",
+    "entry_id": 1479096,
+    "effective_date": "7/30/1968",
+    "well_name": "ANDREWS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920280",
+    "entry_id": 1479534,
+    "effective_date": "10/31/1968",
+    "well_name": "GUEST 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920296",
+    "entry_id": 1640866,
+    "effective_date": "10/15/1968",
+    "well_name": "RINGER UNIT B-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920314",
+    "entry_id": 1640814,
+    "effective_date": "9/28/1968",
+    "well_name": "HARGIS 5",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920325",
+    "entry_id": 1640869,
+    "effective_date": "10/15/1968",
+    "well_name": "HARGIS 7",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920328",
+    "entry_id": 1640880,
+    "effective_date": "10/21/1968",
+    "well_name": "HARGIS 8",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920329",
+    "entry_id": 1479563,
+    "effective_date": "11/5/1968",
+    "well_name": "DAUGHETY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920335",
+    "entry_id": 1788247,
+    "effective_date": "4/16/1998",
+    "well_name": "HARRELL D-6",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920336",
+    "entry_id": 1479646,
+    "effective_date": "11/25/1968",
+    "well_name": "DAUGHETY 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920341",
+    "entry_id": 1479888,
+    "effective_date": "1/7/1969",
+    "well_name": "BARRETT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920343",
+    "entry_id": 1667139,
+    "effective_date": "7/27/1979",
+    "well_name": "JASON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920352",
+    "entry_id": 1480271,
+    "effective_date": "4/10/1969",
+    "well_name": "LAUDERDALE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920355",
+    "entry_id": 1479780,
+    "effective_date": "12/18/1968",
+    "well_name": "DELANEY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920357",
+    "entry_id": 1479655,
+    "effective_date": "11/26/1968",
+    "well_name": "GUEST 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920360",
+    "entry_id": 1479934,
+    "effective_date": "1/19/1969",
+    "well_name": "ELDRIDGE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920364",
+    "entry_id": 1479893,
+    "effective_date": "1/8/1969",
+    "well_name": "BARRETT 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920370",
+    "entry_id": 1642260,
+    "effective_date": "7/21/1970",
+    "well_name": "MCDANIEL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920373",
+    "entry_id": 1480039,
+    "effective_date": "2/13/1969",
+    "well_name": "BARRETT 5",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920387",
+    "entry_id": 1480137,
+    "effective_date": "3/14/1969",
+    "well_name": "DELANEY 1-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920390",
+    "entry_id": 2385991,
+    "effective_date": "4/9/1969",
+    "well_name": "CARSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920392",
+    "entry_id": 1480332,
+    "effective_date": "4/20/1969",
+    "well_name": "BARRETT 8",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920398",
+    "entry_id": 1641286,
+    "effective_date": "5/22/1969",
+    "well_name": "KENNEDY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920402",
+    "entry_id": 1480328,
+    "effective_date": "4/20/1969",
+    "well_name": "DELANEY 1-B",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920404",
+    "entry_id": 1480528,
+    "effective_date": "5/27/1969",
+    "well_name": "GLASS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920405",
+    "entry_id": 2386273,
+    "effective_date": "5/31/1969",
+    "well_name": "FREEMAN 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920407",
+    "entry_id": 1480621,
+    "effective_date": "6/16/1969",
+    "well_name": "MAXEY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920411",
+    "entry_id": 1730199,
+    "effective_date": "6/9/1989",
+    "well_name": "CARNELL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920413",
+    "entry_id": 1480630,
+    "effective_date": "6/19/1969",
+    "well_name": "LAMB 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920424",
+    "entry_id": 1717747,
+    "effective_date": "8/19/1987",
+    "well_name": "VOSE 4-2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920426",
+    "entry_id": 1641351,
+    "effective_date": "7/2/1969",
+    "well_name": "O M FERGUSON 6",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920448",
+    "entry_id": 1480933,
+    "effective_date": "10/17/1969",
+    "well_name": "BELT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920460",
+    "entry_id": 1641715,
+    "effective_date": "11/7/1969",
+    "well_name": "HARGIS 9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920499",
+    "entry_id": 1642195,
+    "effective_date": "6/16/1970",
+    "well_name": "HATCHER C-4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920522",
+    "entry_id": 1642726,
+    "effective_date": "12/7/1970",
+    "well_name": "RENAKER-GIBSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920528",
+    "entry_id": 1642852,
+    "effective_date": "1/14/1971",
+    "well_name": "SHAMLEY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920534",
+    "entry_id": 1642913,
+    "effective_date": "1/30/1971",
+    "well_name": "ROBBERSON TOWNSITE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920554",
+    "entry_id": 1643646,
+    "effective_date": "5/24/1971",
+    "well_name": "RENAKER-GIBSON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920557",
+    "entry_id": 1643734,
+    "effective_date": "6/16/1971",
+    "well_name": "RENAKER-GIBSON 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920559",
+    "entry_id": 1482664,
+    "effective_date": "11/4/1971",
+    "well_name": "WHITSON 3 SWD",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920566",
+    "entry_id": 1643745,
+    "effective_date": "6/21/1971",
+    "well_name": "RINGER-WOOD 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920570",
+    "entry_id": 1644030,
+    "effective_date": "9/1/1971",
+    "well_name": "TUSSY DEESE UNIT CM-WSW-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920574",
+    "entry_id": 1644063,
+    "effective_date": "9/13/1971",
+    "well_name": "HIBDON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920576",
+    "entry_id": 1644392,
+    "effective_date": "1/28/1972",
+    "well_name": "HOLLOWAY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920583",
+    "entry_id": 1680795,
+    "effective_date": "9/8/1981",
+    "well_name": "CORNELL 24-1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920597",
+    "entry_id": 1644410,
+    "effective_date": "2/1/1972",
+    "well_name": "GOLDFEDER 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920600",
+    "entry_id": 1679376,
+    "effective_date": "5/20/1981",
+    "well_name": "J R WINCHESTER 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920608",
+    "entry_id": 2391121,
+    "effective_date": "5/6/1972",
+    "well_name": "GALBRAITH 6",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920623",
+    "entry_id": 1644868,
+    "effective_date": "8/1/1972",
+    "well_name": "COPELAND-DAVENPORT 1-A",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920625",
+    "entry_id": 2663996,
+    "effective_date": "9/6/1972",
+    "well_name": "NE BUTTERLY OIL CREEK UNIT 14",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920644",
+    "entry_id": 2664012,
+    "effective_date": "12/10/1972",
+    "well_name": "NE BUTTERLY OIL CREEK UNIT 16",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920646",
+    "entry_id": 2755850,
+    "effective_date": "11/7/1972",
+    "well_name": "MAYS-LEDGERWOOD SWD 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920654",
+    "entry_id": 2664018,
+    "effective_date": "2/5/1973",
+    "well_name": "NE BUTTERLY OIL CREEK UNIT 17",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920659",
+    "entry_id": 2664020,
+    "effective_date": "3/23/1973",
+    "well_name": "NE BUTTERLY OIL CREEK UNIT 18",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920660",
+    "entry_id": 1649019,
+    "effective_date": "3/30/1973",
+    "well_name": "JANE ROYALTY 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920667",
+    "entry_id": 2663993,
+    "effective_date": "6/22/1973",
+    "well_name": "NE BUTTERLY OIL CREEK UNIT 20",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920688",
+    "entry_id": 1674273,
+    "effective_date": "5/7/1980",
+    "well_name": "VIRGINIA 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920689",
+    "entry_id": 2663942,
+    "effective_date": "11/2/1973",
+    "well_name": "L BUTTERLY 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920690",
+    "entry_id": 1655328,
+    "effective_date": "2/13/1974",
+    "well_name": "HIBDON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920705",
+    "entry_id": 1657194,
+    "effective_date": "12/24/1974",
+    "well_name": "PETERS 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920706",
+    "entry_id": 2394216,
+    "effective_date": "3/13/1974",
+    "well_name": "DUKER UNIT 9",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920711",
+    "entry_id": 1656090,
+    "effective_date": "7/11/1974",
+    "well_name": "DULIN UNIT 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920715",
+    "entry_id": 1655321,
+    "effective_date": "2/11/1974",
+    "well_name": "BLANTON 14",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920718",
+    "entry_id": 1655480,
+    "effective_date": "3/24/1974",
+    "well_name": "RENAKER-GIBSON 4",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920719",
+    "entry_id": 1655791,
+    "effective_date": "5/14/1974",
+    "well_name": "FEATHERSTON 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920723",
+    "entry_id": 1656132,
+    "effective_date": "7/17/1974",
+    "well_name": "M DERDEYN 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920736",
+    "entry_id": 1655894,
+    "effective_date": "6/2/1974",
+    "well_name": "RUSSELL 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920745",
+    "entry_id": 1486365,
+    "effective_date": "9/5/1974",
+    "well_name": "RUPPE 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920749",
+    "entry_id": 1657485,
+    "effective_date": "1/29/1975",
+    "well_name": "BLANTON-THOMPSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920757",
+    "entry_id": 1666441,
+    "effective_date": "4/26/1979",
+    "well_name": "ROSE 2",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920759",
+    "entry_id": 1486493,
+    "effective_date": "9/26/1974",
+    "well_name": "RUPPE WATSON 1",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920760",
+    "entry_id": 1656819,
+    "effective_date": "10/24/1974",
+    "well_name": "FEATHERSTON 3",
+    "county": "Garvin"
+  },
+  {
+    "api_number": "3504920761",
+    "entry_id": 1486572,
+    "effective_date": "10/10/1974",
+    "well_name": "RUPPE 2",
+    "county": "Garvin"
   }
 ]
