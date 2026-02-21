@@ -6749,16 +6749,14 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     const allWells = Array.from(wellsByApi.values());
     console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWells.length, 'wells');
 
-    // Step 3: Query per-well deductions + gas-weighting from OTC financial data (trailing 12 months)
-    // Gas-weighted detection uses REVENUE share (gas revenue > 50% of total), not volume.
-    // Volume-based (BOE at 6:1) over-flags because MCF numbers naturally dwarf BBL.
+    // Step 3: Query per-well deductions from OTC financial data (trailing 12 months)
+    // Blended all-in discount across all product codes. Gas-heavy wells naturally
+    // show higher discounts (gathering/processing costs) → lower net-back → higher risk.
     const wellDeductions = new Map<string, {
       totalDiscount: number;
       mktDeductionPct: number;
       taxPct: number;
     }>();
-    const gasWeightedApis = new Set<string>();
-    const gasRealizedPrices = new Map<string, number>();
 
     const apiNumbers = allWells.map(w => w.api_number);
     if (apiNumbers.length > 0) {
@@ -6772,16 +6770,13 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         const placeholders = batch.map(() => '?').join(',');
 
         try {
-          // Combined query: deductions + gas revenue share
           const deductionResult = await db.prepare(`
             SELECT wpl.api_number,
               SUM(opf.gross_value) as total_gross,
               SUM(opf.net_value) as total_net,
               SUM(opf.market_deduction) as total_mkt_deduction,
               SUM(opf.gp_tax) as total_gp_tax,
-              SUM(opf.pe_tax) as total_pe_tax,
-              SUM(CASE WHEN opf.product_code IN ('3', '5') THEN opf.gross_value ELSE 0 END) as gas_revenue,
-              SUM(CASE WHEN opf.product_code IN ('3', '5') THEN opf.gross_volume ELSE 0 END) as gas_volume
+              SUM(opf.pe_tax) as total_pe_tax
             FROM well_pun_links wpl
             JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
             WHERE wpl.api_number IN (${placeholders})
@@ -6794,11 +6789,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
           for (const r of deductionResult.results as Array<{
             api_number: string; total_gross: number; total_net: number;
             total_mkt_deduction: number; total_gp_tax: number; total_pe_tax: number;
-            gas_revenue: number; gas_volume: number;
           }>) {
-            // All-in discount: market deductions + taxes
-            // OTC net_value = gross_value - market_deduction (taxes NOT subtracted)
-            // So true owner discount = 1 - (net_value - gp_tax - pe_tax) / gross_value
             const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
             const rawDiscount = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
             // Floor at 15%: OTC doesn't track oil marketing deductions (gathering, transport, basis)
@@ -6810,17 +6801,6 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
               mktDeductionPct: Math.max(0, mktPct),
               taxPct: Math.max(0, tPct)
             });
-
-            // Gas-weighted: gas revenue > 50% of total revenue
-            const gasShare = r.total_gross > 0 ? (r.gas_revenue / r.total_gross) : 0;
-            if (gasShare > 0.50) {
-              gasWeightedApis.add(r.api_number);
-            }
-
-            // Realized gas price ($/MCF) for gas-producing wells
-            if (r.gas_volume > 0) {
-              gasRealizedPrices.set(r.api_number, r.gas_revenue / r.gas_volume);
-            }
           }
         } catch (e) {
           console.error('[Well Risk Profile] Deduction batch error:', e);
@@ -6828,14 +6808,13 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       }
     }
 
-    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'wells, gas-weighted:', gasWeightedApis.size, ', gas prices for', gasRealizedPrices.size);
+    console.log('[Well Risk Profile] Deduction data for', wellDeductions.size, 'wells');
 
     // Step 4: Compute risk level per well
     let atRiskCount = 0;
     let tightCount = 0;
     let adequateCount = 0;
     let comfortableCount = 0;
-    let gasWeightedCount = 0;
     let scoredCushionSum = 0;
     let scoredCount = 0;
 
@@ -6850,66 +6829,53 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       formationGroup: string | null;
       profileId: string;
       profileName: string;
-      halfCycleBreakeven: number | null;
+      halfCycleBreakeven: number;
       riskLevel: string;
-      cushionDollar: number | null;
-      cushionPct: number | null;
-      totalDiscountPct: number | null;
+      cushionDollar: number;
+      cushionPct: number;
+      totalDiscountPct: number;
       mktDeductionPct: number | null;
       taxPct: number | null;
-      netBackPrice: number | null;
+      netBackPrice: number;
       stressedAtWti: number | null;
       criticalAtWti: number | null;
-      realizedGasPrice: number | null;
       hasDeductionData: boolean;
-      isGasWeighted: boolean;
       isStale: boolean;
       lastProdMonth: string | null;
       declineRate12m: number | null;
     }> = [];
 
     for (const w of allWells) {
-      const isGasWeighted = gasWeightedApis.has(w.api_number);
-      const profileId = isGasWeighted ? 'gas-weighted' : (w.risk_profile_id || 'unknown-formation');
-      const profileName = isGasWeighted ? 'Gas-Weighted' : (w.profile_name || 'Unknown Formation');
-      const breakeven = isGasWeighted ? null : (w.half_cycle_breakeven ?? 38); // fallback to blended avg
+      const profileId = w.risk_profile_id || 'unknown-formation';
+      const profileName = w.profile_name || 'Unknown Formation';
+      const breakeven = w.half_cycle_breakeven ?? 38; // fallback to blended avg
 
       // Look up per-well deduction data from OTC financial records
       const deduction = wellDeductions.get(w.api_number);
       const totalDiscount = deduction?.totalDiscount ?? 0.20; // 20% default when no OTC data
 
-      let riskLevel: string;
-      let cushionDollar: number | null = null;
-      let cushionPct: number | null = null;
-      let netBackPrice: number | null = null;
+      // Net-back = WTI × (1 - blended all-in discount)
+      // Gas-heavy wells naturally have higher discounts (gathering/processing costs)
+      const netBackPrice = Math.round(wtiPrice * (1 - totalDiscount) * 100) / 100;
+      const risk = getRiskLevel(netBackPrice, breakeven);
+      const riskLevel = risk.level;
+      const cushionDollar = Math.round(risk.cushionDollar * 100) / 100;
+      const cushionPct = Math.round(risk.cushionPct * 10) / 10;
+      scoredCushionSum += risk.cushionDollar;
+      scoredCount++;
+
+      // Price sensitivity: WTI level where this well hits 10% margin / breakeven
       let stressedAtWti: number | null = null;
       let criticalAtWti: number | null = null;
-      const realizedGasPrice = gasRealizedPrices.get(w.api_number) ?? null;
-
-      if (isGasWeighted) {
-        riskLevel = 'gas_weighted';
-        gasWeightedCount++;
-      } else {
-        // Net-back = WTI × (1 - all-in discount from OTC data)
-        netBackPrice = Math.round(wtiPrice * (1 - totalDiscount) * 100) / 100;
-        const risk = getRiskLevel(netBackPrice, breakeven!);
-        riskLevel = risk.level;
-        cushionDollar = Math.round(risk.cushionDollar * 100) / 100;
-        cushionPct = Math.round(risk.cushionPct * 10) / 10;
-        scoredCushionSum += risk.cushionDollar;
-        scoredCount++;
-
-        // Price sensitivity: WTI level where this well hits 10% margin / breakeven
-        if (totalDiscount < 1) {
-          stressedAtWti = Math.round(breakeven! / (0.90 * (1 - totalDiscount)) * 100) / 100;
-          criticalAtWti = Math.round(breakeven! / (1 - totalDiscount) * 100) / 100;
-        }
-
-        if (riskLevel === 'at_risk') atRiskCount++;
-        else if (riskLevel === 'tight') tightCount++;
-        else if (riskLevel === 'adequate') adequateCount++;
-        else comfortableCount++;
+      if (totalDiscount < 1) {
+        stressedAtWti = Math.round(breakeven / (0.90 * (1 - totalDiscount)) * 100) / 100;
+        criticalAtWti = Math.round(breakeven / (1 - totalDiscount) * 100) / 100;
       }
+
+      if (riskLevel === 'at_risk') atRiskCount++;
+      else if (riskLevel === 'tight') tightCount++;
+      else if (riskLevel === 'adequate') adequateCount++;
+      else comfortableCount++;
 
       wells.push({
         clientWellId: w.client_well_id,
@@ -6922,7 +6888,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         formationGroup: w.formation_group,
         profileId,
         profileName,
-        halfCycleBreakeven: isGasWeighted ? null : breakeven,
+        halfCycleBreakeven: breakeven,
         riskLevel,
         cushionDollar,
         cushionPct,
@@ -6932,9 +6898,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         netBackPrice,
         stressedAtWti,
         criticalAtWti,
-        realizedGasPrice: realizedGasPrice !== null ? Math.round(realizedGasPrice * 100) / 100 : null,
         hasDeductionData: !!deduction,
-        isGasWeighted,
         isStale: w.is_stale === 1,
         lastProdMonth: w.last_prod_month,
         declineRate12m: w.decline_rate_12m
@@ -6945,8 +6909,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     let discountSum = 0;
     let discountCount = 0;
     for (const w of wells) {
-      if (!w.isGasWeighted && w.hasDeductionData) {
-        discountSum += w.totalDiscountPct!;
+      if (w.hasDeductionData) {
+        discountSum += w.totalDiscountPct;
         discountCount++;
       }
     }
@@ -6955,19 +6919,17 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     const portfolioNetBack = Math.round(wtiPrice * (1 - avgDiscountFrac) * 100) / 100;
 
     // Step 5: Build byProfile summary
-    const profileMap = new Map<string, { profileId: string; profileName: string; halfCycleBreakeven: number | null; wellCount: number; riskLevel: string; isGasFlag: boolean }>();
+    const profileMap = new Map<string, { profileId: string; profileName: string; halfCycleBreakeven: number | null; wellCount: number; riskLevel: string }>();
     for (const w of wells) {
       const existing = profileMap.get(w.profileId);
       if (!existing) {
-        const isGas = w.profileId === 'gas-weighted';
         const be = w.halfCycleBreakeven || 38;
         profileMap.set(w.profileId, {
           profileId: w.profileId,
           profileName: w.profileName,
           halfCycleBreakeven: w.halfCycleBreakeven,
           wellCount: 1,
-          riskLevel: isGas ? 'gas_weighted' : getRiskLevel(portfolioNetBack, be).level,
-          isGasFlag: isGas
+          riskLevel: getRiskLevel(portfolioNetBack, be).level
         });
       } else {
         existing.wellCount++;
@@ -6975,7 +6937,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     }
 
     const byProfile = Array.from(profileMap.values()).sort((a, b) => {
-      const order: Record<string, number> = { 'scoop-stack-hz': 1, 'other-hz': 2, 'deep-conventional': 3, 'conventional-vert': 4, 'unknown-formation': 5, 'gas-weighted': 6 };
+      const order: Record<string, number> = { 'scoop-stack-hz': 1, 'other-hz': 2, 'deep-conventional': 3, 'conventional-vert': 4, 'unknown-formation': 5 };
       return (order[a.profileId] || 99) - (order[b.profileId] || 99);
     });
 
@@ -7028,7 +6990,6 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         tightCount,
         adequateCount,
         comfortableCount,
-        gasWeightedCount,
         avgCushion: scoredCount > 0 ? Math.round(scoredCushionSum / scoredCount * 100) / 100 : 0,
         coverageRate,
         wellsWithDeductionData: wellDeductions.size,

@@ -5805,7 +5805,6 @@
                 case 'adequate': return 'Adequate';
                 case 'tight': return 'Tight';
                 case 'at_risk': return 'At Risk';
-                case 'gas_weighted': return 'Gas';
                 default: return level;
             }
         }
@@ -5816,7 +5815,6 @@
                 case 'adequate': return 'background: #ccfbf1; color: #0f766e;';
                 case 'tight': return 'background: #fef3c7; color: #92400e;';
                 case 'at_risk': return 'background: #fee2e2; color: #991b1b;';
-                case 'gas_weighted': return 'background: #ede9fe; color: #5b21b6;';
                 default: return 'background: #f3f4f6; color: #374151;';
             }
         }
@@ -5827,7 +5825,6 @@
                 case 'adequate': return '#14b8a6';
                 case 'tight': return '#f59e0b';
                 case 'at_risk': return '#ef4444';
-                case 'gas_weighted': return '#8b5cf6';
                 default: return '#9ca3af';
             }
         }
@@ -5893,10 +5890,6 @@
                         <div style="font-size: 1.75rem; font-weight: 700; color: #10b981;">${summary.comfortableCount + summary.adequateCount}</div>
                         <div style="font-size: 0.75rem; color: var(--text-muted);">Comfortable</div>
                     </div>
-                    <div style="background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 10px; padding: 1rem; text-align: center;">
-                        <div style="font-size: 1.75rem; font-weight: 700; color: #8b5cf6;">${summary.gasWeightedCount}</div>
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Gas-Weighted</div>
-                    </div>
                 </div>`;
 
             // Tabs
@@ -5955,7 +5948,7 @@
 
             // Build filter options
             const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
-            const riskLevels = ['all', 'at_risk', 'tight', 'adequate', 'comfortable', 'gas_weighted'];
+            const riskLevels = ['all', 'at_risk', 'tight', 'adequate', 'comfortable'];
 
             const deductionNote = summary.wellsWithDeductionData > 0
                 ? '<span style="font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem;">' + summary.wellsWithDeductionData + ' wells with OTC deduction data (avg ' + (summary.avgDiscountPct || 20).toFixed(1) + '% discount)</span>'
@@ -5979,15 +5972,6 @@
                     ${deductionNote}
                 </div>
                 <div id="riskTableContainer"></div>`;
-
-            if (summary.gasWeightedCount > 0) {
-                html += `
-                    <div style="margin-top: 1rem; padding: 0.875rem 1rem; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 8px; font-size: 0.8125rem; color: #5b21b6; line-height: 1.5;">
-                        <strong style="color: #7c3aed;">Gas-weighted wells</strong> produce primarily natural gas. Their economics depend on
-                        Henry Hub pricing${data.henryHubPrice ? ' ($' + data.henryHubPrice.price.toFixed(2) + '/MCF)' : ''}, not WTI crude. These wells are flagged separately
-                        and not scored against the oil breakeven threshold.
-                    </div>`;
-            }
 
             // Render table after DOM is ready
             setTimeout(() => renderRiskTable(), 0);
@@ -6023,7 +6007,7 @@
             if (level !== 'all') wells = wells.filter(w => w.riskLevel === level);
 
             // Click-to-sort
-            const riskOrder = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3, gas_weighted: 4 };
+            const riskOrder = { at_risk: 0, tight: 1, adequate: 2, comfortable: 3 };
             const dir = riskSortDir === 'asc' ? 1 : -1;
             switch (riskSortCol) {
                 case 'name':
@@ -6075,9 +6059,7 @@
                 const netBackStr = w.netBackPrice !== null ? '$' + w.netBackPrice.toFixed(2) : '\u2014';
 
                 // Status pill: tier label colored by risk level
-                const statusHtml = w.isGasWeighted
-                    ? '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle('gas_weighted') + '">Gas</span>'
-                    : '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle(w.riskLevel) + '">' + riskLevelLabel(w.riskLevel) + '</span>';
+                const statusHtml = '<span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 0.7rem; font-weight: 500; ' + riskLevelBadgeStyle(w.riskLevel) + '">' + riskLevelLabel(w.riskLevel) + '</span>';
 
                 // Stressed At — amber when within $10 of current WTI
                 let stressedStr = '\u2014';
@@ -6157,8 +6139,7 @@
                 'other-hz': 'Other Hz',
                 'deep-conventional': 'Deep Conv.',
                 'conventional-vert': 'Conv. Vertical',
-                'unknown-formation': 'Unknown',
-                'gas-weighted': 'Gas'
+                'unknown-formation': 'Unknown'
             };
 
             let cards = byFormation.map(f => {
@@ -6175,8 +6156,7 @@
                         const pct = (count / total * 100).toFixed(1);
                         const profileBE = getProfileBreakeven(pid);
                         const profileNetBack = wti * (1 - avgDiscount);
-                        const color = riskLevelColor(pid === 'gas-weighted' ? 'gas_weighted' :
-                            getRiskLevelFrontend(profileNetBack, profileBE));
+                        const color = riskLevelColor(getRiskLevelFrontend(profileNetBack, profileBE));
                         return '<div style="width: ' + pct + '%; background: ' + color + '; height: 8px;" title="' + (profileNames[pid] || pid) + ': ' + count + '"></div>';
                     }).join('');
                     barHtml = '<div style="display: flex; border-radius: 4px; overflow: hidden; margin: 0.5rem 0;">' + segments + '</div>';
@@ -6296,13 +6276,6 @@
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Price sensitivity columns</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
                             <strong>Stressed At</strong> shows the WTI price where a well&rsquo;s net-back margin drops to 10% (the tight threshold). <strong>Critical At</strong> shows the WTI price where the net-back equals breakeven &mdash; below this, the well operates at a loss. These thresholds are personalized per well based on actual deduction rates from OTC data. Wells with higher deductions have higher stress thresholds, making their margins more sensitive to WTI drops.
-                        </p>
-                    </div>
-
-                    <div style="margin-bottom: 1.5rem;">
-                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Gas-weighted wells</h3>
-                        <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            Wells where gas production (converted to BOE at 6:1) exceeds twice the oil production are flagged as <strong>gas-weighted</strong>. Their economics depend on natural gas pricing, not WTI crude oil. Where available, a <strong>realized gas price</strong> is computed from OTC data (actual revenue per MCF) rather than relying on Henry Hub index prices. These wells are identified separately and are not scored against the oil breakeven threshold.
                         </p>
                     </div>
 
