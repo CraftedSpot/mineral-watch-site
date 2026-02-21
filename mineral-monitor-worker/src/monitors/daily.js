@@ -48,7 +48,7 @@ import {
   getPermitExpirationAlert
 } from '../services/statewideActivity.js';
 import { checkWellStatusChange } from '../services/statusChange.js';
-import { batchEnrichWellsFromCompletions } from '../services/wellEnrichment.js';
+import { batchEnrichWellsFromCompletions, batchEnrichWellsFromPermits } from '../services/wellEnrichment.js';
 
 /**
  * Check if we're in dry-run mode
@@ -660,6 +660,21 @@ export async function runDailyMonitor(env, options = {}) {
       } catch (err) {
         console.error('[Daily] Error enriching wells:', err.message);
         results.errors.push({ type: 'well_enrichment', error: err.message });
+      }
+    }
+
+    // Enrich D1 wells with formation data from ITD permits
+    // ITD files have target formation in various fields — fills NULL formation_name + normalizes
+    if (newPermits.length > 0 && !dryRun) {
+      try {
+        const permitEnrichResult = await batchEnrichWellsFromPermits(env, newPermits);
+        if (permitEnrichResult.updated > 0) {
+          console.log(`[Daily] ITD formation enrichment: ${permitEnrichResult.updated}/${permitEnrichResult.total} wells`);
+        }
+        results.permitsEnriched = permitEnrichResult.updated;
+      } catch (err) {
+        console.error('[Daily] Error enriching wells from ITD permits:', err.message);
+        results.errors.push({ type: 'permit_enrichment', error: err.message });
       }
     }
 

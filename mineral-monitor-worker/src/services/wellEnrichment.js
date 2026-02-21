@@ -34,11 +34,18 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
     const values = [];
     const fieldsUpdated = [];
 
-    // Formation data
+    // Formation data — write name + normalized canonical/group via subquery
     if (completionData.Formation_Name) {
       updates.push('formation_name = COALESCE(formation_name, ?)');
       values.push(completionData.Formation_Name);
       fieldsUpdated.push('formation_name');
+
+      // Also set formation_canonical and formation_group from normalization table
+      updates.push(`formation_canonical = COALESCE(formation_canonical, (SELECT canonical_name FROM formation_normalization WHERE raw_name = ?))`);
+      values.push(completionData.Formation_Name);
+      updates.push(`formation_group = COALESCE(formation_group, (SELECT formation_group FROM formation_normalization WHERE raw_name = ?))`);
+      values.push(completionData.Formation_Name);
+      fieldsUpdated.push('formation_canonical', 'formation_group');
     }
 
     if (completionData.Formation_Depth) {
@@ -288,6 +295,64 @@ export async function batchEnrichWellsFromCompletions(env, completions) {
   }
 
   console.log(`[WellEnrichment] Batch complete: ${stats.updated}/${stats.total} wells enriched, ${stats.errors} errors`);
+
+  return stats;
+}
+
+/**
+ * Enrich wells with formation data from ITD permits.
+ * ITD files have formation in Target_Zone, Target_Formation, Formation, etc.
+ * Only writes formation_name/canonical/group (no depth/IP data in permits).
+ *
+ * @param {Object} env - Worker environment with WELLS_DB binding
+ * @param {Array} permits - Array of permit records from OCC ITD file
+ * @returns {Object} - { total, updated, errors }
+ */
+export async function batchEnrichWellsFromPermits(env, permits) {
+  if (!env.WELLS_DB) {
+    console.error('[WellEnrichment] D1 database binding (WELLS_DB) not found');
+    return { total: 0, updated: 0, errors: 0, error: 'Database not configured' };
+  }
+
+  const stats = { total: 0, updated: 0, errors: 0 };
+
+  for (const permit of permits) {
+    const apiRaw = permit.API_Number;
+    if (!apiRaw) continue;
+
+    const cleanApi = apiRaw.toString().replace(/-/g, '').replace(/\s/g, '').substring(0, 10);
+    if (cleanApi.length < 10) continue;
+
+    // Try multiple formation field names (ITD files vary)
+    const formationName = permit.Target_Zone || permit.Target_Formation ||
+                          permit.Zone_Of_Significance || permit.Formation ||
+                          permit.Target || null;
+    if (!formationName || !formationName.toString().trim()) continue;
+
+    const cleanFormation = formationName.toString().trim();
+    stats.total++;
+
+    try {
+      const result = await env.WELLS_DB.prepare(`
+        UPDATE wells SET
+          formation_name = COALESCE(formation_name, ?),
+          formation_canonical = COALESCE(formation_canonical, (SELECT canonical_name FROM formation_normalization WHERE raw_name = ?)),
+          formation_group = COALESCE(formation_group, (SELECT formation_group FROM formation_normalization WHERE raw_name = ?))
+        WHERE api_number = ? AND formation_name IS NULL
+      `).bind(cleanFormation, cleanFormation, cleanFormation, cleanApi).run();
+
+      if ((result.meta?.changes || 0) > 0) {
+        stats.updated++;
+      }
+    } catch (error) {
+      console.error(`[WellEnrichment] Error enriching permit ${cleanApi}:`, error.message);
+      stats.errors++;
+    }
+  }
+
+  if (stats.total > 0) {
+    console.log(`[WellEnrichment] Permit batch: ${stats.updated}/${stats.total} wells enriched with formation from ITD, ${stats.errors} errors`);
+  }
 
   return stats;
 }
