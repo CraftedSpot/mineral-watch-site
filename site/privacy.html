@@ -331,9 +331,12 @@
                 padding: 40px 20px;
             }
         }
+        .skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: #1C2B36; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+        .skip-nav:focus { top: 0; }
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
     <header>
         <div class="container">
             <div class="header-inner">
@@ -356,7 +359,7 @@
         </div>
     </header>
 
-    <div class="page-header">
+    <div id="main-content" class="page-header">
         <div class="container">
             <h1>Privacy Policy</h1>
             <p class="last-updated">Last Updated: November 26, 2025</p>

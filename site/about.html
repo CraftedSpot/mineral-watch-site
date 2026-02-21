@@ -483,9 +483,12 @@
             .footer-inner { flex-direction: column; }
             .footer-links { gap: 32px; }
         }
+        .skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: #1C2B36; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+        .skip-nav:focus { top: 0; }
     </style>
 </head>
 <body>
+    <a href="#main-content" class="skip-nav">Skip to main content</a>
 
     <header>
         <div class="container">
@@ -509,7 +512,7 @@
         </div>
     </header>
 
-    <main>
+    <main id="main-content">
     <section class="page-header">
         <div class="container">
             <h1>Built by Mineral Owners, for Mineral Owners</h1>

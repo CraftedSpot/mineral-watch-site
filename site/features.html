@@ -301,9 +301,12 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
   .hero-ctas { flex-direction: column; align-items: center; }
   .inline-stats { flex-direction: column; gap: 16px; }
 }
+.skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: #1C2B36; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
+.skip-nav:focus { top: 0; }
 </style>
 </head>
 <body>
+<a href="#main-content" class="skip-nav">Skip to main content</a>
 
 <header>
   <div class="container">
@@ -327,7 +330,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
   </div>
 </header>
 
-<main>
+<main id="main-content">
 <section class="hero">
   <div class="hero-badge"><span class="dot"></span> Oklahoma Mineral Intelligence</div>
   <h1>Oklahoma Mineral Rights Intelligence &mdash; From Alerts to Analysis</h1>
