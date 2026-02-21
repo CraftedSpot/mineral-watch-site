@@ -692,6 +692,11 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
       { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
     ],
+    resources: [
+      { label: 'National Association of Royalty Owners (NARO)', href: 'https://naro-us.org' },
+      { label: 'Mineral Rights Forum', href: 'https://mineralrightsforum.com' },
+      { label: 'Oklahoma Bar Association \u2014 Probate Resources', href: 'https://www.okbar.org/freelegalinfo/probate/' },
+    ],
     ctaTitle: 'Protect What Your Family Built',
     ctaText: 'Monitor your inherited Oklahoma mineral rights for new drilling activity, pooling orders, and production changes \u2014 know what\u2019s happening on your sections before deadlines pass.',
     jsonLdExtra: `
@@ -753,6 +758,12 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
       { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
     ],
+    resources: [
+      { label: 'OCC Oil & Gas Division', href: 'https://oklahoma.gov/occ/divisions/oil-gas.html' },
+      { label: 'OCC Electronic Case Filing (ECF)', href: 'https://ecf.public.occ.ok.gov' },
+      { label: 'OCC Well Records Search', href: 'https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&dbid=0&repo=OCC' },
+      { label: 'OCC Imaging \u2014 Document Archive', href: 'https://imaging.occ.ok.gov' },
+    ],
     ctaTitle: "The Filing That Matters Most Is the One You Don\u2019t Know About",
     ctaText: 'Monitor your Oklahoma sections for every OCC filing type \u2014 permits, pooling orders, completions, and more.',
     jsonLdExtra: `
@@ -808,6 +819,10 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
       { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
       { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+    ],
+    resources: [
+      { label: 'NARO \u2014 Division Order Resources', href: 'https://naro-us.org' },
+      { label: 'Mineral Rights Forum', href: 'https://mineralrightsforum.com' },
     ],
     ctaTitle: 'Know When New Wells Come Online',
     ctaText: 'Monitor your Oklahoma sections for drilling permits, completions, and production changes. Division orders follow completions \u2014 stay ahead of the paperwork.',
@@ -868,6 +883,12 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
       { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
     ],
+    resources: [
+      { label: 'Oklahoma Corporation Commission', href: 'https://oklahoma.gov/occ' },
+      { label: 'OCC Well Records Search', href: 'https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&dbid=0&repo=OCC' },
+      { label: 'OCC Electronic Case Filing (ECF)', href: 'https://ecf.public.occ.ok.gov' },
+      { label: 'OCC Well Data Finder (GIS Map)', href: 'https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b' },
+    ],
     ctaTitle: 'Let the OCC Come to You',
     ctaText: 'Instead of manually searching multiple OCC databases, Mineral Watch monitors your sections automatically and sends you alerts when new filings appear. Free for up to 5 sections.',
     jsonLdExtra: `
@@ -926,6 +947,11 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
       { href: '/insights/guides/scoop-stack-overview', label: 'SCOOP & STACK Play Overview' },
     ],
+    resources: [
+      { label: 'OCC Well Records Search', href: 'https://public.occ.ok.gov/OGCDWellRecords/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&dbid=0&repo=OCC' },
+      { label: 'OTC Gross Production Data', href: 'https://tax.ok.gov/gross-production' },
+      { label: 'Mineral Rights Forum', href: 'https://mineralrightsforum.com' },
+    ],
     ctaTitle: 'Your Royalty Check Is Only as Accurate as the Data Behind It',
     ctaText: 'Monitor your Oklahoma sections for every well, every filing, and every operator change. Know which wells should be paying you \u2014 before you open the envelope.',
     jsonLdExtra: `
@@ -980,6 +1006,11 @@ const ARTICLES: Record<string, Article> = {
       { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
       { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
       { href: '/insights/guides/inherited-mineral-rights', label: 'Inherited Mineral Rights Guide' },
+    ],
+    resources: [
+      { label: 'Oklahoma Geological Survey', href: 'https://www.ogs.ou.edu' },
+      { label: 'EIA Oklahoma State Energy Profile', href: 'https://www.eia.gov/state/?sid=OK' },
+      { label: 'National Association of Royalty Owners (NARO)', href: 'https://naro-us.org' },
     ],
     ctaTitle: 'Your Section Could Be Next',
     ctaText: 'New permits, spacing applications, and pooling orders are filed every week across the SCOOP, STACK, and MERGE. Monitor your sections automatically \u2014 free for up to 5 sections.',
