@@ -6535,7 +6535,7 @@ export async function precomputeRiskProfiles(env: Env): Promise<void> {
 
   // Step 1: Refresh commodity prices in KV
   try {
-    const priceResp = await fetch('https://tools.mymineralwatch.com/api/prices');
+    const priceResp = await fetch('https://mymineralwatch.com/api/prices');
     const prices = await priceResp.json() as Record<string, any>;
     await env.OCC_CACHE.put('commodity-prices-cached', JSON.stringify({
       wti: prices.wti?.price || null,
@@ -6688,7 +6688,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
     // Fallback: fetch live prices if not cached
     if (wtiPrice === null) {
       try {
-        const priceResp = await fetch('https://tools.mymineralwatch.com/api/prices');
+        const priceResp = await fetch('https://mymineralwatch.com/api/prices');
         const prices = await priceResp.json() as Record<string, any>;
         wtiPrice = prices.wti?.price || null;
         henryHubPrice = prices.henryHub?.price || null;
