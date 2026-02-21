@@ -133,11 +133,11 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
          WHERE county = ? AND order_date >= date('now', '-90 days')`
       ).bind(countyName).first<{ cnt: number }>().catch(() => ({ cnt: 0 })),
 
-      // 5. Top 5 operators by active wells
+      // 5. Top operators by active wells (fetch 20 for cross-referencing with filers)
       db.prepare(
         `SELECT operator, COUNT(*) as active_wells
          FROM wells WHERE county = ? AND well_status = 'AC'
-         GROUP BY operator ORDER BY active_wells DESC LIMIT 5`
+         GROUP BY operator ORDER BY active_wells DESC LIMIT 20`
       ).bind(countyUpper).all<OperatorRow>(),
 
       // 6. Recent permits for activity feed
