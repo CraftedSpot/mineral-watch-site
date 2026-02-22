@@ -1737,6 +1737,16 @@
                 return cols.join(',');
             });
 
-            const csv = [headers.join(','), ...rows].join(String.fromCharCode(13, 10));
-            downloadCSV(csv, 'mineral-watch-portfolio.csv');
+            var BOM = String.fromCharCode(0xFEFF);
+            var CRLF = String.fromCharCode(13, 10);
+            var csv = BOM + [headers.join(','), ...rows].join(CRLF);
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'mineral-watch-portfolio.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
         }
