@@ -1729,8 +1729,8 @@
                 if (hasRI) cols.push(escapeCSV(f.ri_decimal || ''));
                 if (hasWI) cols.push(escapeCSV(f.wi_decimal || ''));
                 if (hasORRI) cols.push(escapeCSV(f.orri_decimal || ''));
-                cols.push(escapeCSV(linked.producing.join('; ')));
-                cols.push(escapeCSV(linked.idle.join('; ')));
+                cols.push(escapeCSV(linked.producing.join('\n')));
+                cols.push(escapeCSV(linked.idle.join('\n')));
                 cols.push(escapeCSV(f['Notes'] || ''));
                 return cols.join(',');
             });
