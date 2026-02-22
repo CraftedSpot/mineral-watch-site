@@ -23,5 +23,25 @@
     "api_number": "3506321649",
     "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Read timed out. (read timeout=None)",
     "timestamp": "2026-02-21 17:50:19"
+  },
+  {
+    "api_number": "3511107665",
+    "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Max retries exceeded with url: /OGCDWellRecords/SearchService.aspx/GetSearchListing (Caused by ConnectTimeoutError(<HTTPSConnection(host='public.occ.ok.gov', port=443) at 0x10c5d8b90>, 'Connection to public.occ.ok.gov timed out. (connect timeout=None)'))",
+    "timestamp": "2026-02-22 01:37:22"
+  },
+  {
+    "api_number": "3511117135",
+    "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Read timed out. (read timeout=None)",
+    "timestamp": "2026-02-22 01:56:07"
+  },
+  {
+    "api_number": "3511117136",
+    "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Read timed out. (read timeout=None)",
+    "timestamp": "2026-02-22 01:58:07"
+  },
+  {
+    "api_number": "3512320310",
+    "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
+    "timestamp": "2026-02-22 05:05:11"
   }
 ]

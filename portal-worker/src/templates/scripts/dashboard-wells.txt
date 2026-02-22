@@ -1193,6 +1193,16 @@
                 formationItem.style.display = 'none';
             }
 
+            // Upload encouragement nudge — show for wells without verified deductions
+            const uploadNudge = document.getElementById('wellUploadNudge');
+            if (uploadNudge && well.operator) {
+                const opName = well.operator;
+                uploadNudge.innerHTML = 'Deductions for this well are estimated. <a href="#" onclick="event.preventDefault(); closeWellDetailsModal(); setTimeout(function(){ document.querySelector(\'[data-tab=documents]\').click(); }, 200);" style="color: #2563eb; font-weight: 500; text-decoration: none;">Upload a ' + opName + ' revenue statement &rarr;</a>';
+                uploadNudge.style.display = 'block';
+            } else if (uploadNudge) {
+                uploadNudge.style.display = 'none';
+            }
+
             // Notes (from Airtable)
             document.getElementById('wellDetailsNotes').value = well.notes || '';
             document.getElementById('wellDetailsOriginalNotes').value = well.notes || '';
@@ -1564,10 +1574,20 @@
                 return value;
             }
             
-            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres', 'Notes'];
+            // Determine which decimal columns have data
+            const hasRI = loadedProperties.some(p => p.fields.ri_decimal);
+            const hasWI = loadedProperties.some(p => p.fields.wi_decimal);
+            const hasORRI = loadedProperties.some(p => p.fields.orri_decimal);
+
+            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
+            if (hasRI) headers.push('RI Decimal');
+            if (hasWI) headers.push('WI Decimal');
+            if (hasORRI) headers.push('ORRI Decimal');
+            headers.push('Notes');
+
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
-                return [
+                const cols = [
                     escapeCSV(f['COUNTY'] || ''),
                     escapeCSV(f['SEC'] || ''),
                     escapeCSV(f['TWN'] || ''),
@@ -1575,9 +1595,13 @@
                     escapeCSV(f['MERIDIAN'] || 'IM'),
                     escapeCSV(f['Group'] || ''),
                     escapeCSV(f['RI Acres'] || '0'),
-                    escapeCSV(f['WI Acres'] || '0'),
-                    escapeCSV(f['Notes'] || '')
-                ].join(',');
+                    escapeCSV(f['WI Acres'] || '0')
+                ];
+                if (hasRI) cols.push(escapeCSV(f.ri_decimal || ''));
+                if (hasWI) cols.push(escapeCSV(f.wi_decimal || ''));
+                if (hasORRI) cols.push(escapeCSV(f.orri_decimal || ''));
+                cols.push(escapeCSV(f['Notes'] || ''));
+                return cols.join(',');
             });
             
             const csv = [headers.join(','), ...rows].join('\n');

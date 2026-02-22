@@ -5924,6 +5924,23 @@
                     </div>
                 </div>`;
 
+            // Upload encouragement info bar
+            const estimatedCount = wells.filter(w => w.deductionSource !== 'check_stub').length;
+            const totalCount = wells.length;
+            let uploadBar = '';
+            if (totalCount > 0 && estimatedCount === 0) {
+                uploadBar = `<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px; padding: 0.625rem 1rem; margin-bottom: 1rem; font-size: 0.8125rem; color: #065f46; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    All wells using verified deduction data
+                </div>`;
+            } else if (estimatedCount > 0) {
+                uploadBar = `<div id="riskUploadBar" style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 0.625rem 1rem; margin-bottom: 1rem; font-size: 0.8125rem; color: #1e40af; display: flex; align-items: center; gap: 0.5rem;">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <span style="flex: 1;">${estimatedCount} of ${totalCount} wells use estimated deductions. Upload revenue statements to replace estimates with verified rates.</span>
+                    <a href="#" onclick="event.preventDefault(); document.querySelector('[data-tab=documents]').click();" style="color: #2563eb; font-weight: 500; white-space: nowrap; text-decoration: none;">Upload Documents &rarr;</a>
+                </div>`;
+            }
+
             // Tabs
             const tabs = `
                 <div id="riskTabs" style="display: flex; gap: 0; border-bottom: 1px solid var(--border-subtle); margin-bottom: 1.25rem;">
@@ -5933,7 +5950,7 @@
                 </div>
                 <div id="riskTabContent"></div>`;
 
-            document.getElementById('reportContent').innerHTML = priceBanner + hudBadges + tabs;
+            document.getElementById('reportContent').innerHTML = priceBanner + hudBadges + uploadBar + tabs;
             switchRiskTab('overview');
         }
 
@@ -6137,7 +6154,11 @@
                     '<td style="padding: 0.5rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem;" title="' + (w.operator || '').replace(/"/g, '&quot;') + '">' + opStr + '</td>' +
                     '<td style="padding: 0.5rem;">' + formStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
-                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dDetail ? dDetail.replace(/"/g, '&quot;') : dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 25%') + '">' + discountStr + srcBadge + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (function() {
+                        let tip = dDetail ? dDetail.replace(/"/g, '&quot;') : dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ') (estimated)' : dSrc === 'otc' ? 'OTC production data (estimated)' : dSrc === 'county_avg' ? 'County average (estimated)' : 'Default 25% (estimated)';
+                        if (dSrc !== 'check_stub') tip += ' — Upload a ' + (w.operator || 'operator') + ' revenue statement for exact rates';
+                        return tip;
+                    })() + '">' + discountStr + srcBadge + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; font-weight: 500;">' + netBackStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: center;">' + statusHtml + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; ' + stressedStyle + '">' + stressedStr + '</td>' +
