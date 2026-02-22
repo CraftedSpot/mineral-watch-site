@@ -36,7 +36,7 @@ import { escapeAirtableValue } from '../utils/airtable-escape.js';
 // Operator lookup no longer needed - data comes from D1 via /api/wells/v2
 // import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
 
-import { matchSingleWell } from '../utils/property-well-matching.js';
+// matchSingleWell removed — using D1-based matchSingleWellD1 below
 
 import type { Env, CompletionData } from '../types/env.js';
 
@@ -436,6 +436,101 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
 }
 
 /**
+ * Find a client well by ID in D1 and verify ownership.
+ * Handles all ID formats: recXXX (Airtable synced), disc_XXX (discovered), cwell_XXX (D1-first)
+ */
+async function findClientWellD1(
+  wellId: string,
+  userId: string,
+  organizationId: string | undefined,
+  env: Env
+): Promise<any | null> {
+  const ownerWhere = organizationId
+    ? `AND (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+    : `AND cw.user_id = ?`;
+  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+
+  return env.WELLS_DB.prepare(`
+    SELECT cw.* FROM client_wells cw
+    WHERE (cw.airtable_id = ? OR cw.id = ?)
+    ${ownerWhere}
+  `).bind(wellId, wellId, ...ownerParams).first();
+}
+
+/**
+ * D1-based single-well auto-matcher.
+ * After adding a well, links it to matching properties by surface/BH location.
+ */
+async function matchSingleWellD1(
+  wellAirtableId: string,
+  apiNumber: string,
+  userId: string,
+  organizationId: string | undefined,
+  env: Env
+): Promise<{ linksCreated: number; propertiesChecked: number }> {
+  const well = await env.WELLS_DB.prepare(
+    'SELECT section, township, range, meridian, bh_section, bh_township, bh_range FROM wells WHERE api_number = ?'
+  ).bind(apiNumber).first() as any;
+
+  if (!well || !well.section) return { linksCreated: 0, propertiesChecked: 0 };
+
+  const ownerWhere = organizationId
+    ? `(p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+    : `p.user_id = ?`;
+  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+
+  const matchConditions = [`(p.section = ? AND p.township = ? AND p.range = ?)`];
+  const matchParams: string[] = [String(well.section), well.township, well.range];
+
+  if (well.bh_section && well.bh_township && well.bh_range) {
+    matchConditions.push(`(p.section = ? AND p.township = ? AND p.range = ?)`);
+    matchParams.push(String(well.bh_section), well.bh_township, well.bh_range);
+  }
+
+  const properties = await env.WELLS_DB.prepare(`
+    SELECT p.id, p.airtable_record_id, p.section, p.township, p.range
+    FROM properties p
+    WHERE ${ownerWhere} AND (${matchConditions.join(' OR ')})
+  `).bind(...ownerParams, ...matchParams).all();
+
+  const matched = properties.results || [];
+  if (!matched.length) return { linksCreated: 0, propertiesChecked: matched.length };
+
+  let linksCreated = 0;
+  const stmts: any[] = [];
+
+  for (const prop of matched as any[]) {
+    const propId = prop.airtable_record_id || prop.id;
+
+    const exists = await env.WELLS_DB.prepare(
+      'SELECT 1 FROM property_well_links WHERE property_airtable_id = ? AND well_airtable_id = ?'
+    ).bind(propId, wellAirtableId).first();
+
+    if (!exists) {
+      const linkId = `pwl_${crypto.randomUUID()}`;
+      stmts.push(
+        env.WELLS_DB.prepare(`
+          INSERT INTO property_well_links (id, property_airtable_id, well_airtable_id, match_reason, status, user_id, organization_id, link_type, created_at)
+          VALUES (?, ?, ?, 'TRS Match (auto)', 'Active', ?, ?, 'Auto', CURRENT_TIMESTAMP)
+        `).bind(linkId, propId, wellAirtableId, userId, organizationId || null)
+      );
+      stmts.push(
+        env.WELLS_DB.prepare(
+          'UPDATE properties SET well_count = COALESCE(well_count, 0) + 1 WHERE airtable_record_id = ? OR id = ?'
+        ).bind(propId, prop.id)
+      );
+      linksCreated++;
+    }
+  }
+
+  if (stmts.length > 0) {
+    await env.WELLS_DB.batch(stmts);
+  }
+
+  return { linksCreated, propertiesChecked: matched.length };
+}
+
+/**
  * List wells for authenticated user - V2 (D1-first)
  * Queries D1 directly instead of Airtable. Single query joins:
  *   client_wells → wells → operators → production
@@ -728,76 +823,52 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     // Still allow adding for very new permits not yet in database
   }
   
-  const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
+  // Insert directly into D1 client_wells (D1-first, no Airtable)
+  const wellId = `cwell_${crypto.randomUUID()}`;
 
-  // Build minimal fields for Airtable - D1 is now the source for well metadata
-  // Airtable only stores: User relationship, tracking status, and user notes
-  const airtableFields = {
-    User: [user.id],
-    ...(organizationId && { Organization: [organizationId] }),
-    "API Number": cleanApi,
-    Notes: body.notes || "",
-    Status: "Active",
-    ...(body.occLink && { "OCC Filing Link": body.occLink })
-  };
+  console.log(`[AddWell] Creating well in D1: ${cleanApi} (${wellId})`);
 
-  console.log(`📤 Creating well tracking record in Airtable for API: ${cleanApi}`);
-  
-  console.log(`📤 Creating well in Airtable...`);
-  
-  const response = await fetch(createUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ fields: airtableFields })
-  });
-  
-  if (!response.ok) {
-    const err = await response.text();
-    console.error("❌ Airtable create well error:", {
-      status: response.status,
-      statusText: response.statusText,
-      error: err,
-      sentFields: Object.keys(airtableFields)
-    });
-    return jsonResponse({ 
-      error: "Failed to create well", 
-      details: err,
-      status: response.status 
-    }, 500);
-  }
-  
-    const newRecord: any = await response.json();
-    console.log(`Well added: API ${cleanApi} for ${user.email}`);
-    console.log(`[WellCreate] New well record:`, JSON.stringify(newRecord, null, 2));
-    
-    // Trigger auto-matching in background
-    if (newRecord.id && ctx) {
-      console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
-      
-      const matchPromise = matchSingleWell(newRecord.id, user.id, organizationId || undefined, env)
+  await env.WELLS_DB.prepare(`
+    INSERT INTO client_wells (
+      id, airtable_id, user_id, organization_id, api_number,
+      well_name, operator, county, section, township, range_val,
+      well_type, well_status, notes, status, tracking_source, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'manual', datetime('now'))
+  `).bind(
+    wellId,
+    wellId,
+    user.id,
+    organizationId || null,
+    cleanApi,
+    wellDetails?.wellName || '',
+    wellDetails?.operator || '',
+    wellDetails?.county || '',
+    wellDetails?.section ? String(wellDetails.section) : '',
+    wellDetails?.township || '',
+    wellDetails?.range || '',
+    wellDetails?.wellType || '',
+    wellDetails?.wellStatus || '',
+    body.notes || ''
+  ).run();
+
+  console.log(`[AddWell] Well created in D1: ${cleanApi} for ${user.email}`);
+
+    // Trigger auto-matching in background (D1-based)
+    if (ctx) {
+      const matchPromise = matchSingleWellD1(wellId, cleanApi, user.id, organizationId || undefined, env)
         .then(result => {
-          console.log(`[WellCreate] Auto-match complete:`, result);
+          console.log(`[AddWell] Auto-match complete:`, result);
           if (result.linksCreated > 0) {
-            console.log(`[WellCreate] Created ${result.linksCreated} links out of ${result.propertiesChecked} properties checked`);
+            console.log(`[AddWell] Created ${result.linksCreated} links out of ${result.propertiesChecked} properties checked`);
           }
         })
         .catch(err => {
-          console.error('[WellCreate] Auto-match failed:', err);
-          console.error('[WellCreate] Error details:', err.message, err.stack);
+          console.error('[AddWell] Auto-match failed:', err.message);
         });
-      
-      // Keep the worker alive until the match completes
       ctx.waitUntil(matchPromise);
-    } else if (!newRecord.id) {
-      console.error('[WellCreate] No ID in new record:', newRecord);
-    } else if (!ctx) {
-      console.error('[WellCreate] No ExecutionContext available for background matching');
     }
-    
-    return jsonResponse(newRecord, 201);
+
+    return jsonResponse({ id: wellId, success: true }, 201);
   } catch (error) {
     console.error("Error in handleAddWell:", error);
     return jsonResponse({
@@ -816,40 +887,45 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
 export async function handleDeleteWell(wellId: string, request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  
+
   // Check permissions - only Admin and Editor can delete wells
   const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot delete wells" }, 403);
   }
-  
-  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!getResponse.ok) {
+
+  const organizationId = userRecord?.fields.Organization?.[0];
+
+  // Find well in D1 and verify ownership
+  const well = await findClientWellD1(wellId, user.id, organizationId, env);
+  if (!well) {
     return jsonResponse({ error: "Well not found" }, 404);
   }
-  
-  const well: any = await getResponse.json();
-  if (well.fields.User?.[0] !== user.id) {
-    return jsonResponse({ error: "Not authorized" }, 403);
+
+  const wellAirtableId = well.airtable_id || well.id;
+
+  // Find linked properties before deletion (for well_count updates)
+  const linkedProps = await env.WELLS_DB.prepare(
+    'SELECT DISTINCT property_airtable_id FROM property_well_links WHERE well_airtable_id = ?'
+  ).bind(wellAirtableId).all();
+
+  // Build batch: delete well, delete links, decrement well_count
+  const stmts: any[] = [
+    env.WELLS_DB.prepare('DELETE FROM client_wells WHERE id = ?').bind(well.id),
+    env.WELLS_DB.prepare('DELETE FROM property_well_links WHERE well_airtable_id = ?').bind(wellAirtableId),
+  ];
+
+  for (const row of (linkedProps.results || []) as any[]) {
+    stmts.push(
+      env.WELLS_DB.prepare(
+        'UPDATE properties SET well_count = MAX(COALESCE(well_count, 1) - 1, 0) WHERE airtable_record_id = ?'
+      ).bind(row.property_airtable_id)
+    );
   }
-  
-  const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  const deleteResponse = await fetch(deleteUrl, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!deleteResponse.ok) {
-    const error = await deleteResponse.text();
-    console.error(`Failed to delete well ${wellId}:`, error);
-    return jsonResponse({ error: "Failed to delete well" }, 500);
-  }
-  
-  console.log(`Well deleted: ${wellId} by ${user.email}`);
+
+  await env.WELLS_DB.batch(stmts);
+
+  console.log(`[DeleteWell] Deleted: ${wellId} (${well.api_number}) by ${user.email}`);
   return jsonResponse({ success: true });
 }
 
@@ -878,36 +954,19 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
     notes = notes.substring(0, 1000);
   }
   
-  // Verify ownership
-  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!getResponse.ok) {
+  const organizationId = userRecord?.fields.Organization?.[0];
+
+  // Verify ownership in D1
+  const well = await findClientWellD1(wellId, user.id, organizationId, env);
+  if (!well) {
     return jsonResponse({ error: "Well not found" }, 404);
   }
-  
-  const well: any = await getResponse.json();
-  if (well.fields.User?.[0] !== user.id) {
-    return jsonResponse({ error: "Not authorized" }, 403);
-  }
-  
-  // Update notes
-  const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  const updateResponse = await fetch(updateUrl, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ fields: { Notes: notes } })
-  });
-  
-  if (!updateResponse.ok) {
-    return jsonResponse({ error: "Failed to update notes" }, 500);
-  }
-  
+
+  // Update notes in D1
+  await env.WELLS_DB.prepare(
+    "UPDATE client_wells SET notes = ?, updated_at = datetime('now') WHERE id = ?"
+  ).bind(notes, well.id).run();
+
   return jsonResponse({ success: true });
 }
 
@@ -925,19 +984,12 @@ export async function handleUpdateWellInterests(wellId: string, request: Request
     return jsonResponse({ error: "Viewers cannot update wells" }, 403);
   }
 
-  // Verify ownership via Airtable
-  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
+  const organizationId = userRecord?.fields.Organization?.[0];
 
-  if (!getResponse.ok) {
+  // Verify ownership in D1
+  const well = await findClientWellD1(wellId, user.id, organizationId, env);
+  if (!well) {
     return jsonResponse({ error: "Well not found" }, 404);
-  }
-
-  const well: any = await getResponse.json();
-  if (well.fields.User?.[0] !== user.id) {
-    return jsonResponse({ error: "Not authorized" }, 403);
   }
 
   const body: any = await request.json();
@@ -965,8 +1017,8 @@ export async function handleUpdateWellInterests(wellId: string, request: Request
     try {
       // Try full update with source tracking columns
       await env.WELLS_DB.prepare(
-        `UPDATE client_wells SET ${updates.join(', ')} WHERE airtable_id = ?`
-      ).bind(...binds, wellId).run();
+        `UPDATE client_wells SET ${updates.join(', ')} WHERE id = ?`
+      ).bind(...binds, well.id).run();
     } catch (e) {
       // Source columns may not exist on fresh accounts (created dynamically by documents-worker).
       // Fallback: update only the interest values without source tracking.
@@ -987,8 +1039,8 @@ export async function handleUpdateWellInterests(wellId: string, request: Request
       }
       if (valUpdates.length > 0) {
         await env.WELLS_DB.prepare(
-          `UPDATE client_wells SET ${valUpdates.join(', ')} WHERE airtable_id = ?`
-        ).bind(...valBinds, wellId).run();
+          `UPDATE client_wells SET ${valUpdates.join(', ')} WHERE id = ?`
+        ).bind(...valBinds, well.id).run();
       }
     }
   }
