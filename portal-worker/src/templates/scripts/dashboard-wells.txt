@@ -1662,10 +1662,15 @@
                 threeMonthsAgo = d3.getFullYear() + String(d3.getMonth() + 1).padStart(2, '0');
             }
 
+            // Normalize county: strip leading "029-" prefix, uppercase
+            function normalizeCounty(c) {
+                return (c || '').replace(/^\d+-/, '').toUpperCase().trim();
+            }
+
             // Build a map of STR key → { producing: [], idle: [] }
             const wellsBySTR = {};
             for (const w of loadedWells) {
-                const county = (w.county || '').toUpperCase().trim();
+                const county = normalizeCounty(w.county);
                 const sec = (w.section || '').toString().trim();
                 const twn = (w.township || '').toString().trim();
                 const rng = (w.range || '').toString().trim();
@@ -1695,7 +1700,7 @@
 
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
-                const county = (f['COUNTY'] || '').toUpperCase().trim();
+                const county = normalizeCounty(f['COUNTY']);
                 const sec = (f['SEC'] || '').toString().trim();
                 const twn = (f['TWN'] || '').toString().trim();
                 const rng = (f['RNG'] || '').toString().trim();
