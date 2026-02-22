@@ -357,9 +357,9 @@
         async function discoverAndTrackWells() {
             // Phase 1: Initial confirm with branded modal
             const confirmed = await showConfirm(
-                'This will scan OCC records for producing wells at your property locations.<br><br>Only wells with recent production data (or newly permitted wells) will be included.',
+                'We\'ll search Oklahoma Corporation Commission records for producing wells in your property sections \u2014 including horizontal wells with laterals crossing through your land.<br><br>Wells that are already tracked will be skipped. You\'ll review the results before anything is added.',
                 {
-                    title: 'Discover & Track Wells',
+                    title: 'Scan for wells at your property locations?',
                     icon: '\uD83D\uDD0D',
                     iconBg: '#DBEAFE',
                     iconColor: '#2563EB',

@@ -159,7 +159,7 @@ Alerts Sent: ${alertsSent || 0}
 Emails Failed: ${failedEmails.reduce((sum, f) => sum + f.totalCount, 0)}
 Duration: ${duration}ms
 ${freshnessInfo}
-${hasErrors ? `\nProcessing Errors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}
+${hasErrors ? `\nProcessing Errors (${errors.length}):\n${errors.map(e => typeof e === 'object' ? `  - ${e.type || e.api || 'unknown'}: ${e.error || JSON.stringify(e)}` : `  - ${e}`).join('\n')}` : ''}
 ${hasFailedEmails ? `
 Failed Email Sends:
 ${failedEmails.map(f => `  - ${f.email}: ${f.totalCount} alert${f.totalCount > 1 ? 's' : ''} failed
@@ -191,7 +191,7 @@ Transfers Processed: ${transfersProcessed || 0}
 Status Changes: ${statusChanges || 0}
 Alerts Sent: ${alertsSent || 0}
 Duration: ${duration}ms
-${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}
+${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => typeof e === 'object' ? `  - ${e.type || e.api || 'unknown'}: ${e.error || JSON.stringify(e)}` : `  - ${e}`).join('\n')}` : ''}
 
 No action required.
   `.trim();
@@ -217,7 +217,7 @@ Entries Parsed: ${parsed || 0}
 New Entries Stored: ${stored || 0}
 Alerts Sent: ${alerts || 0}
 Duration: ${duration}ms
-${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}
+${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => typeof e === 'object' ? `  - ${e.type || e.api || 'unknown'}: ${e.error || JSON.stringify(e)}` : `  - ${e}`).join('\n')}` : ''}
 
 ${!hasErrors ? 'No action required.' : ''}
   `.trim();
