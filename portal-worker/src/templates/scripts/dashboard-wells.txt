@@ -1535,10 +1535,21 @@
                 return value;
             }
             
-            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'Notes', 'OCC Map Link'];
+            // Determine which decimal columns have data
+            const hasRI = loadedWells.some(w => w.ri_nri);
+            const hasWI = loadedWells.some(w => w.wi_nri);
+            const hasORRI = loadedWells.some(w => w.orri_nri);
+
+            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Meridian', 'Formation', 'Direction', 'Well Type', 'Well Status'];
+            if (hasRI) headers.push('RI Decimal');
+            if (hasWI) headers.push('WI Decimal');
+            if (hasORRI) headers.push('ORRI Decimal');
+            headers.push('Notes');
+
             const rows = loadedWells.map(w => {
                 // V2: flat object
-                return [
+                const direction = w.lateral_length && parseInt(w.lateral_length) > 0 ? 'Horizontal' : 'Vertical';
+                const cols = [
                     escapeCSV(w.apiNumber || ''),
                     escapeCSV(w.well_name || ''),
                     escapeCSV(w.operator || ''),
@@ -1546,11 +1557,17 @@
                     escapeCSV(w.section || ''),
                     escapeCSV(w.township || ''),
                     escapeCSV(w.range || ''),
+                    escapeCSV(w.meridian || ''),
+                    escapeCSV(w.formation_canonical || w.formation_name || ''),
+                    escapeCSV(direction),
                     escapeCSV(w.well_type || ''),
-                    escapeCSV(w.well_status || ''),
-                    escapeCSV(w.notes || ''),
-                    escapeCSV(w.occMapLink || '')
-                ].join(',');
+                    escapeCSV(w.well_status || '')
+                ];
+                if (hasRI) cols.push(escapeCSV(w.ri_nri || ''));
+                if (hasWI) cols.push(escapeCSV(w.wi_nri || ''));
+                if (hasORRI) cols.push(escapeCSV(w.orri_nri || ''));
+                cols.push(escapeCSV(w.notes || ''));
+                return cols.join(',');
             });
             
             const csv = [headers.join(','), ...rows].join('\n');
