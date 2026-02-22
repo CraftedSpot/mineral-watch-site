@@ -6950,62 +6950,23 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
               }
             }
 
-            // Assign profiles to wells: prefer county-specific, fall back to operator-wide
-            // Use product-weighted calculation when product-level rates + well product mix are available
+            // Assign profiles to wells: use blended rate
+            // Product-level columns stored in profiles for future use (check stub validation)
             for (const [api, info] of apiOperatorMap) {
               if (!unresolvedApis.has(api)) continue;
               const countyKey = `${info.operatorNumber}|${info.county}`;
               const wideKey = `${info.operatorNumber}|`;
               const profile = profileMap.get(countyKey) || profileMap.get(wideKey);
               if (profile) {
-                const mix = productMixMap.get(api);
-                const hasProductRates = profile.oil_pct !== null || profile.gas_pct !== null;
-
-                if (hasProductRates && mix && mix.total_gross > 0) {
-                  // Product-weighted calculation
-                  const oilShare = mix.oil_gross / mix.total_gross;
-                  const gasShare = mix.gas_gross / mix.total_gross;
-                  const nglShare = mix.ngl_gross / mix.total_gross;
-
-                  const oilRate = profile.oil_pct ?? 0; // raw market-only rate (no floor — floor applied after tax)
-                  const gasRate = profile.gas_pct ?? 0;
-                  // NGL: if ngl_pct is NULL, use gas rate (NGL often bundled with gas)
-                  const nglRate = profile.ngl_pct ?? (profile.gas_pct ?? 0);
-
-                  const rawWeighted = (oilShare * oilRate) + (gasShare * gasRate) + (nglShare * nglRate);
-                  // Add tax, then apply 25% floor (floor catches oil-heavy wells where OTC misses marketing)
-                  const totalWithTax = Math.max(Math.min(rawWeighted + profile.tax_pct, 1), 0.25);
-
-                  // Build tooltip detail — show all-in rates (market + tax share) per product
-                  const taxShare = profile.tax_pct;
-                  const parts: string[] = [];
-                  if (oilShare > 0.05 && profile.oil_pct !== null) parts.push(`Oil ${Math.round((profile.oil_pct + taxShare) * 100)}%`);
-                  if (gasShare > 0.05 && profile.gas_pct !== null) parts.push(`Gas ${Math.round((profile.gas_pct + taxShare) * 100)}%`);
-                  if (nglShare > 0.05 && profile.ngl_pct !== null) parts.push(`NGL ${Math.round((profile.ngl_pct + taxShare) * 100)}%`);
-                  const detail = `${profile.operator_name}, ${info.county} — ${parts.join(' / ')} (prod-weighted)`;
-
-                  wellDeductions.set(api, {
-                    totalDiscount: totalWithTax,
-                    mktDeductionPct: rawWeighted,
-                    taxPct: profile.tax_pct,
-                    source: 'operator_profile',
-                    confidence: profile.confidence,
-                    sourceDetail: detail
-                  });
-                } else {
-                  // Fallback: blended rate (no product mix or no product-level rates)
-                  const detail = hasProductRates
-                    ? `${profile.operator_name}, ${info.county} — Blended ${Math.round(profile.blended * 100)}% (no prod mix)`
-                    : `${profile.operator_name}, ${info.county} (${profile.confidence})`;
-                  wellDeductions.set(api, {
-                    totalDiscount: profile.blended,
-                    mktDeductionPct: 0,
-                    taxPct: 0,
-                    source: 'operator_profile',
-                    confidence: profile.confidence,
-                    sourceDetail: detail
-                  });
-                }
+                const detail = `${profile.operator_name}, ${info.county} (${profile.confidence})`;
+                wellDeductions.set(api, {
+                  totalDiscount: profile.blended,
+                  mktDeductionPct: 0,
+                  taxPct: 0,
+                  source: 'operator_profile',
+                  confidence: profile.confidence,
+                  sourceDetail: detail
+                });
                 unresolvedApis.delete(api);
               }
             }
@@ -7013,15 +6974,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         } catch (e) {
           console.error('[Well Risk Profile] Level 2 (operator profile) error:', e);
         }
-        // Count product-weighted vs blended for diagnostics
-        let l2Weighted = 0, l2Blended = 0;
-        for (const [, d] of wellDeductions) {
-          if (d.source === 'operator_profile') {
-            if (d.sourceDetail?.includes('prod-weighted')) l2Weighted++;
-            else l2Blended++;
-          }
-        }
-        console.log('[Well Risk Profile] Level 2 (operator profiles):', wellDeductions.size, 'wells resolved total,', l2Weighted, 'product-weighted,', l2Blended, 'blended fallback');
+        console.log('[Well Risk Profile] Level 2 (operator profiles):', wellDeductions.size, 'wells resolved total');
       }
 
       // --- Level 3: OTC per-well (reuse upfront product mix data) ---
