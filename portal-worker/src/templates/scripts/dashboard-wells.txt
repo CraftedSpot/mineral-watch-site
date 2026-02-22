@@ -1649,6 +1649,19 @@
                 return value;
             }
 
+            // Ensure wells are loaded (they may not be if user hasn't clicked Wells tab)
+            if (!loadedWells.length) {
+                try {
+                    const wellsRes = await fetch('/api/wells/v2');
+                    if (wellsRes.ok) {
+                        const wellsData = await wellsRes.json();
+                        loadedWells = wellsData.records || wellsData;
+                    }
+                } catch (e) {
+                    console.warn('[Portfolio] Failed to load wells:', e);
+                }
+            }
+
             // Determine production status horizon from loaded wells
             const allMonths = loadedWells.map(w => w.otc_last_prod_month).filter(Boolean).sort();
             const horizon = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
@@ -1664,14 +1677,6 @@
                 threeMonthsAgo = d3.getFullYear() + String(d3.getMonth() + 1).padStart(2, '0');
             }
 
-            // Build lookups from well ID and API number → loaded well data (for production status)
-            const wellById = {};
-            const wellByApi = {};
-            for (const w of loadedWells) {
-                if (w.id) wellById[w.id] = w;
-                if (w.apiNumber) wellByApi[w.apiNumber] = w;
-            }
-
             // Fetch linked wells for each property using existing API
             const linkResults = await Promise.all(loadedProperties.map(async p => {
                 try {
@@ -1684,31 +1689,16 @@
                 }
             }));
 
-            // DEBUG: log first few loaded wells to see ID shape
-            console.log('[Portfolio] Sample loadedWells:', loadedWells.slice(0, 3).map(function(w) { return { id: w.id, apiNumber: w.apiNumber, otc_last_prod_month: w.otc_last_prod_month }; }));
-            console.log('[Portfolio] wellById keys (first 5):', Object.keys(wellById).slice(0, 5));
-            console.log('[Portfolio] wellByApi keys (first 5):', Object.keys(wellByApi).slice(0, 5));
-            console.log('[Portfolio] threeMonthsAgo:', threeMonthsAgo);
-
             // Build property ID → { producing: [], idle: [] }
             const wellsByProperty = {};
-            var debuggedFirst = false;
             for (const lr of linkResults) {
                 const producing = [];
                 const idle = [];
                 for (const lw of lr.wells) {
                     const label = (lw.wellName || lw.apiNumber || 'Unknown') + ' (' + (lw.operator || 'Unknown') + ')';
-                    // Check production status from loaded wells data (try ID match, then API number)
-                    const loaded = wellById[lw.wellId] || wellByApi[lw.apiNumber];
+                    // Find matching loaded well for production status (try API number)
+                    const loaded = loadedWells.find(function(w) { return w.apiNumber === lw.apiNumber; });
                     const lastProd = loaded ? loaded.otc_last_prod_month : null;
-                    if (!debuggedFirst) {
-                        console.log('[Portfolio] First linked well:', JSON.stringify(lw));
-                        console.log('[Portfolio] wellById[' + lw.wellId + ']:', !!wellById[lw.wellId]);
-                        console.log('[Portfolio] wellByApi[' + lw.apiNumber + ']:', !!wellByApi[lw.apiNumber]);
-                        console.log('[Portfolio] loaded:', loaded ? { id: loaded.id, apiNumber: loaded.apiNumber, otc_last_prod_month: loaded.otc_last_prod_month } : null);
-                        console.log('[Portfolio] lastProd:', lastProd, '>= threeMonthsAgo:', threeMonthsAgo, '=', lastProd >= threeMonthsAgo);
-                        debuggedFirst = true;
-                    }
                     if (lastProd && lastProd >= threeMonthsAgo) {
                         producing.push(label);
                     } else {
