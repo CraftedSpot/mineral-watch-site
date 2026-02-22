@@ -1631,3 +1631,96 @@
             const csv = [headers.join(','), ...rows].join('\n');
             downloadCSV(csv, 'mineral-watch-properties.csv');
         }
+
+        function exportPortfolioCSV() {
+            if (!loadedProperties.length) {
+                showToast('No properties to export', 'info');
+                return;
+            }
+
+            function escapeCSV(value) {
+                if (value === null || value === undefined) return '';
+                value = value.toString();
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+            }
+
+            // Determine production status for each well
+            const allMonths = loadedWells.map(w => w.otc_last_prod_month).filter(Boolean).sort();
+            const horizon = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
+            let threeMonthsAgo;
+            if (horizon) {
+                const hYear = parseInt(horizon.substring(0, 4));
+                const hMonth = parseInt(horizon.substring(4, 6));
+                let m3 = hMonth - 3, y3 = hYear;
+                if (m3 <= 0) { m3 += 12; y3--; }
+                threeMonthsAgo = y3 + String(m3).padStart(2, '0');
+            } else {
+                const d3 = new Date(); d3.setMonth(d3.getMonth() - 3);
+                threeMonthsAgo = d3.getFullYear() + String(d3.getMonth() + 1).padStart(2, '0');
+            }
+
+            // Build a map of STR key → { producing: [], idle: [] }
+            const wellsBySTR = {};
+            for (const w of loadedWells) {
+                const county = (w.county || '').toUpperCase().trim();
+                const sec = (w.section || '').toString().trim();
+                const twn = (w.township || '').toString().trim();
+                const rng = (w.range || '').toString().trim();
+                if (!county || !sec || !twn || !rng) continue;
+                const key = county + '|' + sec + '|' + twn + '|' + rng;
+                if (!wellsBySTR[key]) wellsBySTR[key] = { producing: [], idle: [] };
+
+                const label = (w.well_name || w.apiNumber || 'Unknown') + ' (' + (w.operator || 'Unknown') + ')';
+                const isProducing = w.otc_last_prod_month && w.otc_last_prod_month >= threeMonthsAgo;
+                if (isProducing) {
+                    wellsBySTR[key].producing.push(label);
+                } else {
+                    wellsBySTR[key].idle.push(label);
+                }
+            }
+
+            // Determine which decimal columns have data
+            const hasRI = loadedProperties.some(p => p.fields.ri_decimal);
+            const hasWI = loadedProperties.some(p => p.fields.wi_decimal);
+            const hasORRI = loadedProperties.some(p => p.fields.orri_decimal);
+
+            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
+            if (hasRI) headers.push('RI Decimal');
+            if (hasWI) headers.push('WI Decimal');
+            if (hasORRI) headers.push('ORRI Decimal');
+            headers.push('Producing Wells', 'Idle Wells', 'Notes');
+
+            const rows = loadedProperties.map(p => {
+                const f = p.fields;
+                const county = (f['COUNTY'] || '').toUpperCase().trim();
+                const sec = (f['SEC'] || '').toString().trim();
+                const twn = (f['TWN'] || '').toString().trim();
+                const rng = (f['RNG'] || '').toString().trim();
+                const key = county + '|' + sec + '|' + twn + '|' + rng;
+                const linked = wellsBySTR[key] || { producing: [], idle: [] };
+
+                const cols = [
+                    escapeCSV(f['COUNTY'] || ''),
+                    escapeCSV(f['SEC'] || ''),
+                    escapeCSV(f['TWN'] || ''),
+                    escapeCSV(f['RNG'] || ''),
+                    escapeCSV(f['MERIDIAN'] || 'IM'),
+                    escapeCSV(f['Group'] || ''),
+                    escapeCSV(f['RI Acres'] || '0'),
+                    escapeCSV(f['WI Acres'] || '0')
+                ];
+                if (hasRI) cols.push(escapeCSV(f.ri_decimal || ''));
+                if (hasWI) cols.push(escapeCSV(f.wi_decimal || ''));
+                if (hasORRI) cols.push(escapeCSV(f.orri_decimal || ''));
+                cols.push(escapeCSV(linked.producing.join('; ')));
+                cols.push(escapeCSV(linked.idle.join('; ')));
+                cols.push(escapeCSV(f['Notes'] || ''));
+                return cols.join(',');
+            });
+
+            const csv = [headers.join(','), ...rows].join('\n');
+            downloadCSV(csv, 'mineral-watch-portfolio.csv');
+        }
