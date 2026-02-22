@@ -545,9 +545,11 @@
             if (!isViewer) {
                 row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}"${checked} aria-label="Select well ${escapeHtml(wellName)}"></td>`;
             }
+            const trackingBadge = w.tracking_source === 'discovered'
+                ? ' <span class="tracking-badge">Auto-discovered</span>' : '';
             row += `<td class="well-info-cell">
                     <div class="well-name-line">
-                        <strong>${wellName}</strong>
+                        <strong>${wellName}</strong>${trackingBadge}
                     </div>
                     <div class="well-details-line">
                         ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}

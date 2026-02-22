@@ -1151,7 +1151,207 @@
         .confirm-btn-confirm:hover {
             background: #B91C1C;
         }
-        
+
+        /* Discover & Track Wells - blue confirm button */
+        .confirm-btn-discover {
+            background: #2563EB;
+            color: white;
+        }
+        .confirm-btn-discover:hover {
+            background: #1D4ED8;
+        }
+        .confirm-btn-discover:disabled {
+            background: #93C5FD;
+            cursor: not-allowed;
+        }
+
+        /* Discover button pulse animation */
+        .btn-secondary-action.discovering {
+            background: #DBEAFE;
+            border-color: #2563EB;
+            color: #2563EB;
+            pointer-events: none;
+        }
+        .discover-pulse-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #2563EB;
+            margin-right: 6px;
+            animation: discoverPulse 1.2s ease-in-out infinite;
+            vertical-align: middle;
+        }
+        @keyframes discoverPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.7); }
+        }
+
+        /* Discover results modal - wider for virtual list */
+        .discover-results-modal {
+            max-width: 640px;
+        }
+
+        /* Stats summary chips */
+        .discover-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .discover-stat {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            background: #F1F5F9;
+            border-radius: 12px;
+            font-size: 13px;
+            color: var(--slate-blue);
+            font-weight: 500;
+        }
+
+        /* Select All row */
+        .discover-select-all {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 0;
+            font-size: 13px;
+            color: var(--oil-navy);
+        }
+        .discover-select-all label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        /* Virtual scroll container */
+        .discover-vscroll {
+            overflow-y: auto;
+            max-height: 360px;
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+        .discover-vscroll-spacer {
+            width: 100%;
+        }
+        .discover-vscroll-content {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+        }
+
+        /* Well rows in virtual scroller */
+        .discover-vrow {
+            position: absolute;
+            left: 0;
+            right: 0;
+            display: grid;
+            grid-template-columns: 24px 2fr 1.5fr 1fr 80px;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #F1F5F9;
+            cursor: default;
+        }
+        .discover-vrow:hover {
+            background: #F8FAFC;
+        }
+        .discover-well-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-weight: 500;
+            color: var(--oil-navy);
+        }
+        .discover-well-operator {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--slate-blue);
+        }
+        .discover-well-county {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: var(--slate-blue);
+            font-size: 12px;
+        }
+
+        /* Group headers in virtual scroller */
+        .discover-vrow-header {
+            position: absolute;
+            left: 0;
+            right: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 12px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--slate-blue);
+            background: #F8FAFC;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        .discover-group-count {
+            font-weight: 400;
+            color: #94A3B8;
+            font-size: 11px;
+        }
+
+        /* Match method badges */
+        .match-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 600;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .match-badge.surface {
+            background: #ECFDF5;
+            color: #065F46;
+        }
+        .match-badge.bottom-hole {
+            background: #DBEAFE;
+            color: #1E40AF;
+        }
+        .match-badge.lateral_path, .match-badge.lateral {
+            background: #F3E8FF;
+            color: #7C3AED;
+        }
+
+        /* Auto-discovered badge on well rows */
+        .tracking-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            background: #DBEAFE;
+            color: #1E40AF;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+
+        /* Plan limit warning */
+        .discover-limit-warn {
+            background: #FFFBEB;
+            border: 1px solid #F59E0B;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            color: #92400E;
+            margin-bottom: 12px;
+        }
+
         /* Bulk Selection Styles */
         .bulk-checkbox-column { width: 50px; text-align: center; }
         .bulk-checkbox { cursor: pointer; width: 16px; height: 16px; }

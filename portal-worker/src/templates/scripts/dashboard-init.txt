@@ -355,42 +355,329 @@
         }
 
         async function discoverAndTrackWells() {
-            if (!confirm('This will scan OCC records for producing wells at your property locations and automatically add them to your tracked wells.\n\nOnly wells with recent production data (or newly permitted wells) will be included.\n\nContinue?')) return;
+            // Phase 1: Initial confirm with branded modal
+            const confirmed = await showConfirm(
+                'This will scan OCC records for producing wells at your property locations.<br><br>Only wells with recent production data (or newly permitted wells) will be included.',
+                {
+                    title: 'Discover & Track Wells',
+                    icon: '\uD83D\uDD0D',
+                    iconBg: '#DBEAFE',
+                    iconColor: '#2563EB',
+                    confirmText: 'Scan Properties',
+                    cancelText: 'Cancel',
+                    confirmBtnClass: 'confirm-btn confirm-btn-discover'
+                }
+            );
+            if (!confirmed) return;
+
+            // Phase 2: Preview — scan with pulse animation
             const wrapper = document.getElementById('findMatchesBtn');
-            const btn = wrapper.querySelector('button');
-            btn.disabled = true;
-            const origText = btn.textContent;
-            btn.textContent = 'Discovering...';
+            const btn = wrapper ? wrapper.querySelector('button') : null;
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('discovering');
+                btn.innerHTML = '<span class="discover-pulse-dot"></span> Discovering...';
+            }
+
+            let previewData;
             try {
-                const res = await fetch('/api/discover-and-track-wells', { method: 'POST' });
+                const res = await fetch('/api/discover-and-track-wells?preview=true', { method: 'POST' });
+                previewData = await res.json();
+                if (!res.ok) {
+                    showToast(previewData.error || 'Discovery failed', 'error');
+                    return;
+                }
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+                return;
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('discovering');
+                    btn.textContent = 'Discover & Track Wells';
+                }
+            }
+
+            // Phase 3: Results modal (or toast if nothing found)
+            if (!previewData.success || !previewData.wells || previewData.wells.length === 0) {
+                if (previewData.stats?.wellsSkipped > 0) {
+                    showToast(`All ${previewData.stats.wellsSkipped} discovered wells are already tracked.`, 'info');
+                } else {
+                    showToast('No producing wells found at your property locations.', 'info');
+                }
+                return;
+            }
+
+            const selectedApis = await showDiscoverResultsModal(previewData);
+            if (!selectedApis || selectedApis.length === 0) return;
+
+            // Phase 4: Commit selected wells
+            if (btn) {
+                btn.disabled = true;
+                btn.classList.add('discovering');
+                btn.innerHTML = `<span class="discover-pulse-dot"></span> Adding ${selectedApis.length} well${selectedApis.length === 1 ? '' : 's'}...`;
+            }
+
+            try {
+                const res = await fetch('/api/discover-and-track-wells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiNumbers: selectedApis })
+                });
                 const data = await res.json();
                 if (!res.ok) {
-                    showToast(data.error || 'Discovery failed', 'error');
+                    showToast(data.error || 'Failed to add wells', 'error');
                     return;
                 }
                 if (data.success) {
                     const s = data.stats;
-                    if (s.wellsTracked > 0) {
-                        let msg = `Discovered ${s.wellsDiscovered} wells, tracked ${s.wellsTracked} new, created ${s.linksCreated} links`;
-                        if (s.wellsSkipped > 0) msg += ` (${s.wellsSkipped} already tracked)`;
-                        showToast(msg, 'success', 6000);
-                        await loadAllData();
-                    } else if (s.wellsOverLimit > 0) {
-                        showToast(`Found ${s.wellsDiscovered} wells but no slots remaining on your plan. Upgrade to track more.`, 'warning', 6000);
-                    } else if (s.wellsSkipped > 0) {
-                        showToast(`All ${s.wellsSkipped} discovered wells are already tracked.`, 'info');
-                    } else {
-                        showToast(data.message || 'No producing wells found at your property locations.', 'info');
+                    let msg = `Added ${s.wellsTracked} well${s.wellsTracked === 1 ? '' : 's'} and created ${s.linksCreated} link${s.linksCreated === 1 ? '' : 's'}`;
+                    if (s.wellsSkipped > 0) msg += ` (${s.wellsSkipped} already tracked)`;
+                    showToast(msg, 'success', 6000);
+                    // Switch to Recently Added sort so new wells appear first
+                    const sortSelect = document.getElementById('wellsSort');
+                    if (sortSelect) {
+                        sortSelect.value = 'date-desc';
+                        if (typeof wellsController !== 'undefined') wellsController.sortBy = 'date-desc';
                     }
+                    await loadAllData();
                 } else {
-                    showToast(data.error || 'Discovery failed', 'error');
+                    showToast(data.error || 'Failed to add wells', 'error');
                 }
             } catch (err) {
                 showToast('Error: ' + err.message, 'error');
             } finally {
-                btn.disabled = false;
-                btn.textContent = origText;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.classList.remove('discovering');
+                    btn.textContent = 'Discover & Track Wells';
+                }
             }
+        }
+
+        /**
+         * Shows the discover results modal with virtual-scrolled selectable well list.
+         * Returns Promise<string[]> of selected API numbers, or [] if cancelled.
+         */
+        function showDiscoverResultsModal(previewData) {
+            return new Promise((resolve) => {
+                const overlay = document.getElementById('discoverResultsOverlay');
+                const body = document.getElementById('discoverResultsBody');
+                const cancelBtn = document.getElementById('discoverResultsCancel');
+                const confirmBtn = document.getElementById('discoverResultsConfirm');
+                if (!overlay || !body) { resolve([]); return; }
+
+                const stats = previewData.stats;
+                const wells = previewData.wells || [];
+                const selected = new Set(wells.map(w => w.api));
+
+                // Limit selection to plan remaining
+                const maxSelectable = stats.remaining;
+                if (selected.size > maxSelectable) {
+                    const allApis = Array.from(selected);
+                    selected.clear();
+                    for (let i = 0; i < maxSelectable; i++) selected.add(allApis[i]);
+                }
+
+                // Group wells by county
+                const groups = new Map();
+                for (const w of wells) {
+                    const county = w.county || 'Unknown';
+                    if (!groups.has(county)) groups.set(county, []);
+                    groups.get(county).push(w);
+                }
+                // Sort groups alphabetically
+                const sortedGroups = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+
+                // Build flat item array for virtual scroller
+                const ROW_HEIGHT = 32;
+                const HEADER_HEIGHT = 28;
+                const BUFFER = 5;
+                const flatItems = [];
+                for (const [county, groupWells] of sortedGroups) {
+                    flatItems.push({ type: 'header', county, count: groupWells.length });
+                    for (const w of groupWells) {
+                        flatItems.push({ type: 'well', ...w });
+                    }
+                }
+
+                function getItemHeight(item) {
+                    return item.type === 'header' ? HEADER_HEIGHT : ROW_HEIGHT;
+                }
+
+                // Precompute cumulative offsets
+                const offsets = [];
+                let cumHeight = 0;
+                for (const item of flatItems) {
+                    offsets.push(cumHeight);
+                    cumHeight += getItemHeight(item);
+                }
+                const totalHeight = cumHeight;
+
+                function updateButtonState() {
+                    const count = selected.size;
+                    confirmBtn.disabled = count === 0;
+                    confirmBtn.textContent = count > 0 ? `Add ${count} Well${count === 1 ? '' : 's'}` : 'Add Wells';
+                }
+
+                function getGroupSelectedCount(county) {
+                    const groupWells = groups.get(county) || [];
+                    return groupWells.filter(w => selected.has(w.api)).length;
+                }
+
+                const matchBadgeMap = { surface: 'Surface', bottom_hole: 'Bottom Hole', lateral_path: 'Lateral' };
+
+                function renderItem(item, top) {
+                    if (item.type === 'header') {
+                        const selCount = getGroupSelectedCount(item.county);
+                        return `<div class="discover-vrow-header" style="top:${top}px;height:${HEADER_HEIGHT}px;">
+                            <span>${escapeHtml(item.county)} County</span>
+                            <span class="discover-group-count">(${selCount} of ${item.count} selected)</span>
+                        </div>`;
+                    }
+                    const checked = selected.has(item.api) ? ' checked' : '';
+                    const badge = matchBadgeMap[item.matchMethod] || 'Surface';
+                    const badgeClass = item.matchMethod === 'bottom_hole' ? 'bottom-hole' : (item.matchMethod || 'surface');
+                    return `<div class="discover-vrow" style="top:${top}px;height:${ROW_HEIGHT}px;">
+                        <input type="checkbox" class="discover-well-check" data-api="${item.api}"${checked}>
+                        <span class="discover-well-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+                        <span class="discover-well-operator" title="${escapeHtml(item.operator)}">${escapeHtml(item.operator)}</span>
+                        <span class="discover-well-county">${escapeHtml(item.county || '')}</span>
+                        <span class="match-badge ${badgeClass}">${badge}</span>
+                    </div>`;
+                }
+
+                // Build stats summary
+                let statsHtml = `<div class="discover-stats">
+                    <span class="discover-stat">${wells.length} new</span>
+                    <span class="discover-stat">${stats.wellsSkipped || 0} already tracked</span>
+                    <span class="discover-stat">${stats.propertiesScanned} properties scanned</span>
+                </div>`;
+                if (stats.wellsOverLimit > 0) {
+                    statsHtml += `<div class="discover-limit-warn">Your ${stats.plan} plan allows ${stats.wellLimit} wells. You have ${stats.currentWells} tracked. Only ${stats.remaining} more can be added.</div>`;
+                }
+
+                // Build body HTML
+                body.innerHTML = `
+                    ${statsHtml}
+                    <div class="discover-select-all">
+                        <label><input type="checkbox" id="discoverSelectAll" checked> <span id="discoverSelectLabel">${selected.size} of ${wells.length} selected</span></label>
+                    </div>
+                    <div class="discover-vscroll" id="discoverVscroll">
+                        <div class="discover-vscroll-spacer" style="height:${totalHeight}px;"></div>
+                        <div class="discover-vscroll-content" id="discoverVscrollContent"></div>
+                    </div>
+                `;
+
+                const vscroll = document.getElementById('discoverVscroll');
+                const vscrollContent = document.getElementById('discoverVscrollContent');
+                const selectAllCb = document.getElementById('discoverSelectAll');
+                const selectLabel = document.getElementById('discoverSelectLabel');
+
+                function updateSelectLabel() {
+                    if (selectLabel) selectLabel.textContent = `${selected.size} of ${wells.length} selected`;
+                    if (selectAllCb) selectAllCb.checked = selected.size === wells.length;
+                    if (selectAllCb) selectAllCb.indeterminate = selected.size > 0 && selected.size < wells.length;
+                }
+
+                let lastStart = -1, lastEnd = -1;
+                function renderVisible() {
+                    if (!vscroll || !vscrollContent) return;
+                    const scrollTop = vscroll.scrollTop;
+                    const viewHeight = vscroll.clientHeight;
+
+                    // Binary search for start index
+                    let lo = 0, hi = flatItems.length - 1;
+                    while (lo < hi) {
+                        const mid = (lo + hi) >> 1;
+                        if (offsets[mid] + getItemHeight(flatItems[mid]) < scrollTop) lo = mid + 1;
+                        else hi = mid;
+                    }
+                    let startIdx = Math.max(0, lo - BUFFER);
+                    let endIdx = lo;
+                    // Find end index
+                    while (endIdx < flatItems.length && offsets[endIdx] < scrollTop + viewHeight) endIdx++;
+                    endIdx = Math.min(flatItems.length - 1, endIdx + BUFFER);
+
+                    if (startIdx === lastStart && endIdx === lastEnd) return;
+                    lastStart = startIdx;
+                    lastEnd = endIdx;
+
+                    let html = '';
+                    for (let i = startIdx; i <= endIdx; i++) {
+                        html += renderItem(flatItems[i], offsets[i]);
+                    }
+                    vscrollContent.innerHTML = html;
+                }
+
+                renderVisible();
+
+                // Event handlers
+                function onScroll() { renderVisible(); }
+                vscroll.addEventListener('scroll', onScroll);
+
+                function onCheckboxClick(e) {
+                    const cb = e.target.closest('.discover-well-check');
+                    if (!cb) return;
+                    const api = cb.dataset.api;
+                    if (cb.checked) {
+                        if (selected.size >= maxSelectable) {
+                            cb.checked = false;
+                            showToast(`Plan limit: only ${maxSelectable} wells can be added`, 'warning');
+                            return;
+                        }
+                        selected.add(api);
+                    } else {
+                        selected.delete(api);
+                    }
+                    updateSelectLabel();
+                    updateButtonState();
+                    // Re-render to update group counts
+                    lastStart = -1; lastEnd = -1;
+                    renderVisible();
+                }
+                vscrollContent.addEventListener('change', onCheckboxClick);
+
+                function onSelectAll() {
+                    if (selectAllCb.checked) {
+                        const toAdd = wells.slice(0, maxSelectable);
+                        selected.clear();
+                        for (const w of toAdd) selected.add(w.api);
+                    } else {
+                        selected.clear();
+                    }
+                    updateSelectLabel();
+                    updateButtonState();
+                    lastStart = -1; lastEnd = -1;
+                    renderVisible();
+                }
+                selectAllCb.addEventListener('change', onSelectAll);
+
+                updateButtonState();
+
+                // Show modal
+                overlay.classList.add('show');
+                openModalA11y(overlay);
+
+                function cleanup() {
+                    vscroll.removeEventListener('scroll', onScroll);
+                    vscrollContent.removeEventListener('change', onCheckboxClick);
+                    selectAllCb.removeEventListener('change', onSelectAll);
+                    cancelBtn.removeEventListener('click', onCancel);
+                    confirmBtn.removeEventListener('click', onConfirm);
+                    overlay.removeEventListener('click', onOverlayClick);
+                    closeModalA11y(overlay);
+                    overlay.classList.remove('show');
+                }
+
+                function onCancel() { cleanup(); resolve([]); }
+                function onConfirm() { cleanup(); resolve(Array.from(selected)); }
+                function onOverlayClick(e) { if (e.target === overlay) onCancel(); }
+
+                cancelBtn.addEventListener('click', onCancel);
+                confirmBtn.addEventListener('click', onConfirm);
+                overlay.addEventListener('click', onOverlayClick);
+            });
         }
 
 

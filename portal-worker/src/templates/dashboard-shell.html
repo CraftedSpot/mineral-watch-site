@@ -216,6 +216,7 @@
                             <option value="properties-desc">Properties</option>
                             <option value="documents-desc">Documents</option>
                             <option value="filings-desc">OCC Filings</option>
+                            <option value="date-desc">Recently Added</option>
                         </select>
                         <span id="wellsResultsCount" class="results-count"></span>
                     </div>
@@ -535,6 +536,21 @@
         <div class="confirm-buttons">
             <button class="confirm-btn confirm-btn-cancel" id="confirmCancel">Cancel</button>
             <button class="confirm-btn confirm-btn-confirm" id="confirmOk">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- Discover & Track Wells Results Modal -->
+<div class="confirm-overlay" id="discoverResultsOverlay" role="dialog" aria-modal="true">
+    <div class="confirm-modal discover-results-modal">
+        <div class="confirm-header">
+            <div class="confirm-icon" style="background:#DBEAFE;color:#2563EB;">&#128270;</div>
+            <h3 class="confirm-title">Discovery Results</h3>
+        </div>
+        <div class="confirm-body" id="discoverResultsBody"><!-- dynamic --></div>
+        <div class="confirm-buttons">
+            <button class="confirm-btn confirm-btn-cancel" id="discoverResultsCancel">Cancel</button>
+            <button class="confirm-btn confirm-btn-discover" id="discoverResultsConfirm" disabled>Add Wells</button>
         </div>
     </div>
 </div>

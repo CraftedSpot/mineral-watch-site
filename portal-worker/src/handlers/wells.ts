@@ -646,6 +646,9 @@ export async function handleListWellsV2(request: Request, env: Env) {
       half_cycle_breakeven: row.half_cycle_breakeven != null ? row.half_cycle_breakeven : null,
       is_gas_flag: row.is_gas_flag ? 1 : 0,
 
+      // Tracking source (manual vs discovered)
+      tracking_source: row.tracking_source || 'manual',
+
       // Flag indicating if OCC wells table had data
       hasD1Data: !!row.occ_well_name
     };

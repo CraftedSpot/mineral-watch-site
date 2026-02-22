@@ -453,10 +453,37 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): string | nul
  * property locations, auto-creates client_wells records in D1, and links
  * them to the matching properties.
  */
+/**
+ * Run queries in parallel groups of CONCURRENCY.
+ * Each queryFn returns a Promise<any[]> of result rows.
+ */
+async function runParallelBatches<T>(
+  items: T[],
+  queryFn: (batch: T[]) => Promise<any[]>,
+  batchSize: number,
+  concurrency: number = 6
+): Promise<any[]> {
+  const results: any[] = [];
+  const batches: T[][] = [];
+  for (let i = 0; i < items.length; i += batchSize) {
+    batches.push(items.slice(i, i + batchSize));
+  }
+  // Run in groups of `concurrency`
+  for (let i = 0; i < batches.length; i += concurrency) {
+    const group = batches.slice(i, i + concurrency);
+    const groupResults = await Promise.all(group.map(b => queryFn(b)));
+    for (const r of groupResults) results.push(...r);
+  }
+  return results;
+}
+
 export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
   const startTime = Date.now();
 
   try {
+    const url = new URL(request.url);
+    const previewOnly = url.searchParams.get('preview') === 'true';
+
     // --- Auth + plan limits ---
     const authUser = await authenticateRequest(request, env);
     if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
@@ -484,7 +511,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
       }, 403);
     }
 
-    console.log(`[DiscoverWells] Starting for user ${authUser.email}, org=${organizationId || 'none'}, plan=${plan}, remaining=${remaining}`);
+    console.log(`[DiscoverWells] Starting for user ${authUser.email}, org=${organizationId || 'none'}, plan=${plan}, remaining=${remaining}, preview=${previewOnly}`);
 
     // --- Step 1: Get user properties with STR data ---
     const propWhereClause = organizationId
@@ -500,6 +527,10 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     const propRows = propResult.results || [];
     if (propRows.length === 0) {
+      const emptyStats = { wellsDiscovered: 0, wellsToTrack: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0, propertiesScanned: 0, plan, wellLimit: limits.wells, currentWells: wellsCount, remaining };
+      if (previewOnly) {
+        return jsonResponse({ success: true, preview: true, stats: emptyStats, wells: [] });
+      }
       return jsonResponse({
         success: true,
         stats: { wellsDiscovered: 0, wellsTracked: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0 },
@@ -535,40 +566,57 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     const prodCutoff = `${cutoffDate.getFullYear()}${String(cutoffDate.getMonth() + 1).padStart(2, '0')}`;
 
     // --- Step 3: Query OCC wells at property locations (surface OR bottom hole, meridian-scoped) ---
-    const allDiscoveredWells: any[] = [];
+    // Parallelized: At 10K properties ~662 surface/BH batches; parallelized in groups of 6 = ~110 rounds
     const strEntries = Array.from(strCombos.values());
     const STR_BATCH = 12; // 8 params each (surface+meridian, BH+meridian), max 96 per query
 
-    for (let i = 0; i < strEntries.length; i += STR_BATCH) {
-      const batch = strEntries.slice(i, i + STR_BATCH);
-      const conditions = batch.map(() =>
-        `((section = ? AND township = ? AND range = ? AND meridian = ?) OR (bh_section = ? AND bh_township = ? AND bh_range = ? AND meridian = ?))`
-      ).join(' OR ');
-      const params: string[] = [];
-      for (const combo of batch) {
-        // Surface params then BH params (same STR values + meridian for both)
-        params.push(combo.section, combo.township, combo.range, combo.meridian,
-                    combo.section, combo.township, combo.range, combo.meridian);
-      }
+    // Track match method per well: api_number → 'surface' | 'bottom_hole'
+    const wellMatchMethod = new Map<string, string>();
 
-      const result = await env.WELLS_DB!.prepare(`
-        SELECT api_number, well_name, well_number, operator, county,
-               section, township, range, well_type, well_status,
-               bh_section, bh_township, bh_range, meridian
-        FROM wells
-        WHERE (${conditions})
-          AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
-          AND well_status NOT IN ('PA', 'RET')
-          AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
-      `).bind(...params).all();
+    const allDiscoveredWells = await runParallelBatches(
+      strEntries,
+      async (batch) => {
+        const conditions = batch.map(() =>
+          `((section = ? AND township = ? AND range = ? AND meridian = ?) OR (bh_section = ? AND bh_township = ? AND bh_range = ? AND meridian = ?))`
+        ).join(' OR ');
+        const params: string[] = [];
+        for (const combo of batch) {
+          params.push(combo.section, combo.township, combo.range, combo.meridian,
+                      combo.section, combo.township, combo.range, combo.meridian);
+        }
 
-      allDiscoveredWells.push(...(result.results || []));
-    }
+        const result = await env.WELLS_DB!.prepare(`
+          SELECT api_number, well_name, well_number, operator, county,
+                 section, township, range, well_type, well_status,
+                 bh_section, bh_township, bh_range, meridian
+          FROM wells
+          WHERE (${conditions})
+            AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
+            AND well_status NOT IN ('PA', 'RET')
+            AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
+        `).bind(...params).all();
+
+        // Tag match method: check if STRM matches surface or BH
+        const batchStrmKeys = new Set(batch.map(c => `${c.section}-${c.township}-${c.range}-${c.meridian}`));
+        for (const w of (result.results || []) as any[]) {
+          if (!w.api_number || wellMatchMethod.has(w.api_number)) continue;
+          const surfKey = `${w.section}-${w.township}-${w.range}-${w.meridian}`;
+          const bhKey = `${w.bh_section}-${w.bh_township}-${w.bh_range}-${w.meridian}`;
+          if (batchStrmKeys.has(surfKey)) {
+            wellMatchMethod.set(w.api_number, 'surface');
+          } else if (batchStrmKeys.has(bhKey)) {
+            wellMatchMethod.set(w.api_number, 'bottom_hole');
+          }
+        }
+
+        return result.results || [];
+      },
+      STR_BATCH,
+      6
+    );
 
     // --- Step 3b: Lateral path matching ---
-    // Lateral sections aren't persisted in D1 — compute at runtime from surface→BH.
-    // Query all horizontal wells at property townships (meridian-scoped), then check
-    // if their computed lateral path crosses any property section.
+    // Parallelized: lateral batches also run in groups of 6
     const discoveredApis = new Set(allDiscoveredWells.map((w: any) => w.api_number));
 
     // Build unique township+range+meridian combos from properties for horizontal search
@@ -583,31 +631,34 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     // Query horizontals in those townships (surface ≠ BH section = horizontal)
     const TR_BATCH = 33; // 3 params each (township, range, meridian)
     const trEntries = Array.from(twnRngCombos.values());
-    const horizontalCandidates: any[] = [];
 
-    for (let i = 0; i < trEntries.length; i += TR_BATCH) {
-      const batch = trEntries.slice(i, i + TR_BATCH);
-      const conditions = batch.map(() => `(township = ? AND range = ? AND meridian = ?)`).join(' OR ');
-      const params: string[] = [];
-      for (const tr of batch) {
-        params.push(tr.township, tr.range, tr.meridian);
-      }
+    const horizontalCandidates = await runParallelBatches(
+      trEntries,
+      async (batch) => {
+        const conditions = batch.map(() => `(township = ? AND range = ? AND meridian = ?)`).join(' OR ');
+        const params: string[] = [];
+        for (const tr of batch) {
+          params.push(tr.township, tr.range, tr.meridian);
+        }
 
-      const result = await env.WELLS_DB!.prepare(`
-        SELECT api_number, well_name, well_number, operator, county,
-               section, township, range, well_type, well_status,
-               bh_section, bh_township, bh_range, meridian
-        FROM wells
-        WHERE (${conditions})
-          AND bh_section IS NOT NULL
-          AND section != bh_section
-          AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
-          AND well_status NOT IN ('PA', 'RET')
-          AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
-      `).bind(...params).all();
+        const result = await env.WELLS_DB!.prepare(`
+          SELECT api_number, well_name, well_number, operator, county,
+                 section, township, range, well_type, well_status,
+                 bh_section, bh_township, bh_range, meridian
+          FROM wells
+          WHERE (${conditions})
+            AND bh_section IS NOT NULL
+            AND section != bh_section
+            AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
+            AND well_status NOT IN ('PA', 'RET')
+            AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
+        `).bind(...params).all();
 
-      horizontalCandidates.push(...(result.results || []));
-    }
+        return result.results || [];
+      },
+      TR_BATCH,
+      6
+    );
 
     // Compute lateral paths and check if any section matches a property STRM
     const propertySections = new Set(strEntries.map(c => `${c.section}-${c.township}-${c.range}-${c.meridian}`));
@@ -630,6 +681,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
           if (propertySections.has(key)) {
             discoveredApis.add(well.api_number);
             allDiscoveredWells.push(well);
+            wellMatchMethod.set(well.api_number, 'lateral_path');
             lateralMatches++;
             break;
           }
@@ -641,6 +693,10 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     console.log(`[DiscoverWells] Found ${allDiscoveredWells.length} OCC wells (${lateralMatches} via lateral path)`);
 
     if (allDiscoveredWells.length === 0) {
+      const emptyStats = { wellsDiscovered: 0, wellsToTrack: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0, propertiesScanned: propRows.length, plan, wellLimit: limits.wells, currentWells: wellsCount, remaining };
+      if (previewOnly) {
+        return jsonResponse({ success: true, preview: true, stats: emptyStats, wells: [] });
+      }
       return jsonResponse({
         success: true,
         stats: { wellsDiscovered: 0, wellsTracked: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0 },
@@ -683,12 +739,57 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     console.log(`[DiscoverWells] ${newWells.length} new wells (${skippedAlreadyTracked} already tracked)`);
 
-    // --- Step 5: Plan limit check —- truncate if needed ---
+    // --- Step 5: Plan limit check ---
     let wellsOverLimit = 0;
-    let wellsToTrack = newWells;
     if (newWells.length > remaining) {
       wellsOverLimit = newWells.length - remaining;
-      wellsToTrack = newWells.slice(0, remaining);
+    }
+
+    // --- Preview mode: return stats + full well list for frontend selection ---
+    if (previewOnly) {
+      const previewStats = {
+        wellsDiscovered: seenApis.size,
+        wellsToTrack: Math.min(newWells.length, remaining),
+        wellsSkipped: skippedAlreadyTracked,
+        wellsOverLimit,
+        propertiesScanned: propRows.length,
+        plan,
+        wellLimit: limits.wells,
+        currentWells: wellsCount,
+        remaining
+      };
+
+      const wellList = newWells.map(w => ({
+        api: w.api_number,
+        name: w.well_number ? `${w.well_name} #${w.well_number}` : (w.well_name || 'Unknown'),
+        operator: w.operator || '',
+        county: w.county || '',
+        type: w.well_type || '',
+        status: w.well_status || '',
+        matchMethod: wellMatchMethod.get(w.api_number) || 'surface'
+      }));
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+      console.log(`[DiscoverWells] Preview completed in ${duration}s: ${newWells.length} new wells`);
+
+      return jsonResponse({ success: true, preview: true, stats: previewStats, wells: wellList, duration: `${duration}s` });
+    }
+
+    // --- Commit mode: optionally filter to selected API numbers ---
+    let body: any = {};
+    try { body = await request.json(); } catch (e) { /* no body = track all */ }
+    const selectedApis: string[] | null = Array.isArray(body?.apiNumbers) ? body.apiNumbers : null;
+
+    let wellsToTrack = newWells;
+    if (selectedApis) {
+      const selectedSet = new Set(selectedApis);
+      wellsToTrack = newWells.filter(w => selectedSet.has(w.api_number));
+    }
+
+    // Re-check plan limit against filtered count
+    if (wellsToTrack.length > remaining) {
+      wellsOverLimit = wellsToTrack.length - remaining;
+      wellsToTrack = wellsToTrack.slice(0, remaining);
       console.log(`[DiscoverWells] Truncating to ${remaining} (${wellsOverLimit} over limit)`);
     }
 
@@ -709,10 +810,13 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     }
 
     // --- Step 6: Insert client_wells into D1 ---
-    const INSERT_BATCH = 10; // 10 fields per well → 100 params max
+    // Batch size 50: each INSERT is a single statement with ~14 params, well under D1 500-statement batch limit
+    const INSERT_BATCH = 50;
     let totalInserted = 0;
     const newAirtableIds: string[] = []; // collect generated IDs for matching
 
+    // Build all insert statement batches
+    const insertBatches: any[][] = [];
     for (let i = 0; i < wellsToTrack.length; i += INSERT_BATCH) {
       const batch = wellsToTrack.slice(i, i + INSERT_BATCH);
       const statements = batch.map(well => {
@@ -744,9 +848,15 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
           well.well_status || null
         );
       });
+      insertBatches.push(statements);
+    }
 
-      await env.WELLS_DB!.batch(statements);
-      totalInserted += batch.length;
+    // Parallelize insert batches in groups of 6
+    const INSERT_CONCURRENCY = 6;
+    for (let i = 0; i < insertBatches.length; i += INSERT_CONCURRENCY) {
+      const group = insertBatches.slice(i, i + INSERT_CONCURRENCY);
+      await Promise.all(group.map(stmts => env.WELLS_DB!.batch(stmts)));
+      for (const stmts of group) totalInserted += stmts.length;
     }
 
     console.log(`[DiscoverWells] Inserted ${totalInserted} client_wells`);

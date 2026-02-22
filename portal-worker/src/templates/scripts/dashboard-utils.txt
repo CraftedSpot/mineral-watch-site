@@ -659,7 +659,16 @@
                 messageEl.innerHTML = message;
                 okBtn.textContent = options.confirmText || 'Delete';
                 cancelBtn.textContent = options.cancelText || 'Cancel';
-                
+
+                // Customizable icon, colors, and button style
+                const iconEl = dialog.querySelector('.confirm-icon');
+                if (iconEl) {
+                    iconEl.textContent = options.icon || '\u26A0\uFE0F';
+                    iconEl.style.background = options.iconBg || '#FEE2E2';
+                    iconEl.style.color = options.iconColor || '#DC2626';
+                }
+                okBtn.className = options.confirmBtnClass || 'confirm-btn confirm-btn-confirm';
+
                 dialog.classList.add('show');
                 openModalA11y(dialog);
                 console.log('Dialog should be visible now');

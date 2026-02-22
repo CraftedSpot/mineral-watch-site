@@ -7,6 +7,7 @@ const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // Client Wells
 const LINKS_TABLE_ID = 'tblcLilnMgeXvxXKT'; // Property-Well Links
 const ORGANIZATIONS_TABLE = '🏢 Organization'; // Organization table (name, not ID)
+const USERS_TABLE = '👤 Users'; // Users table (name, not ID)
 
 // D1 batch configuration
 const BATCH_SIZE = 500; // Max statements per batch to stay within limits
@@ -920,10 +921,12 @@ async function syncOrganizations(env: any): Promise<void> {
         const id = `org_${record.id}`;
         const fields = record.fields || {};
         return env.WELLS_DB.prepare(`
-          INSERT INTO organizations (id, airtable_record_id, name, default_notification_mode, allow_user_override, synced_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO organizations (id, airtable_record_id, name, plan, max_users, default_notification_mode, allow_user_override, synced_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           ON CONFLICT(airtable_record_id) DO UPDATE SET
             name = excluded.name,
+            plan = excluded.plan,
+            max_users = excluded.max_users,
             default_notification_mode = excluded.default_notification_mode,
             allow_user_override = excluded.allow_user_override,
             synced_at = CURRENT_TIMESTAMP,
@@ -932,6 +935,8 @@ async function syncOrganizations(env: any): Promise<void> {
           id,
           record.id,
           fields['Name'] || null,
+          fields['Plan'] || null,
+          fields['Max Users'] || null,
           fields['Default Notification Mode'] || 'Daily + Weekly',
           fields['Allow User Override'] !== false ? 1 : 0
         );
@@ -951,6 +956,100 @@ async function syncOrganizations(env: any): Promise<void> {
   }
 }
 
+/**
+ * Sync users from Airtable to D1.
+ * Lightweight — typically <25 records. Runs every sync cycle in post_sync.
+ */
+async function syncUsers(env: any): Promise<void> {
+  if (!env.WELLS_DB) return;
+
+  console.log('[Sync] Syncing users to D1...');
+
+  let synced = 0;
+  let offset: string | undefined;
+
+  try {
+    do {
+      const url = new URL(`https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(USERS_TABLE)}`);
+      if (offset) url.searchParams.set('offset', offset);
+
+      const resp = await fetch(url.toString(), {
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!resp.ok) {
+        console.error(`[Sync] Users fetch failed: ${resp.status}`);
+        return;
+      }
+
+      const data: any = await resp.json();
+      const records = data.records || [];
+
+      const stmts = records.map((record: AirtableRecord) => {
+        const id = `user_${record.id}`;
+        const fields = record.fields || {};
+        return env.WELLS_DB.prepare(`
+          INSERT INTO users (
+            id, airtable_record_id, email, name, plan, status,
+            organization_id, role, stripe_customer_id,
+            alert_permits, alert_completions, alert_status_changes,
+            alert_expirations, alert_operator_transfers,
+            expiration_warning_days, notification_override,
+            updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ON CONFLICT(airtable_record_id) DO UPDATE SET
+            email = excluded.email,
+            name = excluded.name,
+            plan = excluded.plan,
+            status = excluded.status,
+            organization_id = excluded.organization_id,
+            role = excluded.role,
+            stripe_customer_id = excluded.stripe_customer_id,
+            alert_permits = excluded.alert_permits,
+            alert_completions = excluded.alert_completions,
+            alert_status_changes = excluded.alert_status_changes,
+            alert_expirations = excluded.alert_expirations,
+            alert_operator_transfers = excluded.alert_operator_transfers,
+            expiration_warning_days = excluded.expiration_warning_days,
+            notification_override = excluded.notification_override,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(
+          id,
+          record.id,
+          fields['Email'] || null,
+          fields['Name'] || null,
+          fields['Plan'] || 'Free',
+          fields['Status'] || 'Active',
+          fields['Organization']?.[0] || null,
+          fields['Role'] || 'Viewer',
+          fields['Stripe Customer ID'] || null,
+          fields['Alert Permits'] !== false ? 1 : 0,
+          fields['Alert Completions'] !== false ? 1 : 0,
+          fields['Alert Status Changes'] !== false ? 1 : 0,
+          fields['Alert Expirations'] !== false ? 1 : 0,
+          fields['Alert Operator Transfers'] !== false ? 1 : 0,
+          fields['Expiration Warning Days'] || 30,
+          fields['Notification Override'] || null
+        );
+      });
+
+      if (stmts.length > 0) {
+        await env.WELLS_DB.batch(stmts);
+      }
+
+      synced += records.length;
+      offset = data.offset;
+    } while (offset);
+
+    console.log(`[Sync] Users synced: ${synced} records`);
+  } catch (error) {
+    console.error('[Sync] Users sync error:', error);
+  }
+}
+
 async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
   const totalSynced = cursor.stats.properties.synced + cursor.stats.wells.synced +
     cursor.stats.clientWells.synced + cursor.stats.links.synced;
@@ -967,6 +1066,13 @@ async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
     await syncOrganizations(env);
   } catch (error) {
     console.error('[Sync] Organizations sync error:', error);
+  }
+
+  // Sync users to D1 (lightweight — typically <25 records)
+  try {
+    await syncUsers(env);
+  } catch (error) {
+    console.error('[Sync] Users sync error:', error);
   }
 
   // Document re-linking
