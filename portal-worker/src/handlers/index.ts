@@ -131,7 +131,8 @@ export {
 
 // Property-well matching handler
 export {
-  handleMatchPropertyWells
+  handleMatchPropertyWells,
+  handleDiscoverAndTrackWells
 } from './property-well-matching.js';
 
 // Debug handler

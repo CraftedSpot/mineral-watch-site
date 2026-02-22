@@ -15,7 +15,8 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserByIdD1First } from '../services/airtable.js';
+import { getUserByIdD1First, countUserWellsD1 } from '../services/airtable.js';
+import { getPlanLimits } from '../constants.js';
 import {
   normalizeSection,
   createLocationKey,
@@ -29,6 +30,11 @@ import {
 } from '../utils/property-well-matching.js';
 import type { PropertyRecord, WellRecord, LateralLocation, LocationKey } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
+
+/** Well types to exclude from matching (disposal, injection, dry holes, etc.) */
+export const EXCLUDED_WELL_TYPES = new Set([
+  'DRY','TM','2RIn','2DNC','INJ','SWD','WSW','STFD','2DCm','GSW','P&A','SW','TA','2D','2R','2RSI'
+]);
 
 /**
  * Get meridian based on county (panhandle = CM, everything else = IM)
@@ -92,7 +98,9 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         w.bh_township,
         w.bh_range,
         w.well_name AS occ_well_name,
-        w.well_number
+        w.well_number,
+        w.well_type AS occ_well_type,
+        cw.well_type AS cw_well_type
       FROM client_wells cw
       LEFT JOIN wells w ON w.api_number = cw.api_number
       ${wellWhereClause}
@@ -151,6 +159,10 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
     for (const row of wellRows as any[]) {
       if (!row.airtable_id) continue;
+
+      // Filter out disposal wells, injection wells, dry holes, etc.
+      const wellType = row.occ_well_type || row.cw_well_type || '';
+      if (EXCLUDED_WELL_TYPES.has(wellType)) continue;
 
       // Prefer OCC statewide data, fall back to client_wells
       const section = row.occ_section || row.cw_section;
@@ -432,4 +444,281 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): string | nul
   }
 
   return null;
+}
+
+/**
+ * Discover & Track Wells
+ *
+ * Scans the OCC statewide wells table for producing wells at the user's
+ * property locations, auto-creates client_wells records in D1, and links
+ * them to the matching properties.
+ */
+export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
+  const startTime = Date.now();
+
+  try {
+    // --- Auth + plan limits ---
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserByIdD1First(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userId = authUser.id;
+    const organizationId = userRecord.fields.Organization?.[0];
+    const plan = userRecord.fields.Plan || 'Free';
+    const limits = getPlanLimits(plan);
+
+    if ((limits.wells as number) === 0) {
+      return jsonResponse({
+        error: `Your ${plan} plan does not include well monitoring. Please upgrade to add wells.`
+      }, 403);
+    }
+
+    const wellsCount = await countUserWellsD1(env, userId, organizationId);
+    const remaining = limits.wells - wellsCount;
+
+    if (remaining <= 0) {
+      return jsonResponse({
+        error: `Well limit reached (${limits.wells} wells on ${plan} plan). You have ${wellsCount} wells.`
+      }, 403);
+    }
+
+    console.log(`[DiscoverWells] Starting for user ${authUser.email}, org=${organizationId || 'none'}, plan=${plan}, remaining=${remaining}`);
+
+    // --- Step 1: Get user properties with STR data ---
+    const propWhereClause = organizationId
+      ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      : `WHERE p.user_id = ?`;
+    const propBindParams = organizationId ? [organizationId, organizationId] : [userId];
+
+    const propResult = await env.WELLS_DB!.prepare(`
+      SELECT p.airtable_record_id, p.section, p.township, p.range, p.county, p.meridian
+      FROM properties p
+      ${propWhereClause}
+    `).bind(...propBindParams).all();
+
+    const propRows = propResult.results || [];
+    if (propRows.length === 0) {
+      return jsonResponse({
+        success: true,
+        stats: { wellsDiscovered: 0, wellsTracked: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0 },
+        message: 'No properties found. Add properties first.'
+      });
+    }
+
+    // --- Step 2: Deduplicate STR combos across properties ---
+    const strCombos = new Map<string, { section: string; township: string; range: string }>();
+    // Also build property lookup by STR for link creation
+    const strToProperties = new Map<string, string[]>(); // strKey → [propertyId, ...]
+
+    for (const row of propRows as any[]) {
+      if (!row.section || !row.township || !row.range) continue;
+      const sec = String(row.section);
+      const twn = String(row.township);
+      const rng = String(row.range);
+      const key = `${sec}-${twn}-${rng}`;
+      if (!strCombos.has(key)) {
+        strCombos.set(key, { section: sec, township: twn, range: rng });
+      }
+      const propIds = strToProperties.get(key) || [];
+      propIds.push(row.airtable_record_id);
+      strToProperties.set(key, propIds);
+    }
+
+    console.log(`[DiscoverWells] ${propRows.length} properties → ${strCombos.size} unique STR combos`);
+
+    // --- Step 3: Query OCC wells at property locations ---
+    const allDiscoveredWells: any[] = [];
+    const strEntries = Array.from(strCombos.values());
+    const STR_BATCH = 33; // 3 params each, max 100 per query
+
+    for (let i = 0; i < strEntries.length; i += STR_BATCH) {
+      const batch = strEntries.slice(i, i + STR_BATCH);
+      const conditions = batch.map(() => `(section = ? AND township = ? AND range = ?)`).join(' OR ');
+      const params: string[] = [];
+      for (const combo of batch) {
+        params.push(combo.section, combo.township, combo.range);
+      }
+
+      const result = await env.WELLS_DB!.prepare(`
+        SELECT api_number, well_name, well_number, operator, county,
+               section, township, range, well_type, well_status,
+               bh_section, bh_township, bh_range
+        FROM wells
+        WHERE (${conditions})
+          AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
+          AND well_status NOT IN ('PA', 'RET')
+      `).bind(...params).all();
+
+      allDiscoveredWells.push(...(result.results || []));
+    }
+
+    console.log(`[DiscoverWells] Found ${allDiscoveredWells.length} OCC wells at property locations`);
+
+    if (allDiscoveredWells.length === 0) {
+      return jsonResponse({
+        success: true,
+        stats: { wellsDiscovered: 0, wellsTracked: 0, wellsSkipped: 0, wellsOverLimit: 0, linksCreated: 0 },
+        message: 'No producing wells found at your property locations.'
+      });
+    }
+
+    // --- Step 4: Deduplicate — remove wells already tracked by user/org ---
+    const ownerClause = organizationId
+      ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      : `user_id = ?`;
+    const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+
+    // Get all api_numbers already tracked
+    const trackedResult = await env.WELLS_DB!.prepare(
+      `SELECT api_number FROM client_wells WHERE ${ownerClause}`
+    ).bind(...ownerParams).all();
+
+    const trackedApis = new Set<string>();
+    for (const row of (trackedResult.results || []) as any[]) {
+      if (row.api_number) trackedApis.add(row.api_number);
+    }
+
+    // Dedupe by api_number (wells table can have dupes across batches)
+    const seenApis = new Set<string>();
+    const newWells: any[] = [];
+    let skippedAlreadyTracked = 0;
+
+    for (const well of allDiscoveredWells) {
+      if (!well.api_number) continue;
+      if (seenApis.has(well.api_number)) continue;
+      seenApis.add(well.api_number);
+
+      if (trackedApis.has(well.api_number)) {
+        skippedAlreadyTracked++;
+        continue;
+      }
+      newWells.push(well);
+    }
+
+    console.log(`[DiscoverWells] ${newWells.length} new wells (${skippedAlreadyTracked} already tracked)`);
+
+    // --- Step 5: Plan limit check —- truncate if needed ---
+    let wellsOverLimit = 0;
+    let wellsToTrack = newWells;
+    if (newWells.length > remaining) {
+      wellsOverLimit = newWells.length - remaining;
+      wellsToTrack = newWells.slice(0, remaining);
+      console.log(`[DiscoverWells] Truncating to ${remaining} (${wellsOverLimit} over limit)`);
+    }
+
+    if (wellsToTrack.length === 0) {
+      return jsonResponse({
+        success: true,
+        stats: {
+          wellsDiscovered: allDiscoveredWells.length,
+          wellsTracked: 0,
+          wellsSkipped: skippedAlreadyTracked,
+          wellsOverLimit,
+          linksCreated: 0
+        },
+        message: wellsOverLimit > 0
+          ? `Found ${newWells.length} new wells but no slots remaining on your ${plan} plan.`
+          : 'All discovered wells are already tracked.'
+      });
+    }
+
+    // --- Step 6: Insert client_wells into D1 ---
+    const INSERT_BATCH = 10; // 10 fields per well → 100 params max
+    let totalInserted = 0;
+    const newAirtableIds: string[] = []; // collect generated IDs for matching
+
+    for (let i = 0; i < wellsToTrack.length; i += INSERT_BATCH) {
+      const batch = wellsToTrack.slice(i, i + INSERT_BATCH);
+      const statements = batch.map(well => {
+        const cwId = `cwell_disc_${crypto.randomUUID().slice(0, 8)}`;
+        const airtableId = `disc_${well.api_number}`;
+        newAirtableIds.push(airtableId);
+
+        return env.WELLS_DB!.prepare(`
+          INSERT INTO client_wells (
+            id, airtable_id, api_number, user_id, organization_id,
+            well_name, operator, county, section, township, range_val,
+            well_type, well_status, tracking_source, status, synced_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered', 'Active', CURRENT_TIMESTAMP)
+          ON CONFLICT(airtable_id) DO NOTHING
+        `).bind(
+          cwId,
+          airtableId,
+          well.api_number,
+          userId,
+          organizationId || null,
+          well.well_number ? `${well.well_name} #${well.well_number}` : (well.well_name || null),
+          well.operator || null,
+          well.county || null,
+          well.section ? String(well.section) : null,
+          well.township || null,
+          well.range || null,
+          well.well_type || null,
+          well.well_status || null
+        );
+      });
+
+      await env.WELLS_DB!.batch(statements);
+      totalInserted += batch.length;
+    }
+
+    console.log(`[DiscoverWells] Inserted ${totalInserted} client_wells`);
+
+    // --- Step 7: Run matching to create property_well_links ---
+    // Build link records for discovered wells ↔ properties at same STR
+    const linksToCreate: any[] = [];
+    for (const well of wellsToTrack) {
+      const sec = String(well.section);
+      const twn = String(well.township);
+      const rng = String(well.range);
+      const strKey = `${sec}-${twn}-${rng}`;
+      const matchingPropertyIds = strToProperties.get(strKey) || [];
+      const wellAirtableId = `disc_${well.api_number}`;
+      const wellName = well.well_number ? `${well.well_name} #${well.well_number}` : (well.well_name || 'Unknown');
+
+      for (const propId of matchingPropertyIds) {
+        const propLocation = `S${sec}-T${twn}-R${rng}`;
+        const linkRecord: any = {
+          fields: {
+            [LINK_FIELDS.LINK_NAME]: `${wellName} → ${propLocation}`,
+            [LINK_FIELDS.PROPERTY]: [propId],
+            [LINK_FIELDS.WELL]: [wellAirtableId],
+            [LINK_FIELDS.LINK_TYPE]: 'Auto',
+            [LINK_FIELDS.MATCH_REASON]: 'Surface Location',
+            [LINK_FIELDS.STATUS]: 'Linked',
+            [LINK_FIELDS.USER]: [userId]
+          }
+        };
+        if (organizationId) {
+          linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
+        }
+        linksToCreate.push(linkRecord);
+      }
+    }
+
+    const { created: linksCreated } = await createLinksInBatches(env, linksToCreate);
+
+    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
+    const stats = {
+      wellsDiscovered: allDiscoveredWells.length,
+      wellsTracked: totalInserted,
+      wellsSkipped: skippedAlreadyTracked,
+      wellsOverLimit,
+      linksCreated
+    };
+
+    console.log(`[DiscoverWells] Completed in ${duration}s:`, JSON.stringify(stats));
+
+    return jsonResponse({ success: true, stats, duration: `${duration}s` });
+
+  } catch (error) {
+    console.error('[DiscoverWells] Error:', error);
+    return jsonResponse({
+      error: 'Failed to discover and track wells',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
 }

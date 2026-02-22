@@ -324,10 +324,11 @@
         }
 
         async function findWellMatches() {
-            const btn = document.getElementById('findMatchesBtn');
+            const wrapper = document.getElementById('findMatchesBtn');
+            const btn = wrapper.querySelector('button');
             btn.disabled = true;
+            const origText = btn.textContent;
             btn.textContent = 'Matching...';
-            btn.classList.add('matching');
             try {
                 const res = await fetch('/api/match-property-wells', { method: 'POST' });
                 const data = await res.json();
@@ -349,8 +350,45 @@
                 showToast('Error: ' + err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Match';
-                btn.classList.remove('matching');
+                btn.textContent = origText;
+            }
+        }
+
+        async function discoverAndTrackWells() {
+            const wrapper = document.getElementById('findMatchesBtn');
+            const btn = wrapper.querySelector('button');
+            btn.disabled = true;
+            const origText = btn.textContent;
+            btn.textContent = 'Discovering...';
+            try {
+                const res = await fetch('/api/discover-and-track-wells', { method: 'POST' });
+                const data = await res.json();
+                if (!res.ok) {
+                    showToast(data.error || 'Discovery failed', 'error');
+                    return;
+                }
+                if (data.success) {
+                    const s = data.stats;
+                    if (s.wellsTracked > 0) {
+                        let msg = `Discovered ${s.wellsDiscovered} wells, tracked ${s.wellsTracked} new, created ${s.linksCreated} links`;
+                        if (s.wellsSkipped > 0) msg += ` (${s.wellsSkipped} already tracked)`;
+                        showToast(msg, 'success', 6000);
+                        await loadAllData();
+                    } else if (s.wellsOverLimit > 0) {
+                        showToast(`Found ${s.wellsDiscovered} wells but no slots remaining on your plan. Upgrade to track more.`, 'warning', 6000);
+                    } else if (s.wellsSkipped > 0) {
+                        showToast(`All ${s.wellsSkipped} discovered wells are already tracked.`, 'info');
+                    } else {
+                        showToast(data.message || 'No producing wells found at your property locations.', 'info');
+                    }
+                } else {
+                    showToast(data.error || 'Discovery failed', 'error');
+                }
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = origText;
             }
         }
 

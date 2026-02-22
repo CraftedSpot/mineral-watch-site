@@ -39,7 +39,7 @@
         </div>
     </header>
     <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});
-    document.addEventListener('click',function(){var m=document.getElementById('exportPropertiesMenu');if(m)m.style.display='none';});</script>
+    document.addEventListener('click',function(){var m=document.getElementById('exportPropertiesMenu');if(m)m.style.display='none';var mm=document.getElementById('matchMenu');if(mm)mm.style.display='none';});</script>
     <main id="main-content">
         <div class="container">
             <div class="page-header">
@@ -61,9 +61,15 @@
                                 <button onclick="exportPortfolioCSV(); this.parentElement.style.display='none';" style="display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 13px; color: #374151; border-top: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">Portfolio (with Wells)</button>
                             </div>
                         </div>
-                        <button class="btn-secondary-action" id="findMatchesBtn" style="display: none;" onclick="findWellMatches()" title="Match properties to wells">
-                            Match
-                        </button>
+                        <div id="findMatchesBtn" style="display: none; position: relative;">
+                            <button class="btn-secondary-action" onclick="var m=document.getElementById('matchMenu'); m.style.display=m.style.display==='block'?'none':'block'; event.stopPropagation();" title="Match properties to wells">
+                                Match ▾
+                            </button>
+                            <div id="matchMenu" style="display: none; position: absolute; top: 100%; left: 0; z-index: 1000; background: white; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 210px; margin-top: 4px;">
+                                <button onclick="findWellMatches(); this.parentElement.style.display='none';" style="display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 13px; color: #374151;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">Match Tracked Wells</button>
+                                <button onclick="discoverAndTrackWells(); this.parentElement.style.display='none';" style="display: block; width: 100%; text-align: left; padding: 8px 12px; border: none; background: none; cursor: pointer; font-size: 13px; color: #374151; border-top: 1px solid #f3f4f6;" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='none'">Discover &amp; Track Wells</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="action-divider"></div>
                     <div class="action-group">

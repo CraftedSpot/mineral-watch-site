@@ -138,6 +138,7 @@ import {
   handleBackfillBhCoordinates,
   // Property-well matching handler
   handleMatchPropertyWells,
+  handleDiscoverAndTrackWells,
   // Debug handler
   handleDebugAirtable,
   // Property-Wells handlers (now using D1 handlers with dynamic imports)
@@ -1507,6 +1508,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       // Property-well matching endpoint
       if (path === "/api/match-property-wells" && request.method === "POST") {
         return handleMatchPropertyWells(request, env);
+      }
+
+      // Discover & Track Wells endpoint
+      if (path === "/api/discover-and-track-wells" && request.method === "POST") {
+        return handleDiscoverAndTrackWells(request, env);
       }
       
       // Admin sync endpoint
