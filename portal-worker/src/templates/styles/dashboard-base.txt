@@ -1187,9 +1187,18 @@
             50% { opacity: 0.4; transform: scale(0.7); }
         }
 
-        /* Discover results modal - wider for virtual list */
+        /* Discover results modal - sized to match bulk import preview */
         .discover-results-modal {
-            max-width: 640px;
+            max-width: 900px;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .discover-results-modal .confirm-body {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         /* Stats summary chips */
@@ -1228,10 +1237,11 @@
             font-weight: 500;
         }
 
-        /* Virtual scroll container */
+        /* Virtual scroll container — fills available modal height */
         .discover-vscroll {
             overflow-y: auto;
-            max-height: 360px;
+            flex: 1;
+            min-height: 200px;
             position: relative;
             border: 1px solid var(--border);
             border-radius: 8px;
