@@ -200,6 +200,10 @@ async function cleanupOrphans(
   for (const row of d1Records.results) {
     const atId = row[airtableIdColumn] as string;
     if (atId && !validAirtableIds.has(atId)) {
+      // Skip D1-first records that were never in Airtable (cwell_, disc_, pwl_, prop_ prefixes)
+      if (atId.startsWith('cwell_') || atId.startsWith('disc_') || atId.startsWith('pwl_') || atId.startsWith('prop_')) {
+        continue;
+      }
       orphanIds.push(atId);
     }
   }
