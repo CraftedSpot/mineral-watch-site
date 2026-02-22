@@ -221,6 +221,15 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
       fieldsUpdated.push('horizontal_source');
     }
 
+    // OTC Production Unit Number (PUN) — bridges well to OTC production data
+    const rawPun = completionData.OTC_Prod_Unit_No;
+    if (rawPun && rawPun.toString().trim().length >= 10) {
+      const cleanPun = rawPun.toString().trim();
+      updates.push('otc_prod_unit_no = COALESCE(otc_prod_unit_no, ?)');
+      values.push(cleanPun);
+      fieldsUpdated.push('otc_prod_unit_no');
+    }
+
     // Skip if nothing to update
     if (updates.length === 0) {
       return { success: true, updated: false, fields: [] };
@@ -241,6 +250,28 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
 
     if (updated) {
       console.log(`[WellEnrichment] Updated ${cleanApi}: ${fieldsUpdated.join(', ')}`);
+    }
+
+    // Insert PUN link if we have a valid PUN (separate from the main UPDATE)
+    if (rawPun && rawPun.toString().trim().length >= 10) {
+      try {
+        const cleanPun = rawPun.toString().trim();
+        // Normalize: strip dashes for pun column, first 10 chars for base_pun
+        const normalizedPun = cleanPun.replace(/-/g, '');
+        const basePun = normalizedPun.substring(0, 10);
+
+        await env.WELLS_DB.prepare(`
+          INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+          VALUES (?, ?, ?, 'completions_daily', 'high')
+          ON CONFLICT(api_number, pun) DO NOTHING
+        `).bind(cleanApi, normalizedPun, basePun).run();
+
+        fieldsUpdated.push('well_pun_link');
+        console.log(`[WellEnrichment] PUN link created: ${cleanApi} → ${basePun}`);
+      } catch (punError) {
+        // Don't fail the whole enrichment if PUN link insert fails
+        console.warn(`[WellEnrichment] PUN link insert failed for ${cleanApi}:`, punError.message);
+      }
     }
 
     return {
