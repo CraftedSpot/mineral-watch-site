@@ -479,23 +479,25 @@
                     for (let i = 0; i < maxSelectable; i++) selected.add(allApis[i]);
                 }
 
-                // Group wells by county
+                // Group wells by match method
+                const matchMethodLabels = { surface: 'Surface Match', bottom_hole: 'Bottom Hole Match', lateral_path: 'Lateral Path Match' };
+                const matchMethodOrder = ['surface', 'bottom_hole', 'lateral_path'];
                 const groups = new Map();
                 for (const w of wells) {
-                    const county = w.county || 'Unknown';
-                    if (!groups.has(county)) groups.set(county, []);
-                    groups.get(county).push(w);
+                    const method = w.matchMethod || 'surface';
+                    if (!groups.has(method)) groups.set(method, []);
+                    groups.get(method).push(w);
                 }
-                // Sort groups alphabetically
-                const sortedGroups = Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                // Sort groups by defined order
+                const sortedGroups = matchMethodOrder.filter(m => groups.has(m)).map(m => [m, groups.get(m)]);
 
                 // Build flat item array for virtual scroller
                 const ROW_HEIGHT = 32;
                 const HEADER_HEIGHT = 28;
                 const BUFFER = 5;
                 const flatItems = [];
-                for (const [county, groupWells] of sortedGroups) {
-                    flatItems.push({ type: 'header', county, count: groupWells.length });
+                for (const [method, groupWells] of sortedGroups) {
+                    flatItems.push({ type: 'header', groupKey: method, label: matchMethodLabels[method] || method, count: groupWells.length });
                     for (const w of groupWells) {
                         flatItems.push({ type: 'well', ...w });
                     }
@@ -520,8 +522,8 @@
                     confirmBtn.textContent = count > 0 ? `Add ${count} Well${count === 1 ? '' : 's'}` : 'Add Wells';
                 }
 
-                function getGroupSelectedCount(county) {
-                    const groupWells = groups.get(county) || [];
+                function getGroupSelectedCount(groupKey) {
+                    const groupWells = groups.get(groupKey) || [];
                     return groupWells.filter(w => selected.has(w.api)).length;
                 }
 
@@ -529,9 +531,9 @@
 
                 function renderItem(item, top) {
                     if (item.type === 'header') {
-                        const selCount = getGroupSelectedCount(item.county);
+                        const selCount = getGroupSelectedCount(item.groupKey);
                         return `<div class="discover-vrow-header" style="top:${top}px;height:${HEADER_HEIGHT}px;">
-                            <span>${escapeHtml(item.county)} County</span>
+                            <span>${escapeHtml(item.label)}</span>
                             <span class="discover-group-count">(${selCount} of ${item.count} selected)</span>
                         </div>`;
                     }
