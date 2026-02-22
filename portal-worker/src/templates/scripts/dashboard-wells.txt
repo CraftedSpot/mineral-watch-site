@@ -1540,15 +1540,21 @@
             const hasWI = loadedWells.some(w => w.wi_nri);
             const hasORRI = loadedWells.some(w => w.orri_nri);
 
-            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Meridian', 'Formation', 'Direction', 'Well Type', 'Well Status'];
+            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Meridian', 'Formation', 'Direction', 'Well Type', 'Status (OCC)', 'Production Status'];
             if (hasRI) headers.push('RI Decimal');
             if (hasWI) headers.push('WI Decimal');
             if (hasORRI) headers.push('ORRI Decimal');
             headers.push('Notes');
 
+            // Reset horizon cache so getProductionStatus recalculates for export set
+            getProductionStatus._horizon = null;
+            getProductionStatus._threeMonthsAgo = null;
+
             const rows = loadedWells.map(w => {
                 // V2: flat object
                 const direction = w.lateral_length && parseInt(w.lateral_length) > 0 ? 'Horizontal' : 'Vertical';
+                const prodStatus = getProductionStatus(w);
+                const prodLabel = prodStatus === 'active' ? 'Producing' : prodStatus === 'idle' ? 'Idle' : '';
                 const cols = [
                     escapeCSV(w.apiNumber || ''),
                     escapeCSV(w.well_name || ''),
@@ -1561,7 +1567,8 @@
                     escapeCSV(w.formation_canonical || w.formation_name || ''),
                     escapeCSV(direction),
                     escapeCSV(w.well_type || ''),
-                    escapeCSV(w.well_status || '')
+                    escapeCSV(w.well_status || ''),
+                    escapeCSV(prodLabel)
                 ];
                 if (hasRI) cols.push(escapeCSV(w.ri_nri || ''));
                 if (hasWI) cols.push(escapeCSV(w.wi_nri || ''));
