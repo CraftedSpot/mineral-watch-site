@@ -529,6 +529,11 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     console.log(`[DiscoverWells] ${propRows.length} properties → ${strCombos.size} unique STRM combos`);
 
+    // Compute 6-month production cutoff (accounts for OTC ~3-month reporting lag)
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 6);
+    const prodCutoff = `${cutoffDate.getFullYear()}${String(cutoffDate.getMonth() + 1).padStart(2, '0')}`;
+
     // --- Step 3: Query OCC wells at property locations (surface OR bottom hole, meridian-scoped) ---
     const allDiscoveredWells: any[] = [];
     const strEntries = Array.from(strCombos.values());
@@ -554,6 +559,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
         WHERE (${conditions})
           AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
           AND well_status NOT IN ('PA', 'RET')
+          AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
       `).bind(...params).all();
 
       allDiscoveredWells.push(...(result.results || []));
@@ -597,6 +603,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
           AND section != bh_section
           AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
           AND well_status NOT IN ('PA', 'RET')
+          AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
       `).bind(...params).all();
 
       horizontalCandidates.push(...(result.results || []));

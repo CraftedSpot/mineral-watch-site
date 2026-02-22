@@ -355,6 +355,7 @@
         }
 
         async function discoverAndTrackWells() {
+            if (!confirm('This will scan OCC records for producing wells at your property locations and automatically add them to your tracked wells.\n\nOnly wells with recent production data (or newly permitted wells) will be included.\n\nContinue?')) return;
             const wrapper = document.getElementById('findMatchesBtn');
             const btn = wrapper.querySelector('button');
             btn.disabled = true;
