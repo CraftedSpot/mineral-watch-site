@@ -1684,8 +1684,15 @@
                 }
             }));
 
+            // DEBUG: log first few loaded wells to see ID shape
+            console.log('[Portfolio] Sample loadedWells:', loadedWells.slice(0, 3).map(function(w) { return { id: w.id, apiNumber: w.apiNumber, otc_last_prod_month: w.otc_last_prod_month }; }));
+            console.log('[Portfolio] wellById keys (first 5):', Object.keys(wellById).slice(0, 5));
+            console.log('[Portfolio] wellByApi keys (first 5):', Object.keys(wellByApi).slice(0, 5));
+            console.log('[Portfolio] threeMonthsAgo:', threeMonthsAgo);
+
             // Build property ID → { producing: [], idle: [] }
             const wellsByProperty = {};
+            var debuggedFirst = false;
             for (const lr of linkResults) {
                 const producing = [];
                 const idle = [];
@@ -1694,6 +1701,14 @@
                     // Check production status from loaded wells data (try ID match, then API number)
                     const loaded = wellById[lw.wellId] || wellByApi[lw.apiNumber];
                     const lastProd = loaded ? loaded.otc_last_prod_month : null;
+                    if (!debuggedFirst) {
+                        console.log('[Portfolio] First linked well:', JSON.stringify(lw));
+                        console.log('[Portfolio] wellById[' + lw.wellId + ']:', !!wellById[lw.wellId]);
+                        console.log('[Portfolio] wellByApi[' + lw.apiNumber + ']:', !!wellByApi[lw.apiNumber]);
+                        console.log('[Portfolio] loaded:', loaded ? { id: loaded.id, apiNumber: loaded.apiNumber, otc_last_prod_month: loaded.otc_last_prod_month } : null);
+                        console.log('[Portfolio] lastProd:', lastProd, '>= threeMonthsAgo:', threeMonthsAgo, '=', lastProd >= threeMonthsAgo);
+                        debuggedFirst = true;
+                    }
                     if (lastProd && lastProd >= threeMonthsAgo) {
                         producing.push(label);
                     } else {
