@@ -723,11 +723,11 @@
                 if (currentIndex === -1) return;
 
                 if (e.shiftKey && lastClickedIndex !== -1 && lastClickedIndex !== currentIndex) {
+                    // Read checked state before preventDefault (browser already toggled it)
+                    const checked = cb.checked;
                     e.preventDefault();
                     const start = Math.min(lastClickedIndex, currentIndex);
                     const end = Math.max(lastClickedIndex, currentIndex);
-                    // Use the state of the checkbox that was just clicked
-                    const checked = cb.checked;
                     const indices = [];
                     for (let i = start; i <= end; i++) {
                         allCbs[i].checked = checked;
@@ -738,9 +738,10 @@
                 lastClickedIndex = currentIndex;
             }
 
-            containerEl.addEventListener('click', handleClick);
+            // Use capture phase so we fire before any stopPropagation() in bubble phase
+            containerEl.addEventListener('click', handleClick, true);
             return {
-                destroy: () => containerEl.removeEventListener('click', handleClick),
+                destroy: () => containerEl.removeEventListener('click', handleClick, true),
                 resetLast: () => { lastClickedIndex = -1; }
             };
         }
