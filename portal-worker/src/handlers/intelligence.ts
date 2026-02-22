@@ -6972,7 +6972,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
                   // NGL: if ngl_pct is NULL, use gas rate (NGL often bundled with gas)
                   const nglRate = profile.ngl_pct ?? (profile.gas_pct ?? 0);
 
-                  const weightedRate = (oilShare * oilRate) + (gasShare * gasRate) + (nglShare * nglRate);
+                  const weightedRate = Math.max((oilShare * oilRate) + (gasShare * gasRate) + (nglShare * nglRate), 0.25);
                   const totalWithTax = Math.max(0, Math.min(weightedRate + profile.tax_pct, 1));
 
                   // Build tooltip detail
