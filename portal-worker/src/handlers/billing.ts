@@ -141,8 +141,17 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
       },
       body: JSON.stringify({ fields: { Plan: targetPlan } })
     });
+
+    // D1 dual-write (fire-and-forget)
+    try {
+      await env.WELLS_DB.prepare(`
+        UPDATE users SET plan = ? WHERE airtable_record_id = ?
+      `).bind(targetPlan, userRecord.id).run();
+    } catch (err) {
+      console.error('[D1 Dual-Write] updateSubscription:', (err as Error).message);
+    }
   }
-  
+
   console.log(`User ${user.email} upgraded to ${targetPlan}`);
   
   return jsonResponse({ 
@@ -298,6 +307,17 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
             }
           })
         });
+
+        // D1 dual-write (fire-and-forget)
+        try {
+          await env.WELLS_DB.prepare(`
+            UPDATE users SET plan = ?, stripe_customer_id = ?, stripe_subscription_id = ?
+            WHERE airtable_record_id = ?
+          `).bind(targetPlan, stripeCustomerId, subscriptionId, userRecord.id).run();
+        } catch (err) {
+          console.error('[D1 Dual-Write] handleUpgradeSuccess:', (err as Error).message);
+        }
+
         console.log(`[Billing] User ${customerEmail} upgraded to ${targetPlan}`);
       }
     }

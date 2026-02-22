@@ -21,7 +21,98 @@ const ORG_TABLE = '🏢 Organization';
 const BASE_URL = 'https://portal.mymineralwatch.com';
 
 // Plans that get an Organization
-const ORG_ELIGIBLE_PLANS = ['Professional', 'Business', 'Enterprise'];
+const ORG_ELIGIBLE_PLANS = ['Business', 'Enterprise'];
+
+/**
+ * Normalize plan names for D1 consistency.
+ * PRICE_TO_PLAN uses "Enterprise" but PLAN_LIMITS keys on "Enterprise 1K".
+ */
+function normalizePlanForD1(plan) {
+  if (plan === 'Enterprise') return 'Enterprise 1K';
+  return plan;
+}
+
+/**
+ * Fire-and-forget D1 upsert for user record.
+ * Uses ON CONFLICT to update if user already exists.
+ * Never throws — logs errors only. The 15-min sync is the safety net.
+ */
+async function upsertUserD1(env, airtableRecordId, fields) {
+  if (!env.WELLS_DB) return;
+  try {
+    await env.WELLS_DB.prepare(`
+      INSERT INTO users (
+        id, airtable_record_id, email, name, plan, status,
+        stripe_customer_id, stripe_subscription_id,
+        cancellation_date, cancellation_reason, cancellation_feedback,
+        plan_history
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(airtable_record_id) DO UPDATE SET
+        email = COALESCE(excluded.email, users.email),
+        name = COALESCE(excluded.name, users.name),
+        plan = COALESCE(excluded.plan, users.plan),
+        status = COALESCE(excluded.status, users.status),
+        stripe_customer_id = COALESCE(excluded.stripe_customer_id, users.stripe_customer_id),
+        stripe_subscription_id = excluded.stripe_subscription_id,
+        cancellation_date = excluded.cancellation_date,
+        cancellation_reason = excluded.cancellation_reason,
+        cancellation_feedback = excluded.cancellation_feedback,
+        plan_history = COALESCE(excluded.plan_history, users.plan_history)
+    `).bind(
+      `user_${airtableRecordId}`,
+      airtableRecordId,
+      fields.email || null,
+      fields.name || null,
+      fields.plan ? normalizePlanForD1(fields.plan) : null,
+      fields.status || null,
+      fields.stripeCustomerId || null,
+      fields.stripeSubscriptionId || null,
+      fields.cancellationDate || null,
+      fields.cancellationReason || null,
+      fields.cancellationFeedback || null,
+      fields.planHistory || null
+    ).run();
+  } catch (err) {
+    console.error('[D1 Dual-Write] upsertUserD1 failed:', err.message);
+  }
+}
+
+/**
+ * Fire-and-forget D1 upsert for organization record.
+ * Never throws.
+ */
+async function upsertOrgD1(env, airtableOrgId, ownerAirtableId, fields) {
+  if (!env.WELLS_DB) return;
+  try {
+    await env.WELLS_DB.prepare(`
+      INSERT INTO organizations (
+        id, airtable_record_id, name, plan, max_users, owner_user_id,
+        default_notification_mode
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(airtable_record_id) DO UPDATE SET
+        name = COALESCE(excluded.name, organizations.name),
+        plan = COALESCE(excluded.plan, organizations.plan),
+        max_users = COALESCE(excluded.max_users, organizations.max_users),
+        owner_user_id = COALESCE(excluded.owner_user_id, organizations.owner_user_id)
+    `).bind(
+      `org_${airtableOrgId}`,
+      airtableOrgId,
+      fields.name || null,
+      fields.plan || null,
+      fields.maxUsers || null,
+      ownerAirtableId,
+      fields.defaultNotificationMode || 'Instant + Weekly'
+    ).run();
+
+    // Link user to org in D1
+    await env.WELLS_DB.prepare(`
+      UPDATE users SET organization_id = ?, role = 'Admin'
+      WHERE airtable_record_id = ?
+    `).bind(airtableOrgId, ownerAirtableId).run();
+  } catch (err) {
+    console.error('[D1 Dual-Write] upsertOrgD1 failed:', err.message);
+  }
+}
 
 // PRICE_TO_PLAN MAPPING - LIVE MODE ONLY
 const PRICE_TO_PLAN = {
@@ -278,6 +369,17 @@ async function handleCheckoutComplete(session, env) {
     await updateUser(env, existingUser.id, updateFields);
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
 
+    // D1 dual-write (fire-and-forget)
+    upsertUserD1(env, existingUser.id, {
+      email: customerEmail,
+      name: customerName,
+      plan,
+      status: 'Active',
+      stripeCustomerId,
+      stripeSubscriptionId: subscriptionId,
+      planHistory: updatedHistory
+    });
+
     // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
     const hasOrg = existingUser.fields.Organization && existingUser.fields.Organization.length > 0;
     if (ORG_ELIGIBLE_PLANS.includes(plan) && !hasOrg) {
@@ -317,7 +419,20 @@ async function handleCheckoutComplete(session, env) {
     const newUser = await createUser(env, createFields);
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
 
-    // Create Organization for Professional/Business/Enterprise plans
+    // D1 dual-write (fire-and-forget)
+    if (newUser?.id) {
+      upsertUserD1(env, newUser.id, {
+        email: customerEmail,
+        name: customerName,
+        plan,
+        status: 'Active',
+        stripeCustomerId,
+        stripeSubscriptionId: subscriptionId,
+        planHistory: historyEntry
+      });
+    }
+
+    // Create Organization for Business/Enterprise plans
     if (newUser?.id && ORG_ELIGIBLE_PLANS.includes(plan)) {
       try {
         await createOrganizationForUser(env, newUser.id, customerName, customerEmail, plan);
@@ -526,6 +641,16 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   
   await updateUser(env, user.id, updateFields);
 
+  // D1 dual-write (fire-and-forget)
+  upsertUserD1(env, user.id, {
+    email: userEmail,
+    name: userName,
+    plan: newPlan,
+    status: airtableStatus,
+    stripeSubscriptionId: subscriptionId,
+    planHistory: updatedHistory
+  });
+
   console.log(`Updated user ${userEmail}: Plan=${newPlan}, Status=${airtableStatus}`);
 
   // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
@@ -611,7 +736,19 @@ async function handleSubscriptionDeleted(subscription, env) {
     'Cancellation Feedback': cancellationFeedback || null,
     'Plan History': updatedHistory
   });
-  
+
+  // D1 dual-write (fire-and-forget)
+  upsertUserD1(env, user.id, {
+    email: userEmail,
+    plan: 'Free',
+    status: 'Active',
+    stripeSubscriptionId: null,
+    cancellationDate: cancellationDate,
+    cancellationReason: reasonMap[cancellationReason] || null,
+    cancellationFeedback: cancellationFeedback || null,
+    planHistory: updatedHistory
+  });
+
   console.log(`User ${userEmail} reverted to Free plan after cancellation`);
   
   // Send cancellation email
@@ -639,6 +776,17 @@ async function handleInvoicePaymentFailed(invoice, env) {
   await updateUser(env, user.id, {
     'Payment Status': 'Failed'
   });
+
+  // D1 dual-write
+  if (env.WELLS_DB) {
+    try {
+      await env.WELLS_DB.prepare(`
+        UPDATE users SET status = 'Past Due' WHERE airtable_record_id = ?
+      `).bind(user.id).run();
+    } catch (err) {
+      console.error('[D1 Dual-Write] payment failed update:', err.message);
+    }
+  }
 
   console.log(`Payment status set to Failed for ${userEmail}`);
 }
@@ -1391,6 +1539,14 @@ async function createOrganizationForUser(env, userId, userName, userEmail, plan)
   const org = await orgResponse.json();
   const orgId = org.id;
   console.log(`Created organization ${orgId} for user ${userId} (${plan})`);
+
+  // D1 dual-write (fire-and-forget)
+  upsertOrgD1(env, orgId, userId, {
+    name: orgName,
+    plan: normalizePlanForD1(plan),
+    maxUsers,
+    defaultNotificationMode: 'Instant + Weekly'
+  });
 
   // Update user with Organization link and Admin role
   await updateUser(env, userId, {

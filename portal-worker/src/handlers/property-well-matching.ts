@@ -545,7 +545,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     for (const row of propRows as any[]) {
       if (!row.section || !row.township || !row.range) continue;
-      const sec = String(row.section);
+      const sec = String(parseInt(String(row.section), 10) || row.section); // strip leading zeros: "08" → "8"
       const twn = String(row.township);
       const rng = String(row.range);
       const meridian = getMeridianFromCounty(row.county, row.meridian);
@@ -877,16 +877,18 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
       // Surface
       if (well.section && well.township && well.range) {
+        const normSec = String(parseInt(String(well.section), 10) || well.section);
         matchEntries.push({
-          strmKey: `${String(well.section)}-${well.township}-${well.range}-${wellMeridian}`,
+          strmKey: `${normSec}-${well.township}-${well.range}-${wellMeridian}`,
           reason: 'Surface Location'
         });
       }
 
       // Bottom hole
       if (well.bh_section && well.bh_township && well.bh_range) {
+        const normBhSec = String(parseInt(String(well.bh_section), 10) || well.bh_section);
         matchEntries.push({
-          strmKey: `${String(well.bh_section)}-${well.bh_township}-${well.bh_range}-${wellMeridian}`,
+          strmKey: `${normBhSec}-${well.bh_township}-${well.bh_range}-${wellMeridian}`,
           reason: 'Bottom Hole'
         });
       }
