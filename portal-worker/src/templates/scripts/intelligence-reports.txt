@@ -6090,6 +6090,7 @@
                 const beStr = w.halfCycleBreakeven !== null ? '$' + w.halfCycleBreakeven : '\u2014';
                 const discountStr = w.totalDiscountPct !== null ? w.totalDiscountPct.toFixed(1) + '%' : '\u2014';
                 const dSrc = w.deductionSource || 'default';
+                const dDetail = w.deductionSourceDetail || null;
                 const discountColor = dSrc === 'check_stub' ? 'font-weight: 600;'
                     : dSrc === 'operator_profile' ? ''
                     : 'color: var(--text-muted); font-style: italic;';
@@ -6135,7 +6136,7 @@
                     '<td style="padding: 0.5rem; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem;" title="' + (w.operator || '').replace(/"/g, '&quot;') + '">' + opStr + '</td>' +
                     '<td style="padding: 0.5rem;">' + formStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right;">' + beStr + '</td>' +
-                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 20%') + '">' + discountStr + srcBadge + '</td>' +
+                    '<td style="padding: 0.5rem; text-align: right; ' + discountColor + '" title="' + (dDetail ? dDetail.replace(/"/g, '&quot;') : dSrc === 'check_stub' ? 'Check Stub (' + (w.deductionConfidence || '') + ')' : dSrc === 'operator_profile' ? 'Operator Profile (' + (w.deductionConfidence || '') + ')' : dSrc === 'otc' ? 'OTC trailing 12mo | Mkt: ' + (w.mktDeductionPct || 0).toFixed(1) + '% | Tax: ' + (w.taxPct || 0).toFixed(1) + '%' : dSrc === 'county_avg' ? 'County average' : 'Default 25%') + '">' + discountStr + srcBadge + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; font-weight: 500;">' + netBackStr + '</td>' +
                     '<td style="padding: 0.5rem; text-align: center;">' + statusHtml + '</td>' +
                     '<td style="padding: 0.5rem; text-align: right; ' + stressedStyle + '">' + stressedStr + '</td>' +
@@ -6273,10 +6274,10 @@
                         </p>
                         <ol style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.8; margin: 0.5rem 0; padding-left: 1.25rem;">
                             <li><strong>Check Stub</strong> <span style="color: #22c55e;">(Stub)</span> &mdash; Per-well exact deductions extracted from operator check stubs. Highest confidence.</li>
-                            <li><strong>Operator Profile</strong> <span style="color: #3b82f6;">(Op)</span> &mdash; Blended deduction rate for the operator+county pair, aggregated from OTC financial data across all their wells. Matched via PUN linkage or name matching.</li>
+                            <li><strong>Operator Profile</strong> <span style="color: #3b82f6;">(Op)</span> &mdash; Product-weighted deduction rate for the operator+county pair. Separate oil, gas, and NGL rates are computed from OTC financial data, then weighted by each well&rsquo;s actual production mix. Oil rates carry a 25% floor (OTC is blind to oil marketing). Falls back to blended rate when product mix is unavailable.</li>
                             <li><strong>OTC Per-Well</strong> <span style="color: #94a3b8;">(OTC)</span> &mdash; Trailing 12-month OTC tax records for the individual well. Captures gas gathering/processing, GP tax (~7%), and PE tax. A 25% floor is applied because OTC does not track oil-side deductions.</li>
                             <li><strong>County Average</strong> <span style="color: #8b5cf6;">(Cty)</span> &mdash; Average deduction rate across all operator profiles in the county (requires 3+ operators).</li>
-                            <li><strong>Default</strong> &mdash; 20% blended discount when no other data is available.</li>
+                            <li><strong>Default</strong> &mdash; 25% blended discount when no other data is available.</li>
                         </ol>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0.5rem 0 0;">
                             The colored badge below each deduction value indicates which source was used. Currently <strong>${deductionWells} wells</strong> have well-specific data (portfolio average: ${avgDisc}% discount).
@@ -6339,7 +6340,7 @@
                     <div style="margin-bottom: 1.5rem;">
                         <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-primary); margin: 0 0 0.5rem;">Data sources</h3>
                         <p style="font-size: 0.875rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
-                            <strong>Deductions:</strong> 5-level precedence &mdash; (1) operator check stubs (extracted per-well actuals), (2) operator/county profiles (aggregated from OTC financial data across 685+ operators), (3) per-well OTC trailing 12-month tax records, (4) county averages, (5) 20% default.
+                            <strong>Deductions:</strong> 5-level precedence &mdash; (1) operator check stubs (extracted per-well actuals), (2) operator/county profiles (aggregated from OTC financial data across 685+ operators), (3) per-well OTC trailing 12-month tax records, (4) county averages, (5) 25% default.
                             <strong>Formation data:</strong> OCC Form 1002A completion reports, normalized to geological groups.
                             <strong>Prices:</strong> OilPriceAPI/EIA, refreshed daily.
                             <strong>Breakeven:</strong> Dallas Fed Energy Survey, public operator filings (Devon, Coterra, Continental, SandRidge), Oklahoma stripper well commission data.

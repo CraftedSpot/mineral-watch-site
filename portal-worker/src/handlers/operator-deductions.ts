@@ -253,11 +253,14 @@ export async function handleSeedOperatorProfiles(request: Request, env: Env): Pr
             COUNT(DISTINCT opf.year_month) as month_count,
             SUM(opf.gross_value) as total_gross,
             SUM(opf.net_value) as total_net,
-            SUM(opf.market_deduction) as total_mkt,
             SUM(opf.gp_tax) as total_gp_tax,
             SUM(opf.pe_tax) as total_pe_tax,
-            SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) as gas_gathering,
-            SUM(CASE WHEN opf.product_code = '1' THEN opf.gross_value ELSE 0 END) as oil_gross
+            SUM(CASE WHEN opf.product_code = '1' THEN opf.gross_value ELSE 0 END) as oil_gross,
+            SUM(CASE WHEN opf.product_code = '1' THEN opf.net_value ELSE 0 END) as oil_net,
+            SUM(CASE WHEN opf.product_code = '3' THEN opf.gross_value ELSE 0 END) as ngl_gross,
+            SUM(CASE WHEN opf.product_code = '3' THEN opf.net_value ELSE 0 END) as ngl_net,
+            SUM(CASE WHEN opf.product_code IN ('5','6') THEN opf.gross_value ELSE 0 END) as gas_gross,
+            SUM(CASE WHEN opf.product_code IN ('5','6') THEN opf.net_value ELSE 0 END) as gas_net
           FROM otc_production_financial opf
           JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
           LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
@@ -274,30 +277,49 @@ export async function handleSeedOperatorProfiles(request: Request, env: Env): Pr
         for (const r of result.results as Array<{
           operator_number: string; company_name: string | null; county: string;
           well_count: number; month_count: number;
-          total_gross: number; total_net: number; total_mkt: number;
+          total_gross: number; total_net: number;
           total_gp_tax: number; total_pe_tax: number;
-          gas_gathering: number; oil_gross: number;
+          oil_gross: number; oil_net: number;
+          ngl_gross: number; ngl_net: number;
+          gas_gross: number; gas_net: number;
         }>) {
+          // Blended rate (fallback)
           const ownerNet = r.total_net - r.total_gp_tax - r.total_pe_tax;
           const rawBlended = r.total_gross > 0 ? 1 - (ownerNet / r.total_gross) : 0;
-          // Floor at 25%: OTC doesn't capture oil marketing deductions
           const blended = Math.max(0.25, Math.min(rawBlended, 1));
-          const gasGatheringPct = r.total_gross > 0 ? r.gas_gathering / r.total_gross : 0;
+
+          // Tax rate
           const taxPct = r.total_gross > 0 ? (r.total_gp_tax + r.total_pe_tax) / r.total_gross : 0;
-          // Oil marketing = residual (blended - gas gathering - tax)
-          const oilMarketingPct = Math.max(0, blended - gasGatheringPct - taxPct);
+
+          // Product-level deduction rates (NULL if no production for that product)
+          // Oil: apply 0.25 floor (OTC blind to oil marketing deductions)
+          const oilMarketingPct = r.oil_gross > 0
+            ? Math.max(0.25, Math.min(1 - (r.oil_net / r.oil_gross), 1))
+            : null;
+
+          // Gas (codes 5+6): no floor — OTC captures gas deductions accurately
+          const gasGatheringPct = r.gas_gross > 0
+            ? Math.max(0, Math.min(1 - (r.gas_net / r.gas_gross), 1))
+            : null;
+
+          // NGL: no floor
+          const nglDeductionPct = r.ngl_gross > 0
+            ? Math.max(0, Math.min(1 - (r.ngl_net / r.ngl_gross), 1))
+            : null;
+
           const confidence = r.well_count >= 10 ? 'high' : r.well_count >= 3 ? 'medium' : 'low';
 
           stmts.push(db.prepare(`
             INSERT INTO operator_deduction_profiles
               (operator_number, operator_name, county, formation_group,
-               oil_marketing_pct, gas_gathering_pct, tax_pct, blended_all_in_pct,
+               oil_marketing_pct, gas_gathering_pct, ngl_deduction_pct, tax_pct, blended_all_in_pct,
                observation_count, well_count, confidence, source, period_start, period_end, updated_at)
-            VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, 'otc', ?, ?, datetime('now'))
+            VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, 'otc', ?, ?, datetime('now'))
             ON CONFLICT(operator_number, county, formation_group) DO UPDATE SET
               operator_name = excluded.operator_name,
               oil_marketing_pct = excluded.oil_marketing_pct,
               gas_gathering_pct = excluded.gas_gathering_pct,
+              ngl_deduction_pct = excluded.ngl_deduction_pct,
               tax_pct = excluded.tax_pct,
               blended_all_in_pct = excluded.blended_all_in_pct,
               observation_count = excluded.observation_count,
@@ -313,6 +335,7 @@ export async function handleSeedOperatorProfiles(request: Request, env: Env): Pr
             r.county,
             oilMarketingPct,
             gasGatheringPct,
+            nglDeductionPct,
             taxPct,
             blended,
             r.month_count,
