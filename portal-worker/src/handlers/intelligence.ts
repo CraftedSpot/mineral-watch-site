@@ -6967,24 +6967,26 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
                   const gasShare = mix.gas_gross / mix.total_gross;
                   const nglShare = mix.ngl_gross / mix.total_gross;
 
-                  const oilRate = profile.oil_pct ?? 0.25; // default oil floor if no oil data for operator
+                  const oilRate = profile.oil_pct ?? 0; // raw market-only rate (no floor — floor applied after tax)
                   const gasRate = profile.gas_pct ?? 0;
                   // NGL: if ngl_pct is NULL, use gas rate (NGL often bundled with gas)
                   const nglRate = profile.ngl_pct ?? (profile.gas_pct ?? 0);
 
-                  const weightedRate = Math.max((oilShare * oilRate) + (gasShare * gasRate) + (nglShare * nglRate), 0.25);
-                  const totalWithTax = Math.max(0, Math.min(weightedRate + profile.tax_pct, 1));
+                  const rawWeighted = (oilShare * oilRate) + (gasShare * gasRate) + (nglShare * nglRate);
+                  // Add tax, then apply 25% floor (floor catches oil-heavy wells where OTC misses marketing)
+                  const totalWithTax = Math.max(Math.min(rawWeighted + profile.tax_pct, 1), 0.25);
 
-                  // Build tooltip detail
+                  // Build tooltip detail — show all-in rates (market + tax share) per product
+                  const taxShare = profile.tax_pct;
                   const parts: string[] = [];
-                  if (oilShare > 0.05 && profile.oil_pct !== null) parts.push(`Oil ${Math.round(profile.oil_pct * 100)}%`);
-                  if (gasShare > 0.05 && profile.gas_pct !== null) parts.push(`Gas ${Math.round(profile.gas_pct * 100)}%`);
-                  if (nglShare > 0.05 && profile.ngl_pct !== null) parts.push(`NGL ${Math.round(profile.ngl_pct * 100)}%`);
+                  if (oilShare > 0.05 && profile.oil_pct !== null) parts.push(`Oil ${Math.round((profile.oil_pct + taxShare) * 100)}%`);
+                  if (gasShare > 0.05 && profile.gas_pct !== null) parts.push(`Gas ${Math.round((profile.gas_pct + taxShare) * 100)}%`);
+                  if (nglShare > 0.05 && profile.ngl_pct !== null) parts.push(`NGL ${Math.round((profile.ngl_pct + taxShare) * 100)}%`);
                   const detail = `${profile.operator_name}, ${info.county} — ${parts.join(' / ')} (prod-weighted)`;
 
                   wellDeductions.set(api, {
                     totalDiscount: totalWithTax,
-                    mktDeductionPct: weightedRate,
+                    mktDeductionPct: rawWeighted,
                     taxPct: profile.tax_pct,
                     source: 'operator_profile',
                     confidence: profile.confidence,

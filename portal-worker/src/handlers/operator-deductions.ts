@@ -292,9 +292,9 @@ export async function handleSeedOperatorProfiles(request: Request, env: Env): Pr
           const taxPct = r.total_gross > 0 ? (r.total_gp_tax + r.total_pe_tax) / r.total_gross : 0;
 
           // Product-level deduction rates (NULL if no production for that product)
-          // Oil: apply 0.25 floor (OTC blind to oil marketing deductions)
+          // Oil: store raw market-only rate (no floor here — floor applied at risk profiler after adding tax)
           const oilMarketingPct = r.oil_gross > 0
-            ? Math.max(0.25, Math.min(1 - (r.oil_net / r.oil_gross), 1))
+            ? Math.max(0, Math.min(1 - (r.oil_net / r.oil_gross), 1))
             : null;
 
           // Gas (codes 5+6): no floor — OTC captures gas deductions accurately
