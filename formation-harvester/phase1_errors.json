@@ -43,5 +43,10 @@
     "api_number": "3512320310",
     "error": "('Connection aborted.', ConnectionResetError(54, 'Connection reset by peer'))",
     "timestamp": "2026-02-22 05:05:11"
+  },
+  {
+    "api_number": "3513705473",
+    "error": "HTTPSConnectionPool(host='public.occ.ok.gov', port=443): Max retries exceeded with url: /OGCDWellRecords/SearchService.aspx/GetSearchListing (Caused by ConnectTimeoutError(<HTTPSConnection(host='public.occ.ok.gov', port=443) at 0x10c5d9090>, 'Connection to public.occ.ok.gov timed out. (connect timeout=None)'))",
+    "timestamp": "2026-02-22 08:54:25"
   }
 ]

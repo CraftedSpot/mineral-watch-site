@@ -1664,10 +1664,12 @@
                 threeMonthsAgo = d3.getFullYear() + String(d3.getMonth() + 1).padStart(2, '0');
             }
 
-            // Build a lookup from well ID → loaded well data (for production status)
+            // Build lookups from well ID and API number → loaded well data (for production status)
             const wellById = {};
+            const wellByApi = {};
             for (const w of loadedWells) {
                 if (w.id) wellById[w.id] = w;
+                if (w.apiNumber) wellByApi[w.apiNumber] = w;
             }
 
             // Fetch linked wells for each property using existing API
@@ -1689,8 +1691,8 @@
                 const idle = [];
                 for (const lw of lr.wells) {
                     const label = (lw.wellName || lw.apiNumber || 'Unknown') + ' (' + (lw.operator || 'Unknown') + ')';
-                    // Check production status from loaded wells data
-                    const loaded = wellById[lw.wellId];
+                    // Check production status from loaded wells data (try ID match, then API number)
+                    const loaded = wellById[lw.wellId] || wellByApi[lw.apiNumber];
                     const lastProd = loaded ? loaded.otc_last_prod_month : null;
                     if (lastProd && lastProd >= threeMonthsAgo) {
                         producing.push(label);
