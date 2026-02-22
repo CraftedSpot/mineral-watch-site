@@ -1729,12 +1729,14 @@
                 if (hasRI) cols.push(escapeCSV(f.ri_decimal || ''));
                 if (hasWI) cols.push(escapeCSV(f.wi_decimal || ''));
                 if (hasORRI) cols.push(escapeCSV(f.orri_decimal || ''));
-                cols.push(escapeCSV(linked.producing.join(String.fromCharCode(10))));
-                cols.push(escapeCSV(linked.idle.join(String.fromCharCode(10))));
+                var pWells = linked.producing.length > 0 ? '"' + linked.producing.join(String.fromCharCode(10)).replace(/"/g, '""') + '"' : '';
+                var iWells = linked.idle.length > 0 ? '"' + linked.idle.join(String.fromCharCode(10)).replace(/"/g, '""') + '"' : '';
+                cols.push(pWells);
+                cols.push(iWells);
                 cols.push(escapeCSV(f['Notes'] || ''));
                 return cols.join(',');
             });
 
-            const csv = [headers.join(','), ...rows].join('\n');
+            const csv = [headers.join(','), ...rows].join(String.fromCharCode(13, 10));
             downloadCSV(csv, 'mineral-watch-portfolio.csv');
         }
