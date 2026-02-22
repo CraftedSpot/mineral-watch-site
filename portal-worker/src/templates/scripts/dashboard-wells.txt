@@ -1603,7 +1603,7 @@
             const hasWI = loadedProperties.some(p => p.fields.wi_decimal);
             const hasORRI = loadedProperties.some(p => p.fields.orri_decimal);
 
-            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
+            const headers = ['County', 'Township', 'Range', 'Section', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
             if (hasRI) headers.push('RI Decimal');
             if (hasWI) headers.push('WI Decimal');
             if (hasORRI) headers.push('ORRI Decimal');
@@ -1613,9 +1613,9 @@
                 const f = p.fields;
                 const cols = [
                     escapeCSV(f['COUNTY'] || ''),
-                    escapeCSV(f['SEC'] || ''),
                     escapeCSV(f['TWN'] || ''),
                     escapeCSV(f['RNG'] || ''),
+                    escapeCSV(f['SEC'] || ''),
                     escapeCSV(f['MERIDIAN'] || 'IM'),
                     escapeCSV(f['Group'] || ''),
                     escapeCSV(f['RI Acres'] || '0'),
@@ -1627,7 +1627,7 @@
                 cols.push(escapeCSV(f['Notes'] || ''));
                 return cols.join(',');
             });
-            
+
             const csv = [headers.join(','), ...rows].join('\n');
             downloadCSV(csv, 'mineral-watch-properties.csv');
         }
@@ -1713,7 +1713,7 @@
             const hasWI = loadedProperties.some(p => p.fields.wi_decimal);
             const hasORRI = loadedProperties.some(p => p.fields.orri_decimal);
 
-            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
+            const headers = ['County', 'Township', 'Range', 'Section', 'Meridian', 'Group', 'RI Acres', 'WI Acres'];
             if (hasRI) headers.push('RI Decimal');
             if (hasWI) headers.push('WI Decimal');
             if (hasORRI) headers.push('ORRI Decimal');
@@ -1725,9 +1725,9 @@
 
                 const cols = [
                     escapeCSV(f['COUNTY'] || ''),
-                    escapeCSV(f['SEC'] || ''),
                     escapeCSV(f['TWN'] || ''),
                     escapeCSV(f['RNG'] || ''),
+                    escapeCSV(f['SEC'] || ''),
                     escapeCSV(f['MERIDIAN'] || 'IM'),
                     escapeCSV(f['Group'] || ''),
                     escapeCSV(f['RI Acres'] || '0'),
