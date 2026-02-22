@@ -227,6 +227,46 @@
                     toggleDocumentSelection(e.target.dataset.id, e.target.checked);
                 }
             });
+
+            // Shift+click range selection for all bulk checkbox lists
+            initShiftSelect(
+                document, '.property-checkbox',
+                () => Array.from(document.querySelectorAll('.property-checkbox')),
+                (indices, checked) => {
+                    const cbs = Array.from(document.querySelectorAll('.property-checkbox'));
+                    for (const i of indices) {
+                        const id = cbs[i].dataset.id;
+                        if (checked) selectedProperties.add(id); else selectedProperties.delete(id);
+                    }
+                    updateBulkActionVisibility();
+                    updateSelectAllState('properties');
+                }
+            );
+            initShiftSelect(
+                document, '.well-checkbox',
+                () => Array.from(document.querySelectorAll('.well-checkbox')),
+                (indices, checked) => {
+                    const cbs = Array.from(document.querySelectorAll('.well-checkbox'));
+                    for (const i of indices) {
+                        const id = cbs[i].dataset.id;
+                        if (checked) selectedWells.add(id); else selectedWells.delete(id);
+                    }
+                    updateBulkActionVisibility();
+                    updateSelectAllState('wells');
+                }
+            );
+            initShiftSelect(
+                document, '.document-checkbox',
+                () => Array.from(document.querySelectorAll('.document-checkbox')),
+                (indices, checked) => {
+                    const cbs = Array.from(document.querySelectorAll('.document-checkbox'));
+                    for (const i of indices) {
+                        const id = cbs[i].dataset.id;
+                        if (checked) selectedDocuments.add(id); else selectedDocuments.delete(id);
+                    }
+                    updateBulkActionVisibility();
+                }
+            );
             
             // Add button event listeners inside DOMContentLoaded
             // Well Modal
@@ -618,10 +658,44 @@
                 function onScroll() { renderVisible(); }
                 vscroll.addEventListener('scroll', onScroll);
 
+                // Build API→flatIndex lookup for shift+click (only well items, skip headers)
+                const apiToFlatIndex = new Map();
+                for (let i = 0; i < flatItems.length; i++) {
+                    if (flatItems[i].type === 'well') apiToFlatIndex.set(flatItems[i].api, i);
+                }
+                let lastClickedFlatIdx = -1;
+
                 function onCheckboxClick(e) {
                     const cb = e.target.closest('.discover-well-check');
                     if (!cb) return;
                     const api = cb.dataset.api;
+                    const currentFlatIdx = apiToFlatIndex.get(api) ?? -1;
+
+                    // Shift+click range selection
+                    if (e.shiftKey && lastClickedFlatIdx !== -1 && currentFlatIdx !== -1 && lastClickedFlatIdx !== currentFlatIdx) {
+                        e.preventDefault();
+                        const rangeStart = Math.min(lastClickedFlatIdx, currentFlatIdx);
+                        const rangeEnd = Math.max(lastClickedFlatIdx, currentFlatIdx);
+                        const checked = cb.checked;
+                        for (let i = rangeStart; i <= rangeEnd; i++) {
+                            const item = flatItems[i];
+                            if (item.type !== 'well') continue;
+                            if (checked) {
+                                if (selected.size >= maxSelectable) break;
+                                selected.add(item.api);
+                            } else {
+                                selected.delete(item.api);
+                            }
+                        }
+                        lastClickedFlatIdx = currentFlatIdx;
+                        updateSelectLabel();
+                        updateButtonState();
+                        lastStart = -1; lastEnd = -1;
+                        renderVisible();
+                        return;
+                    }
+
+                    // Normal single click
                     if (cb.checked) {
                         if (selected.size >= maxSelectable) {
                             cb.checked = false;
@@ -632,13 +706,15 @@
                     } else {
                         selected.delete(api);
                     }
+                    lastClickedFlatIdx = currentFlatIdx;
                     updateSelectLabel();
                     updateButtonState();
                     // Re-render to update group counts
                     lastStart = -1; lastEnd = -1;
                     renderVisible();
                 }
-                vscrollContent.addEventListener('change', onCheckboxClick);
+                // Use click (not change) to detect shiftKey
+                vscrollContent.addEventListener('click', onCheckboxClick);
 
                 function onSelectAll() {
                     if (selectAllCb.checked) {
@@ -663,7 +739,7 @@
 
                 function cleanup() {
                     vscroll.removeEventListener('scroll', onScroll);
-                    vscrollContent.removeEventListener('change', onCheckboxClick);
+                    vscrollContent.removeEventListener('click', onCheckboxClick);
                     selectAllCb.removeEventListener('change', onSelectAll);
                     cancelBtn.removeEventListener('click', onCancel);
                     confirmBtn.removeEventListener('click', onConfirm);

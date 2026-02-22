@@ -702,3 +702,45 @@
                 dialog.addEventListener('click', handleOverlayClick);
             });
         }
+
+        /**
+         * Shift+click range selection for checkbox lists.
+         *
+         * @param {HTMLElement} containerEl - element to listen on (delegated click)
+         * @param {string} checkboxSelector - CSS selector for the checkboxes
+         * @param {() => HTMLInputElement[]} getCheckboxes - returns ordered list of visible checkboxes
+         * @param {(indices: number[], checked: boolean) => void} onToggle - called for each range toggle
+         * @returns {{ destroy: () => void, resetLast: () => void }}
+         */
+        function initShiftSelect(containerEl, checkboxSelector, getCheckboxes, onToggle) {
+            let lastClickedIndex = -1;
+
+            function handleClick(e) {
+                const cb = e.target.closest(checkboxSelector);
+                if (!cb) return;
+                const allCbs = getCheckboxes();
+                const currentIndex = allCbs.indexOf(cb);
+                if (currentIndex === -1) return;
+
+                if (e.shiftKey && lastClickedIndex !== -1 && lastClickedIndex !== currentIndex) {
+                    e.preventDefault();
+                    const start = Math.min(lastClickedIndex, currentIndex);
+                    const end = Math.max(lastClickedIndex, currentIndex);
+                    // Use the state of the checkbox that was just clicked
+                    const checked = cb.checked;
+                    const indices = [];
+                    for (let i = start; i <= end; i++) {
+                        allCbs[i].checked = checked;
+                        indices.push(i);
+                    }
+                    onToggle(indices, checked);
+                }
+                lastClickedIndex = currentIndex;
+            }
+
+            containerEl.addEventListener('click', handleClick);
+            return {
+                destroy: () => containerEl.removeEventListener('click', handleClick),
+                resetLast: () => { lastClickedIndex = -1; }
+            };
+        }

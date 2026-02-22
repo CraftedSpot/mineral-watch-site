@@ -351,4 +351,21 @@
                     updateBulkActionVisibility();
                 });
             });
+
+            // Shift+click range selection for activity checkboxes
+            const activityContainer = document.getElementById('activityContent');
+            if (activityContainer) {
+                initShiftSelect(
+                    activityContainer, '.activity-checkbox-input',
+                    () => Array.from(document.querySelectorAll('.activity-checkbox-input')),
+                    (indices, checked) => {
+                        const cbs = Array.from(document.querySelectorAll('.activity-checkbox-input'));
+                        for (const i of indices) {
+                            const id = cbs[i].dataset.id;
+                            if (checked) selectedActivity.add(id); else selectedActivity.delete(id);
+                        }
+                        updateBulkActionVisibility();
+                    }
+                );
+            }
         }
