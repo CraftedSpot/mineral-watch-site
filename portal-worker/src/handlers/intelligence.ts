@@ -7011,7 +7011,15 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         } catch (e) {
           console.error('[Well Risk Profile] Level 2 (operator profile) error:', e);
         }
-        console.log('[Well Risk Profile] Level 2 (operator profiles):', wellDeductions.size, 'wells resolved total');
+        // Count product-weighted vs blended for diagnostics
+        let l2Weighted = 0, l2Blended = 0;
+        for (const [, d] of wellDeductions) {
+          if (d.source === 'operator_profile') {
+            if (d.sourceDetail?.includes('prod-weighted')) l2Weighted++;
+            else l2Blended++;
+          }
+        }
+        console.log('[Well Risk Profile] Level 2 (operator profiles):', wellDeductions.size, 'wells resolved total,', l2Weighted, 'product-weighted,', l2Blended, 'blended fallback');
       }
 
       // --- Level 3: OTC per-well (reuse upfront product mix data) ---
