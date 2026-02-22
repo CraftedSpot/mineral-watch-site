@@ -5834,8 +5834,9 @@
 
             // Header badges
             const netBackStr = summary.portfolioNetBack ? ' (net-back $' + summary.portfolioNetBack.toFixed(2) + ')' : '';
+            const idleNote = summary.idleWellsExcluded ? ' (' + summary.idleWellsExcluded + ' idle excluded)' : '';
             document.getElementById('reportSubtitle').textContent =
-                summary.totalWells + ' wells analyzed at $' + wtiPrice.price.toFixed(2) + '/bbl WTI' + netBackStr;
+                summary.totalWells + ' active wells at $' + wtiPrice.price.toFixed(2) + '/bbl WTI' + netBackStr + idleNote;
 
             const statusEl = document.getElementById('reportStatus');
             if (summary.atRiskCount > 0) {
@@ -5898,7 +5899,7 @@
                     donutPaths += '<path d="M ' + x1.toFixed(2) + ' ' + y1.toFixed(2) + ' A 40 40 0 ' + largeArc + ' 1 ' + x2.toFixed(2) + ' ' + y2.toFixed(2) + '" fill="none" stroke="' + s.color + '" stroke-width="16"/>';
                 }
             }
-            const donutSvg = '<svg viewBox="0 0 100 100" width="120" height="120" style="flex-shrink: 0;">' + donutPaths + '<text x="50" y="46" text-anchor="middle" fill="var(--text-primary)" font-size="16" font-weight="700">' + summary.totalWells + '</text><text x="50" y="60" text-anchor="middle" fill="var(--text-muted)" font-size="8">wells</text></svg>';
+            const donutSvg = '<svg viewBox="0 0 100 100" width="120" height="120" style="flex-shrink: 0;">' + donutPaths + '<text x="50" y="46" text-anchor="middle" fill="var(--text-primary)" font-size="16" font-weight="700">' + summary.totalWells + '</text><text x="50" y="60" text-anchor="middle" fill="var(--text-muted)" font-size="8">active</text></svg>';
 
             const hudBadges = `
                 <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; align-items: center;">

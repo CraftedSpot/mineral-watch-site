@@ -6749,8 +6749,14 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       }
     }
 
-    const allWells = Array.from(wellsByApi.values());
-    console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWells.length, 'wells');
+    // Filter to actively producing wells only (produced within last 6 months)
+    const now6 = new Date();
+    const sixMonthsAgo = new Date(now6.getFullYear(), now6.getMonth() - 6, 1);
+    const idleCutoff = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+    const allWellsUnfiltered = Array.from(wellsByApi.values());
+    const allWells = allWellsUnfiltered.filter(w => w.last_prod_month && w.last_prod_month >= idleCutoff);
+    const idleCount = allWellsUnfiltered.length - allWells.length;
+    console.log('[Well Risk Profile] Queried', rows.length, 'rows, deduped to', allWellsUnfiltered.length, 'wells,', allWells.length, 'active,', idleCount, 'idle (excluded)');
 
     // Step 3: 5-level deduction precedence chain
     // 1. Check stub observations (per-well exact) → highest confidence
@@ -7245,6 +7251,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       henryHubPrice: henryHubPrice ? { price: henryHubPrice, date: priceDate } : null,
       summary: {
         totalWells: allWells.length,
+        idleWellsExcluded: idleCount,
         atRiskCount,
         tightCount,
         adequateCount,
