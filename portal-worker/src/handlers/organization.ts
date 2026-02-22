@@ -371,7 +371,7 @@ export async function handleInviteMember(request: Request, env: Env) {
       return jsonResponse({ error: "Failed to create invitation" }, 500);
     }
 
-    const newUser = await createResponse.json();
+    const newUser: any = await createResponse.json();
 
     // Generate magic link token
     const token = generateToken();

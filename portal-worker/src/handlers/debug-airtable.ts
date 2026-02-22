@@ -34,7 +34,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
         }
       );
       
-      const linksData = await linksResponse.json();
+      const linksData: any = await linksResponse.json();
       
       return jsonResponse({
         success: true,
@@ -69,7 +69,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
         }
       );
       
-      const data = await propertyResponse.json();
+      const data: any = await propertyResponse.json();
       results[filter] = {
         status: propertyResponse.status,
         count: data.records?.length || 0,
@@ -86,7 +86,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
       }
     );
     
-    const noFilterData = await noFilterResponse.json();
+    const noFilterData: any = await noFilterResponse.json();
     
     return jsonResponse({
       success: true,

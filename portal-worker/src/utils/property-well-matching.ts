@@ -837,7 +837,7 @@ export async function matchSingleProperty(
     throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
   }
   
-  const propertyData = await propertyResponse.json();
+  const propertyData: any = await propertyResponse.json();
   
   // Verify ownership
   const propertyUserId = propertyData.fields.User?.[0];
@@ -861,7 +861,7 @@ export async function matchSingleProperty(
       }
     );
     
-    const orgData = await orgResponse.json();
+    const orgData: any = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
     wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
   } else {
@@ -872,7 +872,7 @@ export async function matchSingleProperty(
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
-    const userData = await userResponse.json();
+    const userData: any = await userResponse.json();
     const userEmail = userData.fields.Email;
     wellsFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
   }
@@ -953,7 +953,7 @@ export async function matchSingleWell(
     throw new Error(`Failed to fetch well: ${wellResponse.status}`);
   }
   
-  const wellData = await wellResponse.json();
+  const wellData: any = await wellResponse.json();
   
   // Verify ownership
   const wellUserId = wellData.fields.User?.[0];
@@ -977,7 +977,7 @@ export async function matchSingleWell(
       }
     );
     
-    const orgData = await orgResponse.json();
+    const orgData: any = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
     propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
   } else {
@@ -988,7 +988,7 @@ export async function matchSingleWell(
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
-    const userData = await userResponse.json();
+    const userData: any = await userResponse.json();
     const userEmail = userData.fields.Email;
     propertiesFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
   }
@@ -1083,7 +1083,7 @@ export async function runFullPropertyWellMatching(
       }
     );
 
-    const orgData = await orgResponse.json();
+    const orgData: any = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
 
     const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;

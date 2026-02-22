@@ -53,7 +53,7 @@ export async function handleBackfillFormations(request: Request, env: Env) {
       throw new Error(`Failed to fetch activities: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data: any = await response.json();
     const activities = data.records || [];
     
     console.log(`Found ${activities.length} completion activities without formation data`);
@@ -63,7 +63,7 @@ export async function handleBackfillFormations(request: Request, env: Env) {
       total: activities.length,
       updated: 0,
       failed: 0,
-      errors: []
+      errors: [] as string[]
     };
     
     // Process in batches of 10
@@ -125,7 +125,7 @@ export async function handleBackfillFormations(request: Request, env: Env) {
     console.error('Backfill formations error:', error);
     return jsonResponse({ 
       error: 'Failed to backfill formations',
-      details: error.message 
+      details: (error as any).message 
     }, 500);
   }
 }

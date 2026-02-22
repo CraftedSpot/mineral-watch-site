@@ -93,7 +93,7 @@ export function errorResponse(message: string, status = 500): Response {
  */
 export async function serveProtectedPage(html: string, request: Request, env: any): Promise<Response> {
   // Check if user is authenticated
-  const authResult = await authenticateRequest(request, env);
+  const authResult: any = await authenticateRequest(request, env);
   if (!authResult.authenticated || !authResult.user) {
     // Not authenticated - redirect to login
     const url = new URL(request.url);

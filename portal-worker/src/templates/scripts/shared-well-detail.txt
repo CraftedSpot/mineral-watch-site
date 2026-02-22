@@ -404,6 +404,15 @@
             _ensureWellDetailModal();
 
             const modal = document.getElementById('sharedWellDetail');
+
+            // Dynamic z-index when modalStack exists (dashboard), else CSS default
+            if (typeof modalStack !== 'undefined') {
+                const z = 999999 + (modalStack.length * 10);
+                modal.style.zIndex = z;
+                if (!modalStack.find(m => m.element === modal)) {
+                    modalStack.push({ type: 'well-detail', id: apiNumber, element: modal });
+                }
+            }
             modal.style.display = 'flex';
 
             // Pre-populate header with whatever we know
@@ -745,7 +754,14 @@
          */
         function closeWellDetailModal() {
             const modal = document.getElementById('sharedWellDetail');
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.zIndex = '';
+                if (typeof modalStack !== 'undefined') {
+                    const idx = modalStack.findIndex(m => m.element === modal);
+                    if (idx > -1) modalStack.splice(idx, 1);
+                }
+            }
             // Stop any running polling from shared modules
             if (typeof stopAllOccPolling === 'function') stopAllOccPolling();
         }

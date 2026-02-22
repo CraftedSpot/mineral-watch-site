@@ -148,7 +148,7 @@ export async function handleBackfillStatewideActivity(request: Request, env: Env
     
   } catch (error) {
     console.error('[Backfill] Error:', error);
-    return jsonResponse({ error: 'Backfill failed', details: error.message }, 500);
+    return jsonResponse({ error: 'Backfill failed', details: (error as any).message }, 500);
   }
 }
 
@@ -167,7 +167,7 @@ async function fetchAllRecords(env: Env, table: string) {
       throw new Error(`Failed to fetch records: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data: any = await response.json();
     records.push(...(data.records || []));
     
     if (!data.offset) break;
@@ -187,7 +187,7 @@ async function checkIfExists(env: Env, apiNumber: string) {
   
   if (!response.ok) return false;
   
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records && data.records.length > 0;
 }
 

@@ -65,7 +65,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       // Parse JSON body
       let body;
       try {
-        body = await request.json();
+        body = await request.json() as any;
       } catch (e) {
         return jsonResponse({ 
           error: 'Invalid JSON',

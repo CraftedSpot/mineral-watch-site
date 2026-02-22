@@ -488,7 +488,7 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  const body = await request.json();
+  const body: any = await request.json();
   const { properties } = body; // Array of parsed property objects
   
   if (!properties || !Array.isArray(properties)) {
@@ -648,7 +648,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const body = await request.json();
+  const body: any = await request.json();
   const { properties } = body; // Array of validated, normalized property objects
 
   if (!properties || !Array.isArray(properties)) {
@@ -1450,7 +1450,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   const isAdminOverride = !!(user as any).impersonating;
   const validateOrgId = userRecord?.fields.Organization?.[0];
 
-  if (planLimits.wells === 0) {
+  if ((planLimits.wells as number) === 0) {
     return jsonResponse({
       error: `Your ${plan} plan does not include well monitoring. Please upgrade to add wells.`
     }, 403);
@@ -1770,7 +1770,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
-  const body = await request.json();
+  const body: any = await request.json();
   const { wells, selections } = body; // Array of validated wells + optional selections for ambiguous matches
 
   if (!wells || !Array.isArray(wells)) {
@@ -1784,7 +1784,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
 
   // Skip plan limits for admin override
   if (!isAdminOverride) {
-    if (planLimits.wells === 0) {
+    if ((planLimits.wells as number) === 0) {
       return jsonResponse({
         error: `Your ${plan} plan does not include well monitoring.`
       }, 403);
@@ -1871,7 +1871,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
     failed: 0,
     skipped: wells.length - toCreate.length,
     duplicatesSkipped: 0,
-    errors: []
+    errors: [] as string[]
   };
   
   // Count how many were skipped due to duplicates vs other reasons
@@ -1985,7 +1985,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       }
     } else {
       const err = await response.text();
-      console.error(`[BulkUpload] Batch create wells failed:`, err.message);
+      console.error(`[BulkUpload] Batch create wells failed:`, err);
       results.failed += batch.length;
       results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed`);
     }

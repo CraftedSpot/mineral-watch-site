@@ -31,7 +31,7 @@ export async function handleBulkWellEnrichment(request: Request, env: Env): Prom
     }
 
     // Parse request body
-    let body;
+    let body: any;
     try {
       body = await request.json();
     } catch (e) {
@@ -121,14 +121,14 @@ export async function handleBulkWellEnrichment(request: Request, env: Env): Prom
       if (row.latitude && row.longitude && row.bh_latitude && row.bh_longitude &&
           row.bh_latitude !== row.latitude && row.bh_longitude !== row.longitude) {
         // Simple distance calculation (this is approximate, not geodesic)
-        const latDiff = row.bh_latitude - row.latitude;
-        const lngDiff = row.bh_longitude - row.longitude;
+        const latDiff = Number(row.bh_latitude) - Number(row.latitude);
+        const lngDiff = Number(row.bh_longitude) - Number(row.longitude);
         const distanceDegrees = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
         // Convert to feet (very approximate at Oklahoma's latitude)
         calculatedLateralLength = Math.round(distanceDegrees * 69 * 5280); // 69 miles per degree * 5280 feet per mile
       }
 
-      enrichmentMap[row.api_number] = {
+      enrichmentMap[row.api_number as string] = {
         // Formation and depth data
         formation_name: row.formation_name || null,
         measured_total_depth: row.measured_total_depth || null,

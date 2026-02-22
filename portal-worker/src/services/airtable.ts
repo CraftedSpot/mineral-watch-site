@@ -90,7 +90,7 @@ export async function findUserByEmail(env: Env, email: string): Promise<Airtable
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) throw new Error(`Airtable error: ${response.status}`);
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.[0] || null;
 }
 
@@ -287,7 +287,7 @@ export async function countUserProperties(env: Env, userEmail: string): Promise<
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length || 0;
 }
 
@@ -319,7 +319,7 @@ export async function countUserWells(env: Env, userEmail: string): Promise<numbe
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length || 0;
 }
 
@@ -358,7 +358,7 @@ export async function countPropertiesForUserOrOrg(env: Env, userRecord: Airtable
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length || 0;
 }
 
@@ -397,7 +397,7 @@ export async function countWellsForUserOrOrg(env: Env, userRecord: AirtableUser)
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length || 0;
 }
 
@@ -418,7 +418,7 @@ export async function checkDuplicateProperty(env: Env, userEmail: string, county
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return false;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length > 0;
 }
 
@@ -436,7 +436,7 @@ export async function checkDuplicateWell(env: Env, userEmail: string, apiNumber:
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return false;
-  const data = await response.json();
+  const data: any = await response.json();
   return data.records?.length > 0;
 }
 
@@ -542,7 +542,7 @@ export async function fetchAllAirtableRecords(env: Env, table: string, formula: 
       throw new Error(`Airtable error: ${response.status}`);
     }
     
-    const data = await response.json();
+    const data: any = await response.json();
     allRecords = allRecords.concat(data.records);
     offset = data.offset; // Will be undefined when no more pages
     

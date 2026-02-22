@@ -69,7 +69,7 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
           center_lng: county.center_lng,
           area_sq_miles: county.area_sq_miles
         },
-        geometry: JSON.parse(county.geometry)
+        geometry: JSON.parse(county.geometry as string)
       }))
     };
 
@@ -158,7 +158,7 @@ export async function handleGetTownships(request: Request, env: Env): Promise<Re
           center_lng: township.center_lng,
           area_sq_miles: township.area_sq_miles
         },
-        geometry: JSON.parse(township.geometry)
+        geometry: JSON.parse(township.geometry as string)
       }))
     };
 
@@ -218,7 +218,7 @@ export async function handleGetCountyStats(request: Request, env: Env): Promise<
     const statsMap: { [county: string]: any } = {};
     if (result.results) {
       result.results.forEach(stat => {
-        statsMap[stat.county_name] = {
+        statsMap[stat.county_name as string] = {
           wellCount: stat.well_count,
           activeWellCount: stat.active_well_count,
           permitCount30d: stat.permit_count_30d,

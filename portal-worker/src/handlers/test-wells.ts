@@ -120,7 +120,7 @@ export async function handleTestWells(request: Request, env: Env): Promise<Respo
         console.error(`[TestWells] SQL error for ${trsParam}:`, error);
         results.push({
           trs: trsParam,
-          error: `SQL error: ${error.message}`
+          error: `SQL error: ${(error as any).message}`
         });
       }
     }

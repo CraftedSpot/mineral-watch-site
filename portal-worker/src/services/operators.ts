@@ -44,7 +44,7 @@ function loadOperatorData(): Map<string, OperatorInfo> {
     
   } catch (error) {
     console.error('[Operators] Failed to load operator data:', error);
-    console.error('[Operators] Stack trace:', error.stack);
+    console.error('[Operators] Stack trace:', (error as any).stack);
   }
   
   return operatorMap;
@@ -62,11 +62,11 @@ async function loadOperatorList(env: Env): Promise<Map<string, OperatorInfo>> {
   }
 
   // Try to load from KV cache first
-  const cached = await env.OCC_CACHE?.get('operator-list', { type: 'json' });
-  if (cached && cached.timestamp && Date.now() - cached.timestamp < CACHE_TTL) {
+  const cached = await env.OCC_CACHE?.get('operator-list', { type: 'json' }) as any;
+  if (cached && (cached as any).timestamp && Date.now() - (cached as any).timestamp < CACHE_TTL) {
     console.log('[Operators] Loaded from KV cache');
-    operatorCache = new Map(cached.operators);
-    cacheTimestamp = cached.timestamp;
+    operatorCache = new Map((cached as any).operators);
+    cacheTimestamp = (cached as any).timestamp;
     return operatorCache;
   }
 

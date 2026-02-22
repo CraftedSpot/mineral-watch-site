@@ -7772,15 +7772,24 @@
                 listEl.innerHTML = html;
             }
 
-            // Show modal
+            // Show modal with dynamic z-index from modalStack
             const modal = document.getElementById('manualDocLinkModal');
-            modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 1000001 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important;';
+            const z = typeof modalStack !== 'undefined' ? 999999 + (modalStack.length * 10) : 1000001;
+            modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: ' + z + ' !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important;';
+            if (typeof modalStack !== 'undefined' && !modalStack.find(m => m.element === modal)) {
+                modalStack.push({ type: 'doc-link', id: 'manual', element: modal });
+            }
             openModalA11y(modal);
         }
 
         function closeManualDocLinkModal() {
-            closeModalA11y(document.getElementById('manualDocLinkModal'));
-            document.getElementById('manualDocLinkModal').style.display = 'none';
+            const modal = document.getElementById('manualDocLinkModal');
+            closeModalA11y(modal);
+            modal.style.display = 'none';
+            if (typeof modalStack !== 'undefined') {
+                const idx = modalStack.findIndex(m => m.element === modal);
+                if (idx > -1) modalStack.splice(idx, 1);
+            }
         }
 
         async function linkDocumentToTarget(documentId) {

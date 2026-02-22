@@ -338,8 +338,8 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       
       // Check plan limits
       const plan = userRecord?.fields.Plan || "Free";
-      const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
-      
+      const planLimits: { properties: number; wells: number } = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || { properties: 1, wells: 0 };
+
       if (planLimits.wells === 0) {
         return new Response(generateTrackWellErrorPage(`Your ${plan} plan does not include well monitoring. Please upgrade to add wells.`, true), {
           headers: { 'Content-Type': 'text/html' },
@@ -371,15 +371,16 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       let wellStatus = "";
       
       if (wellDetails) {
-        occMapLink = generateMapLink(wellDetails.lat, wellDetails.lon, wellDetails.wellName);
-        wellName = wellDetails.wellName || "";
-        operator = wellDetails.operator || "";
-        county = wellDetails.county || "";
-        section = wellDetails.section ? String(wellDetails.section) : "";
-        township = wellDetails.township || "";
-        range = wellDetails.range || "";
-        wellType = wellDetails.wellType || "";
-        wellStatus = wellDetails.wellStatus || "";
+        const wd = wellDetails as any;
+        occMapLink = generateMapLink(wd.lat, wd.lon, wd.wellName);
+        wellName = wd.wellName || "";
+        operator = wd.operator || "";
+        county = wd.county || "";
+        section = wd.section ? String(wd.section) : "";
+        township = wd.township || "";
+        range = wd.range || "";
+        wellType = wd.wellType || "";
+        wellStatus = wd.wellStatus || "";
       }
       
       // Look up completion data to enrich the well record
@@ -502,16 +503,17 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       });
       
     } catch (error) {
-      console.error("Track well error:", error);
-      console.error("Error stack:", error.stack);
+      const err = error as any;
+      console.error("Track well error:", err);
+      console.error("Error stack:", err.stack);
       
       // More specific error messages
       let errorMessage = 'An error occurred. Please try again later.';
-      if (error.message?.includes('INVALID_REQUEST_UNKNOWN')) {
+      if (err.message?.includes('INVALID_REQUEST_UNKNOWN')) {
         errorMessage = 'Invalid user ID. Please request a new tracking link.';
-      } else if (error.message?.includes('fetch failed')) {
+      } else if (err.message?.includes('fetch failed')) {
         errorMessage = 'Unable to connect to services. Please try again.';
-      } else if (error.message?.includes('AUTHENTICATION_FAILED')) {
+      } else if (err.message?.includes('AUTHENTICATION_FAILED')) {
         errorMessage = 'Authentication error. Please contact support.';
       }
       

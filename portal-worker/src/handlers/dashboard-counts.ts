@@ -8,7 +8,7 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
-import type { Env } from '../index';
+import type { Env } from '../types/env';
 
 export async function handleGetDashboardCounts(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);

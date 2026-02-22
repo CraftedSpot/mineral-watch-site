@@ -6,7 +6,7 @@
  * to surface historical filings.
  */
 
-import type { Env } from '../index';
+import type { Env } from '../types/env';
 
 /**
  * Result shape for OCC filing summary

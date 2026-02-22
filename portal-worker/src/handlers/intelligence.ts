@@ -627,7 +627,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
               AND (deleted_at IS NULL OR deleted_at = '')
             ORDER BY upload_date DESC
             LIMIT 100
-          `).bind(authUser.id).all();
+          `).bind(authUser!.id).all();
 
           for (const doc of docs.results) {
             try {
@@ -849,7 +849,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
         const propsResult = userOrgId
           ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
-          : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+          : await env.WELLS_DB.prepare(propsQuery).bind(authUser!.id).all();
 
         const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
 
@@ -1161,6 +1161,7 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       gor: number | null;
       lean_gas_expected: boolean;
       oil_only_verify: boolean;
+      operator_number: string | null;
     }> = [];
 
     for (const [apiNum, entry] of wellMap) {
@@ -1231,7 +1232,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
         gas_profile: gorInfo?.gas_profile || null,
         gor: gorInfo?.gor || null,
         lean_gas_expected: leanGasExpected,
-        oil_only_verify: oilOnlyVerify
+        oil_only_verify: oilOnlyVerify,
+        operator_number: null,
       });
     }
 
@@ -4585,6 +4587,7 @@ interface ShutInWell {
   wellName: string;
   apiNumber: string;
   operator: string;
+  operatorNumber: string | null;
   county: string;
   wellType: string;
   pun: string | null;
@@ -4863,7 +4866,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
       } else if (months !== null && months >= 12) {
         status = 'no_recent_production';
         noRecentProdCount++;
-      } else if (months >= 6) {
+      } else if (months! >= 6) {
         status = 'extended_idle';
         extendedIdleCount++;
       } else {

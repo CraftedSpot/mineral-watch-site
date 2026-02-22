@@ -36,7 +36,7 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
     const body: PreferencesUpdate = await request.json();
 
     // Build the fields to update
-    const fields: Record<string, boolean | number> = {};
+    const fields: Record<string, boolean | number | string> = {};
 
     if (typeof body.alertPermits === 'boolean') {
       fields['Alert Permits'] = body.alertPermits;
@@ -91,7 +91,7 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
       return jsonResponse({ error: "Failed to update preferences" }, 500);
     }
 
-    const updatedUser = await updateResponse.json();
+    const updatedUser: any = await updateResponse.json();
     console.log(`[Preferences] Successfully updated preferences for user ${user.id}`);
 
     // Dual-write all alert preferences to D1
@@ -126,7 +126,7 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
         }
         if ('Notification Override' in fields) {
           d1Updates.push('notification_override = ?');
-          d1Values.push(fields['Notification Override'] as string);
+          d1Values.push(String(fields['Notification Override']));
         }
 
         if (d1Updates.length > 0) {

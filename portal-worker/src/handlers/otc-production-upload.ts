@@ -1,4 +1,4 @@
-import { Env } from "../index";
+import { Env } from "../types/env";
 import { jsonResponse } from "../utils/responses";
 
 /**
@@ -17,7 +17,7 @@ async function purgeProductionCaches(env: Env): Promise<number> {
     do {
       const listed = await env.OCC_CACHE.list({ prefix, cursor, limit: 1000 });
       if (listed.keys.length > 0) {
-        await Promise.all(listed.keys.map(k => env.OCC_CACHE!.delete(k.name)));
+        await Promise.all(listed.keys.map((k: any) => env.OCC_CACHE!.delete(k.name)));
         deleted += listed.keys.length;
       }
       cursor = listed.list_complete ? undefined : (listed as any).cursor;
@@ -36,7 +36,7 @@ async function purgeProductionCaches(env: Env): Promise<number> {
       do {
         const listed = await env.OCC_CACHE.list({ prefix: `${key}:`, cursor, limit: 1000 });
         if (listed.keys.length > 0) {
-          await Promise.all(listed.keys.map(k => env.OCC_CACHE!.delete(k.name)));
+          await Promise.all(listed.keys.map((k: any) => env.OCC_CACHE!.delete(k.name)));
           deleted += listed.keys.length;
         }
         cursor = listed.list_complete ? undefined : (listed as any).cursor;

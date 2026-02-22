@@ -191,7 +191,7 @@ export async function handleListProperties(request: Request, env: Env) {
 export async function handleAddProperty(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  const body = await request.json();
+  const body: any = await request.json();
   const required = ["COUNTY", "SEC", "TWN", "RNG"];
   for (const field of required) {
     if (!body[field]) {
@@ -205,7 +205,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
     return jsonResponse({ error: "Viewers cannot add properties" }, 403);
   }
   const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const planLimits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || { properties: 1, wells: 0 };
   const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
 
   // Count properties for user or organization (D1 indexed query)
@@ -292,7 +292,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
     console.error("Airtable create error:", err);
     throw new Error("Failed to create property");
   }
-  const newRecord = await response.json();
+  const newRecord: any = await response.json();
   console.log(`Property added: ${body.COUNTY} S${section} T${township} R${range} for ${user.email}`);
   console.log(`[PropertyCreate] New property record:`, JSON.stringify(newRecord, null, 2));
   
@@ -341,7 +341,7 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
     return jsonResponse({ error: "Viewers cannot update properties" }, 403);
   }
   
-  const body = await request.json();
+  const body: any = await request.json();
 
   // Build fields object with allowed editable fields
   const updateFields: Record<string, any> = {};
@@ -420,7 +420,7 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
     return jsonResponse({ error: "Property not found" }, 404);
   }
 
-  const property = await getResponse.json();
+  const property: any = await getResponse.json();
   if (property.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
@@ -482,7 +482,7 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
   if (!getResponse.ok) {
     return jsonResponse({ error: "Property not found" }, 404);
   }
-  const property = await getResponse.json();
+  const property: any = await getResponse.json();
   if (property.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }

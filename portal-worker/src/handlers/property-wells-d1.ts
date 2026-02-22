@@ -131,11 +131,11 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       
       // Add metadata to indicate fallback was used
       if (airtableResponse.status === 200) {
-        const body = await airtableResponse.json();
+        const body: any = await airtableResponse.json();
         return jsonResponse({
           ...body,
           source: 'Airtable-Fallback',
-          d1Error: d1Error.message,
+          d1Error: (d1Error as any).message,
           queryTime: Date.now() - airtableStart
         });
       }
@@ -309,11 +309,11 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       
       // Add metadata to indicate fallback was used
       if (airtableResponse.status === 200) {
-        const body = await airtableResponse.json();
+        const body: any = await airtableResponse.json();
         return jsonResponse({
           ...body,
           source: 'Airtable-Fallback',
-          d1Error: d1Error.message,
+          d1Error: (d1Error as any).message,
           queryTime: Date.now() - airtableStart
         });
       }

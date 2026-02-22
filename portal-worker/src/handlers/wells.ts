@@ -104,7 +104,7 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
           ip_water_bbl
         FROM wells
         WHERE api_number = ?
-      `).bind(apiNumber).first();
+      `).bind(apiNumber).first() as any;
       
       if (d1Result) {
         console.log(`D1 hit: ${apiNumber} - checking data completeness`);
@@ -181,7 +181,7 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
   if (env?.OCC_CACHE) {
     const cacheKey = `well_${apiNumber}`;
     try {
-      const cached = await env.OCC_CACHE.get(cacheKey, 'json');
+      const cached: any = await env.OCC_CACHE.get(cacheKey, 'json');
       if (cached) {
         console.log(`OCC cache hit: ${apiNumber}`);
         return cached;
@@ -213,7 +213,7 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
       return null;
     }
 
-    const data = await response.json();
+    const data: any = await response.json();
     
     if (data.features && data.features.length > 0) {
       const attr = data.features[0].attributes;
@@ -674,7 +674,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
       return jsonResponse({ error: "Viewers cannot add wells" }, 403);
     }
     
-    const body = await request.json();
+    const body: any = await request.json();
     
     // Validate API Number (required, 10 digits)
     if (!body.apiNumber) {
@@ -688,7 +688,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     }
   
   const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const planLimits: { properties: number; wells: number } = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || { properties: 1, wells: 0 };
   
   // Check if plan allows wells
   if (planLimits.wells === 0) {
@@ -766,7 +766,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     }, 500);
   }
   
-    const newRecord = await response.json();
+    const newRecord: any = await response.json();
     console.log(`Well added: API ${cleanApi} for ${user.email}`);
     console.log(`[WellCreate] New well record:`, JSON.stringify(newRecord, null, 2));
     
@@ -829,7 +829,7 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
     return jsonResponse({ error: "Well not found" }, 404);
   }
   
-  const well = await getResponse.json();
+  const well: any = await getResponse.json();
   if (well.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
@@ -867,7 +867,7 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
     return jsonResponse({ error: "Viewers cannot update wells" }, 403);
   }
   
-  const body = await request.json();
+  const body: any = await request.json();
   let notes = body.notes || "";
   
   // Limit notes length to prevent abuse
@@ -885,7 +885,7 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
     return jsonResponse({ error: "Well not found" }, 404);
   }
   
-  const well = await getResponse.json();
+  const well: any = await getResponse.json();
   if (well.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }

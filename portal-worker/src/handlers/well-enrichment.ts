@@ -89,8 +89,8 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
     if (result.latitude && result.longitude && result.bh_latitude && result.bh_longitude &&
         result.bh_latitude !== result.latitude && result.bh_longitude !== result.longitude) {
       // Simple distance calculation (this is approximate, not geodesic)
-      const latDiff = result.bh_latitude - result.latitude;
-      const lngDiff = result.bh_longitude - result.longitude;
+      const latDiff = Number(result.bh_latitude) - Number(result.latitude);
+      const lngDiff = Number(result.bh_longitude) - Number(result.longitude);
       const distanceDegrees = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
       // Convert to feet (very approximate at Oklahoma's latitude)
       calculatedLateralLength = Math.round(distanceDegrees * 69 * 5280); // 69 miles per degree * 5280 feet per mile

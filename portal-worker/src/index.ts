@@ -213,7 +213,7 @@ import { syncAirtableData } from './sync.js';
 
 
 var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var __name = (target: any, value: any) => __defProp(target, "name", { value, configurable: true });
 
 // OTC Fly machine URL (static IP for OTC allowlist)
 const OTC_FLY_URL = 'https://mineral-watch-otc-fetch.fly.dev';
@@ -1467,7 +1467,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleGetWellsMissingFormation } = await import('./handlers/formation-harvest.js');
-        return handleGetWellsMissingFormation(request, env);
+        return handleGetWellsMissingFormation(request, env as any);
       }
       if (path === "/api/admin/formation-harvest-results" && request.method === "POST") {
         const authHeader = request.headers.get('Authorization');
@@ -1475,7 +1475,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleFormationHarvestResults } = await import('./handlers/formation-harvest.js');
-        return handleFormationHarvestResults(request, env);
+        return handleFormationHarvestResults(request, env as any);
       }
 
       // Operator deduction matrix admin endpoints (PROCESSING_API_KEY auth)
@@ -1762,7 +1762,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 // ====================
 
 // HTML escape to prevent XSS attacks from user-generated content
-function escapeHtml(text) {
+function escapeHtml(text: any) {
   if (!text) return '';
   const str = String(text);
   return str

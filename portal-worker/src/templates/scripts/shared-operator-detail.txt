@@ -406,7 +406,14 @@
 
         function closeSharedOperatorModal() {
             const modal = document.getElementById('sharedOperatorModal');
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.zIndex = '';
+                if (typeof modalStack !== 'undefined') {
+                    const idx = modalStack.findIndex(m => m.element === modal);
+                    if (idx > -1) modalStack.splice(idx, 1);
+                }
+            }
         }
 
         /**
@@ -427,6 +434,15 @@
             metaEl.innerHTML = '';
             footer.style.display = 'none';
             body.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="loading-spinner"></div><span>Looking up operator...</span></div>';
+
+            // Dynamic z-index when modalStack exists (dashboard), else CSS default
+            if (typeof modalStack !== 'undefined') {
+                const z = 999999 + (modalStack.length * 10);
+                modal.style.zIndex = z;
+                if (!modalStack.find(m => m.element === modal)) {
+                    modalStack.push({ type: 'operator', id: operatorName, element: modal });
+                }
+            }
             modal.style.display = 'flex';
 
             try {

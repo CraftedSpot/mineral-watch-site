@@ -114,7 +114,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     ORDER BY cw.well_name
   `).bind(propertyId).all();
 
-  const wells = (wellsResult.results || []) as WellRow[];
+  const wells = (wellsResult.results || []) as unknown as WellRow[];
 
   if (wells.length === 0) {
     return jsonResponse({
@@ -143,7 +143,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
     const result = await env.WELLS_DB!.prepare(
       `SELECT DISTINCT api_number, base_pun FROM well_pun_links WHERE api_number IN (${ph}) AND base_pun IS NOT NULL`
     ).bind(...batch).all();
-    punLinks.push(...(result.results as PunLink[]));
+    punLinks.push(...(result.results as unknown as PunLink[]));
   }
 
   // Build maps: api10 → basePuns, basePun → api10s
@@ -182,7 +182,7 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
       WHERE base_pun IN (${ph}) AND year_month >= ?
       GROUP BY base_pun, year_month ORDER BY year_month DESC
     `).bind(...batch, sixMonthsAgo).all();
-    prodRows.push(...(result.results as ProdRow[]));
+    prodRows.push(...(result.results as unknown as ProdRow[]));
   }
 
   // Build production lookup: basePun → [{yearMonth, oilBbl, gasMcf}]
@@ -488,7 +488,7 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
       WHERE base_pun IN (${ph}) AND year_month >= ?
       GROUP BY base_pun, year_month ORDER BY year_month DESC
     `).bind(...batch, sixMonthsAgo).all();
-    prodRows.push(...(result.results as ProdRow[]));
+    prodRows.push(...(result.results as unknown as ProdRow[]));
   }
 
   // 6. Aggregate production across PUNs by month

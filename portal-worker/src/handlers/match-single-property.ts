@@ -56,8 +56,8 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
       throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
     }
     
-    const propertyData = await propertyResponse.json();
-    
+    const propertyData: any = await propertyResponse.json();
+
     // Verify ownership
     const propertyUserId = propertyData.fields.User?.[0];
     const propertyOrgId = propertyData.fields.Organization?.[0];
@@ -85,7 +85,7 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
         throw new Error(`Failed to fetch organization: ${orgResponse.status}`);
       }
 
-      const orgData = await orgResponse.json();
+      const orgData: any = await orgResponse.json();
       const orgName = orgData.fields?.Name || '';
       wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
     } else {

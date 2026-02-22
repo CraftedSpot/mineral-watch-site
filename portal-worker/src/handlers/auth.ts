@@ -369,7 +369,7 @@ export async function handleRegister(request: Request, env: Env) {
   try {
     console.log("Starting user registration");
     
-    const body = await request.json();
+    const body: any = await request.json();
     console.log("Request body parsed successfully");
     
     const { email, name, newsletter } = body;
@@ -501,7 +501,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
       return jsonResponse({ error: "Unauthorized" }, 401);
     }
     
-    const body = await request.json();
+    const body: any = await request.json();
     const { newEmail } = body;
     
     // Validate new email
@@ -539,7 +539,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
     
     // Check if user is an organization owner/admin
     const userRecord = await findUserByEmailD1First(env, currentEmail);
-    if (userRecord?.fields.Role === 'Admin' && userRecord?.fields.Organization?.length > 0) {
+    if (userRecord?.fields.Role === 'Admin' && (userRecord?.fields.Organization?.length ?? 0) > 0) {
       console.log(`Warning: Email change requested by organization admin: ${currentEmail}`);
       
       // You could add additional security here, like requiring confirmation from another admin

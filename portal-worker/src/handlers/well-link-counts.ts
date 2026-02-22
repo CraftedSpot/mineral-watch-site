@@ -18,7 +18,7 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
 import { BATCH_SIZE_D1 } from '../constants.js';
 import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
-import type { Env } from '../index';
+import type { Env } from '../types/env';
 
 // Document types that show on well modals (keep in sync with property-documents-d1.ts WELL_DOC_TYPES)
 const WELL_DOC_TYPES = [

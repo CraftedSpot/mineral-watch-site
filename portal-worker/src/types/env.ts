@@ -22,7 +22,7 @@ export interface Env {
   TOOLS_WORKER?: Fetcher;
 
   // D1 Database
-  WELLS_DB?: D1Database;
+  WELLS_DB: D1Database;
   
   // MCP Services
   AIRTABLE?: any; // MCP Airtable service

@@ -53,8 +53,8 @@ export async function handleMatchSingleWell(wellId: string, request: Request, en
       throw new Error(`Failed to fetch well: ${wellResponse.status}`);
     }
     
-    const wellData = await wellResponse.json();
-    
+    const wellData: any = await wellResponse.json();
+
     // Verify ownership
     const wellUserId = wellData.fields.User?.[0];
     const wellOrgId = wellData.fields.Organization?.[0];
@@ -80,7 +80,7 @@ export async function handleMatchSingleWell(wellId: string, request: Request, en
         }
       );
       
-      const orgData = await orgResponse.json();
+      const orgData: any = await orgResponse.json();
       const orgName = orgData.fields?.Name || '';
       propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
     } else {

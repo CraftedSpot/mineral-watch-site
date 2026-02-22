@@ -78,7 +78,7 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
     return jsonResponse({ error: 'Failed to create checkout session' }, 500);
   }
   
-  const session = await response.json();
+  const session: any = await response.json();
   console.log(`[Billing] Created session: ${session.id} (mode: ${session.mode || 'unknown'})`);
   return jsonResponse({ url: session.url, type: 'checkout' });
 }
@@ -102,7 +102,7 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
     return jsonResponse({ error: 'Could not find subscription' }, 404);
   }
   
-  const subscription = await getSubResponse.json();
+  const subscription: any = await getSubResponse.json();
   const itemId = subscription.items?.data?.[0]?.id;
   
   if (!itemId) {
@@ -178,7 +178,7 @@ export async function handleBillingPortal(request: Request, env: Env) {
     console.error("Stripe error:", await response.text());
     return jsonResponse({ error: "Failed to create billing session" }, 500);
   }
-  const session = await response.json();
+  const session: any = await response.json();
   return jsonResponse({ url: session.url });
 }
 
@@ -192,7 +192,7 @@ export async function handleUpgrade(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  const body = await request.json();
+  const body: any = await request.json();
   const { plan, interval } = body; // plan: 'starter'|'standard'|'professional', interval: 'monthly'|'annual'
   
   const priceKey = `${plan}_${interval}`;
@@ -205,7 +205,7 @@ export async function handleUpgrade(request: Request, env: Env) {
   const userRecord = await getUserByIdD1First(env, user.id);
   const currentPlan = userRecord?.fields.Plan || 'Free';
   const stripeCustomerId = userRecord?.fields["Stripe Customer ID"];
-  const subscriptionId = userRecord?.fields["Stripe Subscription ID"];
+  const subscriptionId = (userRecord?.fields as any)["Stripe Subscription ID"];
   
   // Determine target plan name
   const targetPlan = PRICE_TO_PLAN[priceId as keyof typeof PRICE_TO_PLAN];
@@ -252,7 +252,7 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
       return Response.redirect(`${BASE_URL}/portal/upgrade?error=session_not_found`, 302);
     }
     
-    const session = await sessionResponse.json();
+    const session: any = await sessionResponse.json();
     const customerEmail = session.customer_email || session.customer_details?.email;
     
     if (!customerEmail) {
@@ -271,7 +271,7 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
         { headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` } }
       );
       if (subResponse.ok) {
-        const sub = await subResponse.json();
+        const sub: any = await subResponse.json();
         const priceId = sub.items?.data?.[0]?.price?.id;
         if (priceId) {
           targetPlan = PRICE_TO_PLAN[priceId as keyof typeof PRICE_TO_PLAN] || 'Starter';

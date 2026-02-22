@@ -50,7 +50,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
       }
 
-      const propertyData = await propertyResponse.json();
+      const propertyData: any = await propertyResponse.json();
       const propertyUserId = propertyData.fields.User?.[0];
       const propertyOrgId = propertyData.fields.Organization?.[0];
 
@@ -201,7 +201,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         throw new Error(`Failed to fetch well: ${wellResponse.status}`);
       }
 
-      const wellData = await wellResponse.json();
+      const wellData: any = await wellResponse.json();
       const wellUserId = wellData.fields.User?.[0];
       const wellOrgId = wellData.fields.Organization?.[0];
 

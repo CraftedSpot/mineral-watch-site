@@ -98,6 +98,6 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
     });
   } catch (error) {
     console.error('Sync error:', error);
-    return errorResponse(error.message || 'Sync failed', 500);
+    return errorResponse((error as any).message || 'Sync failed', 500);
   }
 }
