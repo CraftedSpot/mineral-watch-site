@@ -1632,11 +1632,13 @@
             downloadCSV(csv, 'mineral-watch-properties.csv');
         }
 
-        function exportPortfolioCSV() {
+        async function exportPortfolioCSV() {
             if (!loadedProperties.length) {
                 showToast('No properties to export', 'info');
                 return;
             }
+
+            showToast('Building portfolio export...', 'info');
 
             function escapeCSV(value) {
                 if (value === null || value === undefined) return '';
@@ -1647,7 +1649,7 @@
                 return value;
             }
 
-            // Determine production status for each well
+            // Determine production status horizon from loaded wells
             const allMonths = loadedWells.map(w => w.otc_last_prod_month).filter(Boolean).sort();
             const horizon = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
             let threeMonthsAgo;
@@ -1662,29 +1664,41 @@
                 threeMonthsAgo = d3.getFullYear() + String(d3.getMonth() + 1).padStart(2, '0');
             }
 
-            // Normalize county: strip leading "029-" prefix, uppercase
-            function normalizeCounty(c) {
-                return (c || '').replace(/^\d+-/, '').toUpperCase().trim();
+            // Build a lookup from well ID → loaded well data (for production status)
+            const wellById = {};
+            for (const w of loadedWells) {
+                if (w.id) wellById[w.id] = w;
             }
 
-            // Build a map of STR key → { producing: [], idle: [] }
-            const wellsBySTR = {};
-            for (const w of loadedWells) {
-                const county = normalizeCounty(w.county);
-                const sec = (w.section || '').toString().trim();
-                const twn = (w.township || '').toString().trim();
-                const rng = (w.range || '').toString().trim();
-                if (!county || !sec || !twn || !rng) continue;
-                const key = county + '|' + sec + '|' + twn + '|' + rng;
-                if (!wellsBySTR[key]) wellsBySTR[key] = { producing: [], idle: [] };
-
-                const label = (w.well_name || w.apiNumber || 'Unknown') + ' (' + (w.operator || 'Unknown') + ')';
-                const isProducing = w.otc_last_prod_month && w.otc_last_prod_month >= threeMonthsAgo;
-                if (isProducing) {
-                    wellsBySTR[key].producing.push(label);
-                } else {
-                    wellsBySTR[key].idle.push(label);
+            // Fetch linked wells for each property using existing API
+            const linkResults = await Promise.all(loadedProperties.map(async p => {
+                try {
+                    const res = await fetch('/api/property/' + p.id + '/linked-wells');
+                    if (!res.ok) return { id: p.id, wells: [] };
+                    const data = await res.json();
+                    return { id: p.id, wells: (data.wells || []).filter(w => w.linkStatus === 'Linked') };
+                } catch (e) {
+                    return { id: p.id, wells: [] };
                 }
+            }));
+
+            // Build property ID → { producing: [], idle: [] }
+            const wellsByProperty = {};
+            for (const lr of linkResults) {
+                const producing = [];
+                const idle = [];
+                for (const lw of lr.wells) {
+                    const label = (lw.wellName || lw.apiNumber || 'Unknown') + ' (' + (lw.operator || 'Unknown') + ')';
+                    // Check production status from loaded wells data
+                    const loaded = wellById[lw.wellId];
+                    const lastProd = loaded ? loaded.otc_last_prod_month : null;
+                    if (lastProd && lastProd >= threeMonthsAgo) {
+                        producing.push(label);
+                    } else {
+                        idle.push(label);
+                    }
+                }
+                wellsByProperty[lr.id] = { producing, idle };
             }
 
             // Determine which decimal columns have data
@@ -1700,12 +1714,7 @@
 
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
-                const county = normalizeCounty(f['COUNTY']);
-                const sec = (f['SEC'] || '').toString().trim();
-                const twn = (f['TWN'] || '').toString().trim();
-                const rng = (f['RNG'] || '').toString().trim();
-                const key = county + '|' + sec + '|' + twn + '|' + rng;
-                const linked = wellsBySTR[key] || { producing: [], idle: [] };
+                const linked = wellsByProperty[p.id] || { producing: [], idle: [] };
 
                 const cols = [
                     escapeCSV(f['COUNTY'] || ''),
