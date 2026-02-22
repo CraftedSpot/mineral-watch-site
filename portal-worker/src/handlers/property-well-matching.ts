@@ -507,44 +507,49 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
       });
     }
 
-    // --- Step 2: Deduplicate STR combos across properties ---
-    const strCombos = new Map<string, { section: string; township: string; range: string }>();
-    // Also build property lookup by STR for link creation
-    const strToProperties = new Map<string, string[]>(); // strKey → [propertyId, ...]
+    // --- Step 2: Deduplicate STRM combos across properties (section/township/range/meridian) ---
+    const strCombos = new Map<string, { section: string; township: string; range: string; meridian: string }>();
+    // Also build property lookup by STR for link creation (meridian-scoped)
+    const strToProperties = new Map<string, string[]>(); // strmKey → [propertyId, ...]
 
     for (const row of propRows as any[]) {
       if (!row.section || !row.township || !row.range) continue;
       const sec = String(row.section);
       const twn = String(row.township);
       const rng = String(row.range);
-      const key = `${sec}-${twn}-${rng}`;
+      const meridian = getMeridianFromCounty(row.county, row.meridian);
+      const key = `${sec}-${twn}-${rng}-${meridian}`;
       if (!strCombos.has(key)) {
-        strCombos.set(key, { section: sec, township: twn, range: rng });
+        strCombos.set(key, { section: sec, township: twn, range: rng, meridian });
       }
       const propIds = strToProperties.get(key) || [];
       propIds.push(row.airtable_record_id);
       strToProperties.set(key, propIds);
     }
 
-    console.log(`[DiscoverWells] ${propRows.length} properties → ${strCombos.size} unique STR combos`);
+    console.log(`[DiscoverWells] ${propRows.length} properties → ${strCombos.size} unique STRM combos`);
 
-    // --- Step 3: Query OCC wells at property locations ---
+    // --- Step 3: Query OCC wells at property locations (surface OR bottom hole, meridian-scoped) ---
     const allDiscoveredWells: any[] = [];
     const strEntries = Array.from(strCombos.values());
-    const STR_BATCH = 33; // 3 params each, max 100 per query
+    const STR_BATCH = 12; // 8 params each (surface+meridian, BH+meridian), max 96 per query
 
     for (let i = 0; i < strEntries.length; i += STR_BATCH) {
       const batch = strEntries.slice(i, i + STR_BATCH);
-      const conditions = batch.map(() => `(section = ? AND township = ? AND range = ?)`).join(' OR ');
+      const conditions = batch.map(() =>
+        `((section = ? AND township = ? AND range = ? AND meridian = ?) OR (bh_section = ? AND bh_township = ? AND bh_range = ? AND meridian = ?))`
+      ).join(' OR ');
       const params: string[] = [];
       for (const combo of batch) {
-        params.push(combo.section, combo.township, combo.range);
+        // Surface params then BH params (same STR values + meridian for both)
+        params.push(combo.section, combo.township, combo.range, combo.meridian,
+                    combo.section, combo.township, combo.range, combo.meridian);
       }
 
       const result = await env.WELLS_DB!.prepare(`
         SELECT api_number, well_name, well_number, operator, county,
                section, township, range, well_type, well_status,
-               bh_section, bh_township, bh_range
+               bh_section, bh_township, bh_range, meridian
         FROM wells
         WHERE (${conditions})
           AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
@@ -554,7 +559,79 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
       allDiscoveredWells.push(...(result.results || []));
     }
 
-    console.log(`[DiscoverWells] Found ${allDiscoveredWells.length} OCC wells at property locations`);
+    // --- Step 3b: Lateral path matching ---
+    // Lateral sections aren't persisted in D1 — compute at runtime from surface→BH.
+    // Query all horizontal wells at property townships (meridian-scoped), then check
+    // if their computed lateral path crosses any property section.
+    const discoveredApis = new Set(allDiscoveredWells.map((w: any) => w.api_number));
+
+    // Build unique township+range+meridian combos from properties for horizontal search
+    const twnRngCombos = new Map<string, { township: string; range: string; meridian: string }>();
+    for (const combo of strEntries) {
+      const trKey = `${combo.township}-${combo.range}-${combo.meridian}`;
+      if (!twnRngCombos.has(trKey)) {
+        twnRngCombos.set(trKey, { township: combo.township, range: combo.range, meridian: combo.meridian });
+      }
+    }
+
+    // Query horizontals in those townships (surface ≠ BH section = horizontal)
+    const TR_BATCH = 33; // 3 params each (township, range, meridian)
+    const trEntries = Array.from(twnRngCombos.values());
+    const horizontalCandidates: any[] = [];
+
+    for (let i = 0; i < trEntries.length; i += TR_BATCH) {
+      const batch = trEntries.slice(i, i + TR_BATCH);
+      const conditions = batch.map(() => `(township = ? AND range = ? AND meridian = ?)`).join(' OR ');
+      const params: string[] = [];
+      for (const tr of batch) {
+        params.push(tr.township, tr.range, tr.meridian);
+      }
+
+      const result = await env.WELLS_DB!.prepare(`
+        SELECT api_number, well_name, well_number, operator, county,
+               section, township, range, well_type, well_status,
+               bh_section, bh_township, bh_range, meridian
+        FROM wells
+        WHERE (${conditions})
+          AND bh_section IS NOT NULL
+          AND section != bh_section
+          AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
+          AND well_status NOT IN ('PA', 'RET')
+      `).bind(...params).all();
+
+      horizontalCandidates.push(...(result.results || []));
+    }
+
+    // Compute lateral paths and check if any section matches a property STRM
+    const propertySections = new Set(strEntries.map(c => `${c.section}-${c.township}-${c.range}-${c.meridian}`));
+    let lateralMatches = 0;
+
+    for (const well of horizontalCandidates) {
+      if (!well.api_number || discoveredApis.has(well.api_number)) continue;
+
+      const surfSec = parseInt(String(well.section), 10);
+      const bhSec = parseInt(String(well.bh_section), 10);
+      if (!surfSec || !bhSec || surfSec === bhSec) continue;
+
+      const wellMeridian = well.meridian || 'IM';
+
+      // Same township: compute full lateral path via Bresenham
+      if (well.township === well.bh_township && well.range === well.bh_range) {
+        const lateralSections = computeLateralSections(surfSec, bhSec);
+        for (const sec of lateralSections) {
+          const key = `${sec}-${well.township}-${well.range}-${wellMeridian}`;
+          if (propertySections.has(key)) {
+            discoveredApis.add(well.api_number);
+            allDiscoveredWells.push(well);
+            lateralMatches++;
+            break;
+          }
+        }
+      }
+      // Cross-township: already caught by surface/BH query above
+    }
+
+    console.log(`[DiscoverWells] Found ${allDiscoveredWells.length} OCC wells (${lateralMatches} via lateral path)`);
 
     if (allDiscoveredWells.length === 0) {
       return jsonResponse({
@@ -668,34 +745,79 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     console.log(`[DiscoverWells] Inserted ${totalInserted} client_wells`);
 
     // --- Step 7: Run matching to create property_well_links ---
-    // Build link records for discovered wells ↔ properties at same STR
+    // Match each discovered well to properties via surface, BH, or lateral path
+    // Keys in strToProperties are meridian-scoped: "sec-twn-rng-meridian"
     const linksToCreate: any[] = [];
+    const linkedPairs = new Set<string>(); // avoid duplicate links
+
     for (const well of wellsToTrack) {
-      const sec = String(well.section);
-      const twn = String(well.township);
-      const rng = String(well.range);
-      const strKey = `${sec}-${twn}-${rng}`;
-      const matchingPropertyIds = strToProperties.get(strKey) || [];
       const wellAirtableId = `disc_${well.api_number}`;
       const wellName = well.well_number ? `${well.well_name} #${well.well_number}` : (well.well_name || 'Unknown');
+      const wellMeridian = well.meridian || 'IM';
 
-      for (const propId of matchingPropertyIds) {
-        const propLocation = `S${sec}-T${twn}-R${rng}`;
-        const linkRecord: any = {
-          fields: {
-            [LINK_FIELDS.LINK_NAME]: `${wellName} → ${propLocation}`,
-            [LINK_FIELDS.PROPERTY]: [propId],
-            [LINK_FIELDS.WELL]: [wellAirtableId],
-            [LINK_FIELDS.LINK_TYPE]: 'Auto',
-            [LINK_FIELDS.MATCH_REASON]: 'Surface Location',
-            [LINK_FIELDS.STATUS]: 'Linked',
-            [LINK_FIELDS.USER]: [userId]
+      // Collect all STRM keys this well touches: surface, BH, lateral path
+      const matchEntries: Array<{ strmKey: string; reason: string }> = [];
+
+      // Surface
+      if (well.section && well.township && well.range) {
+        matchEntries.push({
+          strmKey: `${String(well.section)}-${well.township}-${well.range}-${wellMeridian}`,
+          reason: 'Surface Location'
+        });
+      }
+
+      // Bottom hole
+      if (well.bh_section && well.bh_township && well.bh_range) {
+        matchEntries.push({
+          strmKey: `${String(well.bh_section)}-${well.bh_township}-${well.bh_range}-${wellMeridian}`,
+          reason: 'Bottom Hole'
+        });
+      }
+
+      // Lateral path (same-township horizontals)
+      const surfSec = parseInt(String(well.section), 10);
+      const bhSec = parseInt(String(well.bh_section), 10);
+      if (surfSec && bhSec && surfSec !== bhSec &&
+          well.township === well.bh_township && well.range === well.bh_range) {
+        const lateralSections = computeLateralSections(surfSec, bhSec);
+        for (const sec of lateralSections) {
+          // Skip surface/BH — already added above
+          if (sec !== surfSec && sec !== bhSec) {
+            matchEntries.push({
+              strmKey: `${sec}-${well.township}-${well.range}-${wellMeridian}`,
+              reason: 'Lateral Path'
+            });
           }
-        };
-        if (organizationId) {
-          linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
         }
-        linksToCreate.push(linkRecord);
+      }
+
+      // Create links for each matching property
+      for (const { strmKey, reason } of matchEntries) {
+        const matchingPropertyIds = strToProperties.get(strmKey) || [];
+        for (const propId of matchingPropertyIds) {
+          const pairKey = `${propId}-${wellAirtableId}`;
+          if (linkedPairs.has(pairKey)) continue;
+          linkedPairs.add(pairKey);
+
+          const [s, t, r] = strmKey.split('-');
+          const propLabel = `S${s}-T${t}-R${r}`;
+
+          const linkRecord: any = {
+            fields: {
+              [LINK_FIELDS.LINK_NAME]: `${wellName} → ${propLabel}`,
+              [LINK_FIELDS.PROPERTY]: [propId],
+              [LINK_FIELDS.WELL]: [wellAirtableId],
+              [LINK_FIELDS.LINK_TYPE]: 'Auto',
+              [LINK_FIELDS.MATCH_REASON]: reason,
+              [LINK_FIELDS.STATUS]: 'Linked',
+              [LINK_FIELDS.USER]: [userId]
+            }
+          };
+          if (organizationId) {
+            linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
+          }
+          linksToCreate.push(linkRecord);
+        }
       }
     }
 
