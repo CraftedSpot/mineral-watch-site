@@ -1068,7 +1068,7 @@ async function syncUsers(env: any): Promise<void> {
           fields['Plan'] || 'Free',
           fields['Status'] || 'Active',
           fields['Organization']?.[0] || null,
-          fields['Role'] || 'Viewer',
+          fields['Role'] || null,
           fields['Stripe Customer ID'] || null,
           fields['Alert Permits'] !== false ? 1 : 0,
           fields['Alert Completions'] !== false ? 1 : 0,
