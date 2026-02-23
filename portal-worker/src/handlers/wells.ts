@@ -18,11 +18,8 @@ import {
 } from '../utils/responses.js';
 
 import {
-  getUserById,
   getUserFromSession,
-  countUserWells,
   countUserWellsD1,
-  checkDuplicateWell,
   checkDuplicateWellD1,
   fetchAllAirtableRecords
 } from '../services/airtable.js';

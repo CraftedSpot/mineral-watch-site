@@ -17,10 +17,7 @@ import {
 } from '../utils/responses.js';
 
 import {
-  getUserById,
   getUserFromSession,
-  countUserProperties,
-  checkDuplicateProperty,
   checkDuplicatePropertyD1,
   countUserPropertiesD1,
   fetchAllAirtableRecords

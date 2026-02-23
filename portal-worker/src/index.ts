@@ -47,13 +47,7 @@ import {
 
 import {
   getUserByIdD1First,
-  countUserProperties,
-  countUserWells,
-  checkDuplicateProperty,
-  checkDuplicateWell,
   fetchAllAirtableRecords,
-  fetchUserProperties,
-  fetchUserWells,
   getOrganizationD1First
 } from './services/airtable.js';
 
@@ -1192,12 +1186,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           orgId,
           orgName
         });
-      }
-
-      // Admin: backfill user alert preferences from Airtable to D1
-      if (path === "/api/admin/backfill-user-prefs" && request.method === "POST") {
-        const { handleBackfillUserPrefs } = await import('./handlers/auth.js');
-        return handleBackfillUserPrefs(request, env);
       }
 
       // Admin: revoke all sessions for a specific user

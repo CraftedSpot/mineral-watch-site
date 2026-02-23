@@ -24,11 +24,8 @@ import {
 
 import {
   getUserByIdD1First,
-  countUserProperties,
   countUserPropertiesD1,
-  countUserWells,
   countUserWellsD1,
-  fetchUserWells,
   fetchUserWellsD1
 } from '../services/airtable.js';
 

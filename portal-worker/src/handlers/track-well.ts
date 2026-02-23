@@ -17,9 +17,7 @@ import {
 
 import {
   getUserByIdD1First,
-  countUserWells,
   countUserWellsD1,
-  checkDuplicateWell,
   checkDuplicateWellD1
 } from '../services/airtable.js';
 
