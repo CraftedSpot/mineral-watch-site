@@ -272,26 +272,43 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
 
     console.log(`[DocketEntries] Querying for S${sectionNum}-T${townshipNorm}-R${rangeNorm} (${meridianNorm}), includeAdjacent=${includeAdjacent}`);
 
-    // Query direct matches
+    // Query direct matches from main table + junction table (deduped by case_number)
     const directResults = await env.WELLS_DB.prepare(`
       SELECT
-        case_number,
-        relief_type,
-        applicant,
-        county,
-        section,
-        township,
-        range,
-        hearing_date,
-        status,
-        source_url,
-        docket_date,
-        order_number
-      FROM occ_docket_entries
-      WHERE section = ? AND township = ? AND range = ? AND meridian = ?
+        d.case_number,
+        d.relief_type,
+        d.applicant,
+        d.county,
+        d.section,
+        d.township,
+        d.range,
+        d.hearing_date,
+        d.status,
+        d.source_url,
+        d.docket_date,
+        d.order_number
+      FROM occ_docket_entries d
+      WHERE d.section = ? AND d.township = ? AND d.range = ? AND d.meridian = ?
+      UNION
+      SELECT
+        d.case_number,
+        d.relief_type,
+        d.applicant,
+        d.county,
+        d.section,
+        d.township,
+        d.range,
+        d.hearing_date,
+        d.status,
+        d.source_url,
+        d.docket_date,
+        d.order_number
+      FROM docket_entry_sections ds
+      JOIN occ_docket_entries d ON d.case_number = ds.case_number
+      WHERE CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?
       ORDER BY hearing_date DESC
       LIMIT 50
-    `).bind(String(sectionNum), townshipNorm, rangeNorm, meridianNorm).all();
+    `).bind(String(sectionNum), townshipNorm, rangeNorm, meridianNorm, sectionNum, townshipNorm, rangeNorm).all();
 
     // Format direct results
     const direct = (directResults.results || []).map((row: any) => ({
@@ -322,47 +339,48 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
       const relevantTypes = ['HORIZONTAL_WELL', 'INCREASED_DENSITY', 'POOLING'];
       const typesList = relevantTypes.map(t => `'${t}'`).join(', ');
 
-      // Build a query for all adjacent locations
-      // Group by location to avoid duplicates
-      const locationConditions = adjacentLocations.map(() =>
-        '(section = ? AND township = ? AND range = ?)'
+      // Build conditions for main table and junction table
+      const mainConditions = adjacentLocations.map(() =>
+        '(d.section = ? AND d.township = ? AND d.range = ?)'
       ).join(' OR ');
 
-      if (locationConditions) {
+      const junctionConditions = adjacentLocations.map(() =>
+        '(CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?)'
+      ).join(' OR ');
+
+      if (mainConditions) {
+        const mainParams = adjacentLocations.flatMap(loc => [
+          String(loc.section), loc.township, loc.range
+        ]);
+        const junctionParams = adjacentLocations.flatMap(loc => [
+          loc.section, loc.township, loc.range
+        ]);
+
+        // UNION deduplicates by case_number across both sources
         const adjacentQuery = `
           SELECT
-            case_number,
-            relief_type,
-            applicant,
-            county,
-            section,
-            township,
-            range,
-            hearing_date,
-            status,
-            source_url,
-            docket_date,
-            order_number
-          FROM occ_docket_entries
-          WHERE relief_type IN (${typesList})
-            AND meridian = ?
-            AND (${locationConditions})
+            d.case_number, d.relief_type, d.applicant, d.county,
+            d.section, d.township, d.range,
+            d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+          FROM occ_docket_entries d
+          WHERE d.relief_type IN (${typesList})
+            AND d.meridian = ?
+            AND (${mainConditions})
+          UNION
+          SELECT
+            d.case_number, d.relief_type, d.applicant, d.county,
+            d.section, d.township, d.range,
+            d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+          FROM docket_entry_sections ds
+          JOIN occ_docket_entries d ON d.case_number = ds.case_number
+          WHERE d.relief_type IN (${typesList})
+            AND (${junctionConditions})
           ORDER BY hearing_date DESC
           LIMIT 30
         `;
 
-        // Flatten location parameters (meridian first, then locations)
-        const params = [
-          meridianNorm,
-          ...adjacentLocations.flatMap(loc => [
-            String(loc.section),
-            loc.township,
-            loc.range
-          ])
-        ];
-
         const adjacentResults = await env.WELLS_DB.prepare(adjacentQuery)
-          .bind(...params)
+          .bind(meridianNorm, ...mainParams, ...junctionParams)
           .all();
 
         adjacent = (adjacentResults.results || []).map((row: any) => ({
@@ -467,14 +485,21 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
       const rngNorm = normalizeRange(well.range);
       const meridianNorm = (well.meridian || 'IM').toUpperCase();
 
+      const secNum = parseInt(well.section);
       const filingsResult = await env.WELLS_DB.prepare(`
-        SELECT case_number, relief_type, applicant, county, section, township, range,
-               hearing_date, status, source_url, docket_date, order_number
-        FROM occ_docket_entries
-        WHERE section = ? AND township = ? AND range = ? AND meridian = ?
+        SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
+               d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+        FROM occ_docket_entries d
+        WHERE d.section = ? AND d.township = ? AND d.range = ? AND d.meridian = ?
+        UNION
+        SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
+               d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+        FROM docket_entry_sections ds
+        JOIN occ_docket_entries d ON d.case_number = ds.case_number
+        WHERE CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?
         ORDER BY hearing_date DESC
         LIMIT 30
-      `).bind(String(well.section), twpNorm, rngNorm, meridianNorm).all();
+      `).bind(String(well.section), twpNorm, rngNorm, meridianNorm, secNum, twpNorm, rngNorm).all();
 
       const direct = (filingsResult.results || []).map((row: any) => ({
         caseNumber: row.case_number,
@@ -555,19 +580,30 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
       });
     }
 
-    // Step 4: Query filings for all TRS values in the unit
+    // Step 4: Query filings for all TRS values in the unit (main table + junction table)
     const trsArray = Array.from(uniqueTRS.values());
-    const conditions = trsArray.map(() => '(section = ? AND township = ? AND range = ? AND meridian = ?)').join(' OR ');
-    const params = trsArray.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+    const mainConditions = trsArray.map(() => '(d.section = ? AND d.township = ? AND d.range = ? AND d.meridian = ?)').join(' OR ');
+    const mainParams = trsArray.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+
+    const junctionConditions = trsArray.map(() =>
+      '(CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?)'
+    ).join(' OR ');
+    const junctionParams = trsArray.flatMap(t => [parseInt(t.section), t.township, t.range]);
 
     const filingsResult = await env.WELLS_DB.prepare(`
-      SELECT case_number, relief_type, applicant, county, section, township, range,
-             hearing_date, status, source_url, docket_date, order_number
-      FROM occ_docket_entries
-      WHERE ${conditions}
+      SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
+             d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+      FROM occ_docket_entries d
+      WHERE ${mainConditions}
+      UNION
+      SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
+             d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
+      FROM docket_entry_sections ds
+      JOIN occ_docket_entries d ON d.case_number = ds.case_number
+      WHERE ${junctionConditions}
       ORDER BY hearing_date DESC
       LIMIT 30
-    `).bind(...params).all();
+    `).bind(...mainParams, ...junctionParams).all();
 
     const direct = (filingsResult.results || []).map((row: any) => ({
       caseNumber: row.case_number,

@@ -1568,66 +1568,80 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
     const gorOpPromise = classifyOperatorGor(env.WELLS_DB!, uniqueOperators);
 
     // Query operator-level metrics: deduction ratio, NGL recovery ratio
-    const opPlaceholders = uniqueOperators.map(() => '?').join(',');
+    // Batched to stay under D1's 100-param limit (90 operators + 1 sixMonthsAgo = 91)
+    const OP_BATCH = 90;
 
-    type OperatorMetrics = {
+    type MetricsRow = {
       operator_number: string;
       company_name: string;
       well_count: number;
       total_gross: number;
       residue_deductions: number;
       liquids_returned: number;
-      deduction_ratio: number;
-      ngl_recovery_ratio: number;
     };
+    const allMetrics: MetricsRow[] = [];
 
-    const metricsResult = await env.WELLS_DB.prepare(`
-      SELECT
-        ol.operator_number,
-        oc.company_name,
-        COUNT(DISTINCT ol.base_pun) as well_count,
-        ROUND(SUM(opf.gross_value), 0) as total_gross,
-        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
-        ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
-      FROM otc_production_financial opf
-      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      WHERE ol.operator_number IN (${opPlaceholders})
-        AND opf.gross_value > 0
-        AND opf.year_month >= ?
-      GROUP BY ol.operator_number
-      HAVING well_count >= 1
-    `).bind(...uniqueOperators, sixMonthsAgo).all();
-
-    // Look up primary gas purchaser per operator for affiliated detection
-    const purchaserResult = await env.WELLS_DB.prepare(`
-      SELECT operator_number, purchaser_id FROM (
-        SELECT l.operator_number, opf.purchaser_id, COUNT(*) as cnt,
-          ROW_NUMBER() OVER (PARTITION BY l.operator_number ORDER BY COUNT(*) DESC) as rn
+    for (let i = 0; i < uniqueOperators.length; i += OP_BATCH) {
+      const batch = uniqueOperators.slice(i, i + OP_BATCH);
+      const ph = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB.prepare(`
+        SELECT
+          ol.operator_number,
+          oc.company_name,
+          COUNT(DISTINCT ol.base_pun) as well_count,
+          ROUND(SUM(opf.gross_value), 0) as total_gross,
+          ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
+          ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
         FROM otc_production_financial opf
-        JOIN otc_leases l ON SUBSTR(opf.pun, 1, 10) = l.base_pun
-        WHERE opf.product_code = '5' AND opf.purchaser_id IS NOT NULL AND opf.purchaser_id != ''
-          AND l.operator_number IN (${opPlaceholders})
+        JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+        LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        WHERE ol.operator_number IN (${ph})
+          AND opf.gross_value > 0
           AND opf.year_month >= ?
-        GROUP BY l.operator_number, opf.purchaser_id
-      ) WHERE rn = 1
-    `).bind(...uniqueOperators, sixMonthsAgo).all();
+        GROUP BY ol.operator_number
+        HAVING well_count >= 1
+      `).bind(...batch, sixMonthsAgo).all();
+      allMetrics.push(...(result.results as MetricsRow[]));
+    }
 
-    // Look up purchaser company names
-    const purchaserIds = [...new Set((purchaserResult.results as Array<{ purchaser_id: string }>).map(r => r.purchaser_id))];
+    // Look up primary gas purchaser per operator for affiliated detection (batched)
+    type PurchaserRow = { operator_number: string; purchaser_id: string };
+    const allPurchasers: PurchaserRow[] = [];
+
+    for (let i = 0; i < uniqueOperators.length; i += OP_BATCH) {
+      const batch = uniqueOperators.slice(i, i + OP_BATCH);
+      const ph = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB.prepare(`
+        SELECT operator_number, purchaser_id FROM (
+          SELECT l.operator_number, opf.purchaser_id, COUNT(*) as cnt,
+            ROW_NUMBER() OVER (PARTITION BY l.operator_number ORDER BY COUNT(*) DESC) as rn
+          FROM otc_production_financial opf
+          JOIN otc_leases l ON SUBSTR(opf.pun, 1, 10) = l.base_pun
+          WHERE opf.product_code = '5' AND opf.purchaser_id IS NOT NULL AND opf.purchaser_id != ''
+            AND l.operator_number IN (${ph})
+            AND opf.year_month >= ?
+          GROUP BY l.operator_number, opf.purchaser_id
+        ) WHERE rn = 1
+      `).bind(...batch, sixMonthsAgo).all();
+      allPurchasers.push(...(result.results as PurchaserRow[]));
+    }
+
+    // Look up purchaser company names (batched for D1 param limit)
+    const purchaserIds = [...new Set(allPurchasers.map(r => r.purchaser_id))];
     const purchaserNameMap = new Map<string, string>();
-    if (purchaserIds.length > 0) {
-      const pPlaceholders = purchaserIds.map(() => '?').join(',');
+    for (let i = 0; i < purchaserIds.length; i += OP_BATCH) {
+      const batch = purchaserIds.slice(i, i + OP_BATCH);
+      const ph = batch.map(() => '?').join(',');
       const nameResult = await env.WELLS_DB.prepare(
-        `SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${pPlaceholders})`
-      ).bind(...purchaserIds).all();
+        `SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${ph})`
+      ).bind(...batch).all();
       for (const r of nameResult.results as Array<{ company_id: string; company_name: string }>) {
         purchaserNameMap.set(r.company_id, r.company_name || '');
       }
     }
 
     const purchaserMap = new Map<string, { purchaser_id: string; purchaser_name: string }>();
-    for (const row of purchaserResult.results as Array<{ operator_number: string; purchaser_id: string }>) {
+    for (const row of allPurchasers) {
       purchaserMap.set(row.operator_number, { purchaser_id: row.purchaser_id, purchaser_name: purchaserNameMap.get(row.purchaser_id) || '' });
     }
 
@@ -1639,14 +1653,7 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       console.error('[Operator Comparison] GOR classification error:', e);
     }
 
-    const operatorData = (metricsResult.results as Array<{
-      operator_number: string;
-      company_name: string;
-      well_count: number;
-      total_gross: number;
-      residue_deductions: number;
-      liquids_returned: number;
-    }>).map(row => {
+    const operatorData = allMetrics.map(row => {
       const deductionRatio = row.total_gross > 0
         ? Math.round((row.residue_deductions / row.total_gross) * 1000) / 10
         : 0;
