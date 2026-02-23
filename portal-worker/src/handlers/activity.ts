@@ -182,7 +182,7 @@ export async function handleActivityStats(request: Request, env: Env) {
 }
 
 /**
- * Delete an activity log entry for the authenticated user
+ * Delete an activity log entry for the authenticated user (or org member's activity for org admins)
  */
 export async function handleDeleteActivity(activityId: string, request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
@@ -192,11 +192,22 @@ export async function handleDeleteActivity(activityId: string, request: Request,
     return jsonResponse({ error: "Database not available" }, 500);
   }
 
+  const userRecord = await getUserFromSession(env, user);
+  const userOrganizations = userRecord?.fields.Organization || [];
+
   try {
-    // Delete only if user owns the record (ownership check built into WHERE)
-    const result = await env.WELLS_DB.prepare(
-      `DELETE FROM activity_log WHERE id = ? AND user_id = ?`
-    ).bind(parseInt(activityId), user.id).run();
+    let result;
+    if (userOrganizations.length > 0) {
+      const orgId = userOrganizations[0];
+      // Org members can delete any activity visible to the org
+      result = await env.WELLS_DB.prepare(
+        `DELETE FROM activity_log WHERE id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+      ).bind(parseInt(activityId), orgId, orgId).run();
+    } else {
+      result = await env.WELLS_DB.prepare(
+        `DELETE FROM activity_log WHERE id = ? AND user_id = ?`
+      ).bind(parseInt(activityId), user.id).run();
+    }
 
     if ((result.meta?.changes || 0) === 0) {
       return jsonResponse({ error: "Activity record not found or not authorized" }, 404);

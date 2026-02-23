@@ -434,49 +434,44 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
     d1Binds.push(body.miDecimal !== null && body.miDecimal !== '' ? parseFloat(body.miDecimal) || null : null);
   }
 
-  // Verify ownership
-  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-  const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-
-  if (!getResponse.ok) {
-    return jsonResponse({ error: "Property not found" }, 404);
+  // D1-first: Verify ownership via D1
+  if (!env.WELLS_DB) {
+    return jsonResponse({ error: "Database not available" }, 503);
   }
 
-  const property: any = await getResponse.json();
-  if (property.fields.User?.[0] !== user.id) {
-    return jsonResponse({ error: "Not authorized" }, 403);
+  const orgId = userRecord?.fields.Organization?.[0];
+  const ownerClause = orgId
+    ? `(user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?) OR organization_id = ?)`
+    : `user_id = ?`;
+  const ownerParams = orgId ? [orgId, orgId] : [user.id];
+
+  const prop = await env.WELLS_DB.prepare(
+    `SELECT airtable_record_id FROM properties WHERE airtable_record_id = ? AND ${ownerClause}`
+  ).bind(propertyId, ...ownerParams).first();
+
+  if (!prop) {
+    return jsonResponse({ error: "Property not found or not authorized" }, 404);
   }
 
-  // Update Airtable (skip if only enterprise/D1-only fields changed)
+  // D1-first: Update D1 (source of truth)
+  if (d1Updates.length > 0) {
+    d1Updates.push('updated_at = CURRENT_TIMESTAMP');
+    const sql = `UPDATE properties SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`;
+    d1Binds.push(propertyId);
+    await env.WELLS_DB.prepare(sql).bind(...d1Binds).run();
+  }
+
+  // Fire-and-forget Airtable mirror (non-enterprise fields only)
   if (Object.keys(updateFields).length > 0) {
     const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-    const updateResponse = await fetch(updateUrl, {
+    fetch(updateUrl, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ fields: updateFields })
-    });
-
-    if (!updateResponse.ok) {
-      return jsonResponse({ error: "Failed to update property" }, 500);
-    }
-  }
-
-  // Also write to D1 immediately so v2 endpoint reflects changes instantly
-  if (d1Updates.length > 0 && env.WELLS_DB) {
-    try {
-      d1Updates.push('updated_at = datetime(\'now\')');
-      const sql = `UPDATE properties SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`;
-      d1Binds.push(propertyId);
-      await env.WELLS_DB.prepare(sql).bind(...d1Binds).run();
-    } catch (d1Err) {
-      // Non-fatal — Airtable was updated, D1 will catch up on next sync
-      console.error('[UpdateProperty] D1 write failed (non-fatal):', d1Err);
-    }
+    }).catch(e => console.warn('[UpdateProperty] Airtable mirror failed:', e));
   }
 
   return jsonResponse({ success: true });

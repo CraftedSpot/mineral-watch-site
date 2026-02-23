@@ -74,85 +74,71 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
 
     console.log(`[Preferences] Updating preferences for user ${user.id}:`, fields);
 
-    // Update user in Airtable
+    // D1-first: Build and execute D1 UPDATE (source of truth)
+    if (!env.WELLS_DB) {
+      return jsonResponse({ error: "Database not available" }, 503);
+    }
+
+    const d1Updates: string[] = [];
+    const d1Values: any[] = [];
+
+    if ('Alert Permits' in fields) {
+      d1Updates.push('alert_permits = ?');
+      d1Values.push(fields['Alert Permits'] ? 1 : 0);
+    }
+    if ('Alert Completions' in fields) {
+      d1Updates.push('alert_completions = ?');
+      d1Values.push(fields['Alert Completions'] ? 1 : 0);
+    }
+    if ('Alert Status Changes' in fields) {
+      d1Updates.push('alert_status_changes = ?');
+      d1Values.push(fields['Alert Status Changes'] ? 1 : 0);
+    }
+    if ('Alert Expirations' in fields) {
+      d1Updates.push('alert_expirations = ?');
+      d1Values.push(fields['Alert Expirations'] ? 1 : 0);
+    }
+    if ('Alert Operator Transfers' in fields) {
+      d1Updates.push('alert_operator_transfers = ?');
+      d1Values.push(fields['Alert Operator Transfers'] ? 1 : 0);
+    }
+    if ('Expiration Warning Days' in fields) {
+      d1Updates.push('expiration_warning_days = ?');
+      d1Values.push(fields['Expiration Warning Days']);
+    }
+    if ('Notification Override' in fields) {
+      d1Updates.push('notification_override = ?');
+      d1Values.push(String(fields['Notification Override']));
+    }
+
+    d1Updates.push('updated_at = CURRENT_TIMESTAMP');
+    d1Values.push(user.id);
+    await env.WELLS_DB.prepare(
+      `UPDATE users SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`
+    ).bind(...d1Values).run();
+    console.log(`[Preferences] D1 updated ${d1Updates.length - 1} fields for ${user.id}`);
+
+    // Fire-and-forget Airtable mirror
     const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${user.id}`;
-    const updateResponse = await fetch(updateUrl, {
+    fetch(updateUrl, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ fields })
-    });
-
-    if (!updateResponse.ok) {
-      const err = await updateResponse.text();
-      console.error("[Preferences] Airtable update failed:", err);
-      return jsonResponse({ error: "Failed to update preferences" }, 500);
-    }
-
-    const updatedUser: any = await updateResponse.json();
-    console.log(`[Preferences] Successfully updated preferences for user ${user.id}`);
-
-    // Dual-write all alert preferences to D1
-    if (env.WELLS_DB) {
-      try {
-        const d1Updates: string[] = [];
-        const d1Values: any[] = [];
-
-        if ('Alert Permits' in fields) {
-          d1Updates.push('alert_permits = ?');
-          d1Values.push(fields['Alert Permits'] ? 1 : 0);
-        }
-        if ('Alert Completions' in fields) {
-          d1Updates.push('alert_completions = ?');
-          d1Values.push(fields['Alert Completions'] ? 1 : 0);
-        }
-        if ('Alert Status Changes' in fields) {
-          d1Updates.push('alert_status_changes = ?');
-          d1Values.push(fields['Alert Status Changes'] ? 1 : 0);
-        }
-        if ('Alert Expirations' in fields) {
-          d1Updates.push('alert_expirations = ?');
-          d1Values.push(fields['Alert Expirations'] ? 1 : 0);
-        }
-        if ('Alert Operator Transfers' in fields) {
-          d1Updates.push('alert_operator_transfers = ?');
-          d1Values.push(fields['Alert Operator Transfers'] ? 1 : 0);
-        }
-        if ('Expiration Warning Days' in fields) {
-          d1Updates.push('expiration_warning_days = ?');
-          d1Values.push(fields['Expiration Warning Days']);
-        }
-        if ('Notification Override' in fields) {
-          d1Updates.push('notification_override = ?');
-          d1Values.push(String(fields['Notification Override']));
-        }
-
-        if (d1Updates.length > 0) {
-          d1Updates.push('updated_at = CURRENT_TIMESTAMP');
-          d1Values.push(user.id);
-          await env.WELLS_DB.prepare(
-            `UPDATE users SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`
-          ).bind(...d1Values).run();
-          console.log(`[Preferences] D1 synced ${d1Updates.length - 1} fields for ${user.id}`);
-        }
-      } catch (d1Err) {
-        // Non-fatal: Airtable is source of truth, D1 is best-effort
-        console.warn(`[Preferences] D1 sync failed (non-fatal): ${(d1Err as Error).message}`);
-      }
-    }
+    }).catch(e => console.warn('[Preferences] Airtable mirror failed:', e));
 
     return jsonResponse({
       success: true,
       message: "Preferences updated",
       preferences: {
-        alertPermits: updatedUser.fields['Alert Permits'] !== false,
-        alertCompletions: updatedUser.fields['Alert Completions'] !== false,
-        alertStatusChanges: updatedUser.fields['Alert Status Changes'] !== false,
-        alertExpirations: updatedUser.fields['Alert Expirations'] !== false,
-        alertOperatorTransfers: updatedUser.fields['Alert Operator Transfers'] !== false,
-        expirationWarningDays: updatedUser.fields['Expiration Warning Days'] || 30
+        alertPermits: fields['Alert Permits'] !== undefined ? fields['Alert Permits'] !== false : true,
+        alertCompletions: fields['Alert Completions'] !== undefined ? fields['Alert Completions'] !== false : true,
+        alertStatusChanges: fields['Alert Status Changes'] !== undefined ? fields['Alert Status Changes'] !== false : true,
+        alertExpirations: fields['Alert Expirations'] !== undefined ? fields['Alert Expirations'] !== false : true,
+        alertOperatorTransfers: fields['Alert Operator Transfers'] !== undefined ? fields['Alert Operator Transfers'] !== false : true,
+        expirationWarningDays: (fields['Expiration Warning Days'] as number) || 30
       }
     });
 

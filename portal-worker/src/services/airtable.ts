@@ -154,7 +154,7 @@ function d1RowToAirtableUser(row: any): AirtableUser {
 }
 
 /**
- * D1-first organization lookup with Airtable fallback.
+ * D1-only organization lookup.
  * Returns org notification settings needed by handleGetCurrentUser.
  */
 export async function getOrganizationD1First(env: Env, orgId: string): Promise<{
@@ -162,101 +162,70 @@ export async function getOrganizationD1First(env: Env, orgId: string): Promise<{
   defaultNotificationMode: string;
   allowUserOverride: boolean;
 } | null> {
-  // Try D1 first
-  if (env.WELLS_DB) {
-    try {
-      const row = await env.WELLS_DB.prepare(
-        `SELECT name, default_notification_mode, allow_user_override
-         FROM organizations WHERE airtable_record_id = ? LIMIT 1`
-      ).bind(orgId).first();
-
-      if (row) {
-        return {
-          name: row.name as string | null,
-          defaultNotificationMode: (row.default_notification_mode as string) || 'Daily + Weekly',
-          allowUserOverride: (row.allow_user_override as number) !== 0
-        };
-      }
-    } catch (e) {
-      console.warn('[Auth] D1 org lookup failed, trying Airtable:', (e as Error).message);
-    }
-  }
-
-  // Airtable fallback
+  if (!env.WELLS_DB) return null;
   try {
-    const resp = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${orgId}`,
-      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-    );
-    if (resp.ok) {
-      const org: any = await resp.json();
+    const row = await env.WELLS_DB.prepare(
+      `SELECT name, default_notification_mode, allow_user_override
+       FROM organizations WHERE airtable_record_id = ? LIMIT 1`
+    ).bind(orgId).first();
+
+    if (row) {
       return {
-        name: org.fields['Name'] || null,
-        defaultNotificationMode: org.fields['Default Notification Mode'] || 'Daily + Weekly',
-        allowUserOverride: org.fields['Allow User Override'] !== false
+        name: row.name as string | null,
+        defaultNotificationMode: (row.default_notification_mode as string) || 'Daily + Weekly',
+        allowUserOverride: (row.allow_user_override as number) !== 0
       };
     }
     return null;
   } catch (e) {
-    console.error('[Auth] Airtable org fallback also failed:', (e as Error).message);
+    console.error('[Auth] D1 org lookup failed:', (e as Error).message);
     return null;
   }
 }
 
 /**
- * D1-first user lookup by email with Airtable fallback.
- * Survives Airtable outages for existing users. Falls back to Airtable
- * for brand-new users before JIT sync (shouldn't happen in practice).
+ * D1-only user lookup by email.
  */
 export async function findUserByEmailD1First(env: Env, email: string): Promise<AirtableUser | null> {
-  // 1. Try D1
-  if (env.WELLS_DB) {
-    try {
-      const row = await env.WELLS_DB.prepare(
-        `SELECT airtable_record_id, email, name, plan, status,
-                organization_id, role, stripe_customer_id,
-                alert_permits, alert_completions, alert_status_changes,
-                alert_expirations, alert_operator_transfers,
-                expiration_warning_days, notification_override
-         FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`
-      ).bind(email).first();
-      if (row) return d1RowToAirtableUser(row);
-    } catch (e) {
-      console.warn('[Auth] D1 user lookup failed, trying Airtable:', (e as Error).message);
-    }
-  }
-  // 2. Fallback to Airtable (handles brand-new users before JIT sync)
+  if (!env.WELLS_DB) return null;
   try {
-    return await findUserByEmail(env, email);
+    const row = await env.WELLS_DB.prepare(
+      `SELECT airtable_record_id, email, name, plan, status,
+              organization_id, role, stripe_customer_id,
+              alert_permits, alert_completions, alert_status_changes,
+              alert_expirations, alert_operator_transfers,
+              expiration_warning_days, notification_override
+       FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`
+    ).bind(email).first();
+    if (row) return d1RowToAirtableUser(row);
+    return null;
   } catch (e) {
-    console.error('[Auth] Airtable fallback also failed:', (e as Error).message);
+    console.error('[Auth] D1 user lookup by email failed:', (e as Error).message);
     return null;
   }
 }
 
 /**
- * D1-first user lookup by Airtable record ID with Airtable fallback.
+ * D1-only user lookup by Airtable record ID.
  * Used by authenticateRequest() on every API call — this is the critical path.
  */
 export async function getUserByIdD1First(env: Env, userId: string): Promise<AirtableUser | null> {
-  // 1. Try D1
-  if (env.WELLS_DB) {
-    try {
-      const row = await env.WELLS_DB.prepare(
-        `SELECT airtable_record_id, email, name, plan, status,
-                organization_id, role, stripe_customer_id,
-                alert_permits, alert_completions, alert_status_changes,
-                alert_expirations, alert_operator_transfers,
-                expiration_warning_days, notification_override
-         FROM users WHERE airtable_record_id = ? LIMIT 1`
-      ).bind(userId).first();
-      if (row) return d1RowToAirtableUser(row);
-    } catch (e) {
-      console.warn('[Auth] D1 user lookup failed, trying Airtable:', (e as Error).message);
-    }
+  if (!env.WELLS_DB) return null;
+  try {
+    const row = await env.WELLS_DB.prepare(
+      `SELECT airtable_record_id, email, name, plan, status,
+              organization_id, role, stripe_customer_id,
+              alert_permits, alert_completions, alert_status_changes,
+              alert_expirations, alert_operator_transfers,
+              expiration_warning_days, notification_override
+       FROM users WHERE airtable_record_id = ? LIMIT 1`
+    ).bind(userId).first();
+    if (row) return d1RowToAirtableUser(row);
+    return null;
+  } catch (e) {
+    console.error('[Auth] D1 user lookup by id failed:', (e as Error).message);
+    return null;
   }
-  // 2. Fallback to Airtable
-  return getUserById(env, userId);
 }
 
 /**

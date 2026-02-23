@@ -312,50 +312,15 @@ export async function handleLogout() {
 }
 
 /**
- * Update login tracking in Airtable + D1. Non-fatal — errors are logged but don't block login.
+ * Update login tracking in D1. Non-fatal — errors are logged but don't block login.
  */
 async function updateLoginTracking(env: Env, userId: string): Promise<void> {
+  if (!env.WELLS_DB) return;
   try {
-    // GET current login count from Airtable
-    const userResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/tblmb8sZtfn2EW900/${userId}`,
-      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-    );
-
-    if (!userResponse.ok) {
-      console.error('[Auth] Failed to fetch user for login tracking');
-      return;
-    }
-
-    const userData: any = await userResponse.json();
-    const currentLoginCount = userData.fields['Total Logins'] || 0;
-
-    // PATCH Airtable with updated stats
-    await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/tblmb8sZtfn2EW900/${userId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fields: {
-            'Last Login': new Date().toISOString(),
-            'Total Logins': currentLoginCount + 1
-          }
-        })
-      }
-    );
-
-    // Also update D1 login stats
-    if (env.WELLS_DB) {
-      await env.WELLS_DB.prepare(
-        `UPDATE users SET last_login = CURRENT_TIMESTAMP, total_logins = COALESCE(total_logins, 0) + 1 WHERE airtable_record_id = ?`
-      ).bind(userId).run();
-    }
-
-    console.log(`[Auth] Login tracking updated for ${userId}: login #${currentLoginCount + 1}`);
+    const result = await env.WELLS_DB.prepare(
+      `UPDATE users SET last_login = CURRENT_TIMESTAMP, total_logins = COALESCE(total_logins, 0) + 1 WHERE airtable_record_id = ?`
+    ).bind(userId).run();
+    console.log(`[Auth] Login tracking updated for ${userId} (D1, ${result.meta.changes} rows)`);
   } catch (error) {
     console.error('[Auth] Login tracking error:', error);
   }
@@ -634,28 +599,31 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
     }
     
     console.log(`Processing email change: ${payload.currentEmail} -> ${payload.newEmail}`);
-    
-    // Update the user's email in Airtable
+
+    // D1-first: Update the user's email in D1 (source of truth)
+    if (!env.WELLS_DB) {
+      console.error('[EmailChange] D1 not available');
+      return Response.redirect(`${BASE_URL}/portal/account?error=Failed%20to%20update%20email`, 302);
+    }
+    const d1Result = await env.WELLS_DB.prepare(
+      `UPDATE users SET email = ?, updated_at = CURRENT_TIMESTAMP WHERE airtable_record_id = ?`
+    ).bind(payload.newEmail, payload.userId).run();
+    if (d1Result.meta.changes === 0) {
+      console.error(`[EmailChange] No D1 user found for ${payload.userId}`);
+      return Response.redirect(`${BASE_URL}/portal/account?error=Failed%20to%20update%20email`, 302);
+    }
+
+    // Fire-and-forget Airtable mirror
     const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${payload.userId}`;
-    const updateResponse = await fetch(updateUrl, {
+    fetch(updateUrl, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({
-        fields: {
-          Email: payload.newEmail
-        }
-      })
-    });
-    
-    if (!updateResponse.ok) {
-      const err = await updateResponse.text();
-      console.error("Failed to update email in Airtable:", err);
-      return Response.redirect(`${BASE_URL}/portal/account?error=Failed%20to%20update%20email`, 302);
-    }
-    
+      body: JSON.stringify({ fields: { Email: payload.newEmail } })
+    }).catch(e => console.warn('[EmailChange] Airtable mirror failed:', e));
+
     console.log(`Email successfully changed for user ${payload.userId}: ${payload.currentEmail} -> ${payload.newEmail}`);
     
     // Send confirmation email to the OLD email address

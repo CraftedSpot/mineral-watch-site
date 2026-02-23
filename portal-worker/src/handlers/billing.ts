@@ -130,26 +130,27 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
     return jsonResponse({ error: 'Failed to update subscription' }, 500);
   }
   
-  // Update Airtable immediately (webhook will also fire, but this is faster)
+  // D1-first: Update plan immediately (webhook will also fire, but this is faster)
   const userRecord = await findUserByEmailD1First(env, user.email);
   if (userRecord) {
-    await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
+    // D1 is source of truth
+    try {
+      await env.WELLS_DB.prepare(`
+        UPDATE users SET plan = ? WHERE airtable_record_id = ?
+      `).bind(targetPlan, userRecord.id).run();
+    } catch (err) {
+      console.error('[Billing] D1 plan update failed:', (err as Error).message);
+    }
+
+    // Fire-and-forget Airtable mirror
+    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ fields: { Plan: targetPlan } })
-    });
-
-    // D1 dual-write (fire-and-forget)
-    try {
-      await env.WELLS_DB.prepare(`
-        UPDATE users SET plan = ? WHERE airtable_record_id = ?
-      `).bind(targetPlan, userRecord.id).run();
-    } catch (err) {
-      console.error('[D1 Dual-Write] updateSubscription:', (err as Error).message);
-    }
+    }).catch(e => console.warn('[Billing] Airtable mirror failed:', e));
   }
 
   console.log(`User ${user.email} upgraded to ${targetPlan}`);
@@ -288,12 +289,23 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
       }
     }
 
-    // Update user in Airtable (idempotent — webhook may also fire)
+    // D1-first: Update user plan (idempotent — webhook may also fire)
     const userRecord = await findUserByEmailD1First(env, customerEmail);
     if (userRecord) {
       const currentPlan = userRecord.fields.Plan || 'Free';
       if (currentPlan !== targetPlan || !userRecord.fields['Stripe Customer ID']) {
-        await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
+        // D1 is source of truth
+        try {
+          await env.WELLS_DB.prepare(`
+            UPDATE users SET plan = ?, stripe_customer_id = ?, stripe_subscription_id = ?
+            WHERE airtable_record_id = ?
+          `).bind(targetPlan, stripeCustomerId, subscriptionId, userRecord.id).run();
+        } catch (err) {
+          console.error('[Billing] D1 upgrade write failed:', (err as Error).message);
+        }
+
+        // Fire-and-forget Airtable mirror
+        fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
@@ -306,17 +318,7 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
               'Stripe Subscription ID': subscriptionId
             }
           })
-        });
-
-        // D1 dual-write (fire-and-forget)
-        try {
-          await env.WELLS_DB.prepare(`
-            UPDATE users SET plan = ?, stripe_customer_id = ?, stripe_subscription_id = ?
-            WHERE airtable_record_id = ?
-          `).bind(targetPlan, stripeCustomerId, subscriptionId, userRecord.id).run();
-        } catch (err) {
-          console.error('[D1 Dual-Write] handleUpgradeSuccess:', (err as Error).message);
-        }
+        }).catch(e => console.warn('[Billing] Airtable mirror failed:', e));
 
         console.log(`[Billing] User ${customerEmail} upgraded to ${targetPlan}`);
       }
