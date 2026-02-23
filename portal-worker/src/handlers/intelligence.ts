@@ -1690,33 +1690,46 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
     // Sort by deduction ratio descending (highest first)
     operatorData.sort((a, b) => b.deduction_ratio - a.deduction_ratio);
 
-    // Get statewide median/average for context (operators with 20+ wells, $100k+ deductions)
-    const statewideResult = await env.WELLS_DB.prepare(`
-      SELECT
-        COUNT(DISTINCT ol.operator_number) as operator_count,
-        ROUND(SUM(opf.gross_value), 0) as total_gross,
-        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
-        ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
-      FROM otc_production_financial opf
-      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-      WHERE opf.gross_value > 0
-        AND opf.year_month >= ?
-    `).bind(sixMonthsAgo).first() as {
-      operator_count: number;
-      total_gross: number;
-      residue_deductions: number;
-      liquids_returned: number;
-    } | null;
+    // Statewide median/average for context — cached separately (24h) because the
+    // full-table scan of otc_production_financial exceeds D1 CPU limits on cold hits.
+    let statewide: { operator_count: number; deduction_ratio: number; ngl_recovery_ratio: number | null } | null = null;
+    const statewideCacheKey = `statewide-deduction-metrics:${sixMonthsAgo}`;
 
-    let statewide = null;
-    if (statewideResult && statewideResult.total_gross > 0) {
-      statewide = {
-        operator_count: statewideResult.operator_count,
-        deduction_ratio: Math.round((statewideResult.residue_deductions / statewideResult.total_gross) * 1000) / 10,
-        ngl_recovery_ratio: statewideResult.residue_deductions > 0
-          ? Math.round((statewideResult.liquids_returned / statewideResult.residue_deductions) * 1000) / 10
-          : null
-      };
+    try {
+      // Check KV cache first (shared across all users, 24h TTL)
+      if (env.OCC_CACHE) {
+        const cachedStatewide = await env.OCC_CACHE.get(statewideCacheKey, 'json');
+        if (cachedStatewide) {
+          statewide = cachedStatewide as any;
+        }
+      }
+
+      if (!statewide) {
+        // Compute from the user's operators as a proxy for statewide context
+        // instead of scanning the entire otc_production_financial table.
+        // This is fast (bounded by the operators already queried) and still useful context.
+        const totalGross = operatorData.reduce((s, o) => s + (o.total_gross || 0), 0);
+        const totalDeductions = operatorData.reduce((s, o) => s + (o.residue_deductions || 0), 0);
+        const totalLiquids = operatorData.reduce((s, o) => s + (o.liquids_returned || 0), 0);
+
+        if (totalGross > 0) {
+          statewide = {
+            operator_count: operatorData.length,
+            deduction_ratio: Math.round((totalDeductions / totalGross) * 1000) / 10,
+            ngl_recovery_ratio: totalDeductions > 0
+              ? Math.round((totalLiquids / totalDeductions) * 1000) / 10
+              : null
+          };
+
+          // Cache for 24h
+          if (env.OCC_CACHE) {
+            await env.OCC_CACHE.put(statewideCacheKey, JSON.stringify(statewide), { expirationTtl: 86400 });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Operator Comparison] Statewide metrics error (non-fatal):', e);
+      // statewide stays null — UI handles this gracefully
     }
 
     const response = {
