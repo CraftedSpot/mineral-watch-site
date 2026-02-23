@@ -5,15 +5,7 @@
  * Provides functions for user management, property tracking, and well monitoring
  */
 
-import {
-  BASE_ID,
-  USERS_TABLE,
-  PROPERTIES_TABLE,
-  WELLS_TABLE,
-  ORGANIZATION_TABLE
-} from '../constants.js';
-
-import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { BASE_ID } from '../constants.js';
 import type { Env } from '../types/env.js';
 
 /**
