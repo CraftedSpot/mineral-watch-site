@@ -830,15 +830,17 @@ async function reconcileLinkCounts(env: any): Promise<void> {
                COUNT(DISTINCT filings.case_number) as cnt
         FROM properties p
         INNER JOIN (
-          SELECT case_number, CAST(section AS INTEGER) as sec_int, UPPER(township) as twn_upper, UPPER(range) as rng_upper
+          SELECT case_number, CAST(section AS INTEGER) as sec_int,
+            LTRIM(UPPER(township), '0') as twn_norm, LTRIM(UPPER(range), '0') as rng_norm
           FROM occ_docket_entries WHERE section IS NOT NULL
           UNION ALL
-          SELECT case_number, CAST(section AS INTEGER) as sec_int, UPPER(township) as twn_upper, UPPER(range) as rng_upper
+          SELECT case_number, CAST(section AS INTEGER) as sec_int,
+            LTRIM(UPPER(township), '0') as twn_norm, LTRIM(UPPER(range), '0') as rng_norm
           FROM docket_entry_sections WHERE section IS NOT NULL
         ) filings
           ON filings.sec_int = CAST(p.section AS INTEGER)
-          AND filings.twn_upper = UPPER(p.township)
-          AND filings.rng_upper = UPPER(p.range)
+          AND filings.twn_norm = LTRIM(UPPER(p.township), '0')
+          AND filings.rng_norm = LTRIM(UPPER(p.range), '0')
         WHERE p.section IS NOT NULL AND ${ownerWhere}
         GROUP BY p.airtable_record_id
       `).bind(...ownerParams).all();
