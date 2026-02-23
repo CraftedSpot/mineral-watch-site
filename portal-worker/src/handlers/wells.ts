@@ -407,6 +407,7 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
         GROUP BY p.base_pun
       ) prod ON wpl.base_pun = prod.base_pun
       WHERE w.api_number IN (${placeholders})
+      GROUP BY w.api_number
     `;
 
     try {
@@ -595,6 +596,7 @@ export async function handleListWellsV2(request: Request, env: Env) {
       ON UPPER(TRIM(REPLACE(REPLACE(COALESCE(w.operator, cw.operator), '.', ''), ',', '')))
          = o.operator_name_normalized
     ${whereClause}
+    GROUP BY cw.id
     ORDER BY cw.county, cw.township, cw.range_val, cw.section
     ${isSuperAdmin ? '' : 'LIMIT ?'}
   `;
@@ -1222,11 +1224,12 @@ export async function handleSearchWells(request: Request, env: Env) {
       FROM wells w
       LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
       WHERE ${whereClause}
-      ORDER BY 
-        CASE 
-          WHEN w.well_status = 'AC' THEN 1 
+      GROUP BY w.api_number
+      ORDER BY
+        CASE
+          WHEN w.well_status = 'AC' THEN 1
           WHEN w.well_status = 'TA' THEN 2
-          ELSE 3 
+          ELSE 3
         END,
         w.well_name,
         w.api_number

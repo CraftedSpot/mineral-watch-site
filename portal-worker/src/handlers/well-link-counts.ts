@@ -258,9 +258,9 @@ async function fetchOCCFilingCounts(
   const strPromises = strBatches.map(async (batch) => {
     try {
       const conditions = batch.map(() =>
-        `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
+        `(CAST(section AS INTEGER) = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
       ).join(' OR ');
-      const bindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
+      const bindings = batch.flatMap(({ sec, twn, rng }) => [sec, twn, rng]);
 
       const result = await env.WELLS_DB.prepare(`
         SELECT case_number, section as sec, township as twn, range as rng
@@ -298,9 +298,9 @@ async function fetchOCCFilingCounts(
   const junctionPromises = junctionBatches.map(async (batch) => {
     try {
       const conditions = batch.map(() =>
-        `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
+        `(CAST(section AS INTEGER) = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
       ).join(' OR ');
-      const bindings = batch.flatMap(({ sec, twn, rng }) => [String(sec), twn, rng]);
+      const bindings = batch.flatMap(({ sec, twn, rng }) => [sec, twn, rng]);
 
       const result = await env.WELLS_DB.prepare(`
         SELECT case_number, section as sec, township as twn, range as rng

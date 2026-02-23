@@ -88,6 +88,7 @@ async function fetchUnitPrintData(
     JOIN wells w ON l.api_number = w.api_number OR l.api_number = SUBSTR(w.api_number, 1, 10)
     LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
     WHERE l.pun = ?
+    GROUP BY w.api_number
     ORDER BY w.first_production_date ASC
   `).bind(pun).all();
 
