@@ -391,7 +391,7 @@
             const counties = [...new Set(flaggedWells.map(w => w.county).filter(Boolean))];
             const highDeductionWells = flaggedWells.filter(w => w.agg_deduction_pct > 50);
             document.getElementById('reportSubtitle').textContent = flaggedWells.length > 0
-                ? `${flaggedWells.length} wells analyzed across ${counties.length || '—'} count${counties.length !== 1 ? 'ies' : 'y'}`
+                ? `${flaggedWells.length} wells with OTC production data across ${counties.length || '—'} count${counties.length !== 1 ? 'ies' : 'y'}`
                 : 'Portfolio deduction analysis';
 
             if (highDeductionWells.length === 0) {
