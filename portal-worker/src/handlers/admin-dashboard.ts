@@ -166,7 +166,7 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
   if (auth instanceof Response) return auth;
 
   try {
-    const [user, activity, properties, wells, notes, orgMembers] = await Promise.all([
+    const [user, activity, properties, wells, notes, orgMembers, authEvents] = await Promise.all([
       // User record
       env.WELLS_DB.prepare(`
         SELECT u.*, o.name as org_name, o.plan as org_plan, o.stripe_customer_id as org_stripe_id
@@ -213,6 +213,14 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
           AND organization_id IS NOT NULL
           AND status != 'Deleted'
       `).bind(userId).first(),
+
+      // Auth events (last 30 days for this user's email)
+      env.WELLS_DB.prepare(`
+        SELECT event_type, ip, user_agent, error, created_at FROM auth_events
+        WHERE email = (SELECT LOWER(email) FROM users WHERE airtable_record_id = ?)
+        ORDER BY created_at DESC
+        LIMIT 50
+      `).bind(userId).all().catch(() => ({ results: [] })),
     ]);
 
     if (!user) {
@@ -226,6 +234,7 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
       wells: wells.results,
       notes: notes.results,
       orgMemberCount: orgMembers?.member_count || 0,
+      authEvents: (authEvents as any).results,
     });
   } catch (err: any) {
     return jsonResponse({ error: err.message }, 500);
