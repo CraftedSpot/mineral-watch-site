@@ -185,7 +185,7 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
 
       // Properties
       env.WELLS_DB.prepare(`
-        SELECT id, county, section, township, range_value, well_count, document_count, filing_count, status, created_at
+        SELECT id, county, section, township, "range", well_count, document_count, filing_count, status, created_at
         FROM properties
         WHERE user_id = ? AND status = 'Active'
         ORDER BY county, section
@@ -193,7 +193,7 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
 
       // Wells
       env.WELLS_DB.prepare(`
-        SELECT api_number, well_name, well_status, operator, county, last_status_check, notes, ri_nri
+        SELECT api_number, well_name, well_status, operator, county, updated_at, notes, ri_nri
         FROM client_wells
         WHERE user_id = ? AND status = 'Active'
         ORDER BY well_name
