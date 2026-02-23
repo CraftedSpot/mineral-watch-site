@@ -25,6 +25,22 @@ function normalizeApi(raw: string | null | undefined): string | null {
   return digits.length >= 10 ? digits.substring(0, 10) : digits || null;
 }
 
+/** Normalize PUN to 10-char base_pun format: XXX-XXXXXX (county-lease, lease zero-padded to 6) */
+function normalizeBasePun(pun: string): string {
+  const match = pun.match(/^(\d{3})-(\d+)/);
+  if (match) {
+    const county = match[1];
+    const lease = match[2].substring(0, 6).padStart(6, '0');
+    return `${county}-${lease}`;
+  }
+  // Fallback for dashless PUNs (e.g. from completions_daily): first 3 digits + dash + next 6
+  const digits = pun.replace(/[^0-9]/g, '');
+  if (digits.length >= 9) {
+    return `${digits.substring(0, 3)}-${digits.substring(3, 9)}`;
+  }
+  return pun.length >= 10 ? pun.substring(0, 10) : pun;
+}
+
 /** Resolve API number from all possible extraction paths */
 function resolveApi(data: any): string | null {
   const raw = data.api_number_normalized
@@ -187,7 +203,7 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
           `).bind(api10, pun, pun).run();
 
           // well_pun_links
-          const basePun = pun.length >= 10 ? pun.substring(0, 10) : pun;
+          const basePun = normalizeBasePun(pun);
           await env.WELLS_DB.prepare(`
             INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
             VALUES (?, ?, ?, '1002a_backfill', 'high')
@@ -201,7 +217,7 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
         if (data.allocation_factors?.length) {
           for (const factor of data.allocation_factors) {
             if (factor.pun && factor.pun !== pun) {
-              const factorBasePun = factor.pun.length >= 10 ? factor.pun.substring(0, 10) : factor.pun;
+              const factorBasePun = normalizeBasePun(factor.pun);
               await env.WELLS_DB.prepare(`
                 INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
                 VALUES (?, ?, ?, '1002a_backfill', 'high')
