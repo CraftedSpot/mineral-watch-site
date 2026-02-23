@@ -383,26 +383,31 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
           .bind(meridianNorm, ...mainParams, ...junctionParams)
           .all();
 
-        adjacent = (adjacentResults.results || []).map((row: any) => ({
-          caseNumber: row.case_number,
-          reliefType: row.relief_type,
-          reliefTypeDisplay: formatReliefType(row.relief_type),
-          applicant: row.applicant,
-          county: row.county,
-          section: row.section,
-          township: row.township,
-          range: row.range,
-          hearingDate: row.hearing_date,
-          status: row.status,
-          statusDisplay: formatStatus(row.status),
-          sourceUrl: row.source_url,
-          docketDate: row.docket_date,
-          orderNumber: row.order_number
-        }));
+        // Deduplicate: exclude adjacent results already in direct (multi-section cases appear in both)
+        const directCaseNumbers = new Set(direct.map((d: any) => d.caseNumber));
+
+        adjacent = (adjacentResults.results || [])
+          .filter((row: any) => !directCaseNumbers.has(row.case_number))
+          .map((row: any) => ({
+            caseNumber: row.case_number,
+            reliefType: row.relief_type,
+            reliefTypeDisplay: formatReliefType(row.relief_type),
+            applicant: row.applicant,
+            county: row.county,
+            section: row.section,
+            township: row.township,
+            range: row.range,
+            hearingDate: row.hearing_date,
+            status: row.status,
+            statusDisplay: formatStatus(row.status),
+            sourceUrl: row.source_url,
+            docketDate: row.docket_date,
+            orderNumber: row.order_number
+          }));
       }
     }
 
-    console.log(`[DocketEntries] Found ${direct.length} direct, ${adjacent.length} adjacent in ${Date.now() - start}ms`);
+    console.log(`[DocketEntries] Found ${direct.length} direct, ${adjacent.length} adjacent (deduped) in ${Date.now() - start}ms`);
 
     return jsonResponse({
       success: true,
