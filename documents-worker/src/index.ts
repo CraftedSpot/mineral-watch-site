@@ -2318,9 +2318,19 @@ export default {
 
             // Auto-populate pun_api_crosswalk for completion reports
             if (doc_type === 'completion_report' && extracted_data) {
+              // Normalize API to 10-char bare digits (tracking table format)
+              const normalizeApi = (raw: string | null | undefined): string | null => {
+                if (!raw) return null;
+                const digits = raw.replace(/[^0-9]/g, '');
+                return digits.length >= 10 ? digits.substring(0, 10) : digits || null;
+              };
+
               try {
-                // Get API - prefer normalized version
-                const apiNumber = extracted_data.api_number_normalized || extracted_data.api_number;
+                // Get API - check all possible extraction paths, normalize to 10-char
+                const rawApi = extracted_data.api_number_normalized
+                  || extracted_data.api_number
+                  || extracted_data.well_identification?.api_number;
+                const apiNumber = normalizeApi(rawApi);
 
                 if (!apiNumber) {
                   console.log('[PUN Crosswalk] Skipping - no API number in extracted data');
@@ -2348,9 +2358,9 @@ export default {
                     `).bind(
                       apiNumber,
                       pun,
-                      extracted_data.well_name || null,
+                      extracted_data.well_name || extracted_data.well_identification?.well_name || null,
                       sectionCounty || extracted_data.county || county || null,
-                      extracted_data.operator?.name || null,
+                      extracted_data.operator?.name || extracted_data.well_identification?.operator || null,
                       extracted_data.dates?.completion_date || null,
                       docId
                     ).run();
@@ -2368,8 +2378,9 @@ export default {
                   };
 
                   // Single well PUN (vertical wells, or primary PUN for horizontal)
-                  if (extracted_data.otc_prod_unit_no) {
-                    await insertCrosswalk(extracted_data.otc_prod_unit_no);
+                  const primaryPunValue = extracted_data.otc_prod_unit_no || extracted_data.well_identification?.otc_prod_unit_no;
+                  if (primaryPunValue) {
+                    await insertCrosswalk(primaryPunValue);
                   }
 
                   // Multi-section horizontal wells (multiple PUNs in allocation_factors)
@@ -2386,8 +2397,8 @@ export default {
 
                     // Also update wells.otc_prod_unit_no if not already set
                     // Use the dashed format for consistency with production data
-                    const api10 = apiNumber.substring(0, 10);
-                    const primaryPun = extracted_data.otc_prod_unit_no || Array.from(insertedPuns)[0];
+                    const api10 = apiNumber; // already 10-char from normalizeApi()
+                    const primaryPun = primaryPunValue || Array.from(insertedPuns)[0];
                     const updateResult = await env.WELLS_DB.prepare(`
                       UPDATE wells
                       SET otc_prod_unit_no = ?
@@ -2435,9 +2446,12 @@ export default {
 
               // Update wells table with completion report data (bottom hole, lateral, IP, formation)
               try {
-                const apiNumber = extracted_data.api_number_normalized || extracted_data.api_number;
-                if (apiNumber) {
-                  const api10 = apiNumber.substring(0, 10);
+                const rawApiWells = extracted_data.api_number_normalized
+                  || extracted_data.api_number
+                  || extracted_data.well_identification?.api_number;
+                const apiNumberWells = normalizeApi(rawApiWells);
+                if (apiNumberWells) {
+                  const api10 = apiNumberWells;
 
                   // Extract bottom hole location
                   const bhLat = extracted_data.bottom_hole_location?.latitude || null;

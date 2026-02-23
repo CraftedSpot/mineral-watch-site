@@ -131,6 +131,7 @@ import {
   handleBackfillStatewideActivity,
   handleBackfillSectionCenters,
   handleBackfillBhCoordinates,
+  handleBackfillCompletionWriteback,
   // Property-well matching handler
   handleMatchPropertyWells,
   handleDiscoverAndTrackWells,
@@ -1501,6 +1502,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       // BH coordinates backfill endpoint
       if (path === "/api/admin/backfill-bh-coordinates" && request.method === "POST") {
         return handleBackfillBhCoordinates(request, env);
+      }
+
+      // Completion report write-back backfill endpoint
+      if (path === "/api/admin/backfill-completion-writeback" && request.method === "POST") {
+        return handleBackfillCompletionWriteback(request, env);
       }
 
       // Formation harvest endpoints (PROCESSING_API_KEY auth)

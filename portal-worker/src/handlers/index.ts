@@ -120,6 +120,9 @@ export { handleBackfillSectionCenters } from './backfill-section-centers.js';
 // BH coordinates backfill handler
 export { handleBackfillBhCoordinates } from './backfill-bh-coordinates.js';
 
+// Completion report write-back backfill handler
+export { handleBackfillCompletionWriteback } from './backfill-completion-writeback.js';
+
 // Organization handlers
 export {
   handleGetOrganization,
