@@ -247,6 +247,7 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
       nullStatuses,
       failedEmailsToday,
       tableCounts,
+      authStats,
       pendingLocations,
       d1WriteFailures,
       lastSyncDaily,
@@ -266,7 +267,15 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
         env.WELLS_DB.prepare(`SELECT COUNT(*) as c FROM statewide_activity`).first(),
         env.WELLS_DB.prepare(`SELECT COUNT(*) as c FROM organizations`).first(),
         env.WELLS_DB.prepare(`SELECT COUNT(*) as c FROM admin_notes`).first(),
+        env.WELLS_DB.prepare(`SELECT COUNT(*) as c FROM auth_events`).first(),
       ]),
+
+      // Auth event stats (last 7 days)
+      env.WELLS_DB.prepare(`
+        SELECT event_type, COUNT(*) as count FROM auth_events
+        WHERE created_at > datetime('now', '-7 days')
+        GROUP BY event_type ORDER BY count DESC
+      `).all().catch(() => ({ results: [] })),
 
       // Pending well locations (KV list)
       env.OCC_CACHE.list({ prefix: 'pending-well-location:' }).then(r => r.keys.length).catch(() => 0),
@@ -280,7 +289,7 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
       env.MINERAL_CACHE?.get('mineral-monitor:last-run:docket', { type: 'json' }).catch(() => null) || Promise.resolve(null),
     ]);
 
-    const [users, properties, clientWells, wells, activityLog, statewideActivity, organizations, adminNotes] = tableCounts;
+    const [users, properties, clientWells, wells, activityLog, statewideActivity, organizations, adminNotes, authEvents] = tableCounts;
 
     return jsonResponse({
       d1WriteFailuresToday: d1WriteFailures ? parseInt(d1WriteFailures as string, 10) : 0,
@@ -296,12 +305,14 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
         statewide_activity: (statewideActivity as any)?.c || 0,
         organizations: (organizations as any)?.c || 0,
         admin_notes: (adminNotes as any)?.c || 0,
+        auth_events: (authEvents as any)?.c || 0,
       },
       cronHealth: {
         daily: lastSyncDaily,
         weekly: lastSyncWeekly,
         docket: lastSyncDocket,
       },
+      authEvents7d: (authStats as any).results,
     });
   } catch (err: any) {
     return jsonResponse({ error: err.message }, 500);

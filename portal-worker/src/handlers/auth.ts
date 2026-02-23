@@ -46,6 +46,32 @@ import {
 import type { Env } from '../types/env.js';
 
 /**
+ * Log an auth event to D1 (non-blocking, fire-and-forget)
+ */
+function logAuthEvent(env: Env, event: { email: string; event_type: string; ip?: string; user_agent?: string; error?: string }) {
+  if (!env.WELLS_DB) return;
+  env.WELLS_DB.prepare(
+    `INSERT INTO auth_events (email, event_type, ip, user_agent, error) VALUES (?, ?, ?, ?, ?)`
+  ).bind(
+    event.email.toLowerCase().trim(),
+    event.event_type,
+    event.ip || null,
+    event.user_agent || null,
+    event.error || null
+  ).run().catch(e => console.error('[AuthEvent] Failed to log:', e));
+}
+
+/**
+ * Extract IP and user agent from request
+ */
+function getRequestMeta(request: Request) {
+  return {
+    ip: request.headers.get('CF-Connecting-IP') || undefined,
+    user_agent: request.headers.get('User-Agent')?.substring(0, 200) || undefined,
+  };
+}
+
+/**
  * Send a magic link email for user authentication.
  * Generates HMAC token locally and sends via Resend API.
  */
@@ -61,10 +87,17 @@ export async function handleSendMagicLink(request: Request, env: Env) {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await findUserByEmailD1First(env, normalizedEmail);
 
+    const meta = getRequestMeta(request);
+
     // Silent success if user doesn't exist or is inactive (prevents email enumeration)
     if (!user || user.fields.Status !== 'Active') {
-      if (!user) console.log(`[Auth] Login attempt for unknown email: ${normalizedEmail}`);
-      else console.log(`[Auth] Login attempt for inactive user: ${normalizedEmail}`);
+      if (!user) {
+        console.log(`[Auth] Login attempt for unknown email: ${normalizedEmail}`);
+        logAuthEvent(env, { email: normalizedEmail, event_type: 'magic_link_no_user', ...meta });
+      } else {
+        console.log(`[Auth] Login attempt for inactive user: ${normalizedEmail}`);
+        logAuthEvent(env, { email: normalizedEmail, event_type: 'magic_link_inactive', ...meta });
+      }
       return jsonResponse({ success: true });
     }
 
@@ -110,14 +143,18 @@ export async function handleSendMagicLink(request: Request, env: Env) {
     if (!emailResponse.ok) {
       const err = await emailResponse.text();
       console.error('[Auth] Resend error:', err);
+      logAuthEvent(env, { email: normalizedEmail, event_type: 'magic_link_failed', ...meta, error: `Resend ${emailResponse.status}` });
       return jsonResponse({ error: 'Failed to send login email' }, 500);
     }
 
     console.log(`[Auth] Magic link sent to: ${normalizedEmail}`);
+    logAuthEvent(env, { email: normalizedEmail, event_type: 'magic_link_sent', ...meta });
     return jsonResponse({ success: true });
   } catch (error) {
     console.error('[Auth] Send magic link error:', error);
     const msg = error instanceof Error ? error.message : '';
+    const meta = getRequestMeta(request);
+    logAuthEvent(env, { email: (request as any)._email || 'unknown', event_type: 'magic_link_error', ...meta, error: msg });
     if (msg.includes('Airtable error') || msg.includes('SERVER_ERROR')) {
       return jsonResponse({ error: 'Login is temporarily unavailable. Please try again in a few minutes.' }, 503);
     }
@@ -146,17 +183,21 @@ export async function handleVerifyMagicLink(request: Request, env: Env, url: URL
     token = token.replace(/ /g, '+');
   }
 
+  const meta = getRequestMeta(request);
+
   let payload: any;
   try {
     payload = await verifySessionToken(env, token);
     console.log(`[Auth] Token verified successfully for: ${payload.email}`);
   } catch (err) {
     console.error('[Auth] Token verification failed:', (err as Error).message);
+    logAuthEvent(env, { email: 'unknown', event_type: 'verify_failed', ...meta, error: (err as Error).message });
     if (wantsJson) return jsonResponse({ error: 'Invalid or expired link. Please request a new one.', success: false }, 401);
     return redirectWithError('Invalid or expired link. Please request a new one.');
   }
 
   if (Date.now() > payload.exp) {
+    logAuthEvent(env, { email: payload.email, event_type: 'verify_expired', ...meta });
     if (wantsJson) return jsonResponse({ error: 'This link has expired. Please request a new one.', success: false }, 401);
     return redirectWithError('This link has expired. Please request a new one.');
   }
@@ -190,6 +231,8 @@ export async function handleVerifyMagicLink(request: Request, env: Env, url: URL
     `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Domain=.mymineralwatch.com; Max-Age=0`,
     `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000`
   ];
+
+  logAuthEvent(env, { email: payload.email, event_type: 'verify_success', ...meta });
 
   if (wantsJson) {
     const response = new Response(JSON.stringify({ success: true, sessionToken, redirect: '/portal' }), {
