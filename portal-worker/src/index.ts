@@ -849,7 +849,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             { 'Retry-After': '60' });
         }
         const { handleRegister } = await import('./handlers/auth.js');
-        return handleRegister(request, env);
+        return handleRegister(request, env, ctx);
       }
       
       // Handle email change requests
@@ -1059,7 +1059,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleUpdateProperty(propertyIdMatch[1], request, env);
       }
       if (propertyIdMatch && request.method === "DELETE") {
-        return handleDeleteProperty(propertyIdMatch[1], request, env);
+        return handleDeleteProperty(propertyIdMatch[1], request, env, ctx);
       }
       
       // Wells endpoints

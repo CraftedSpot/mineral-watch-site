@@ -40,6 +40,7 @@ function normalizeNotificationMode(mode: string | null | undefined): string | nu
 }
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { generateRecordId } from '../utils/id-gen.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -83,30 +84,17 @@ export async function handleGetOrganization(request: Request, env: Env) {
       return jsonResponse({ error: "Failed to fetch organization" }, 500);
     }
 
-    // Fetch all members of this organization
-    const filterFormula = `{Organization} = '${escapeAirtableValue(orgData.name || '')}'`;
-    const membersResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
-      `filterByFormula=${encodeURIComponent(filterFormula)}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
+    // D1-first: Fetch all members of this organization
+    const membersResult = await env.WELLS_DB.prepare(
+      `SELECT airtable_record_id, name, email, role, created_at FROM users WHERE organization_id = ?`
+    ).bind(organizationId).all();
 
-    if (!membersResponse.ok) {
-      console.error('[Organization] Failed to fetch members:', membersResponse.status);
-      return jsonResponse({ error: "Failed to fetch members" }, 500);
-    }
-
-    const membersData = await membersResponse.json() as any;
-    
-    // Format member data
-    const members = membersData.records.map((record: any) => ({
-      id: record.id,
-      name: record.fields.Name || record.fields.Email.split('@')[0],
-      email: record.fields.Email,
-      role: record.fields.Role || 'Editor',
-      joinedDate: record.fields['Created Time']
+    const members = (membersResult.results as any[]).map((row: any) => ({
+      id: row.airtable_record_id,
+      name: row.name || row.email?.split('@')[0] || '',
+      email: row.email,
+      role: row.role || 'Editor',
+      joinedDate: row.created_at
     }));
 
     // Return organization with members and settings
@@ -236,23 +224,11 @@ export async function handleInviteMember(request: Request, env: Env) {
       }
       
       // User exists but has no organization - add them to this one
-      // Check seat limits before adding
-      const membersFilter = `{Organization} = '${escapeAirtableValue(organizationName)}'`;
-      const membersCountResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
-        `filterByFormula=${encodeURIComponent(membersFilter)}&view=Grid%20view`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        }
-      );
-
-      if (!membersCountResponse.ok) {
-        console.error('[Organization] Failed to count members:', membersCountResponse.status);
-        return jsonResponse({ error: "Failed to check member count" }, 500);
-      }
-
-      const membersData = await membersCountResponse.json() as any;
-      const currentMemberCount = membersData.records.length;
+      // D1-first: Check seat limits
+      const memberCount = await env.WELLS_DB.prepare(
+        `SELECT COUNT(*) as cnt FROM users WHERE organization_id = ?`
+      ).bind(organizationId).first() as any;
+      const currentMemberCount = memberCount?.cnt || 0;
 
       if (currentMemberCount >= maxMembers) {
         return jsonResponse({
@@ -260,7 +236,13 @@ export async function handleInviteMember(request: Request, env: Env) {
         }, 403);
       }
 
-      const updateResponse = await fetch(
+      // D1-first: Add user to organization
+      await env.WELLS_DB.prepare(
+        `UPDATE users SET organization_id = ?, role = ? WHERE airtable_record_id = ?`
+      ).bind(organizationId, role, existingUser.id).run();
+
+      // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+      fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
         {
           method: 'PATCH',
@@ -268,19 +250,9 @@ export async function handleInviteMember(request: Request, env: Env) {
             Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({
-            fields: {
-              Organization: [organizationId],
-              Role: role
-            }
-          })
+          body: JSON.stringify({ fields: { Organization: [organizationId], Role: role } })
         }
-      );
-      
-      if (!updateResponse.ok) {
-        console.error('[Organization] Failed to add user to org:', updateResponse.status);
-        return jsonResponse({ error: "Failed to add user to organization" }, 500);
-      }
+      ).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
       // Generate magic link and send invite
       const token = generateToken();
@@ -323,23 +295,11 @@ export async function handleInviteMember(request: Request, env: Env) {
       }
     }
 
-    // Create new invited user - first check seat limits
-    const newUserMembersFilter = `{Organization} = '${escapeAirtableValue(organizationName)}'`;
-    const newUserMembersCountResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
-      `filterByFormula=${encodeURIComponent(newUserMembersFilter)}&view=Grid%20view`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-
-    if (!newUserMembersCountResponse.ok) {
-      console.error('[Organization] Failed to count members:', newUserMembersCountResponse.status);
-      return jsonResponse({ error: "Failed to check member count" }, 500);
-    }
-
-    const newUserMembersData = await newUserMembersCountResponse.json() as any;
-    const newUserCurrentMemberCount = newUserMembersData.records.length;
+    // Create new invited user - D1-first seat check
+    const newMemberCount = await env.WELLS_DB.prepare(
+      `SELECT COUNT(*) as cnt FROM users WHERE organization_id = ?`
+    ).bind(organizationId).first() as any;
+    const newUserCurrentMemberCount = newMemberCount?.cnt || 0;
 
     if (newUserCurrentMemberCount >= maxMembers) {
       return jsonResponse({
@@ -347,8 +307,22 @@ export async function handleInviteMember(request: Request, env: Env) {
       }, 403);
     }
 
-    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
-    const createResponse = await fetch(createUrl, {
+    // D1-first: Create new invited user
+    const recordId = generateRecordId();
+    const userId = `user_${recordId}`;
+    const displayName = name || normalizedEmail.split('@')[0];
+
+    await env.WELLS_DB.prepare(`
+      INSERT INTO users (id, airtable_record_id, email, name, plan, status, organization_id, role)
+      VALUES (?, ?, ?, ?, ?, 'Active', ?, ?)
+    `).bind(userId, recordId, normalizedEmail, displayName,
+      userRecord.fields.Plan || 'Free', organizationId, role
+    ).run();
+
+    const newUser = { id: recordId };
+
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
@@ -357,21 +331,14 @@ export async function handleInviteMember(request: Request, env: Env) {
       body: JSON.stringify({
         fields: {
           Email: normalizedEmail,
-          Name: name || normalizedEmail.split('@')[0],
-          Plan: userRecord.fields.Plan, // Same plan as inviter
-          Status: "Active",  // Using Active instead of Invited
+          Name: displayName,
+          Plan: userRecord.fields.Plan,
+          Status: "Active",
           Organization: [organizationId],
           Role: role
         }
       })
-    });
-    
-    if (!createResponse.ok) {
-      console.error('[Organization] Failed to create invited user:', createResponse.status);
-      return jsonResponse({ error: "Failed to create invitation" }, 500);
-    }
-
-    const newUser: any = await createResponse.json();
+    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     // Generate magic link token
     const token = generateToken();
@@ -407,12 +374,11 @@ export async function handleInviteMember(request: Request, env: Env) {
       
     } catch (error) {
       console.error('[Organization] Failed to send invite email:', error);
-      
-      // Delete the user we just created since email failed
-      await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${newUser.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      });
+
+      // Delete the user we just created since email failed (D1-first)
+      await env.WELLS_DB.prepare(
+        `DELETE FROM users WHERE airtable_record_id = ?`
+      ).bind(newUser.id).run();
       // Also delete the token
       await env.AUTH_TOKENS.delete(`token:${token}`);
       return jsonResponse({ error: 'Failed to send invitation email' }, 500);
@@ -452,15 +418,15 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
       return jsonResponse({ error: "No organization found" }, 400);
     }
 
-    const memberResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`,
-      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-    );
-    if (!memberResponse.ok) {
+    // D1-first: Verify target member belongs to caller's organization
+    const memberRow = await env.WELLS_DB.prepare(
+      `SELECT organization_id FROM users WHERE airtable_record_id = ?`
+    ).bind(memberId).first() as any;
+
+    if (!memberRow) {
       return jsonResponse({ error: "Member not found" }, 404);
     }
-    const memberData = await memberResponse.json() as any;
-    if (memberData.fields.Organization?.[0] !== callerOrgId) {
+    if (memberRow.organization_id !== callerOrgId) {
       return jsonResponse({ error: "Member not in your organization" }, 403);
     }
 
@@ -470,23 +436,20 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
       return jsonResponse({ error: "Invalid role" }, 400);
     }
 
-    // Update member role in Airtable
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
-    const updateResponse = await fetch(updateUrl, {
+    // D1-first: Update member role
+    await env.WELLS_DB.prepare(
+      `UPDATE users SET role = ? WHERE airtable_record_id = ?`
+    ).bind(role, memberId).run();
+
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        fields: { Role: role }
-      })
-    });
-
-    if (!updateResponse.ok) {
-      console.error('[Organization] Failed to update role:', updateResponse.status);
-      return jsonResponse({ error: "Failed to update role" }, 500);
-    }
+      body: JSON.stringify({ fields: { Role: role } })
+    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     return jsonResponse({ success: true });
 
@@ -634,30 +597,41 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
       return jsonResponse({ error: "Invalid notification mode" }, 400);
     }
 
-    // Build update fields
-    const updateFields: Record<string, any> = {};
+    // D1-first: Update organization settings
+    const d1Updates: string[] = [];
+    const d1Binds: any[] = [];
+
     if (defaultNotificationMode !== undefined) {
-      updateFields['Default Notification Mode'] = defaultNotificationMode;
+      d1Updates.push('default_notification_mode = ?');
+      d1Binds.push(defaultNotificationMode);
     }
     if (allowUserOverride !== undefined) {
-      updateFields['Allow User Override'] = allowUserOverride;
+      d1Updates.push('allow_user_override = ?');
+      d1Binds.push(allowUserOverride ? 1 : 0);
     }
 
-    // Update organization in Airtable
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`;
-    const updateResponse = await fetch(updateUrl, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ fields: updateFields })
-    });
+    if (d1Updates.length > 0) {
+      d1Updates.push('updated_at = CURRENT_TIMESTAMP');
+      d1Binds.push(organizationId);
+      await env.WELLS_DB.prepare(
+        `UPDATE organizations SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`
+      ).bind(...d1Binds).run();
+    }
 
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error('Failed to update organization settings:', errorText);
-      return jsonResponse({ error: "Failed to update settings" }, 500);
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    const airtableFields: Record<string, any> = {};
+    if (defaultNotificationMode !== undefined) airtableFields['Default Notification Mode'] = defaultNotificationMode;
+    if (allowUserOverride !== undefined) airtableFields['Allow User Override'] = allowUserOverride;
+
+    if (Object.keys(airtableFields).length > 0) {
+      fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fields: airtableFields })
+      }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
     }
 
     return jsonResponse({ success: true });
@@ -696,38 +670,32 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
       return jsonResponse({ error: "No organization found" }, 400);
     }
 
-    const memberResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`,
-      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-    );
-    if (!memberResponse.ok) {
+    // D1-first: Verify target member belongs to caller's organization
+    const removeMemberRow = await env.WELLS_DB.prepare(
+      `SELECT organization_id FROM users WHERE airtable_record_id = ?`
+    ).bind(memberId).first() as any;
+
+    if (!removeMemberRow) {
       return jsonResponse({ error: "Member not found" }, 404);
     }
-    const memberData = await memberResponse.json() as any;
-    if (memberData.fields.Organization?.[0] !== callerOrgId) {
+    if (removeMemberRow.organization_id !== callerOrgId) {
       return jsonResponse({ error: "Member not in your organization" }, 403);
     }
 
-    // Clear organization from member record
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
-    const updateResponse = await fetch(updateUrl, {
+    // D1-first: Clear organization from member record
+    await env.WELLS_DB.prepare(
+      `UPDATE users SET organization_id = NULL, role = NULL WHERE airtable_record_id = ?`
+    ).bind(memberId).run();
+
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`, {
       method: 'PATCH',
       headers: {
         Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        fields: { 
-          Organization: [],
-          Role: null
-        }
-      })
-    });
-
-    if (!updateResponse.ok) {
-      console.error('[Organization] Failed to remove member:', updateResponse.status);
-      return jsonResponse({ error: "Failed to remove member" }, 500);
-    }
+      body: JSON.stringify({ fields: { Organization: [], Role: null } })
+    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     return jsonResponse({ success: true });
 

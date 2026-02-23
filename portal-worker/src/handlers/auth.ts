@@ -35,6 +35,8 @@ import {
   getOrganizationD1First
 } from '../services/airtable.js';
 
+import { generateRecordId } from '../utils/id-gen.js';
+
 import {
   sendMagicLinkEmail,
   getFreeWelcomeEmailHtml,
@@ -365,75 +367,39 @@ async function updateLoginTracking(env: Env, userId: string): Promise<void> {
  * @param env Worker environment
  * @returns JSON response confirming registration
  */
-export async function handleRegister(request: Request, env: Env) {
+export async function handleRegister(request: Request, env: Env, ctx?: ExecutionContext) {
   try {
-    console.log("Starting user registration");
-    
     const body: any = await request.json();
-    console.log("Request body parsed successfully");
-    
     const { email, name, newsletter } = body;
-    
-    // Validate email
+
     if (!email || !email.includes('@')) {
-      console.log("Invalid email provided");
       return jsonResponse({ error: "Valid email is required" }, 400);
     }
-    
-    // Normalize email
+
     const normalizedEmail = email.toLowerCase().trim();
-    console.log(`Processing registration for: ${normalizedEmail}`);
-    
-    // Check if user already exists
-    console.log("Checking if user already exists");
+    const displayName = name || normalizedEmail.split('@')[0];
+
+    // Check if user already exists (D1-first)
     const existingUser = await findUserByEmailD1First(env, normalizedEmail);
     if (existingUser) {
-      console.log("User already exists");
       return jsonResponse({ error: "An account with this email already exists" }, 409);
     }
-    console.log("User does not exist, proceeding with creation");
-    
-    // Create new Free user
-    console.log("Creating user in Airtable");
-    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
-    const response = await fetch(createUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        fields: {
-          Email: normalizedEmail,
-          Name: name || normalizedEmail.split('@')[0],
-          Plan: "Free",
-          Status: "Active",
-          Newsletter: newsletter === true // Convert to boolean and save to Airtable
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("Airtable create user error:", err);
-      return jsonResponse({ error: "Failed to create account" }, 500);
-    }
-    
-    console.log("User created successfully in Airtable");
-    const newUser: any = await response.json();
-    console.log(`New Free user registered: ${normalizedEmail}`);
 
-    // JIT D1 user sync — ensure new user exists in D1 before anything else
-    try {
-      await ensureUserInD1(env, newUser);
-    } catch (e) {
-      console.error('[Register] D1 user sync failed (non-fatal):', e);
-    }
+    // D1-first: Create user in D1 with generated record ID
+    const recordId = generateRecordId();
+    const userId = `user_${recordId}`;
 
-    // Generate magic link locally (no auth-worker dependency)
+    await env.WELLS_DB.prepare(`
+      INSERT INTO users (id, airtable_record_id, email, name, plan, status, role)
+      VALUES (?, ?, ?, ?, 'Free', 'Active', 'Viewer')
+    `).bind(userId, recordId, normalizedEmail, displayName).run();
+
+    console.log(`[Register] User created in D1: ${normalizedEmail} (${recordId})`);
+
+    // Generate magic link — D1 insert is confirmed, safe to send email
     const token = await signPayload(env, {
       email: normalizedEmail,
-      id: newUser.id,
+      id: recordId,
       exp: Date.now() + TOKEN_EXPIRY,
       iat: Date.now()
     });
@@ -453,7 +419,7 @@ export async function handleRegister(request: Request, env: Env) {
         html: `
           <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
             <h2 style="color: #1C2B36;">Welcome to Mineral Watch!</h2>
-            <p style="color: #334E68; font-size: 16px;">Hi ${name || 'there'},</p>
+            <p style="color: #334E68; font-size: 16px;">Hi ${displayName},</p>
             <p style="color: #334E68; font-size: 16px;">Your account has been created. Click the button below to verify your email and log in. This link expires in 15 minutes.</p>
             <div style="margin: 30px 0;">
               <a href="${magicLink}" style="background-color: #C05621; color: white; padding: 14px 28px; text-decoration: none; border-radius: 4px; font-weight: 600; display: inline-block;">Verify & Log In</a>
@@ -474,12 +440,40 @@ export async function handleRegister(request: Request, env: Env) {
     }
 
     console.log(`[Register] Magic link sent to: ${normalizedEmail}`);
-    
-    return jsonResponse({ 
-      success: true, 
+
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    if (ctx) {
+      ctx.waitUntil((async () => {
+        try {
+          const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
+          const resp = await fetch(createUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              fields: {
+                Email: normalizedEmail,
+                Name: displayName,
+                Plan: "Free",
+                Status: "Active",
+                Newsletter: newsletter === true
+              }
+            })
+          });
+          if (!resp.ok) console.error('[Register] Airtable mirror failed:', resp.status);
+        } catch (e) {
+          console.error('[Register] Airtable mirror error:', e);
+        }
+      })());
+    }
+
+    return jsonResponse({
+      success: true,
       message: "Account created! Check your email to verify and log in."
     }, 201);
-    
+
   } catch (err) {
     console.error("Registration error:", (err as Error).message);
     console.error("Full error:", (err as Error).stack || err);

@@ -28,6 +28,8 @@ import {
   lookupCompletionData
 } from './wells.js';
 
+import { generateRecordId } from '../utils/id-gen.js';
+
 import type { Env } from '../types/env.js';
 
 /**
@@ -420,84 +422,83 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
         wellStatus
       });
       
-      // Add the well to Airtable
-      console.log(`[Track Well] Creating well record in Airtable`);
-      const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
-      const response = await fetch(createUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          fields: {
-            User: [userId],
-            "API Number": cleanApi,
-            "Well Name": wellName,
-            Status: "Active",
-            "OCC Map Link": occMapLink,
-            Operator: operator,
-            County: county,
-            Section: section,
-            Township: township,
-            Range: range,
-            "Well Type": wellType,
-            "Well Status": wellStatus,
-            Notes: "Added via signed email tracking link",
-            
-            // Enhanced fields from completion data - using correct field names
-            ...(completionData?.formationName && { "Formation Name": completionData.formationName }),
-            ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
-            ...(completionData?.ipGas && { "IP Gas (MCF/day)": completionData.ipGas }),
-            ...(completionData?.ipOil && { "IP Oil (BBL/day)": completionData.ipOil }),
-            ...(completionData?.ipWater && { "IP Water (BBL/day)": completionData.ipWater }),
-            ...(completionData?.spudDate && { "Spud Date": completionData.spudDate }),
-            ...(completionData?.completionDate && { "Completion Date": completionData.completionDate }),
-            ...(completionData?.firstProdDate && { "First Production Date": completionData.firstProdDate }),
-            ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength }),
-            ...(completionData?.totalDepth && { "Total Depth": completionData.totalDepth }),
-            ...(completionData && { "Data Last Updated": new Date().toISOString() }),
-            // Fields that need to be created in Airtable:
-            ...(completionData?.pumpingFlowing && { "Pumping Flowing": completionData.pumpingFlowing }),
-            ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
-            ...(completionData?.bhSection && { "BH Section": completionData.bhSection }),
-            ...(completionData?.bhTownship && { "BH Township": completionData.bhTownship }),
-            ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
-            
-            // Add organization if user has one
-            ...(userOrganization && { Organization: [userOrganization] })
-          }
-        })
-      });
-      
-      if (!response.ok) {
-        const err = await response.text();
-        console.error("Airtable create well error:", err);
-        console.error("Failed to create well with data:", {
-          api: cleanApi,
-          wellName,
-          operator,
-          county,
-          section,
-          township,
-          range
-        });
-        
-        // Check for specific error messages
-        let errorMessage = 'Failed to add well. Please try again later.';
-        if (err.includes('DUPLICATE_VALUE')) {
-          errorMessage = 'This well is already being tracked.';
-        } else if (err.includes('INVALID_REQUEST')) {
-          errorMessage = 'Invalid well data. Please check the API number.';
-        }
-        
-        return new Response(generateTrackWellErrorPage(errorMessage), {
+      // D1-first: Create well in D1 with generated record ID
+      const recordId = generateRecordId();
+      const wellId = `cwell_${recordId}`;
+
+      try {
+        await env.WELLS_DB.prepare(`
+          INSERT INTO client_wells (id, airtable_id, api_number, user_id, organization_id,
+            well_name, operator, county, section, township, range_val, status, notes,
+            well_type, well_status, occ_map_link)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', 'Added via signed email tracking link', ?, ?, ?)
+        `).bind(
+          wellId, recordId, cleanApi, userId, userOrganization || null,
+          wellName || null, operator || null, county || null,
+          section || null, township || null, range || null,
+          wellType || null, wellStatus || null, occMapLink || null
+        ).run();
+      } catch (dbErr: any) {
+        console.error('[Track Well] D1 insert failed:', dbErr.message);
+        return new Response(generateTrackWellErrorPage('Failed to add well. Please try again later.'), {
           headers: { 'Content-Type': 'text/html' },
           status: 500
         });
       }
-      
-      console.log(`Well added via signed email link: API ${cleanApi} for ${userEmail}`);
+
+      console.log(`[Track Well] D1 created: API ${cleanApi} for ${userEmail} (${recordId})`);
+
+      // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+      (async () => {
+        try {
+          const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
+          const resp = await fetch(createUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              fields: {
+                User: [userId],
+                "API Number": cleanApi,
+                "Well Name": wellName,
+                Status: "Active",
+                "OCC Map Link": occMapLink,
+                Operator: operator,
+                County: county,
+                Section: section,
+                Township: township,
+                Range: range,
+                "Well Type": wellType,
+                "Well Status": wellStatus,
+                Notes: "Added via signed email tracking link",
+                ...(completionData?.formationName && { "Formation Name": completionData.formationName }),
+                ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
+                ...(completionData?.ipGas && { "IP Gas (MCF/day)": completionData.ipGas }),
+                ...(completionData?.ipOil && { "IP Oil (BBL/day)": completionData.ipOil }),
+                ...(completionData?.ipWater && { "IP Water (BBL/day)": completionData.ipWater }),
+                ...(completionData?.spudDate && { "Spud Date": completionData.spudDate }),
+                ...(completionData?.completionDate && { "Completion Date": completionData.completionDate }),
+                ...(completionData?.firstProdDate && { "First Production Date": completionData.firstProdDate }),
+                ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength }),
+                ...(completionData?.totalDepth && { "Total Depth": completionData.totalDepth }),
+                ...(completionData && { "Data Last Updated": new Date().toISOString() }),
+                ...(completionData?.pumpingFlowing && { "Pumping Flowing": completionData.pumpingFlowing }),
+                ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
+                ...(completionData?.bhSection && { "BH Section": completionData.bhSection }),
+                ...(completionData?.bhTownship && { "BH Township": completionData.bhTownship }),
+                ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
+                ...(userOrganization && { Organization: [userOrganization] })
+              }
+            })
+          });
+          if (!resp.ok) console.error('[Track Well] Airtable mirror failed:', resp.status);
+        } catch (e) {
+          console.error('[Track Well] Airtable mirror error:', e);
+        }
+      })();
+
       return new Response(generateTrackWellSuccessPage(cleanApi, false, wellName), {
         headers: { 'Content-Type': 'text/html' }
       });

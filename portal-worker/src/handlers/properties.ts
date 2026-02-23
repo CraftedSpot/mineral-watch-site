@@ -12,8 +12,8 @@ import {
   ORGANIZATION_TABLE
 } from '../constants.js';
 
-import { 
-  jsonResponse 
+import {
+  jsonResponse
 } from '../utils/responses.js';
 
 import {
@@ -25,6 +25,8 @@ import {
   countUserPropertiesD1,
   fetchAllAirtableRecords
 } from '../services/airtable.js';
+
+import { generateRecordId } from '../utils/id-gen.js';
 
 import {
   authenticateRequest
@@ -259,68 +261,90 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   if (isDuplicate) {
     return jsonResponse({ error: "You are already monitoring this property." }, 409);
   }
-  
-  // No OCC Map Link needed for properties
-  
-  const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
-  const response = await fetch(createUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      fields: {
-        User: [user.id],
-        COUNTY: body.COUNTY,
-        SEC: section,
-        TWN: township,
-        RNG: range,
-        MERIDIAN: meridian,
-        Group: body.Group || "",
-        Notes: body.Notes || "",
-        "RI Acres": body['RI Acres'] || 0,
-        "WI Acres": body['WI Acres'] || 0,
-        "Monitor Adjacent": true,
-        Status: "Active",
-        ...(userOrganization && { Organization: [userOrganization] })
-      }
-    })
-  });
-  if (!response.ok) {
-    const err = await response.text();
-    console.error("Airtable create error:", err);
-    throw new Error("Failed to create property");
-  }
-  const newRecord: any = await response.json();
-  console.log(`Property added: ${body.COUNTY} S${section} T${township} R${range} for ${user.email}`);
-  console.log(`[PropertyCreate] New property record:`, JSON.stringify(newRecord, null, 2));
-  
+
+  // D1-first: Create property in D1 with generated record ID
+  const recordId = generateRecordId();
+  const propId = `prop_${recordId}`;
+
+  await env.WELLS_DB.prepare(`
+    INSERT INTO properties (id, airtable_record_id, county, section, township, range, meridian,
+      ri_acres, wi_acres, notes, owner, group_name, user_id, organization_id, monitor_adjacent, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Active')
+  `).bind(
+    propId, recordId, body.COUNTY, section, township, range, meridian,
+    body['RI Acres'] || 0, body['WI Acres'] || 0, body.Notes || '',
+    user.id, body.Group || '', user.id, userOrganization || null
+  ).run();
+
+  console.log(`[PropertyCreate] D1 created: ${body.COUNTY} S${section} T${township} R${range} (${recordId})`);
+
+  // Return Airtable-compatible shape for frontend
+  const newRecord = {
+    id: recordId,
+    createdTime: new Date().toISOString(),
+    fields: {
+      COUNTY: body.COUNTY,
+      SEC: section,
+      TWN: township,
+      RNG: range,
+      MERIDIAN: meridian,
+      Group: body.Group || '',
+      Notes: body.Notes || '',
+      'RI Acres': body['RI Acres'] || 0,
+      'WI Acres': body['WI Acres'] || 0,
+      'Monitor Adjacent': true,
+      Status: 'Active'
+    }
+  };
+
   // Trigger auto-matching in background
-  if (newRecord.id && ctx) {
-    console.log(`[PropertyCreate] Triggering auto-match for property: ${newRecord.id}`);
-    
+  if (ctx) {
     const organizationId = userOrganization || undefined;
-    const matchPromise = matchSingleProperty(newRecord.id, user.id, organizationId, env)
-      .then(result => {
-        console.log(`[PropertyCreate] Auto-match complete:`, result);
-        if (result.linksCreated > 0) {
-          console.log(`[PropertyCreate] Created ${result.linksCreated} links out of ${result.wellsChecked} wells checked`);
-        }
-      })
-      .catch(err => {
-        console.error('[PropertyCreate] Auto-match failed:', err);
-        console.error('[PropertyCreate] Error details:', err.message, err.stack);
-      });
-    
-    // Keep the worker alive until the match completes
-    ctx.waitUntil(matchPromise);
-  } else if (!newRecord.id) {
-    console.error('[PropertyCreate] No ID in new record:', newRecord);
-  } else if (!ctx) {
-    console.error('[PropertyCreate] No ExecutionContext available for background matching');
+    ctx.waitUntil(
+      matchSingleProperty(recordId, user.id, organizationId, env)
+        .then(result => {
+          if (result.linksCreated > 0) {
+            console.log(`[PropertyCreate] Auto-match: ${result.linksCreated} links from ${result.wellsChecked} wells`);
+          }
+        })
+        .catch(err => console.error('[PropertyCreate] Auto-match failed:', err.message))
+    );
+
+    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+    ctx.waitUntil((async () => {
+      try {
+        const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
+        const resp = await fetch(createUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            fields: {
+              User: [user.id],
+              COUNTY: body.COUNTY,
+              SEC: section,
+              TWN: township,
+              RNG: range,
+              MERIDIAN: meridian,
+              Group: body.Group || "",
+              Notes: body.Notes || "",
+              "RI Acres": body['RI Acres'] || 0,
+              "WI Acres": body['WI Acres'] || 0,
+              "Monitor Adjacent": true,
+              Status: "Active",
+              ...(userOrganization && { Organization: [userOrganization] })
+            }
+          })
+        });
+        if (!resp.ok) console.error('[PropertyCreate] Airtable mirror failed:', resp.status);
+      } catch (e) {
+        console.error('[PropertyCreate] Airtable mirror error:', e);
+      }
+    })());
   }
-  
+
   return jsonResponse(newRecord, 201);
 }
 
@@ -465,39 +489,56 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
  * @param env Worker environment
  * @returns JSON response with success status
  */
-export async function handleDeleteProperty(propertyId: string, request: Request, env: Env) {
+export async function handleDeleteProperty(propertyId: string, request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  
+
   // Check permissions - only Admin and Editor can delete properties
   const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot delete properties" }, 403);
   }
-  
-  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-  const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!getResponse.ok) {
+
+  // D1-first: Check ownership via D1
+  const prop = await env.WELLS_DB.prepare(
+    `SELECT airtable_record_id, user_id, organization_id FROM properties WHERE airtable_record_id = ?`
+  ).bind(propertyId).first() as any;
+
+  if (!prop) {
     return jsonResponse({ error: "Property not found" }, 404);
   }
-  const property: any = await getResponse.json();
-  if (property.fields.User?.[0] !== user.id) {
+
+  // Ownership check: user owns it directly or via org membership
+  const userOrg = userRecord?.fields.Organization?.[0];
+  const isOwner = prop.user_id === user.id;
+  const isOrgMember = userOrg && prop.organization_id === userOrg;
+  if (!isOwner && !isOrgMember) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
-  const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-  const deleteResponse = await fetch(deleteUrl, {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!deleteResponse.ok) {
-    const error = await deleteResponse.text();
-    console.error(`Failed to delete property ${propertyId}:`, error);
-    return jsonResponse({ error: "Failed to delete property" }, 500);
+
+  // D1: Delete property + cascade property_well_links
+  await env.WELLS_DB.batch([
+    env.WELLS_DB.prepare(`DELETE FROM property_well_links WHERE property_airtable_id = ?`).bind(propertyId),
+    env.WELLS_DB.prepare(`DELETE FROM properties WHERE airtable_record_id = ?`).bind(propertyId)
+  ]);
+
+  console.log(`[PropertyDelete] D1 deleted: ${propertyId} by ${user.email}`);
+
+  // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+  if (ctx) {
+    ctx.waitUntil((async () => {
+      try {
+        const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
+        const resp = await fetch(deleteUrl, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        });
+        if (!resp.ok) console.error('[PropertyDelete] Airtable mirror failed:', resp.status);
+      } catch (e) {
+        console.error('[PropertyDelete] Airtable mirror error:', e);
+      }
+    })());
   }
-  
-  console.log(`Property deleted: ${propertyId} by ${user.email}`);
+
   return jsonResponse({ success: true });
 }
