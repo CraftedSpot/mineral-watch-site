@@ -203,8 +203,12 @@
         function impersonate(userId) {
             const user = allUsers.find(u => u.airtable_record_id === userId);
             const label = user ? (user.name || user.email) : userId;
-            if (!confirm('Impersonate ' + label + '?\n\nYou will view the portal as this user in a new tab.')) return;
-            window.open('/portal?act_as=' + userId, '_blank');
+            const win = window.open('', '_blank');
+            if (!confirm('Impersonate ' + label + '?\n\nYou will view the portal as this user in a new tab.')) {
+                if (win) win.close();
+                return;
+            }
+            if (win) win.location.href = '/portal?act_as=' + userId;
         }
 
         function exportUsersCSV() {
