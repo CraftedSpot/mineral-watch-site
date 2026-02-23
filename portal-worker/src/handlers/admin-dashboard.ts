@@ -293,9 +293,9 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
       env.MINERAL_CACHE?.get(`rbdms-d1-write-failures:${date}`).catch(() => null) || Promise.resolve(null),
 
       // Cron health from MINERAL_CACHE (mineral-monitor keys)
-      env.MINERAL_CACHE?.get('mineral-monitor:last-run:daily', { type: 'json' }).catch(() => null) || Promise.resolve(null),
-      env.MINERAL_CACHE?.get('mineral-monitor:last-run:weekly', { type: 'json' }).catch(() => null) || Promise.resolve(null),
-      env.MINERAL_CACHE?.get('mineral-monitor:last-run:docket', { type: 'json' }).catch(() => null) || Promise.resolve(null),
+      env.MINERAL_CACHE?.get('mineral-watch:last-run:daily', { type: 'json' }).catch(() => null) || Promise.resolve(null),
+      env.MINERAL_CACHE?.get('mineral-watch:last-run:weekly', { type: 'json' }).catch(() => null) || Promise.resolve(null),
+      env.MINERAL_CACHE?.get('mineral-watch:last-run:docket', { type: 'json' }).catch(() => null) || Promise.resolve(null),
     ]);
 
     const [users, properties, clientWells, wells, activityLog, statewideActivity, organizations, adminNotes, authEvents] = tableCounts;

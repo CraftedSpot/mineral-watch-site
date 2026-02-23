@@ -1042,8 +1042,9 @@ async function syncUsers(env: any): Promise<void> {
             alert_permits, alert_completions, alert_status_changes,
             alert_expirations, alert_operator_transfers,
             expiration_warning_days, notification_override,
+            last_login, total_logins, created_at,
             updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
           ON CONFLICT(airtable_record_id) DO UPDATE SET
             email = excluded.email,
             name = excluded.name,
@@ -1059,6 +1060,9 @@ async function syncUsers(env: any): Promise<void> {
             alert_operator_transfers = excluded.alert_operator_transfers,
             expiration_warning_days = excluded.expiration_warning_days,
             notification_override = excluded.notification_override,
+            last_login = MAX(COALESCE(excluded.last_login, ''), COALESCE(users.last_login, '')),
+            total_logins = MAX(COALESCE(excluded.total_logins, 0), COALESCE(users.total_logins, 0)),
+            created_at = COALESCE(excluded.created_at, users.created_at),
             updated_at = CURRENT_TIMESTAMP
         `).bind(
           id,
@@ -1076,7 +1080,10 @@ async function syncUsers(env: any): Promise<void> {
           fields['Alert Expirations'] !== false ? 1 : 0,
           fields['Alert Operator Transfers'] !== false ? 1 : 0,
           fields['Expiration Warning Days'] || 30,
-          fields['Notification Override'] || null
+          fields['Notification Override'] || null,
+          fields['Last Login'] || null,
+          fields['Total Logins'] || 0,
+          fields['Created Date'] || null
         );
       });
 

@@ -36,6 +36,8 @@
         function switchTab(tabName, clickedBtn) {
             currentTab = tabName;
             window.location.hash = tabName;
+            const titles = { users: 'Users', attention: 'Attention', health: 'System Health', activity: 'Activity', billing: 'Billing', notes: 'Notes' };
+            document.title = 'Admin — ' + (titles[tabName] || 'Dashboard');
 
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 const isMatch = clickedBtn ? (btn === clickedBtn) : (btn.getAttribute('onclick') || '').includes('\'' + tabName + '\'');
@@ -155,7 +157,7 @@
                     '<td>' + fmtDate(u.created_at) + '</td>' +
                     '<td style="white-space:nowrap;">' +
                         '<button class="btn btn-sm btn-secondary" onclick="openUserDetail(\'' + esc(u.airtable_record_id) + '\')">Detail</button> ' +
-                        '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impers.</button> ' +
+                        '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')" title="View portal as this user">Impersonate</button> ' +
                         '<button class="btn btn-sm btn-ghost" onclick="openAddNote(\'' + esc(u.airtable_record_id) + '\', \'' + esc(u.name || u.email) + '\')">+Note</button>' +
                     '</td>' +
                 '</tr>';
@@ -199,6 +201,9 @@
         }
 
         function impersonate(userId) {
+            const user = allUsers.find(u => u.airtable_record_id === userId);
+            const label = user ? (user.name || user.email) : userId;
+            if (!confirm('Impersonate ' + label + '?\n\nYou will view the portal as this user in a new tab.')) return;
             window.open('/portal?act_as=' + userId, '_blank');
         }
 
@@ -284,7 +289,7 @@
                             '<td>' + fmtDate(u.created_at) + '</td>' +
                             '<td style="white-space:nowrap;">' +
                                 '<button class="btn btn-sm btn-secondary" onclick="openUserDetail(\'' + esc(u.airtable_record_id) + '\')">Detail</button> ' +
-                                '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impers.</button>' +
+                                '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')" title="View portal as this user">Impersonate</button>' +
                             '</td></tr>';
                     }
                     html += '</tbody></table>';
@@ -447,7 +452,7 @@
                     html += '<tr><td>' + fmtDateTime(a.detected_at) + '</td><td>' + esc(a.activity_type) + '</td>' +
                         '<td>' + esc(a.well_name || a.api_number || '—') + '</td>' +
                         '<td>' + esc(a.previous_value || '') + ' &rarr; ' + esc(a.new_value || '') + '</td>' +
-                        '<td>' + (a.email_sent ? '<span class="dot-green"></span>' : '<span class="dot-red"></span>') + '</td></tr>';
+                        '<td>' + (a.email_sent ? '<span class="dot-green" title="Email sent"></span>' : '<span class="dot-red" title="Email failed"></span>') + '</td></tr>';
                 }
                 html += '</tbody></table>';
             } else {
@@ -485,7 +490,7 @@
             // Alert cards
             html += '<div class="cards-grid">';
             html += healthCard('D1 Write Failures', data.d1WriteFailuresToday, 'Today', data.d1WriteFailuresToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
-            html += healthCard('NULL Well Statuses', data.nullWellStatuses, 'Active wells', data.nullWellStatuses > 10 ? 'var(--accent-amber)' : 'var(--accent-green)');
+            html += healthCard('NULL Well Statuses', data.nullWellStatuses, 'Active wells', data.nullWellStatuses > 0 ? 'var(--accent-amber)' : 'var(--accent-green)');
             html += healthCard('Failed Emails', data.failedEmailsToday, 'Today', data.failedEmailsToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
             html += healthCard('Pending Locations', data.pendingWellLocations, 'In KV queue', data.pendingWellLocations > 5 ? 'var(--accent-amber)' : 'var(--text-primary)');
             html += '</div>';
@@ -621,7 +626,7 @@
                     '<td>' + esc(a.well_name || '—') + '</td>' +
                     '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(a.api_number || '—') + '</td>' +
                     '<td class="' + levelClass + '">' + esc(a.alert_level || '—') + '</td>' +
-                    '<td>' + (a.email_sent ? '<span class="dot-green"></span>' : '<span class="dot-red"></span>') + '</td>' +
+                    '<td>' + (a.email_sent ? '<span class="dot-green" title="Email sent"></span>' : '<span class="dot-red" title="Email failed"></span>') + '</td>' +
                 '</tr>';
             }).join('');
 
