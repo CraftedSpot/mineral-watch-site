@@ -13,6 +13,8 @@ import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendDocketSummary, sendFailureAlert } from './services/adminAlerts.js';
 import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning, findMissingDates, backfillMissingDates, getGapfillStatus, clearGapfillProgress, isGapfillRunning } from './backfill/dockets.js';
 import { backfillNewProperty, backfillUserProperties } from './services/historicalBackfill.js';
+import { reconcileWellStatuses } from './services/rbdmsStatus.js';
+import { retryPendingWellLocations } from './services/wellLocations.js';
 
 // Helper for JSON responses
 function jsonResponse(data, status = 200) {
@@ -49,6 +51,25 @@ export default {
           data_freshness: result.dataFreshness,
           status: 'success'
         });
+
+        // Post-monitor: reconcile well statuses + retry pending well locations
+        try {
+          const reconciliation = await reconcileWellStatuses(env);
+          if (reconciliation.d1WriteFailuresToday > 0 || reconciliation.nullStatusCount > 0) {
+            console.warn(`[Daily] Status reconciliation: ${reconciliation.d1WriteFailuresToday} D1 write failures today, ${reconciliation.nullStatusCount} wells with NULL status`);
+          }
+        } catch (e) {
+          console.error(`[Daily] Status reconciliation failed: ${e.message}`);
+        }
+
+        try {
+          const retryResult = await retryPendingWellLocations(env);
+          if (retryResult.retried > 0) {
+            console.log(`[Daily] Well location retry: ${retryResult.succeeded}/${retryResult.retried} succeeded`);
+          }
+        } catch (e) {
+          console.error(`[Daily] Well location retry failed: ${e.message}`);
+        }
 
         // Send admin summary
         await sendDailySummary(env, {
@@ -242,30 +263,24 @@ export default {
     // Test specific well
     if (url.pathname === '/test/check-well') {
       const targetAPI = url.searchParams.get('api') || '3508700028';
-      
+
       try {
-        // Get the well from Airtable
-        const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?filterByFormula={API Number}="${targetAPI}"`, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const data = await response.json();
-        const well = data.records ? data.records[0] : null;
-        
+        // Get the well from D1
+        const well = env.WELLS_DB ? await env.WELLS_DB.prepare(`
+          SELECT airtable_id, api_number, well_name, well_status, operator, county, section, township, range_val, user_id
+          FROM client_wells WHERE api_number = ? AND status = 'Active' LIMIT 1
+        `).bind(targetAPI).first() : null;
+
         // Download RBDMS data
-        const { checkAllWellStatuses } = await import('./services/rbdmsStatus.js');
         const rbdmsResponse = await fetch('https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv');
         const text = await rbdmsResponse.text();
-        
+
         // Find the well in RBDMS
         const lines = text.split('\n');
         const headers = lines[0].split(',');
         const apiIndex = headers.findIndex(h => h.toLowerCase().includes('api'));
         const statusIndex = headers.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
-        
+
         let rbdmsStatus = null;
         for (let i = 1; i < lines.length; i++) {
           const values = lines[i].split(',');
@@ -274,66 +289,48 @@ export default {
             break;
           }
         }
-        
-        return new Response(JSON.stringify({
+
+        return jsonResponse({
           targetAPI,
-          airtable: {
+          d1: {
             found: !!well,
-            wellStatus: well?.fields['Well Status'],
-            allFields: well?.fields
+            wellStatus: well?.well_status,
+            allFields: well
           },
           rbdms: {
             found: rbdmsStatus !== null,
             wellStatus: rbdmsStatus
           },
           comparison: {
-            match: well?.fields['Well Status'] === rbdmsStatus,
-            shouldTriggerAlert: well && rbdmsStatus && well.fields['Well Status'] !== rbdmsStatus
+            match: well?.well_status === rbdmsStatus,
+            shouldTriggerAlert: well && rbdmsStatus && well.well_status !== rbdmsStatus
           }
-        }, null, 2), {
-          headers: { 'Content-Type': 'application/json' }
         });
       } catch (error) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: error.message
-        }, null, 2), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return jsonResponse({ success: false, error: error.message }, 500);
       }
     }
-    
+
     // Debug endpoint to check wells table
     if (url.pathname === '/test/wells-count') {
       try {
-        const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?pageSize=1`, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const data = await response.json();
-        return new Response(JSON.stringify({
-          success: response.ok,
-          status: response.status,
-          recordCount: data.records ? data.records.length : 0,
-          hasMore: !!data.offset,
-          tableId: env.AIRTABLE_WELLS_TABLE,
-          baseId: env.AIRTABLE_BASE_ID,
-          sample: data.records ? data.records[0] : null
-        }, null, 2), {
-          headers: { 'Content-Type': 'application/json' }
+        const countResult = env.WELLS_DB ? await env.WELLS_DB.prepare(
+          `SELECT COUNT(*) as total, SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) as active FROM client_wells`
+        ).first() : null;
+
+        const sample = env.WELLS_DB ? await env.WELLS_DB.prepare(
+          `SELECT * FROM client_wells WHERE status = 'Active' LIMIT 1`
+        ).first() : null;
+
+        return jsonResponse({
+          success: true,
+          source: 'D1',
+          totalCount: countResult?.total || 0,
+          activeCount: countResult?.active || 0,
+          sample
         });
       } catch (error) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: error.message
-        }, null, 2), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return jsonResponse({ success: false, error: error.message }, 500);
       }
     }
     

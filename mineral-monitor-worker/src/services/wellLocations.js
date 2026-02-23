@@ -117,6 +117,18 @@ export async function upsertWellLocation(env, wellData) {
 
     if (result.meta.changes === 0) {
       console.warn(`[WellLocation D1-MISS] Well ${apiNumber} not in D1 wells table — location data not saved`);
+      // Queue for retry — well may appear in D1 after next sync
+      try {
+        if (env.MINERAL_CACHE) {
+          await env.MINERAL_CACHE.put(
+            `pending-well-location:${apiNumber}`,
+            JSON.stringify(wellData),
+            { expirationTtl: 24 * 60 * 60 } // 24h TTL
+          );
+        }
+      } catch (kvErr) {
+        console.error(`[WellLocation] Failed to queue pending location for ${apiNumber}: ${kvErr.message}`);
+      }
       return { success: true, action: 'not-found', apiNumber };
     }
 
@@ -349,6 +361,62 @@ export async function createWellLocationFromCompletion(completion, wellCoords = 
       { section: completion.BH_Section, township: completion.BH_Township, range: completion.BH_Range }
     );
   }
-  
+
   return locationData;
+}
+
+/**
+ * Retry pending well location updates that previously failed due to well not existing in D1.
+ * Called from daily cron. Reads KV keys, retries UPDATE, deletes key on success.
+ * @param {Object} env - Worker environment
+ * @returns {Object} - { retried, succeeded, stillMissing }
+ */
+export async function retryPendingWellLocations(env) {
+  if (!env.WELLS_DB || !env.MINERAL_CACHE) {
+    return { retried: 0, succeeded: 0, stillMissing: 0 };
+  }
+
+  let retried = 0;
+  let succeeded = 0;
+  let stillMissing = 0;
+
+  try {
+    // List pending-well-location:* keys (KV list with prefix)
+    const listed = await env.MINERAL_CACHE.list({ prefix: 'pending-well-location:' });
+    const keys = listed.keys || [];
+
+    if (keys.length === 0) return { retried: 0, succeeded: 0, stillMissing: 0 };
+
+    console.log(`[WellLocation] Retrying ${keys.length} pending well locations`);
+
+    for (const keyObj of keys) {
+      retried++;
+      try {
+        const data = await env.MINERAL_CACHE.get(keyObj.name);
+        if (!data) continue;
+
+        const wellData = JSON.parse(data);
+        const result = await upsertWellLocation(env, wellData);
+
+        if (result.action === 'updated') {
+          succeeded++;
+          await env.MINERAL_CACHE.delete(keyObj.name);
+          console.log(`[WellLocation] Retry succeeded for ${result.apiNumber}`);
+        } else if (result.action === 'not-found') {
+          stillMissing++;
+          // KV TTL will auto-expire after 24h — don't re-queue
+        }
+      } catch (err) {
+        console.error(`[WellLocation] Retry failed for ${keyObj.name}: ${err.message}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[WellLocation] Failed to list pending locations: ${err.message}`);
+  }
+
+  if (retried > 0) {
+    console.log(`[WellLocation] Retry complete: ${succeeded}/${retried} succeeded, ${stillMissing} still missing`);
+  }
+
+  return { retried, succeeded, stillMissing };
 }

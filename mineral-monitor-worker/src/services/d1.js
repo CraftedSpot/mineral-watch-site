@@ -281,8 +281,8 @@ export async function createActivityLog(env, data) {
       user_id, organization_id, api_number, well_name, operator,
       previous_operator, activity_type, alert_level, previous_value, new_value,
       county, str_location, formation, occ_link, occ_map_link, map_link,
-      email_sent, detected_at, case_number
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      email_sent, detected_at, case_number, is_historical, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).bind(
     data.userId,
     data.organizationId || null,
@@ -302,7 +302,9 @@ export async function createActivityLog(env, data) {
     data.apiNumber ? `https://portal.mymineralwatch.com/map?well=${data.apiNumber}` : null,
     data.emailSent ? 1 : 0,
     detectedAt,
-    data.caseNumber || null
+    data.caseNumber || null,
+    data.isHistorical ? 1 : 0,
+    data.notes || null
   ).run();
 
   console.log(`[D1] Created activity log for ${data.apiNumber} - ${data.activityType} - user ${data.userId}`);

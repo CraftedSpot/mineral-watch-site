@@ -195,6 +195,17 @@ export async function checkWellStatusChange(api10, currentData, env) {
         }
       } catch (d1Err) {
         console.error(`[Status Change D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+        // Increment KV failure counter for monitoring
+        try {
+          if (env.MINERAL_CACHE) {
+            const date = new Date().toISOString().split('T')[0];
+            const key = `rbdms-d1-write-failures:${date}`;
+            const current = parseInt(await env.MINERAL_CACHE.get(key) || '0', 10);
+            await env.MINERAL_CACHE.put(key, String(current + 1), { expirationTtl: 7 * 24 * 60 * 60 });
+          }
+        } catch (kvErr) {
+          console.error(`[Status Change] Failed to increment failure counter: ${kvErr.message}`);
+        }
       }
     }
     

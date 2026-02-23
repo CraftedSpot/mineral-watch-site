@@ -426,53 +426,6 @@ function buildDocketAlertEmail(entry, match) {
 }
 
 /**
- * Create Activity Log entry in Airtable (batched)
- */
-async function createActivityLogEntries(env, alertsToLog) {
-  if (alertsToLog.length === 0) return;
-
-  const BATCH_SIZE = 10;
-  const batches = [];
-
-  for (let i = 0; i < alertsToLog.length; i += BATCH_SIZE) {
-    batches.push(alertsToLog.slice(i, i + BATCH_SIZE));
-  }
-
-  for (const batch of batches) {
-    const records = batch.map(alert => ({
-      fields: {
-        'Detected At': new Date().toISOString(),
-        'Activity Type': getReliefTypeLabel(alert.entry.relief_type),
-        'Alert Level': alert.alertLevel,
-        'User': [alert.userId],
-        'Property': alert.propertyId ? [alert.propertyId] : undefined,
-        'Section': alert.entry.section,
-        'Township': alert.entry.township,
-        'Range': alert.entry.range,
-        'County': alert.entry.county,
-        'Operator': alert.entry.applicant,
-        'Case Number': alert.entry.case_number,
-        'Source URL': alert.entry.source_url,
-        'Notes': `Hearing: ${alert.entry.hearing_date || 'TBD'}. ${alert.entry.relief_sought || ''}`
-      }
-    }));
-
-    try {
-      await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ records })
-      });
-    } catch (err) {
-      console.error('[Docket] Error creating Activity Log entries:', err.message);
-    }
-  }
-}
-
-/**
  * Deduplicate matches by case_number + userId, keeping highest priority
  * Priority: YOUR PROPERTY > ADJACENT SECTION
  */

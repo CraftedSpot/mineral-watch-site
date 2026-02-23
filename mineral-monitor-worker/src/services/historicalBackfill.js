@@ -7,12 +7,15 @@
  *
  * Key differences from real-time alerts:
  * - No emails sent
- * - Marked with Historical = true
+ * - Marked with is_historical = 1
  * - Shows activity from before the property was added
+ *
+ * MIGRATED: All reads and writes now use D1 only (no Airtable).
  */
 
 import { getAdjacentSections } from '../utils/plss.js';
 import { normalizeSection } from '../utils/normalize.js';
+import { createActivityLog as d1CreateActivityLog } from './d1.js';
 
 const BACKFILL_DAYS = 90; // How far back to look for historical activity
 
@@ -82,7 +85,6 @@ export async function backfillPropertyHistory(env, property) {
           const isDirectMatch = (surfaceMatch || bhMatch) &&
             sectionKey === `${normalizedSection}|${township}|${range}`;
 
-          // Transform D1 row to Airtable fields shape for compatibility
           matches.push({
             record: {
               'API Number': row.api_number,
@@ -133,29 +135,15 @@ export async function backfillPropertyHistory(env, property) {
 
   console.log(`[Backfill] Found ${uniqueMatches.size} unique historical matches`);
 
-  // Check which ones already exist in Activity Log to avoid duplicates
-  // Fetch historical alerts and filter client-side (ARRAYJOIN on linked records returns display names)
+  // Check which ones already exist in D1 activity_log to avoid duplicates
   const existingAlerts = new Set();
   try {
-    const existingFormula = encodeURIComponent(`{Historical}=TRUE()`);
-    const existingResponse = await fetch(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}?filterByFormula=${existingFormula}&fields[]=API%20Number&fields[]=User`,
-      {
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-        }
-      }
-    );
-
-    if (existingResponse.ok) {
-      const existingData = await existingResponse.json();
-      for (const rec of existingData.records || []) {
-        // Filter client-side: check if User array contains userId
-        const recUserIds = rec.fields.User || [];
-        if (recUserIds.includes(userId) && rec.fields['API Number']) {
-          existingAlerts.add(rec.fields['API Number']);
-        }
-      }
+    const { results: existingRows } = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT api_number FROM activity_log
+      WHERE user_id = ? AND is_historical = 1
+    `).bind(userId).all();
+    for (const row of existingRows || []) {
+      if (row.api_number) existingAlerts.add(row.api_number);
     }
   } catch (err) {
     console.warn('[Backfill] Could not check existing alerts:', err.message);
@@ -179,50 +167,25 @@ export async function backfillPropertyHistory(env, property) {
     if (record['Has Permit']) activityType = 'New Permit';
     if (record['Has Completion']) activityType = 'Well Completed';
 
-    // Build Activity Log entry
-    const activityData = {
-      'Well Name': record['Well Name'] || 'Unknown',
-      'API Number': apiNumber,
-      'Activity Type': activityType,
-      'Operator': record['Operator'] || 'Unknown',
-      'Alert Level': match.alertLevel,
-      'Section-Township-Range': `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
-      'County': record['County'] || '',
-      'Formation': record['Formation'] || null,
-      'OCC Map Link': record['OCC Map Link'] || null,
-      'Map Link': `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
-      'User': [userId],
-      'Historical': true,
-      'Email Sent': true, // Mark as "sent" so it doesn't get picked up for digest
-      'Detected At': record['Permit Date'] || record['Completion Date'] || record['Created Date'] || new Date().toISOString(),
-      'Notes': `Historical alert - activity from ${record['Created Date'] || 'unknown date'}`
-    };
-
     try {
-      const createResponse = await fetch(
-        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ fields: activityData })
-        }
-      );
-
-      if (createResponse.ok) {
-        created++;
-        console.log(`[Backfill] Created historical alert for ${apiNumber}`);
-      } else {
-        const errText = await createResponse.text();
-        errors.push({ apiNumber, error: errText });
-        console.error(`[Backfill] Failed to create alert for ${apiNumber}:`, errText);
-      }
-
-      // Rate limiting
-      await new Promise(resolve => setTimeout(resolve, 200));
-
+      await d1CreateActivityLog(env, {
+        userId: userId,
+        apiNumber: apiNumber,
+        wellName: record['Well Name'] || 'Unknown',
+        operator: record['Operator'] || 'Unknown',
+        activityType: activityType,
+        alertLevel: match.alertLevel,
+        county: record['County'] || '',
+        sectionTownshipRange: `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
+        formation: record['Formation'] || null,
+        mapLink: `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
+        emailSent: true, // Mark as "sent" so it doesn't get picked up for digest
+        isHistorical: true,
+        detectedAt: record['Permit Date'] || record['Completion Date'] || new Date().toISOString(),
+        notes: `Historical alert - activity from ${record['Permit Date'] || record['Completion Date'] || 'unknown date'}`
+      });
+      created++;
+      console.log(`[Backfill] Created historical alert for ${apiNumber}`);
     } catch (err) {
       errors.push({ apiNumber, error: err.message });
       console.error(`[Backfill] Error creating alert for ${apiNumber}:`, err.message);
@@ -324,7 +287,6 @@ export async function backfillUserProperties(env, userId) {
       if (!sectionMap.has(adjKey)) {
         sectionMap.set(adjKey, { properties: [], isDirectMatch: false });
       }
-      // Don't add to properties array for adjacents - we just need to know it exists
     }
   }
 
@@ -378,7 +340,7 @@ export async function backfillUserProperties(env, userId) {
 
         const isDirectMatch = (surfaceMatch?.isDirectMatch || bhMatch?.isDirectMatch);
 
-        // Transform D1 row to Airtable fields shape
+        // Transform D1 row to fields shape
         const fields = {
           'API Number': row.api_number,
           'Well Name': row.well_name,
@@ -421,39 +383,21 @@ export async function backfillUserProperties(env, userId) {
 
   console.log(`[Backfill] Found ${allMatches.size} unique historical matches across all properties`);
 
-  // Check existing historical alerts to avoid duplicates
-  // Fetch historical alerts and filter client-side by user (same ARRAYJOIN issue)
+  // Check existing historical alerts in D1 to avoid duplicates
   const existingAlerts = new Set();
   try {
-    const existingFormula = encodeURIComponent(`{Historical}=TRUE()`);
-
-    let existingOffset = null;
-    do {
-      const existingUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}?filterByFormula=${existingFormula}&fields[]=API%20Number&fields[]=User${existingOffset ? `&offset=${existingOffset}` : ''}`;
-      const existingResponse = await fetch(existingUrl, {
-        headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      });
-
-      if (existingResponse.ok) {
-        const existingData = await existingResponse.json();
-        for (const rec of existingData.records || []) {
-          // Filter client-side: check if User array contains userId
-          const recUserIds = rec.fields.User || [];
-          if (recUserIds.includes(userId) && rec.fields['API Number']) {
-            existingAlerts.add(rec.fields['API Number']);
-          }
-        }
-        existingOffset = existingData.offset;
-      } else {
-        existingOffset = null;
-      }
-      await new Promise(resolve => setTimeout(resolve, 200));
-    } while (existingOffset);
+    const { results: existingRows } = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT api_number FROM activity_log
+      WHERE user_id = ? AND is_historical = 1
+    `).bind(userId).all();
+    for (const row of existingRows || []) {
+      if (row.api_number) existingAlerts.add(row.api_number);
+    }
   } catch (err) {
     console.warn('[Backfill] Could not check existing alerts:', err.message);
   }
 
-  // Create Activity Log entries in batches of 10 (Airtable batch limit)
+  // Create Activity Log entries in D1
   const toCreate = Array.from(allMatches.entries())
     .filter(([apiNumber]) => !existingAlerts.has(apiNumber));
 
@@ -461,68 +405,39 @@ export async function backfillUserProperties(env, userId) {
 
   let created = 0;
   const errors = [];
-  const CREATE_BATCH_SIZE = 10;
 
-  for (let i = 0; i < toCreate.length; i += CREATE_BATCH_SIZE) {
-    const batch = toCreate.slice(i, i + CREATE_BATCH_SIZE);
+  for (const [apiNumber, match] of toCreate) {
+    const record = match.record;
 
-    const records = batch.map(([apiNumber, match]) => {
-      const record = match.record;
-
-      let activityType = 'New Well Record';
-      if (record['Has Permit']) activityType = 'New Permit';
-      if (record['Has Completion']) activityType = 'Well Completed';
-
-      return {
-        fields: {
-          'Well Name': record['Well Name'] || 'Unknown',
-          'API Number': apiNumber,
-          'Activity Type': activityType,
-          'Operator': record['Operator'] || 'Unknown',
-          'Alert Level': match.alertLevel,
-          'Section-Township-Range': `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
-          'County': record['County'] || '',
-          'Formation': record['Formation'] || null,
-          'OCC Map Link': record['OCC Map Link'] || null,
-          'Map Link': `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
-          'User': [userId],
-          'Historical': true,
-          'Email Sent': true,
-          'Detected At': record['Permit Date'] || record['Completion Date'] || record['Created Date'] || new Date().toISOString(),
-          'Notes': `Historical alert - activity from ${record['Created Date'] || 'unknown date'}`
-        }
-      };
-    });
+    let activityType = 'New Well Record';
+    if (record['Has Permit']) activityType = 'New Permit';
+    if (record['Has Completion']) activityType = 'Well Completed';
 
     try {
-      const createResponse = await fetch(
-        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ records })
-        }
-      );
-
-      if (createResponse.ok) {
-        const result = await createResponse.json();
-        created += result.records?.length || 0;
-      } else {
-        const errText = await createResponse.text();
-        errors.push({ batch: i, error: errText });
-      }
-
-      await new Promise(resolve => setTimeout(resolve, 250));
-
+      await d1CreateActivityLog(env, {
+        userId: userId,
+        apiNumber: apiNumber,
+        wellName: record['Well Name'] || 'Unknown',
+        operator: record['Operator'] || 'Unknown',
+        activityType: activityType,
+        alertLevel: match.alertLevel,
+        county: record['County'] || '',
+        sectionTownshipRange: `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
+        formation: record['Formation'] || null,
+        mapLink: `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
+        emailSent: true, // Mark as "sent" so it doesn't get picked up for digest
+        isHistorical: true,
+        detectedAt: record['Permit Date'] || record['Completion Date'] || new Date().toISOString(),
+        notes: `Historical alert - activity from ${record['Permit Date'] || record['Completion Date'] || 'unknown date'}`
+      });
+      created++;
     } catch (err) {
-      errors.push({ batch: i, error: err.message });
+      errors.push({ apiNumber, error: err.message });
+      console.error(`[Backfill] Error creating alert for ${apiNumber}:`, err.message);
     }
 
     // Progress logging
-    if (i % 50 === 0 && i > 0) {
+    if (created % 50 === 0 && created > 0) {
       console.log(`[Backfill] Created ${created} alerts so far...`);
     }
   }

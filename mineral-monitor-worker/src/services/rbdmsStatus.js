@@ -334,6 +334,7 @@ export async function checkAllWellStatuses(env, options = {}) {
               }
             } catch (d1Err) {
               console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+              await incrementD1WriteFailureCounter(env);
             }
             results.alertsSkipped = (results.alertsSkipped || 0) + 1;
             continue;
@@ -440,6 +441,7 @@ export async function checkAllWellStatuses(env, options = {}) {
             }
           } catch (d1Err) {
             console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+            await incrementD1WriteFailureCounter(env);
           }
           
         } catch (err) {
@@ -486,31 +488,39 @@ async function simulateStatusChange(env, testApi, newStatus = 'IA') {
   const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
   
   try {
-    // Find the well in Airtable
-    const wellUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?filterByFormula={API Number}="${testApi}"`;
-    const wellResponse = await fetch(wellUrl, {
-      headers: {
-        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!wellResponse.ok) {
-      throw new Error(`Failed to fetch well: ${wellResponse.status}`);
-    }
-    
-    const wellData = await wellResponse.json();
-    if (!wellData.records || wellData.records.length === 0) {
-      console.log(`[RBDMS Test] Well ${testApi} not found in Airtable`);
+    // Find the well in D1
+    if (!env.WELLS_DB) throw new Error('D1 not available');
+    const wellRow = await env.WELLS_DB.prepare(`
+      SELECT airtable_id, api_number, well_name, well_status, operator, county, section, township, range_val, user_id, organization_id
+      FROM client_wells WHERE api_number = ? AND status = 'Active' LIMIT 1
+    `).bind(testApi).first();
+
+    if (!wellRow) {
+      console.log(`[RBDMS Test] Well ${testApi} not found in D1`);
       results.errors.push('Well not found');
       return results;
     }
-    
-    const well = wellData.records[0];
+
+    // Transform to Airtable record shape for compatibility
+    const well = {
+      id: wellRow.airtable_id,
+      fields: {
+        'API Number': wellRow.api_number,
+        'Well Name': wellRow.well_name,
+        'Well Status': wellRow.well_status,
+        'Operator': wellRow.operator,
+        'County': wellRow.county,
+        'Section': wellRow.section,
+        'Township': wellRow.township,
+        'Range': wellRow.range_val,
+        'User': wellRow.user_id ? [wellRow.user_id] : [],
+        'Organization': wellRow.organization_id ? [wellRow.organization_id] : []
+      }
+    };
     const currentStatus = well.fields['Well Status'];
     results.testDetails.wellFound = true;
     results.testDetails.currentStatus = currentStatus;
-    
+
     console.log(`[RBDMS Test] Found well ${testApi} with current status: ${currentStatus}`);
     console.log(`[RBDMS Test] Simulating status change to: ${newStatus}`);
     
@@ -649,6 +659,55 @@ async function simulateStatusChange(env, testApi, newStatus = 'IA') {
   }
   
   return results;
+}
+
+/**
+ * Increment the daily D1 write failure counter in KV
+ * Used to detect silent D1 write failures during RBDMS status updates
+ */
+async function incrementD1WriteFailureCounter(env) {
+  try {
+    if (!env.MINERAL_CACHE) return;
+    const date = new Date().toISOString().split('T')[0];
+    const key = `rbdms-d1-write-failures:${date}`;
+    const current = parseInt(await env.MINERAL_CACHE.get(key) || '0', 10);
+    await env.MINERAL_CACHE.put(key, String(current + 1), { expirationTtl: 7 * 24 * 60 * 60 });
+  } catch (e) {
+    console.error(`[RBDMS] Failed to increment D1 write failure counter: ${e.message}`);
+  }
+}
+
+/**
+ * Reconcile Airtable well statuses against D1 client_wells.well_status
+ * Run in daily cron to detect drift between Airtable and D1
+ * @param {Object} env - Worker environment
+ * @returns {Object} - Reconciliation results
+ */
+export async function reconcileWellStatuses(env) {
+  if (!env.WELLS_DB) return { checked: 0, mismatches: 0 };
+
+  try {
+    // Check D1 failure counter for today
+    const date = new Date().toISOString().split('T')[0];
+    const failureCount = parseInt(await env.MINERAL_CACHE?.get(`rbdms-d1-write-failures:${date}`) || '0', 10);
+    if (failureCount > 0) {
+      console.error(`[RBDMS STATUS-DRIFT] ${failureCount} D1 write failures today — investigate immediately`);
+    }
+
+    // Count wells with NULL well_status in D1 (should be 0 after RBDMS runs)
+    const { results: nullRows } = await env.WELLS_DB.prepare(`
+      SELECT COUNT(*) as cnt FROM client_wells WHERE status = 'Active' AND well_status IS NULL
+    `).all();
+    const nullCount = nullRows?.[0]?.cnt || 0;
+    if (nullCount > 0) {
+      console.warn(`[RBDMS STATUS-DRIFT] ${nullCount} active wells have NULL well_status in D1`);
+    }
+
+    return { checked: true, d1WriteFailuresToday: failureCount, nullStatusCount: nullCount };
+  } catch (err) {
+    console.error(`[RBDMS] Reconciliation failed: ${err.message}`);
+    return { checked: false, error: err.message };
+  }
 }
 
 /**
