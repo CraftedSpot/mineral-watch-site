@@ -460,10 +460,10 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
     const pun = (punResult.results?.[0] as any)?.pun;
 
     if (!pun) {
-      // Fallback: just get the well's TRS directly
+      // Fallback: get the well's TRS directly (surface + BH)
       console.log(`[DocketEntriesByWell] No PUN found, falling back to direct TRS lookup`);
       const wellResult = await env.WELLS_DB.prepare(`
-        SELECT section, township, range, meridian
+        SELECT section, township, range, meridian, bh_section, bh_township, bh_range
         FROM wells
         WHERE api_number LIKE ? || '%'
         LIMIT 1
@@ -480,26 +480,45 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
         });
       }
 
-      // Query filings for just this well's TRS
+      // Build TRS locations (surface + BH)
       const twpNorm = normalizeTownship(well.township);
       const rngNorm = normalizeRange(well.range);
       const meridianNorm = (well.meridian || 'IM').toUpperCase();
 
-      const secNum = parseInt(well.section);
+      const trsLocs: Array<{ section: string; township: string; range: string; meridian: string }> = [
+        { section: String(well.section), township: twpNorm, range: rngNorm, meridian: meridianNorm }
+      ];
+
+      // Add BH if different from surface
+      if (well.bh_section && well.bh_township && well.bh_range) {
+        const bhTwp = normalizeTownship(well.bh_township);
+        const bhRng = normalizeRange(well.bh_range);
+        const isSame = String(well.section) === String(well.bh_section) && twpNorm === bhTwp && rngNorm === bhRng;
+        if (!isSame) {
+          trsLocs.push({ section: String(well.bh_section), township: bhTwp, range: bhRng, meridian: meridianNorm });
+        }
+      }
+
+      // Query filings for all locations (main table + junction table)
+      const mainConds = trsLocs.map(() => '(d.section = ? AND d.township = ? AND d.range = ? AND d.meridian = ?)').join(' OR ');
+      const mainParams = trsLocs.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+      const juncConds = trsLocs.map(() => '(CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?)').join(' OR ');
+      const juncParams = trsLocs.flatMap(t => [parseInt(t.section), t.township, t.range]);
+
       const filingsResult = await env.WELLS_DB.prepare(`
         SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
                d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
         FROM occ_docket_entries d
-        WHERE d.section = ? AND d.township = ? AND d.range = ? AND d.meridian = ?
+        WHERE ${mainConds}
         UNION
         SELECT d.case_number, d.relief_type, d.applicant, d.county, d.section, d.township, d.range,
                d.hearing_date, d.status, d.source_url, d.docket_date, d.order_number
         FROM docket_entry_sections ds
         JOIN occ_docket_entries d ON d.case_number = ds.case_number
-        WHERE CAST(ds.section AS INTEGER) = ? AND UPPER(ds.township) = ? AND UPPER(ds.range) = ?
+        WHERE ${juncConds}
         ORDER BY hearing_date DESC
         LIMIT 30
-      `).bind(String(well.section), twpNorm, rngNorm, meridianNorm, secNum, twpNorm, rngNorm).all();
+      `).bind(...mainParams, ...juncParams).all();
 
       const direct = (filingsResult.results || []).map((row: any) => ({
         caseNumber: row.case_number,
