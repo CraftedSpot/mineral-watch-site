@@ -285,32 +285,31 @@ export function groupAlertsForDigest(alerts) {
 }
 
 /**
- * Get organization record by ID
+ * Get organization record by ID from D1
  * @param {Object} env - Worker environment
  * @param {string} orgId - Organization Airtable record ID
- * @returns {Object|null} - Organization record or null
+ * @returns {Object|null} - Organization record in Airtable shape or null
  */
 export async function getOrganizationById(env, orgId) {
   if (!orgId) return null;
 
   try {
-    const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
-    const response = await fetch(url, {
-      headers: {
-        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
+    if (!env.WELLS_DB) return null;
+    const row = await env.WELLS_DB.prepare(`
+      SELECT * FROM organizations WHERE airtable_record_id = ?
+    `).bind(orgId).first();
+    if (!row) return null;
+    // Return in Airtable record shape for backward compatibility
+    return {
+      id: row.airtable_record_id,
+      fields: {
+        'Name': row.name,
+        'Default Notification Mode': row.default_notification_mode || 'Daily + Weekly',
+        'Allow User Override': row.allow_user_override !== 0
       }
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) return null;
-      throw new Error(`Airtable get organization failed: ${response.status}`);
-    }
-
-    return await response.json();
-
+    };
   } catch (err) {
-    console.error(`[PendingAlerts] Failed to get organization ${orgId}:`, err);
+    console.error(`[PendingAlerts] Failed to get organization ${orgId} from D1:`, err);
     return null;
   }
 }

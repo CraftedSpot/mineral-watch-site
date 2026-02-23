@@ -178,10 +178,23 @@ export async function checkWellStatusChange(api10, currentData, env) {
           }
         })
       });
-        
+
       if (!updateResponse.ok) {
         console.error(`[Status Change] Failed to update well status in Airtable`);
         result.errors.push('Failed to update well record');
+      }
+
+      // D1 dual-write (non-fatal)
+      try {
+        if (env.WELLS_DB) {
+          await env.WELLS_DB.prepare(`
+            UPDATE client_wells SET well_status = ?, last_status_check = CURRENT_TIMESTAMP,
+              status_last_changed = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE airtable_id = ?
+          `).bind(currentStatus, well.id).run();
+        }
+      } catch (d1Err) {
+        console.error(`[Status Change D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
       }
     }
     

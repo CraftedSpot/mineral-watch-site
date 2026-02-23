@@ -56,63 +56,34 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
 export async function sendDailySummary(env, results) {
   const { permitsProcessed, completionsProcessed, permitsSkippedAsProcessed, completionsSkippedAsProcessed, statusChanges, alertsSent, errors, duration, dataFreshness } = results;
   
-  // Query for today's failed email sends
+  // Query for today's failed email sends from D1
   let failedEmails = [];
   try {
-    // Get today's date in YYYY-MM-DD format
     const today = new Date().toISOString().split('T')[0];
-    
-    // Query Activity Log for today's records where Email Sent = false
-    const response = await fetch(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}?filterByFormula=AND(DATESTR({Created})='${today}',NOT({Email Sent}))&fields[]=User&fields[]=API Number&fields[]=Well Name`,
-      {
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-        }
-      }
-    );
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.records && data.records.length > 0) {
-        // Group failed sends by user email
+
+    if (env.WELLS_DB) {
+      // Single D1 query with JOIN — no N+1 Airtable fetches
+      const { results: failedRows } = await env.WELLS_DB.prepare(`
+        SELECT al.user_id, al.api_number, al.well_name, u.email
+        FROM activity_log al
+        LEFT JOIN users u ON u.airtable_record_id = al.user_id
+        WHERE date(al.detected_at) = ? AND al.email_sent = 0
+      `).bind(today).all();
+
+      if (failedRows && failedRows.length > 0) {
         const userEmailMap = new Map();
-        
-        for (let i = 0; i < data.records.length; i++) {
-          const record = data.records[i];
-          if (record.fields.User && record.fields.User[0]) {
-            // Add delay between API calls to respect rate limit
-            if (i > 0) {
-              await delay(200);
-            }
-            
-            // Need to fetch user email
-            const userResponse = await fetch(
-              `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_USERS_TABLE}/${record.fields.User[0]}?fields[]=Email`,
-              {
-                headers: {
-                  'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-                }
-              }
-            );
-            
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              const email = userData.fields.Email;
-              const wellInfo = `${record.fields['Well Name'] || 'Unknown'} (${record.fields['API Number'] || 'No API'})`;
-              
-              if (!userEmailMap.has(email)) {
-                userEmailMap.set(email, []);
-              }
-              userEmailMap.get(email).push(wellInfo);
-            }
+        for (const row of failedRows) {
+          const email = row.email || 'unknown';
+          const wellInfo = `${row.well_name || 'Unknown'} (${row.api_number || 'No API'})`;
+          if (!userEmailMap.has(email)) {
+            userEmailMap.set(email, []);
           }
+          userEmailMap.get(email).push(wellInfo);
         }
-        
-        // Convert to array format
+
         failedEmails = Array.from(userEmailMap.entries()).map(([email, wells]) => ({
           email,
-          wells: wells.slice(0, 3), // Limit to first 3 wells per user
+          wells: wells.slice(0, 3),
           totalCount: wells.length
         }));
       }

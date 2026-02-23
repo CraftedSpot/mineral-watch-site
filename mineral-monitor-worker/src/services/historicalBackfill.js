@@ -57,59 +57,60 @@ export async function backfillPropertyHistory(env, property) {
   for (const sectionKey of sectionsToCheck) {
     const [sec, twn, rng] = sectionKey.split('|');
 
-    // Build filter formula for this section
-    // Check both surface location and BH location
-    const formula = encodeURIComponent(
-      `AND(
-        OR(
-          AND({Surface Section}='${sec}', {Surface Township}='${twn}', {Surface Range}='${rng}'),
-          AND({BH Section}='${sec}', {BH Township}='${twn}', {BH Range}='${rng}')
-        ),
-        {Created Date}>='${sinceDateStr}'
-      )`.replace(/\s+/g, ' ')
-    );
-
+    // Query D1 statewide_activity for matching sections (surface or BH)
     try {
-      const response = await fetch(
-        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_STATEWIDE_ACTIVITY_TABLE}?filterByFormula=${formula}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-          }
-        }
-      );
+      if (!env.WELLS_DB) throw new Error('D1 not available');
+      const { results: rows } = await env.WELLS_DB.prepare(`
+        SELECT * FROM statewide_activity
+        WHERE ((surface_section = ? AND surface_township = ? AND surface_range = ?)
+            OR (bh_section = ? AND bh_township = ? AND bh_range = ?))
+          AND created_at >= ?
+      `).bind(sec, twn, rng, sec, twn, rng, sinceDateStr).all();
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.records && data.records.length > 0) {
-          for (const record of data.records) {
-            // Determine if this is a direct match or adjacent
-            const surfaceMatch =
-              normalizeSection(record.fields['Surface Section']) === sec &&
-              record.fields['Surface Township'] === twn &&
-              record.fields['Surface Range'] === rng;
+      if (rows && rows.length > 0) {
+        for (const row of rows) {
+          const surfaceMatch =
+            normalizeSection(row.surface_section) === sec &&
+            row.surface_township === twn &&
+            row.surface_range === rng;
 
-            const bhMatch =
-              normalizeSection(record.fields['BH Section']) === sec &&
-              record.fields['BH Township'] === twn &&
-              record.fields['BH Range'] === rng;
+          const bhMatch =
+            normalizeSection(row.bh_section) === sec &&
+            row.bh_township === twn &&
+            row.bh_range === rng;
 
-            const isDirectMatch = (surfaceMatch || bhMatch) &&
-              sectionKey === `${normalizedSection}|${township}|${range}`;
+          const isDirectMatch = (surfaceMatch || bhMatch) &&
+            sectionKey === `${normalizedSection}|${township}|${range}`;
 
-            matches.push({
-              record: record.fields,
-              recordId: record.id,
-              matchedSection: sectionKey,
-              alertLevel: isDirectMatch ? 'YOUR PROPERTY' : 'ADJACENT SECTION'
-            });
-          }
+          // Transform D1 row to Airtable fields shape for compatibility
+          matches.push({
+            record: {
+              'API Number': row.api_number,
+              'Well Name': row.well_name,
+              'Operator': row.operator,
+              'County': row.county,
+              'Surface Section': row.surface_section,
+              'Surface Township': row.surface_township,
+              'Surface Range': row.surface_range,
+              'BH Section': row.bh_section,
+              'BH Township': row.bh_township,
+              'BH Range': row.bh_range,
+              'Has Permit': row.has_permit,
+              'Has Completion': row.has_completion,
+              'Is Horizontal': row.is_horizontal,
+              'Permit Date': row.permit_date,
+              'Completion Date': row.completion_date,
+              'Formation': row.formation,
+              'Well Status': row.well_status,
+              'Latitude': row.latitude,
+              'Longitude': row.longitude
+            },
+            recordId: row.id,
+            matchedSection: sectionKey,
+            alertLevel: isDirectMatch ? 'YOUR PROPERTY' : 'ADJACENT SECTION'
+          });
         }
       }
-
-      // Rate limiting - small delay between API calls
-      await new Promise(resolve => setTimeout(resolve, 100));
-
     } catch (err) {
       console.error(`[Backfill] Error querying section ${sectionKey}:`, err.message);
     }
@@ -253,38 +254,44 @@ export async function backfillPropertyHistory(env, property) {
 export async function backfillUserProperties(env, userId) {
   console.log(`[Backfill] Starting bulk backfill for user ${userId}`);
 
-  // Get all active properties and filter by user client-side
-  // (Airtable ARRAYJOIN on linked records returns display names, not IDs)
+  // Get all active properties for this user from D1
   let allProperties = [];
-  let offset = null;
 
-  do {
-    // Fetch active properties with pagination
-    const formula = encodeURIComponent(`{Status}='Active'`);
-    const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_PROPERTIES_TABLE}?filterByFormula=${formula}${offset ? `&offset=${offset}` : ''}`;
+  try {
+    if (!env.WELLS_DB) return { success: false, error: 'D1 not available' };
 
-    const response = await fetch(url, {
-      headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-    });
+    // Get user's org to include org properties
+    const userRow = await env.WELLS_DB.prepare(
+      `SELECT organization_id FROM users WHERE airtable_record_id = ?`
+    ).bind(userId).first();
+    const orgId = userRow?.organization_id;
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return { success: false, error: `Failed to fetch properties: ${errText}` };
-    }
+    const ownerClause = orgId
+      ? `(user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?) OR organization_id = ?)`
+      : `user_id = ?`;
+    const ownerParams = orgId ? [orgId, orgId] : [userId];
 
-    const data = await response.json();
+    const { results: rows } = await env.WELLS_DB.prepare(`
+      SELECT airtable_record_id, section, township, range, meridian, county, monitor_adjacent, user_id
+      FROM properties WHERE status = 'Active' AND ${ownerClause}
+    `).bind(...ownerParams).all();
 
-    // Filter to properties belonging to this user (check User array for userId)
-    const userProperties = (data.records || []).filter(prop => {
-      const userIds = prop.fields.User || [];
-      return userIds.includes(userId);
-    });
-
-    allProperties = allProperties.concat(userProperties);
-    offset = data.offset;
-
-    await new Promise(resolve => setTimeout(resolve, 200));
-  } while (offset);
+    // Transform to Airtable record shape for downstream compatibility
+    allProperties = (rows || []).map(r => ({
+      id: r.airtable_record_id,
+      fields: {
+        'SEC': r.section,
+        'TWN': r.township,
+        'RNG': r.range,
+        'MERIDIAN': r.meridian || 'IM',
+        'COUNTY': r.county,
+        'User': [r.user_id],
+        'Monitor Adjacent': r.monitor_adjacent !== 0
+      }
+    }));
+  } catch (err) {
+    return { success: false, error: `D1 query failed: ${err.message}` };
+  }
 
   console.log(`[Backfill] Found ${allProperties.length} properties for user`);
 
@@ -328,69 +335,85 @@ export async function backfillUserProperties(env, userId) {
   sinceDate.setDate(sinceDate.getDate() - BACKFILL_DAYS);
   const sinceDateStr = sinceDate.toISOString().split('T')[0];
 
-  // Query Statewide Activity in batches (Airtable formula has length limits)
-  // Group sections into batches of ~20 to keep formula manageable
+  // Query D1 statewide_activity in batches (D1 has 100-param limit)
   const sectionKeys = Array.from(sectionMap.keys());
-  const BATCH_SIZE = 20;
+  const BATCH_SIZE = 10; // 7 params per section (6 for surface+BH + date), keep under 100
   const allMatches = new Map(); // API Number -> match info
+
+  if (!env.WELLS_DB) {
+    console.error('[Backfill] D1 not available for statewide activity query');
+    return { success: false, error: 'D1 not available' };
+  }
 
   for (let i = 0; i < sectionKeys.length; i += BATCH_SIZE) {
     const batch = sectionKeys.slice(i, i + BATCH_SIZE);
 
     // Build OR conditions for this batch
-    const conditions = batch.map(key => {
+    const conditions = batch.map(() =>
+      `((surface_section = ? AND surface_township = ? AND surface_range = ?) OR (bh_section = ? AND bh_township = ? AND bh_range = ?))`
+    ).join(' OR ');
+    const binds = batch.flatMap(key => {
       const [sec, twn, rng] = key.split('|');
-      return `OR(AND({Surface Section}='${sec}',{Surface Township}='${twn}',{Surface Range}='${rng}'),AND({BH Section}='${sec}',{BH Township}='${twn}',{BH Range}='${rng}'))`;
-    }).join(',');
-
-    const formula = encodeURIComponent(
-      `AND(OR(${conditions}),{Created Date}>='${sinceDateStr}')`
-    );
+      return [sec, twn, rng, sec, twn, rng];
+    });
+    binds.push(sinceDateStr);
 
     try {
-      const response = await fetch(
-        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_STATEWIDE_ACTIVITY_TABLE}?filterByFormula=${formula}`,
-        { headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
-      );
+      const { results: rows } = await env.WELLS_DB.prepare(`
+        SELECT * FROM statewide_activity
+        WHERE (${conditions}) AND created_at >= ?
+      `).bind(...binds).all();
 
-      if (response.ok) {
-        const data = await response.json();
-        for (const record of data.records || []) {
-          const apiNumber = record.fields['API Number'];
-          if (!apiNumber) continue;
+      for (const row of rows || []) {
+        const apiNumber = row.api_number;
+        if (!apiNumber) continue;
 
-          // Determine which sections this record matches
-          const surfaceSec = normalizeSection(record.fields['Surface Section']);
-          const surfaceKey = `${surfaceSec}|${record.fields['Surface Township']}|${record.fields['Surface Range']}`;
-          const bhSec = normalizeSection(record.fields['BH Section']);
-          const bhKey = bhSec ? `${bhSec}|${record.fields['BH Township']}|${record.fields['BH Range']}` : null;
+        const surfaceSec = normalizeSection(row.surface_section);
+        const surfaceKey = `${surfaceSec}|${row.surface_township}|${row.surface_range}`;
+        const bhSec = normalizeSection(row.bh_section);
+        const bhKey = bhSec ? `${bhSec}|${row.bh_township}|${row.bh_range}` : null;
 
-          // Check if it's a direct match to any property
-          const surfaceMatch = sectionMap.get(surfaceKey);
-          const bhMatch = bhKey ? sectionMap.get(bhKey) : null;
+        const surfaceMatch = sectionMap.get(surfaceKey);
+        const bhMatch = bhKey ? sectionMap.get(bhKey) : null;
 
-          const isDirectMatch = (surfaceMatch?.isDirectMatch || bhMatch?.isDirectMatch);
+        const isDirectMatch = (surfaceMatch?.isDirectMatch || bhMatch?.isDirectMatch);
 
-          if (!allMatches.has(apiNumber)) {
-            allMatches.set(apiNumber, {
-              record: record.fields,
-              alertLevel: isDirectMatch ? 'YOUR PROPERTY' : 'ADJACENT SECTION'
-            });
-          } else if (isDirectMatch && allMatches.get(apiNumber).alertLevel !== 'YOUR PROPERTY') {
-            // Upgrade to YOUR PROPERTY if this is a direct match
-            allMatches.get(apiNumber).alertLevel = 'YOUR PROPERTY';
-          }
+        // Transform D1 row to Airtable fields shape
+        const fields = {
+          'API Number': row.api_number,
+          'Well Name': row.well_name,
+          'Operator': row.operator,
+          'County': row.county,
+          'Surface Section': row.surface_section,
+          'Surface Township': row.surface_township,
+          'Surface Range': row.surface_range,
+          'BH Section': row.bh_section,
+          'BH Township': row.bh_township,
+          'BH Range': row.bh_range,
+          'Has Permit': row.has_permit,
+          'Has Completion': row.has_completion,
+          'Is Horizontal': row.is_horizontal,
+          'Permit Date': row.permit_date,
+          'Completion Date': row.completion_date,
+          'Formation': row.formation,
+          'Well Status': row.well_status,
+          'Latitude': row.latitude,
+          'Longitude': row.longitude
+        };
+
+        if (!allMatches.has(apiNumber)) {
+          allMatches.set(apiNumber, {
+            record: fields,
+            alertLevel: isDirectMatch ? 'YOUR PROPERTY' : 'ADJACENT SECTION'
+          });
+        } else if (isDirectMatch && allMatches.get(apiNumber).alertLevel !== 'YOUR PROPERTY') {
+          allMatches.get(apiNumber).alertLevel = 'YOUR PROPERTY';
         }
       }
-
-      // Rate limiting between batches
-      await new Promise(resolve => setTimeout(resolve, 250));
-
     } catch (err) {
       console.error(`[Backfill] Error querying batch ${i}:`, err.message);
     }
 
-    // Progress logging for large batches
     if (i % 100 === 0 && i > 0) {
       console.log(`[Backfill] Processed ${i}/${sectionKeys.length} sections, found ${allMatches.size} matches so far`);
     }
@@ -525,32 +548,30 @@ export async function backfillUserProperties(env, userId) {
  * @returns {Object} - Results of backfill
  */
 export async function backfillNewProperty(env, propertyId) {
-  // Fetch the property details
-  const response = await fetch(
-    `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_PROPERTIES_TABLE}/${propertyId}`,
-    {
-      headers: {
-        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-      }
-    }
-  );
+  // Fetch the property details from D1
+  if (!env.WELLS_DB) {
+    return { success: false, error: 'D1 not available' };
+  }
 
-  if (!response.ok) {
+  const prop = await env.WELLS_DB.prepare(`
+    SELECT airtable_record_id, section, township, range, user_id
+    FROM properties WHERE airtable_record_id = ?
+  `).bind(propertyId).first();
+
+  if (!prop) {
     return { success: false, error: 'Property not found' };
   }
 
-  const prop = await response.json();
-  const userId = prop.fields['User']?.[0];
-
+  const userId = prop.user_id;
   if (!userId) {
     return { success: false, error: 'Property has no linked user' };
   }
 
   return backfillPropertyHistory(env, {
-    propertyId: prop.id,
-    section: prop.fields['SEC'],
-    township: prop.fields['TWN'],
-    range: prop.fields['RNG'],
+    propertyId: prop.airtable_record_id,
+    section: prop.section,
+    township: prop.township,
+    range: prop.range,
     userId
   });
 }

@@ -192,49 +192,37 @@ export async function checkAllWellStatuses(env, options = {}) {
     
     console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
-    // Get all tracked wells with proper pagination
+    // Get all tracked wells from D1
     let allTrackedWells = [];
-    let offset = null;
-    
+
     try {
-      do {
-        let url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?pageSize=100`;
-        if (offset) {
-          url += `&offset=${offset}`;
+      if (!env.WELLS_DB) throw new Error('D1 not available');
+      const { results: rows } = await env.WELLS_DB.prepare(`
+        SELECT airtable_id, api_number, well_name, well_status, user_id, operator, organization_id, status
+        FROM client_wells WHERE status = 'Active'
+      `).all();
+      // Transform D1 rows to Airtable record shape for compatibility
+      allTrackedWells = (rows || []).map(r => ({
+        id: r.airtable_id,
+        fields: {
+          'API Number': r.api_number,
+          'Well Name': r.well_name,
+          'Well Status': r.well_status,
+          'User': r.user_id ? [r.user_id] : [],
+          'Operator': r.operator,
+          'Organization': r.organization_id ? [r.organization_id] : []
         }
-        
-        console.log(`[RBDMS] Fetching wells batch...`);
-        
-        const response = await fetch(url, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Airtable query failed: ${response.status} - ${error}`);
-        }
-        
-        const data = await response.json();
-        const batchSize = data.records ? data.records.length : 0;
-        allTrackedWells = allTrackedWells.concat(data.records || []);
-        offset = data.offset || null;
-        
-        console.log(`[RBDMS] Fetched ${batchSize} wells in this batch, total: ${allTrackedWells.length}`);
-      } while (offset);
-      
+      }));
     } catch (error) {
-      console.error('[RBDMS] Failed to query tracked wells:', error.message);
-      results.errors.push(`Airtable query failed: ${error.message}`);
+      console.error('[RBDMS] Failed to query tracked wells from D1:', error.message);
+      results.errors.push(`D1 query failed: ${error.message}`);
       return results;
     }
-    
-    console.log(`[RBDMS] Found ${allTrackedWells.length} total wells in Airtable`);
-    
+
+    console.log(`[RBDMS] Found ${allTrackedWells.length} total wells in D1`);
+
     if (allTrackedWells.length === 0) {
-      console.log('[RBDMS] No tracked wells found in Airtable');
+      console.log('[RBDMS] No tracked wells found');
       return results;
     }
     
@@ -336,6 +324,17 @@ export async function checkAllWellStatuses(env, options = {}) {
               },
               body: JSON.stringify({ fields: { 'Status': rbdmsStatus } })
             });
+            // D1 dual-write (non-fatal)
+            try {
+              if (env.WELLS_DB) {
+                await env.WELLS_DB.prepare(`
+                  UPDATE client_wells SET well_status = ?, last_status_check = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                  WHERE airtable_id = ?
+                `).bind(rbdmsStatus, well.id).run();
+              }
+            } catch (d1Err) {
+              console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+            }
             results.alertsSkipped = (results.alertsSkipped || 0) + 1;
             continue;
           }
@@ -420,13 +419,27 @@ export async function checkAllWellStatuses(env, options = {}) {
               }
             })
           });
-          
+
           if (!updateResponse.ok) {
             const errorText = await updateResponse.text();
             console.error(`[RBDMS] Failed to update well status in Airtable: ${errorText}`);
             results.errors.push('Failed to update well record');
           } else {
             console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
+          }
+
+          // D1 dual-write (non-fatal)
+          try {
+            if (env.WELLS_DB) {
+              await env.WELLS_DB.prepare(`
+                UPDATE client_wells SET well_status = ?, last_status_check = CURRENT_TIMESTAMP,
+                  status_last_changed = CURRENT_TIMESTAMP, last_rbdms_sync = CURRENT_TIMESTAMP,
+                  updated_at = CURRENT_TIMESTAMP
+                WHERE airtable_id = ?
+              `).bind(rbdmsStatus, well.id).run();
+            }
+          } catch (d1Err) {
+            console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
           }
           
         } catch (err) {

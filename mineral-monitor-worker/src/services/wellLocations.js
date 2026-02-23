@@ -6,7 +6,6 @@
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 
-const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
 /**
  * Check if a well is horizontal based on multiple criteria
@@ -51,7 +50,7 @@ export function isMultiSectionWell(surfaceLocation, bhLocation) {
 }
 
 /**
- * Create or update a well location record
+ * Create or update a well location record in D1 wells table
  * @param {Object} env - Worker environment
  * @param {Object} wellData - Well location data
  * @returns {Object} - Result of the operation
@@ -61,111 +60,67 @@ export async function upsertWellLocation(env, wellData) {
   if (!apiNumber) {
     return { success: false, error: 'No API number provided' };
   }
-  
-  // Check if record exists
-  const existingUrl = new URL(`${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELL_LOCATIONS_TABLE}`);
-  existingUrl.searchParams.set('filterByFormula', `{API Number} = "${apiNumber}"`);
-  existingUrl.searchParams.set('maxRecords', '1');
-  
-  const existingResponse = await fetch(existingUrl.toString(), {
-    headers: {
-      'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  if (!existingResponse.ok) {
-    return { success: false, error: 'Failed to check existing records' };
+
+  if (!env.WELLS_DB) {
+    return { success: false, error: 'D1 not available' };
   }
-  
-  const existingData = await existingResponse.json();
-  
-  // Build fields object, excluding null/undefined values
-  const fields = { 'API Number': apiNumber };
-  
-  // Basic well information
-  if (wellData.wellName) fields['Well Name'] = wellData.wellName;
-  if (wellData.operator) fields['Operator'] = wellData.operator;
-  if (wellData.county) fields['County'] = wellData.county;
-  if (wellData.wellStatus) fields['Well Status'] = wellData.wellStatus;
-  if (wellData.formation) fields['Formation'] = wellData.formation;
-  
+
+  // Build dynamic UPDATE columns
+  const updates = [];
+  const binds = [];
+
+  if (wellData.wellName) { updates.push('well_name = ?'); binds.push(wellData.wellName); }
+  if (wellData.operator) { updates.push('operator = ?'); binds.push(wellData.operator); }
+  if (wellData.county) { updates.push('county = ?'); binds.push(wellData.county); }
+  if (wellData.wellStatus) { updates.push('well_status = ?'); binds.push(wellData.wellStatus); }
+  if (wellData.formation) { updates.push('formation_name = ?'); binds.push(wellData.formation); }
+
   // Surface location
-  if (wellData.surfaceSection) fields['Surface Section'] = normalizeSection(wellData.surfaceSection);
-  if (wellData.surfaceTownship) fields['Surface Township'] = wellData.surfaceTownship;
-  if (wellData.surfaceRange) fields['Surface Range'] = wellData.surfaceRange;
-  if (wellData.surfacePM) fields['Surface PM'] = wellData.surfacePM;
-  
-  // Bottom hole location
-  if (wellData.bhSection) fields['BH Section'] = normalizeSection(wellData.bhSection);
-  if (wellData.bhTownship) fields['BH Township'] = wellData.bhTownship;
-  if (wellData.bhRange) fields['BH Range'] = wellData.bhRange;
-  if (wellData.bhPM) fields['BH PM'] = wellData.bhPM;
-  
-  // Horizontal well indicators
-  if (wellData.isHorizontal !== undefined) fields['Is Horizontal'] = wellData.isHorizontal;
-  if (wellData.isMultiSection !== undefined) fields['Is Multi-Section'] = wellData.isMultiSection;
-  if (wellData.lateralLength) fields['Lateral Length'] = wellData.lateralLength;
-  
-  // Activity flags
-  if (wellData.hasTrackedWell !== undefined) fields['Has Tracked Well'] = wellData.hasTrackedWell;
-  if (wellData.hasPermit !== undefined) fields['Has Permit'] = wellData.hasPermit;
-  if (wellData.hasCompletion !== undefined) fields['Has Completion'] = wellData.hasCompletion;
-  
-  // Dates
-  if (wellData.permitDate) fields['Permit Date'] = wellData.permitDate;
-  if (wellData.completionDate) fields['Completion Date'] = wellData.completionDate;
-  
+  if (wellData.surfaceSection) { updates.push('section = ?'); binds.push(normalizeSection(wellData.surfaceSection)); }
+  if (wellData.surfaceTownship) { updates.push('township = ?'); binds.push(wellData.surfaceTownship); }
+  if (wellData.surfaceRange) { updates.push('range = ?'); binds.push(wellData.surfaceRange); }
+  if (wellData.surfacePM) { updates.push('meridian = ?'); binds.push(wellData.surfacePM); }
+
   // Coordinates
-  if (wellData.latitude !== undefined && wellData.latitude !== null) fields['Latitude'] = wellData.latitude;
-  if (wellData.longitude !== undefined && wellData.longitude !== null) fields['Longitude'] = wellData.longitude;
-  if (wellData.bhLatitude !== undefined && wellData.bhLatitude !== null) fields['BH Latitude'] = wellData.bhLatitude;
-  if (wellData.bhLongitude !== undefined && wellData.bhLongitude !== null) fields['BH Longitude'] = wellData.bhLongitude;
-  if (wellData.mapLink) fields['OCC Map Link'] = wellData.mapLink;
-  // Note: Coordinate Source field removed - not needed in Well Locations table
-  
+  if (wellData.latitude != null) { updates.push('latitude = ?'); binds.push(wellData.latitude); }
+  if (wellData.longitude != null) { updates.push('longitude = ?'); binds.push(wellData.longitude); }
+  if (wellData.bhLatitude != null) { updates.push('bh_latitude = ?'); binds.push(wellData.bhLatitude); }
+  if (wellData.bhLongitude != null) { updates.push('bh_longitude = ?'); binds.push(wellData.bhLongitude); }
+
+  // Bottom hole location
+  if (wellData.bhSection) { updates.push('bh_section = ?'); binds.push(normalizeSection(wellData.bhSection)); }
+  if (wellData.bhTownship) { updates.push('bh_township = ?'); binds.push(wellData.bhTownship); }
+  if (wellData.bhRange) { updates.push('bh_range = ?'); binds.push(wellData.bhRange); }
+
+  // Horizontal well indicators
+  if (wellData.isHorizontal !== undefined) { updates.push('is_horizontal = ?'); binds.push(wellData.isHorizontal ? 1 : 0); }
+  if (wellData.lateralLength) { updates.push('lateral_length = ?'); binds.push(wellData.lateralLength); }
+
+  // Dates
+  if (wellData.permitDate) { updates.push('permit_date = ?'); binds.push(wellData.permitDate); }
+  if (wellData.completionDate) { updates.push('completion_date = ?'); binds.push(wellData.completionDate); }
+
+  // Map link
+  if (wellData.mapLink) { updates.push('occ_map_link = ?'); binds.push(wellData.mapLink); }
+
+  if (updates.length === 0) {
+    return { success: true, action: 'no-op', apiNumber };
+  }
+
+  updates.push('updated_at = CURRENT_TIMESTAMP');
+  binds.push(apiNumber);
+
   try {
-    if (existingData.records && existingData.records.length > 0) {
-      // Update existing record
-      const recordId = existingData.records[0].id;
-      const updateUrl = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELL_LOCATIONS_TABLE}/${recordId}`;
-      
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fields })
-      });
-      
-      if (!updateResponse.ok) {
-        const error = await updateResponse.text();
-        return { success: false, error: `Update failed: ${error}` };
-      }
-      
-      return { success: true, action: 'updated', apiNumber };
-      
-    } else {
-      // Create new record
-      const createUrl = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELL_LOCATIONS_TABLE}`;
-      
-      const createResponse = await fetch(createUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fields })
-      });
-      
-      if (!createResponse.ok) {
-        const error = await createResponse.text();
-        return { success: false, error: `Create failed: ${error}` };
-      }
-      
-      return { success: true, action: 'created', apiNumber };
+    const result = await env.WELLS_DB.prepare(
+      `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ?`
+    ).bind(...binds).run();
+
+    if (result.meta.changes === 0) {
+      console.warn(`[WellLocation D1-MISS] Well ${apiNumber} not in D1 wells table — location data not saved`);
+      return { success: true, action: 'not-found', apiNumber };
     }
+
+    return { success: true, action: 'updated', apiNumber };
   } catch (err) {
     return { success: false, error: err.message };
   }
