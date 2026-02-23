@@ -6,10 +6,38 @@ interface Env {
   DB: D1Database;
 }
 
+// Build reverse lookup: lowercase county name → slug (e.g. "garfield" → "garfield-county")
+const NAME_TO_SLUG: Record<string, string> = {};
+for (const [slug, info] of Object.entries(COUNTIES)) {
+  NAME_TO_SLUG[info.name.toLowerCase()] = slug;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // 301 redirect: /oklahoma/counties/:name → /counties/:name-county
+    // Handles bad URLs submitted to search engines (e.g. /oklahoma/counties/garfield)
+    const oklahomaMatch = path.match(/^\/oklahoma\/counties\/([a-z0-9-]+)\/?$/);
+    if (oklahomaMatch) {
+      const name = oklahomaMatch[1];
+      // Try direct slug match first, then name lookup
+      const targetSlug = COUNTIES[name] ? name
+        : COUNTIES[`${name}-county`] ? `${name}-county`
+        : NAME_TO_SLUG[name] || null;
+
+      if (targetSlug) {
+        return Response.redirect(`${url.origin}/counties/${targetSlug}`, 301);
+      }
+      // Unknown county name under /oklahoma/ → redirect to index
+      return Response.redirect(`${url.origin}/counties`, 301);
+    }
+
+    // /oklahoma/counties → redirect to /counties
+    if (path === '/oklahoma/counties' || path === '/oklahoma/counties/') {
+      return Response.redirect(`${url.origin}/counties`, 301);
+    }
 
     // /counties/ or /counties → index page
     if (path === '/counties' || path === '/counties/') {
@@ -21,8 +49,10 @@ export default {
     if (match) {
       const slug = match[1];
 
-      // Redirect trailing-slash-less to trailing-slash for consistency (optional)
-      // Actually, keep both working. No redirect needed.
+      // If slug is just the county name without "-county", redirect to canonical URL
+      if (!COUNTIES[slug] && NAME_TO_SLUG[slug]) {
+        return Response.redirect(`${url.origin}/counties/${NAME_TO_SLUG[slug]}`, 301);
+      }
 
       if (!COUNTIES[slug]) {
         return new Response(render404(), {
