@@ -1,5 +1,6 @@
 import { fetchWellDetailsFromOCC } from './handlers/wells.js';
-import { runFullPropertyWellMatching } from './utils/property-well-matching.js';
+import { runFullPropertyWellMatching, getAdjacentLocations } from './utils/property-well-matching.js';
+import { normalizeSection, normalizeTownship, normalizeRange } from './utils/str-normalize.js';
 
 // Airtable configuration
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
