@@ -824,29 +824,66 @@ async function reconcileLinkCounts(env: any): Promise<void> {
         }
       }
 
-      // 3. Filing counts — UNION ALL both match paths, COUNT(DISTINCT case_number) to deduplicate
+      // 3. Filing counts — direct + adjacent section matches (matching modal behavior)
+      // Adjacent filings (HORIZONTAL_WELL, INCREASED_DENSITY, POOLING) are shown in the
+      // OCC Filings modal, so the counter must include them to avoid mismatches.
       const filingMap = new Map<string, number>();
-      const filingResult = await env.WELLS_DB.prepare(`
-        SELECT p.airtable_record_id as prop_id,
-               COUNT(DISTINCT filings.case_number) as cnt
-        FROM properties p
-        INNER JOIN (
-          SELECT case_number, CAST(section AS INTEGER) as sec_int,
-            LTRIM(UPPER(township), '0') as twn_norm, LTRIM(UPPER(range), '0') as rng_norm
-          FROM occ_docket_entries WHERE section IS NOT NULL
-          UNION ALL
-          SELECT case_number, CAST(section AS INTEGER) as sec_int,
-            LTRIM(UPPER(township), '0') as twn_norm, LTRIM(UPPER(range), '0') as rng_norm
-          FROM docket_entry_sections WHERE section IS NOT NULL
-        ) filings
-          ON filings.sec_int = CAST(p.section AS INTEGER)
-          AND filings.twn_norm = LTRIM(UPPER(p.township), '0')
-          AND filings.rng_norm = LTRIM(UPPER(p.range), '0')
-        WHERE p.section IS NOT NULL AND ${ownerWhere}
-        GROUP BY p.airtable_record_id
-      `).bind(...ownerParams).all();
-      for (const r of filingResult.results as any[]) {
-        filingMap.set(r.prop_id, r.cnt);
+      const ADJACENT_RELIEF_TYPES = "'HORIZONTAL_WELL','INCREASED_DENSITY','POOLING'";
+
+      // Build a Map of TRS key → Set<case_number> for all docket entries
+      // Then for each property, collect direct + adjacent matches
+      const allFilings = await env.WELLS_DB.prepare(`
+        SELECT case_number, CAST(section AS INTEGER) as sec,
+          LTRIM(UPPER(township), '0') as twn, LTRIM(UPPER(range), '0') as rng,
+          relief_type
+        FROM occ_docket_entries WHERE section IS NOT NULL
+        UNION ALL
+        SELECT d.case_number, CAST(ds.section AS INTEGER) as sec,
+          LTRIM(UPPER(ds.township), '0') as twn, LTRIM(UPPER(ds.range), '0') as rng,
+          d.relief_type
+        FROM docket_entry_sections ds
+        JOIN occ_docket_entries d ON d.case_number = ds.case_number
+        WHERE ds.section IS NOT NULL
+      `).all();
+
+      // Index filings by TRS key: "sec|twn|rng" → [{case_number, relief_type}]
+      const filingsByTRS = new Map<string, Array<{case_number: string; relief_type: string}>>();
+      for (const f of allFilings.results as any[]) {
+        const key = `${f.sec}|${f.twn}|${f.rng}`;
+        if (!filingsByTRS.has(key)) filingsByTRS.set(key, []);
+        filingsByTRS.get(key)!.push({ case_number: f.case_number, relief_type: f.relief_type });
+      }
+
+      // For each property, collect direct matches + adjacent matches (relevant types only)
+      for (const prop of props.results as any[]) {
+        const sec = normalizeSection(prop.section);
+        const twn = normalizeTownship(prop.township);
+        const rng = normalizeRange(prop.range);
+        if (sec === null || !twn || !rng) continue;
+
+        const propId = prop.airtable_record_id || prop.id;
+        const caseNumbers = new Set<string>();
+
+        // Direct matches (all relief types)
+        const directKey = `${sec}|${twn}|${rng}`;
+        for (const f of filingsByTRS.get(directKey) || []) {
+          caseNumbers.add(f.case_number);
+        }
+
+        // Adjacent matches (only horizontal/density/pooling)
+        const adjLocs = getAdjacentLocations(sec, twn, rng);
+        for (const loc of adjLocs) {
+          const adjKey = `${loc.section}|${loc.township}|${loc.range}`;
+          for (const f of filingsByTRS.get(adjKey) || []) {
+            if (f.relief_type === 'HORIZONTAL_WELL' || f.relief_type === 'INCREASED_DENSITY' || f.relief_type === 'POOLING') {
+              caseNumbers.add(f.case_number);
+            }
+          }
+        }
+
+        if (caseNumbers.size > 0) {
+          filingMap.set(propId, caseNumbers.size);
+        }
       }
 
       // Build UPDATE statements — only update rows that changed
