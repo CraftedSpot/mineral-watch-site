@@ -256,9 +256,16 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
     if (rawPun && rawPun.toString().trim().length >= 10) {
       try {
         const cleanPun = rawPun.toString().trim();
-        // Normalize: strip dashes for pun column, first 10 chars for base_pun
-        const normalizedPun = cleanPun.replace(/-/g, '');
-        const basePun = normalizedPun.substring(0, 10);
+        // Keep dashes in PUN — base_pun must be XXX-XXXXXX format (county-lease, lease zero-padded to 6)
+        const punMatch = cleanPun.match(/^(\d{3})-(\d+)/);
+        let basePun;
+        if (punMatch) {
+          basePun = punMatch[1] + '-' + punMatch[2].substring(0, 6).padStart(6, '0');
+        } else {
+          const digits = cleanPun.replace(/[^0-9]/g, '');
+          basePun = digits.length >= 9 ? `${digits.substring(0, 3)}-${digits.substring(3, 9)}` : cleanPun.substring(0, 10);
+        }
+        const normalizedPun = cleanPun;
 
         await env.WELLS_DB.prepare(`
           INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)

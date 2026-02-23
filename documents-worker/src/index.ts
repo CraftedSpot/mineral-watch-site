@@ -2325,6 +2325,21 @@ export default {
                 return digits.length >= 10 ? digits.substring(0, 10) : digits || null;
               };
 
+              // Normalize PUN to 10-char base_pun: XXX-XXXXXX (county-lease, lease zero-padded to 6)
+              const normalizeBasePun = (pun: string): string => {
+                const match = pun.match(/^(\d{3})-(\d+)/);
+                if (match) {
+                  const county = match[1];
+                  const lease = match[2].substring(0, 6).padStart(6, '0');
+                  return `${county}-${lease}`;
+                }
+                const digits = pun.replace(/[^0-9]/g, '');
+                if (digits.length >= 9) {
+                  return `${digits.substring(0, 3)}-${digits.substring(3, 9)}`;
+                }
+                return pun.length >= 10 ? pun.substring(0, 10) : pun;
+              };
+
               try {
                 // Get API - check all possible extraction paths, normalize to 10-char
                 const rawApi = extracted_data.api_number_normalized
@@ -2355,8 +2370,8 @@ export default {
                     `).bind(apiNumber, pun, pun).run();
 
                     // Also insert into well_pun_links (used for production matching)
-                    // base_pun (first 10 chars: XXX-XXXXXX) is critical for horizontal well production matching
-                    const basePun = pun.length >= 10 ? pun.substring(0, 10) : pun;
+                    // base_pun (XXX-XXXXXX: county-lease, lease zero-padded to 6) is critical for production matching
+                    const basePun = normalizeBasePun(pun);
                     await env.WELLS_DB.prepare(`
                       INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
                       VALUES (?, ?, ?, '1002a_extraction', 'high')
