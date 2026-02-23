@@ -42,7 +42,8 @@ import {
   learnHtml,
   intelligenceHtml,
   operatorsHtml,
-  marketingHtml
+  marketingHtml,
+  adminHtml
 } from './templates/index.js';
 
 import {
@@ -199,7 +200,18 @@ import {
   handleCountyRecordsSearch,
   handleCountyRecordsRetrieve,
   // Dashboard counts handler
-  handleGetDashboardCounts
+  handleGetDashboardCounts,
+  // Admin dashboard handlers
+  handleAdminUsers,
+  handleAdminAttention,
+  handleAdminUserDetail,
+  handleAdminHealth,
+  handleAdminActivity,
+  handleAdminBilling,
+  handleAdminNotesList,
+  handleAdminNotesCreate,
+  handleAdminNotesUpdate,
+  handleAdminNotesDelete
 } from './handlers/index.js';
 
 import { rateLimit, rateLimitUser } from './utils/rate-limit.js';
@@ -376,6 +388,14 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return Response.redirect(`${BASE_URL}/portal`, 302);
         }
         return servePage(marketingHtml, request, env);
+      }
+      if (path === "/portal/admin" || path === "/portal/admin/") {
+        // Super-admin only
+        const admUser = await authenticateRequest(request, env);
+        if (!admUser || !isSuperAdmin(admUser.email)) {
+          return Response.redirect(`${BASE_URL}/portal`, 302);
+        }
+        return servePage(adminHtml, request, env);
       }
 
       // Analyze OCC order route - handles email link clicks
@@ -1157,6 +1177,40 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleDeleteActivity(deleteActivityMatch[1], request, env);
       }
       
+      // Admin dashboard API endpoints
+      if (path === "/api/admin/dashboard/users" && request.method === "GET") {
+        return handleAdminUsers(request, env);
+      }
+      if (path === "/api/admin/dashboard/attention" && request.method === "GET") {
+        return handleAdminAttention(request, env);
+      }
+      const adminUserMatch = path.match(/^\/api\/admin\/dashboard\/user\/([a-zA-Z0-9]+)$/);
+      if (adminUserMatch && request.method === "GET") {
+        return handleAdminUserDetail(adminUserMatch[1], request, env);
+      }
+      if (path === "/api/admin/dashboard/health" && request.method === "GET") {
+        return handleAdminHealth(request, env);
+      }
+      if (path === "/api/admin/dashboard/activity" && request.method === "GET") {
+        return handleAdminActivity(request, env);
+      }
+      if (path === "/api/admin/dashboard/billing" && request.method === "GET") {
+        return handleAdminBilling(request, env);
+      }
+      if (path === "/api/admin/dashboard/notes" && request.method === "GET") {
+        return handleAdminNotesList(request, env);
+      }
+      if (path === "/api/admin/dashboard/notes" && request.method === "POST") {
+        return handleAdminNotesCreate(request, env);
+      }
+      const adminNoteMatch = path.match(/^\/api\/admin\/dashboard\/notes\/([a-zA-Z0-9_-]+)$/);
+      if (adminNoteMatch && request.method === "PATCH") {
+        return handleAdminNotesUpdate(adminNoteMatch[1], request, env);
+      }
+      if (adminNoteMatch && request.method === "DELETE") {
+        return handleAdminNotesDelete(adminNoteMatch[1], request, env);
+      }
+
       // Admin impersonation info endpoint (for banner display)
       if (path === "/api/admin/impersonate-info" && request.method === "GET") {
         const user = await authenticateRequest(request, env);

@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mineral Watch — Admin Dashboard</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* __ADMIN_CSS__ */
+</style>
+</head>
+<body>
+
+<!-- Top Bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-logo">
+      <a href="/portal" style="color:inherit;text-decoration:none;">&#9670; Mineral Watch</a> <span>Admin Dashboard</span>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <button class="btn btn-ghost" onclick="window.location.href='/portal'">&#8592; Portal</button>
+  </div>
+</div>
+
+<!-- Tab Navigation -->
+<div class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('users', this)">Users</button>
+  <button class="tab-btn" onclick="switchTab('attention', this)">Attention <span class="count" id="attentionCount">0</span></button>
+  <button class="tab-btn" onclick="switchTab('health', this)">System Health</button>
+  <button class="tab-btn" onclick="switchTab('activity', this)">Activity Feed</button>
+  <button class="tab-btn" onclick="switchTab('billing', this)">Billing</button>
+  <button class="tab-btn" onclick="switchTab('notes', this)">Notes <span class="count" id="notesCount">0</span></button>
+</div>
+
+<!-- Main Content -->
+<div class="main">
+
+  <!-- ======== TAB: Users ======== -->
+  <div id="tab-users" class="tab-panel active">
+    <div class="section-header">
+      <div>
+        <div class="section-title">User Overview</div>
+        <div class="section-subtitle">All users with engagement metrics and health flags</div>
+      </div>
+      <div class="section-actions">
+        <input type="text" class="search-input" id="userSearch" placeholder="Search users..." oninput="filterUsersTable()">
+        <button class="btn btn-secondary" onclick="exportUsersCSV()">Export CSV</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table" id="usersTable">
+        <thead>
+          <tr>
+            <th class="sortable" onclick="sortUsers('name')">Name</th>
+            <th class="sortable" onclick="sortUsers('email')">Email</th>
+            <th class="sortable" onclick="sortUsers('plan')">Plan</th>
+            <th class="sortable" onclick="sortUsers('status')">Status</th>
+            <th>Org</th>
+            <th class="sortable" onclick="sortUsers('last_login')">Last Login</th>
+            <th class="sortable" onclick="sortUsers('total_logins')">Logins</th>
+            <th class="sortable" onclick="sortUsers('prop_count')">Props</th>
+            <th class="sortable" onclick="sortUsers('well_count')">Wells</th>
+            <th>Alerts</th>
+            <th>Failed</th>
+            <th class="sortable" onclick="sortUsers('created_at')">Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="usersBody">
+          <tr><td colspan="13" class="loading-cell">Loading users...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Attention Needed ======== -->
+  <div id="tab-attention" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Attention Needed</div>
+        <div class="section-subtitle">Users flagged for potential issues</div>
+      </div>
+    </div>
+    <div id="attentionContent">
+      <div class="loading-cell">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: System Health ======== -->
+  <div id="tab-health" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">System Health</div>
+        <div class="section-subtitle">D1, KV, and cron status</div>
+      </div>
+      <div class="section-actions">
+        <button class="btn btn-secondary" onclick="loadHealth()">Refresh</button>
+      </div>
+    </div>
+    <div id="healthContent">
+      <div class="loading-cell">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Activity Feed ======== -->
+  <div id="tab-activity" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Activity Feed</div>
+        <div class="section-subtitle">Recent alerts and events across all users</div>
+      </div>
+      <div class="section-actions">
+        <select id="activityTypeFilter" onchange="loadActivity()" class="filter-select">
+          <option value="">All Types</option>
+        </select>
+        <input type="text" class="search-input" id="activitySearch" placeholder="Search API# or well..." onkeydown="if(event.key==='Enter') loadActivity()">
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table" id="activityTable">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Type</th>
+            <th>Well</th>
+            <th>API#</th>
+            <th>Level</th>
+            <th>Email</th>
+          </tr>
+        </thead>
+        <tbody id="activityBody">
+          <tr><td colspan="7" class="loading-cell">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="activityLoadMore" style="display:none; text-align:center; padding:16px;">
+      <button class="btn btn-secondary" onclick="loadMoreActivity()">Load More</button>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Billing ======== -->
+  <div id="tab-billing" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Billing &amp; Revenue</div>
+        <div class="section-subtitle">Subscription health and revenue overview</div>
+      </div>
+    </div>
+    <div id="billingContent">
+      <div class="loading-cell">Loading...</div>
+    </div>
+  </div>
+
+  <!-- ======== TAB: Notes ======== -->
+  <div id="tab-notes" class="tab-panel">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Admin Notes</div>
+        <div class="section-subtitle">Follow-ups, issues, and user tags</div>
+      </div>
+      <div class="section-actions">
+        <select id="notesTagFilter" onchange="loadNotes()" class="filter-select">
+          <option value="">All Tags</option>
+          <option value="follow-up">Follow-up</option>
+          <option value="billing">Billing</option>
+          <option value="onboarding">Onboarding</option>
+          <option value="churn-risk">Churn Risk</option>
+          <option value="support">Support</option>
+        </select>
+        <label class="toggle-label"><input type="checkbox" id="showResolved" onchange="loadNotes()"> Show Resolved</label>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="data-table" id="notesTable">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Note</th>
+            <th>Tag</th>
+            <th>Author</th>
+            <th>Created</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="notesBody">
+          <tr><td colspan="6" class="loading-cell">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- User Detail Modal -->
+<div id="userDetailModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeUserDetail()">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div class="modal-title" id="modalUserName">User Detail</div>
+      <button class="modal-close" onclick="closeUserDetail()">&#10005;</button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <div class="loading-cell">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Note Modal -->
+<div id="addNoteModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeAddNote()">
+  <div class="modal-content modal-small">
+    <div class="modal-header">
+      <div class="modal-title">Add Note</div>
+      <button class="modal-close" onclick="closeAddNote()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="addNoteUserLabel" class="note-user-label"></div>
+      <textarea id="noteText" class="note-textarea" placeholder="Enter note..." rows="4"></textarea>
+      <div class="note-form-row">
+        <select id="noteTag" class="filter-select">
+          <option value="">No Tag</option>
+          <option value="follow-up">Follow-up</option>
+          <option value="billing">Billing</option>
+          <option value="onboarding">Onboarding</option>
+          <option value="churn-risk">Churn Risk</option>
+          <option value="support">Support</option>
+        </select>
+        <button class="btn btn-primary" onclick="submitNote()">Save Note</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* __ADMIN_JS__ */
+</script>
+
+</body>
+</html>

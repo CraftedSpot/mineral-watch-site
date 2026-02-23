@@ -18,6 +18,11 @@ id = "0988b6413183413bb4f1d1731ced4ed8"
 binding = "COMPLETIONS_CACHE"
 id = "d39109ffa98d4f4d999ee37098d0c13e"
 
+# Mineral monitor KV (health status, write failure counters)
+[[kv_namespaces]]
+binding = "MINERAL_CACHE"
+id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
 # Service binding to documents-worker
 [[services]]
 binding = "DOCUMENTS_WORKER"

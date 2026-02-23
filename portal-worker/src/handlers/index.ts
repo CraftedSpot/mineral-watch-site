@@ -260,3 +260,17 @@ export {
   handleCountyRecordsSearch,
   handleCountyRecordsRetrieve
 } from './county-records.js';
+
+// Admin dashboard handlers
+export {
+  handleAdminUsers,
+  handleAdminAttention,
+  handleAdminUserDetail,
+  handleAdminHealth,
+  handleAdminActivity,
+  handleAdminBilling,
+  handleAdminNotesList,
+  handleAdminNotesCreate,
+  handleAdminNotesUpdate,
+  handleAdminNotesDelete
+} from './admin-dashboard.js';

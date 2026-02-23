@@ -1,0 +1,775 @@
+        // =============================================
+        // ADMIN DASHBOARD
+        // =============================================
+
+        let currentTab = 'users';
+        let loadedTabs = {};
+        let allUsers = [];
+        let sortField = 'last_login';
+        let sortDir = 'desc';
+        let activityOffset = 0;
+        let activityHasMore = false;
+        let addNoteUserId = null;
+        let addNoteUserLabel = '';
+
+        // =============================================
+        // INITIALIZATION
+        // =============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const hash = window.location.hash.replace('#', '');
+            if (['users', 'attention', 'health', 'activity', 'billing', 'notes'].includes(hash)) {
+                currentTab = hash;
+            }
+            switchTab(currentTab);
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeUserDetail();
+                    closeAddNote();
+                }
+            });
+        });
+
+        // =============================================
+        // TAB SWITCHING
+        // =============================================
+        function switchTab(tabName, clickedBtn) {
+            currentTab = tabName;
+            window.location.hash = tabName;
+
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                const isMatch = clickedBtn ? (btn === clickedBtn) : (btn.getAttribute('onclick') || '').includes('\'' + tabName + '\'');
+                btn.classList.toggle('active', isMatch);
+            });
+
+            document.querySelectorAll('.tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === 'tab-' + tabName);
+            });
+
+            if (!loadedTabs[tabName]) {
+                loadedTabs[tabName] = true;
+                if (tabName === 'users') loadUsers();
+                else if (tabName === 'attention') loadAttention();
+                else if (tabName === 'health') loadHealth();
+                else if (tabName === 'activity') loadActivity();
+                else if (tabName === 'billing') loadBilling();
+                else if (tabName === 'notes') loadNotes();
+            }
+        }
+
+        // =============================================
+        // HELPERS
+        // =============================================
+        function fmtDate(d) {
+            if (!d) return '—';
+            const dt = new Date(d);
+            if (isNaN(dt)) return '—';
+            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        }
+
+        function fmtDateTime(d) {
+            if (!d) return '—';
+            const dt = new Date(d);
+            if (isNaN(dt)) return '—';
+            return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + dt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function daysSince(d) {
+            if (!d) return 999;
+            const dt = new Date(d);
+            if (isNaN(dt)) return 999;
+            return Math.floor((Date.now() - dt.getTime()) / 86400000);
+        }
+
+        function esc(s) {
+            if (s == null) return '';
+            return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function tagBadge(tag) {
+            if (!tag) return '';
+            const colors = { 'follow-up': 'blue', 'billing': 'amber', 'onboarding': 'green', 'churn-risk': 'red', 'support': 'purple' };
+            return '<span class="badge badge-' + (colors[tag] || 'muted') + '">' + esc(tag) + '</span>';
+        }
+
+        function statusBadge(status) {
+            if (!status) return '';
+            if (status === 'Active') return '<span class="badge badge-green">' + esc(status) + '</span>';
+            if (status === 'Cancelled' || status === 'Canceled') return '<span class="badge badge-red">' + esc(status) + '</span>';
+            return '<span class="badge badge-muted">' + esc(status) + '</span>';
+        }
+
+        // =============================================
+        // TAB 1: USERS
+        // =============================================
+        async function loadUsers() {
+            try {
+                const res = await fetch('/api/admin/dashboard/users');
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                allUsers = data.users || [];
+                renderUsers();
+            } catch (err) {
+                document.getElementById('usersBody').innerHTML = '<tr><td colspan="13" class="loading-cell">Error: ' + esc(err.message) + '</td></tr>';
+            }
+        }
+
+        function renderUsers() {
+            const search = (document.getElementById('userSearch').value || '').toLowerCase();
+            let users = allUsers;
+            if (search) {
+                users = users.filter(u =>
+                    (u.name || '').toLowerCase().includes(search) ||
+                    (u.email || '').toLowerCase().includes(search) ||
+                    (u.org_name || '').toLowerCase().includes(search)
+                );
+            }
+
+            const tbody = document.getElementById('usersBody');
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="13" class="loading-cell">No users found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = users.map(u => {
+                const daysSinceLogin = daysSince(u.last_login);
+                const loginClass = daysSinceLogin > 30 ? 'flag-red' : daysSinceLogin > 14 ? 'flag-amber' : '';
+                const loginsClass = (!u.total_logins || u.total_logins === 0) ? 'flag-red' : '';
+                const propClass = (!u.prop_count || u.prop_count === 0) ? 'flag-red' : '';
+                const wellClass = (!u.well_count || u.well_count === 0) ? 'flag-red' : '';
+                const failedClass = (u.failed_emails > 0) ? 'flag-red' : '';
+                const isCanceled = u.status === 'Cancelled' || u.status === 'Canceled';
+
+                return '<tr>' +
+                    '<td>' + esc(u.name || '—') + '</td>' +
+                    '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(u.email) + '</td>' +
+                    '<td>' + esc(u.plan || 'Free') + '</td>' +
+                    '<td>' + (isCanceled ? '<span class="flag-red">' + esc(u.status) + '</span>' : esc(u.status || '—')) + '</td>' +
+                    '<td>' + esc(u.org_name || '—') + '</td>' +
+                    '<td class="' + loginClass + '">' + fmtDate(u.last_login) + '</td>' +
+                    '<td class="' + loginsClass + '">' + (u.total_logins || 0) + '</td>' +
+                    '<td class="' + propClass + '">' + (u.prop_count || 0) + '</td>' +
+                    '<td class="' + wellClass + '">' + (u.well_count || 0) + '</td>' +
+                    '<td>' + (u.alerts_30d || 0) + '</td>' +
+                    '<td class="' + failedClass + '">' + (u.failed_emails || 0) + '</td>' +
+                    '<td>' + fmtDate(u.created_at) + '</td>' +
+                    '<td style="white-space:nowrap;">' +
+                        '<button class="btn btn-sm btn-secondary" onclick="openUserDetail(\'' + esc(u.airtable_record_id) + '\')">Detail</button> ' +
+                        '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impers.</button> ' +
+                        '<button class="btn btn-sm btn-ghost" onclick="openAddNote(\'' + esc(u.airtable_record_id) + '\', \'' + esc(u.name || u.email) + '\')">+Note</button>' +
+                    '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        function filterUsersTable() { renderUsers(); }
+
+        function sortUsers(field) {
+            if (sortField === field) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDir = 'desc';
+            }
+
+            allUsers.sort((a, b) => {
+                let va = a[field], vb = b[field];
+                if (va == null) va = '';
+                if (vb == null) vb = '';
+                if (typeof va === 'number' && typeof vb === 'number') {
+                    return sortDir === 'asc' ? va - vb : vb - va;
+                }
+                va = String(va).toLowerCase();
+                vb = String(vb).toLowerCase();
+                return sortDir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
+            });
+
+            // Update sort indicators
+            document.querySelectorAll('#usersTable th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+            });
+            const ths = document.querySelectorAll('#usersTable th.sortable');
+            ths.forEach(th => {
+                if ((th.getAttribute('onclick') || '').includes('\'' + field + '\'')) {
+                    th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+
+            renderUsers();
+        }
+
+        function impersonate(userId) {
+            window.open('/portal?act_as=' + userId, '_blank');
+        }
+
+        function exportUsersCSV() {
+            if (!allUsers.length) return;
+            const headers = ['Name', 'Email', 'Plan', 'Status', 'Org', 'Last Login', 'Total Logins', 'Properties', 'Wells', 'Alerts 30d', 'Failed Emails', 'Created'];
+            const rows = allUsers.map(u => [
+                u.name || '', u.email || '', u.plan || 'Free', u.status || '', u.org_name || '',
+                u.last_login || '', u.total_logins || 0, u.prop_count || 0, u.well_count || 0,
+                u.alerts_30d || 0, u.failed_emails || 0, u.created_at || ''
+            ]);
+            let csv = headers.join(',') + '\n';
+            rows.forEach(r => {
+                csv += r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',') + '\n';
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'mineral-watch-users-' + new Date().toISOString().split('T')[0] + '.csv';
+            a.click();
+        }
+
+        // =============================================
+        // TAB 2: ATTENTION
+        // =============================================
+        async function loadAttention() {
+            try {
+                const res = await fetch('/api/admin/dashboard/attention');
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                renderAttention(data.categories);
+            } catch (err) {
+                document.getElementById('attentionContent').innerHTML = '<div class="loading-cell">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderAttention(categories) {
+            const el = document.getElementById('attentionContent');
+            let totalAttention = 0;
+            let html = '';
+
+            const order = ['never_logged_in', 'dormant_paid', 'empty_account', 'failed_emails', 'recently_canceled', 'stale_free', 'engaged_no_wells'];
+            const icons = {
+                never_logged_in: '&#128683;',
+                dormant_paid: '&#128564;',
+                empty_account: '&#128230;',
+                failed_emails: '&#9888;',
+                recently_canceled: '&#128308;',
+                stale_free: '&#128164;',
+                engaged_no_wells: '&#128269;'
+            };
+
+            for (const key of order) {
+                const cat = categories[key];
+                if (!cat) continue;
+                const count = cat.users.length;
+                totalAttention += count;
+
+                html += '<div class="attention-section">' +
+                    '<div class="attention-header" onclick="toggleAttention(this)">' +
+                        '<div class="attention-header-left">' +
+                            '<span>' + (icons[key] || '') + '</span>' +
+                            '<span class="attention-label">' + esc(cat.label) + '</span>' +
+                            '<span class="attention-count' + (count === 0 ? ' zero' : '') + '">' + count + '</span>' +
+                        '</div>' +
+                        '<span class="attention-arrow">&#9654;</span>' +
+                    '</div>' +
+                    '<div class="attention-body">';
+
+                if (count === 0) {
+                    html += '<div class="loading-cell">No users in this category</div>';
+                } else {
+                    html += '<table class="data-table"><thead><tr>' +
+                        '<th>Name</th><th>Email</th><th>Plan</th><th>Status</th><th>Last Login</th><th>Created</th><th>Actions</th>' +
+                        '</tr></thead><tbody>';
+                    for (const u of cat.users) {
+                        html += '<tr>' +
+                            '<td>' + esc(u.name || '—') + '</td>' +
+                            '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(u.email) + '</td>' +
+                            '<td>' + esc(u.plan || 'Free') + '</td>' +
+                            '<td>' + statusBadge(u.status) + '</td>' +
+                            '<td>' + fmtDate(u.last_login) + '</td>' +
+                            '<td>' + fmtDate(u.created_at) + '</td>' +
+                            '<td style="white-space:nowrap;">' +
+                                '<button class="btn btn-sm btn-secondary" onclick="openUserDetail(\'' + esc(u.airtable_record_id) + '\')">Detail</button> ' +
+                                '<button class="btn btn-sm btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impers.</button>' +
+                            '</td></tr>';
+                    }
+                    html += '</tbody></table>';
+                }
+
+                html += '</div></div>';
+            }
+
+            el.innerHTML = html;
+            document.getElementById('attentionCount').textContent = totalAttention;
+        }
+
+        function toggleAttention(headerEl) {
+            const body = headerEl.nextElementSibling;
+            const arrow = headerEl.querySelector('.attention-arrow');
+            body.classList.toggle('open');
+            arrow.classList.toggle('open');
+        }
+
+        // =============================================
+        // TAB 3: USER DETAIL MODAL
+        // =============================================
+        async function openUserDetail(userId) {
+            document.getElementById('userDetailModal').style.display = 'flex';
+            document.getElementById('modalBody').innerHTML = '<div class="loading-cell">Loading user detail...</div>';
+            document.getElementById('modalUserName').textContent = 'User Detail';
+
+            try {
+                const res = await fetch('/api/admin/dashboard/user/' + userId);
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                renderUserDetail(data);
+            } catch (err) {
+                document.getElementById('modalBody').innerHTML = '<div class="loading-cell">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderUserDetail(data) {
+            const u = data.user;
+            document.getElementById('modalUserName').textContent = (u.name || u.email) + ' — Detail';
+
+            let html = '';
+
+            // Profile card
+            html += '<div class="detail-section"><div class="detail-section-title">Profile</div><div class="detail-grid">';
+            const fields = [
+                ['Name', u.name], ['Email', u.email], ['Plan', u.plan || 'Free'], ['Status', u.status],
+                ['Role', u.role], ['Org', u.org_name], ['Stripe ID', u.stripe_customer_id],
+                ['Alert Permits', u.alert_permits ? 'Yes' : 'No'], ['Alert Completions', u.alert_completions ? 'Yes' : 'No'],
+                ['Alert Status Changes', u.alert_status_changes ? 'Yes' : 'No'], ['Alert Expirations', u.alert_expirations ? 'Yes' : 'No'],
+                ['Notification Mode', u.notification_override || 'Default']
+            ];
+            for (const [label, val] of fields) {
+                html += '<div class="detail-field"><label>' + esc(label) + '</label><div class="val">' + esc(val || '—') + '</div></div>';
+            }
+            html += '</div></div>';
+
+            // Login timeline
+            html += '<div class="detail-section"><div class="detail-section-title">Login Timeline</div><div class="detail-grid">';
+            html += '<div class="detail-field"><label>Last Login</label><div class="val">' + fmtDateTime(u.last_login) + '</div></div>';
+            html += '<div class="detail-field"><label>Total Logins</label><div class="val">' + (u.total_logins || 0) + '</div></div>';
+            html += '<div class="detail-field"><label>Created</label><div class="val">' + fmtDateTime(u.created_at) + '</div></div>';
+            html += '<div class="detail-field"><label>Days Since Login</label><div class="val">' + daysSince(u.last_login) + '</div></div>';
+            html += '</div></div>';
+
+            // Quick links
+            html += '<div class="detail-section"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
+            html += '<button class="btn btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impersonate User</button>';
+            if (u.stripe_customer_id) {
+                html += '<a class="btn btn-secondary" href="https://dashboard.stripe.com/customers/' + esc(u.stripe_customer_id) + '" target="_blank" rel="noopener">Stripe Dashboard</a>';
+            }
+            html += '<button class="btn btn-secondary" onclick="closeUserDetail(); openAddNote(\'' + esc(u.airtable_record_id) + '\', \'' + esc(u.name || u.email) + '\')">Add Note</button>';
+            html += '</div></div>';
+
+            // Admin notes (inline)
+            if (data.notes && data.notes.length > 0) {
+                html += '<div class="detail-section"><div class="detail-section-title">Admin Notes (' + data.notes.length + ')</div>';
+                for (const n of data.notes) {
+                    html += '<div class="note-inline' + (n.resolved ? ' note-resolved' : '') + '">' +
+                        '<div class="note-inline-header">' +
+                            '<span class="note-inline-meta">' + esc(n.author) + ' &middot; ' + fmtDate(n.created_at) + (n.resolved ? ' &middot; Resolved' : '') + '</span>' +
+                            tagBadge(n.tag) +
+                        '</div>' +
+                        '<div class="note-inline-text">' + esc(n.note) + '</div>' +
+                    '</div>';
+                }
+                html += '</div>';
+            }
+
+            // Cancellation
+            if (u.cancellation_date) {
+                html += '<div class="detail-section"><div class="detail-section-title">Cancellation</div><div class="detail-grid">';
+                html += '<div class="detail-field"><label>Date</label><div class="val">' + fmtDate(u.cancellation_date) + '</div></div>';
+                html += '<div class="detail-field"><label>Reason</label><div class="val">' + esc(u.cancellation_reason || '—') + '</div></div>';
+                html += '<div class="detail-field"><label>Feedback</label><div class="val">' + esc(u.cancellation_feedback || '—') + '</div></div>';
+                html += '</div></div>';
+            }
+
+            // Organization
+            if (u.org_name) {
+                html += '<div class="detail-section"><div class="detail-section-title">Organization</div><div class="detail-grid">';
+                html += '<div class="detail-field"><label>Org Name</label><div class="val">' + esc(u.org_name) + '</div></div>';
+                html += '<div class="detail-field"><label>Org Plan</label><div class="val">' + esc(u.org_plan || '—') + '</div></div>';
+                html += '<div class="detail-field"><label>Members</label><div class="val">' + (data.orgMemberCount || 0) + '</div></div>';
+                html += '<div class="detail-field"><label>Role</label><div class="val">' + esc(u.role || '—') + '</div></div>';
+                html += '</div></div>';
+            }
+
+            // Properties
+            html += '<div class="detail-section"><div class="detail-section-title">Properties (' + (data.properties || []).length + ')</div>';
+            if (data.properties && data.properties.length > 0) {
+                html += '<table class="data-table"><thead><tr><th>County</th><th>STR</th><th>Wells</th><th>Docs</th><th>Filings</th></tr></thead><tbody>';
+                for (const p of data.properties) {
+                    html += '<tr><td>' + esc(p.county) + '</td><td>' + esc(p.section) + '-' + esc(p.township) + '-' + esc(p.range_value) + '</td>' +
+                        '<td>' + (p.well_count || 0) + '</td><td>' + (p.document_count || 0) + '</td><td>' + (p.filing_count || 0) + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="loading-cell">No properties</div>';
+            }
+            html += '</div>';
+
+            // Wells
+            html += '<div class="detail-section"><div class="detail-section-title">Wells (' + (data.wells || []).length + ')</div>';
+            if (data.wells && data.wells.length > 0) {
+                html += '<table class="data-table"><thead><tr><th>API#</th><th>Name</th><th>Status</th><th>Operator</th><th>County</th></tr></thead><tbody>';
+                for (const w of data.wells) {
+                    html += '<tr><td style="font-family:var(--font-mono);font-size:12px;">' + esc(w.api_number) + '</td><td>' + esc(w.well_name) + '</td>' +
+                        '<td>' + esc(w.well_status || '—') + '</td><td>' + esc(w.operator || '—') + '</td><td>' + esc(w.county || '—') + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="loading-cell">No wells</div>';
+            }
+            html += '</div>';
+
+            // Recent activity
+            html += '<div class="detail-section"><div class="detail-section-title">Recent Activity (last 25)</div>';
+            if (data.activity && data.activity.length > 0) {
+                html += '<table class="data-table"><thead><tr><th>Date</th><th>Type</th><th>Well</th><th>Detail</th><th>Email</th></tr></thead><tbody>';
+                for (const a of data.activity) {
+                    html += '<tr><td>' + fmtDateTime(a.detected_at) + '</td><td>' + esc(a.activity_type) + '</td>' +
+                        '<td>' + esc(a.well_name || a.api_number || '—') + '</td>' +
+                        '<td>' + esc(a.previous_value || '') + ' &rarr; ' + esc(a.new_value || '') + '</td>' +
+                        '<td>' + (a.email_sent ? '<span class="dot-green"></span>' : '<span class="dot-red"></span>') + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="loading-cell">No recent activity</div>';
+            }
+            html += '</div>';
+
+            document.getElementById('modalBody').innerHTML = html;
+        }
+
+        function closeUserDetail() {
+            document.getElementById('userDetailModal').style.display = 'none';
+        }
+
+        // =============================================
+        // TAB 4: SYSTEM HEALTH
+        // =============================================
+        async function loadHealth() {
+            const el = document.getElementById('healthContent');
+            el.innerHTML = '<div class="loading-cell">Loading health data...</div>';
+
+            try {
+                const res = await fetch('/api/admin/dashboard/health');
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                renderHealth(data);
+            } catch (err) {
+                el.innerHTML = '<div class="loading-cell">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderHealth(data) {
+            let html = '';
+
+            // Alert cards
+            html += '<div class="cards-grid">';
+            html += healthCard('D1 Write Failures', data.d1WriteFailuresToday, 'Today', data.d1WriteFailuresToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
+            html += healthCard('NULL Well Statuses', data.nullWellStatuses, 'Active wells', data.nullWellStatuses > 10 ? 'var(--accent-amber)' : 'var(--accent-green)');
+            html += healthCard('Failed Emails', data.failedEmailsToday, 'Today', data.failedEmailsToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
+            html += healthCard('Pending Locations', data.pendingWellLocations, 'In KV queue', data.pendingWellLocations > 5 ? 'var(--accent-amber)' : 'var(--text-primary)');
+            html += '</div>';
+
+            // Table row counts
+            html += '<div class="detail-section"><div class="detail-section-title">Table Row Counts</div>';
+            html += '<div class="cards-grid">';
+            if (data.tableCounts) {
+                for (const [table, count] of Object.entries(data.tableCounts)) {
+                    html += '<div class="stat-card"><div class="stat-card-label">' + esc(table) + '</div><div class="stat-card-value" style="font-size:22px;">' + Number(count).toLocaleString() + '</div></div>';
+                }
+            }
+            html += '</div></div>';
+
+            // Cron health
+            html += '<div class="detail-section"><div class="detail-section-title">Cron Health</div>';
+            html += '<div class="cards-grid">';
+            const cronTypes = ['daily', 'weekly', 'docket'];
+            for (const type of cronTypes) {
+                const info = data.cronHealth?.[type];
+                if (info) {
+                    const lastRun = info.completedAt || info.timestamp;
+                    const healthy = info.healthy !== false;
+                    html += '<div class="stat-card">' +
+                        '<div class="stat-card-label">' + esc(type) + ' Cron</div>' +
+                        '<div class="stat-card-value" style="font-size:16px; color:' + (healthy ? 'var(--accent-green)' : 'var(--accent-red)') + ';">' +
+                            (healthy ? 'Healthy' : 'Unhealthy') +
+                        '</div>' +
+                        '<div class="stat-card-detail">Last: ' + fmtDateTime(lastRun) + '</div>' +
+                        (info.duration ? '<div class="stat-card-detail">' + info.duration + 'ms</div>' : '') +
+                    '</div>';
+                } else {
+                    html += '<div class="stat-card"><div class="stat-card-label">' + esc(type) + ' Cron</div><div class="stat-card-value" style="font-size:16px; color:var(--text-muted);">No data</div></div>';
+                }
+            }
+            html += '</div></div>';
+
+            document.getElementById('healthContent').innerHTML = html;
+        }
+
+        function healthCard(label, value, detail, color) {
+            return '<div class="stat-card">' +
+                '<div class="stat-card-label">' + esc(label) + '</div>' +
+                '<div class="stat-card-value" style="color:' + color + ';">' + (value != null ? value : '—') + '</div>' +
+                '<div class="stat-card-detail">' + esc(detail) + '</div>' +
+            '</div>';
+        }
+
+        // =============================================
+        // TAB 5: ACTIVITY FEED
+        // =============================================
+        async function loadActivity() {
+            activityOffset = 0;
+            const tbody = document.getElementById('activityBody');
+            tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Loading...</td></tr>';
+
+            try {
+                const type = document.getElementById('activityTypeFilter').value;
+                const search = document.getElementById('activitySearch').value;
+                let url = '/api/admin/dashboard/activity?offset=0&limit=100';
+                if (type) url += '&type=' + encodeURIComponent(type);
+                if (search) url += '&search=' + encodeURIComponent(search);
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+
+                // Populate type filter on first load
+                if (data.activityTypes && document.getElementById('activityTypeFilter').options.length <= 1) {
+                    for (const t of data.activityTypes) {
+                        const opt = document.createElement('option');
+                        opt.value = t;
+                        opt.textContent = t;
+                        document.getElementById('activityTypeFilter').appendChild(opt);
+                    }
+                }
+
+                renderActivityRows(data.entries, false);
+                activityHasMore = data.hasMore;
+                activityOffset = data.entries.length;
+                document.getElementById('activityLoadMore').style.display = data.hasMore ? 'block' : 'none';
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="7" class="loading-cell">Error: ' + esc(err.message) + '</td></tr>';
+            }
+        }
+
+        async function loadMoreActivity() {
+            try {
+                const type = document.getElementById('activityTypeFilter').value;
+                const search = document.getElementById('activitySearch').value;
+                let url = '/api/admin/dashboard/activity?offset=' + activityOffset + '&limit=100';
+                if (type) url += '&type=' + encodeURIComponent(type);
+                if (search) url += '&search=' + encodeURIComponent(search);
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed');
+                const data = await res.json();
+
+                renderActivityRows(data.entries, true);
+                activityHasMore = data.hasMore;
+                activityOffset += data.entries.length;
+                document.getElementById('activityLoadMore').style.display = data.hasMore ? 'block' : 'none';
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function renderActivityRows(entries, append) {
+            const tbody = document.getElementById('activityBody');
+            const rows = entries.map(a => {
+                const levelClass = a.alert_level === 'high' ? 'flag-red' : a.alert_level === 'medium' ? 'flag-amber' : '';
+                return '<tr>' +
+                    '<td>' + fmtDateTime(a.detected_at) + '</td>' +
+                    '<td style="font-size:12px;">' + esc(a.user_email || '—') + '</td>' +
+                    '<td>' + esc(a.activity_type) + '</td>' +
+                    '<td>' + esc(a.well_name || '—') + '</td>' +
+                    '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(a.api_number || '—') + '</td>' +
+                    '<td class="' + levelClass + '">' + esc(a.alert_level || '—') + '</td>' +
+                    '<td>' + (a.email_sent ? '<span class="dot-green"></span>' : '<span class="dot-red"></span>') + '</td>' +
+                '</tr>';
+            }).join('');
+
+            if (append) {
+                tbody.innerHTML += rows;
+            } else {
+                tbody.innerHTML = rows || '<tr><td colspan="7" class="loading-cell">No activity found</td></tr>';
+            }
+        }
+
+        // =============================================
+        // TAB 6: BILLING
+        // =============================================
+        async function loadBilling() {
+            const el = document.getElementById('billingContent');
+            el.innerHTML = '<div class="loading-cell">Loading billing data...</div>';
+
+            try {
+                const res = await fetch('/api/admin/dashboard/billing');
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                renderBilling(data);
+            } catch (err) {
+                el.innerHTML = '<div class="loading-cell">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function renderBilling(data) {
+            let html = '';
+
+            // Summary cards
+            html += '<div class="billing-summary">';
+            html += '<div class="stat-card"><div class="stat-card-label">MRR</div><div class="stat-card-value" style="color:var(--accent-green);">$' + (data.mrr || 0) + '</div></div>';
+            html += '<div class="stat-card"><div class="stat-card-label">Active Paid</div><div class="stat-card-value" style="color:var(--accent-blue);">' + (data.activePaid || 0) + '</div></div>';
+            html += '<div class="stat-card"><div class="stat-card-label">Free Users</div><div class="stat-card-value">' + (data.freeUsers || 0) + '</div></div>';
+            html += '<div class="stat-card"><div class="stat-card-label">Churn (30d)</div><div class="stat-card-value" style="color:' + (data.churn30d > 0 ? 'var(--accent-red)' : 'var(--text-primary)') + ';">' + (data.churn30d || 0) + '</div></div>';
+            html += '</div>';
+
+            // Plan breakdown
+            html += '<div class="detail-section"><div class="detail-section-title">Plan Breakdown</div>';
+            html += '<table class="data-table"><thead><tr><th>Plan</th><th>Status</th><th>Users</th></tr></thead><tbody>';
+            if (data.planBreakdown) {
+                for (const row of data.planBreakdown) {
+                    html += '<tr><td>' + esc(row.plan || 'Unknown') + '</td><td>' + statusBadge(row.status) + '</td><td>' + row.user_count + '</td></tr>';
+                }
+            }
+            html += '</tbody></table></div>';
+
+            // Org subscriptions
+            if (data.orgPlans && data.orgPlans.length > 0) {
+                html += '<div class="detail-section"><div class="detail-section-title">Organization Subscriptions</div>';
+                html += '<table class="data-table"><thead><tr><th>Org</th><th>Plan</th><th>Members</th></tr></thead><tbody>';
+                for (const org of data.orgPlans) {
+                    html += '<tr><td>' + esc(org.org_name) + '</td><td>' + esc(org.plan) + '</td><td>' + org.member_count + '</td></tr>';
+                }
+                html += '</tbody></table></div>';
+            }
+
+            // Recent cancellations
+            html += '<div class="detail-section"><div class="detail-section-title">Recent Cancellations (30 days)</div>';
+            if (data.recentCancellations && data.recentCancellations.length > 0) {
+                html += '<table class="data-table"><thead><tr><th>Date</th><th>Name</th><th>Email</th><th>Plan</th><th>Reason</th><th>Feedback</th><th>Stripe</th></tr></thead><tbody>';
+                for (const c of data.recentCancellations) {
+                    html += '<tr><td>' + fmtDate(c.cancellation_date) + '</td><td>' + esc(c.name || '—') + '</td>' +
+                        '<td style="font-size:12px;">' + esc(c.email) + '</td><td>' + esc(c.plan) + '</td>' +
+                        '<td>' + esc(c.cancellation_reason || '—') + '</td>' +
+                        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">' + esc(c.cancellation_feedback || '—') + '</td>' +
+                        '<td>' + (c.stripe_customer_id ? '<a href="https://dashboard.stripe.com/customers/' + esc(c.stripe_customer_id) + '" target="_blank" class="btn btn-sm btn-ghost">View</a>' : '—') + '</td></tr>';
+                }
+                html += '</tbody></table>';
+            } else {
+                html += '<div class="loading-cell">No cancellations in the last 30 days</div>';
+            }
+            html += '</div>';
+
+            document.getElementById('billingContent').innerHTML = html;
+        }
+
+        // =============================================
+        // TAB 7: NOTES
+        // =============================================
+        async function loadNotes() {
+            const tbody = document.getElementById('notesBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Loading...</td></tr>';
+
+            try {
+                const tag = document.getElementById('notesTagFilter').value;
+                const resolved = document.getElementById('showResolved').checked ? '1' : '0';
+                let url = '/api/admin/dashboard/notes?resolved=' + resolved;
+                if (tag) url += '&tag=' + encodeURIComponent(tag);
+
+                const res = await fetch(url);
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+
+                document.getElementById('notesCount').textContent = data.notes.filter(n => !n.resolved).length;
+
+                if (data.notes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No notes found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.notes.map(n => {
+                    const truncated = n.note.length > 100 ? n.note.substring(0, 100) + '...' : n.note;
+                    return '<tr class="' + (n.resolved ? 'note-resolved' : '') + '">' +
+                        '<td>' + esc(n.user_name || n.user_email || n.user_id) + '</td>' +
+                        '<td>' + esc(truncated) + '</td>' +
+                        '<td>' + tagBadge(n.tag) + '</td>' +
+                        '<td style="font-size:12px;">' + esc(n.author) + '</td>' +
+                        '<td>' + fmtDate(n.created_at) + '</td>' +
+                        '<td style="white-space:nowrap;">' +
+                            (n.resolved
+                                ? '<span class="badge badge-muted">Resolved</span>'
+                                : '<button class="btn btn-sm btn-green" onclick="resolveNote(\'' + esc(n.id) + '\')">Resolve</button>'
+                            ) + ' ' +
+                            '<button class="btn btn-sm btn-danger" onclick="deleteNote(\'' + esc(n.id) + '\')">Delete</button>' +
+                        '</td></tr>';
+                }).join('');
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Error: ' + esc(err.message) + '</td></tr>';
+            }
+        }
+
+        async function resolveNote(noteId) {
+            try {
+                await fetch('/api/admin/dashboard/notes/' + noteId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ resolved: true })
+                });
+                loadNotes();
+            } catch (err) {
+                alert('Failed to resolve note: ' + err.message);
+            }
+        }
+
+        async function deleteNote(noteId) {
+            if (!confirm('Delete this note?')) return;
+            try {
+                await fetch('/api/admin/dashboard/notes/' + noteId, { method: 'DELETE' });
+                loadNotes();
+            } catch (err) {
+                alert('Failed to delete note: ' + err.message);
+            }
+        }
+
+        // =============================================
+        // ADD NOTE MODAL
+        // =============================================
+        function openAddNote(userId, userLabel) {
+            addNoteUserId = userId;
+            addNoteUserLabel = userLabel;
+            document.getElementById('addNoteUserLabel').textContent = 'Note for: ' + userLabel;
+            document.getElementById('noteText').value = '';
+            document.getElementById('noteTag').value = '';
+            document.getElementById('addNoteModal').style.display = 'flex';
+            document.getElementById('noteText').focus();
+        }
+
+        function closeAddNote() {
+            document.getElementById('addNoteModal').style.display = 'none';
+            addNoteUserId = null;
+        }
+
+        async function submitNote() {
+            const note = document.getElementById('noteText').value.trim();
+            if (!note) { alert('Note text is required'); return; }
+            const tag = document.getElementById('noteTag').value || null;
+
+            try {
+                const res = await fetch('/api/admin/dashboard/notes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: addNoteUserId, note, tag })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Failed');
+                }
+                closeAddNote();
+                // Refresh notes tab if loaded
+                if (loadedTabs.notes) loadNotes();
+            } catch (err) {
+                alert('Failed to save note: ' + err.message);
+            }
+        }
