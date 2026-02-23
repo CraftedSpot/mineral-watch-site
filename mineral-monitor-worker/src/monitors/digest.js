@@ -339,6 +339,20 @@ async function processWeeklyDigest(env, pendingByUser, results) {
       const wkPlan = row.plan || 'Free';
       if (await isUserOverPlanLimit(env, userId, wkPlan)) {
         console.log(`[Digest] Skipped weekly digest for ${userEmail} - over ${wkPlan} plan limit`);
+        // Mark pending alerts as processed so they don't pile up forever
+        const skipIds = [];
+        for (const typeAlerts of Object.values(userData.alerts)) {
+          if (Array.isArray(typeAlerts)) {
+            for (const alert of typeAlerts) {
+              skipIds.push(alert.id);
+              results.alertsProcessed++;
+            }
+          }
+        }
+        if (skipIds.length > 0) {
+          await markAlertsProcessed(env, skipIds);
+        }
+        pendingByUser.delete(userEmail);
         continue;
       }
 
@@ -407,6 +421,19 @@ async function processWeeklyDigest(env, pendingByUser, results) {
         const remPlan = user?.fields?.Plan || 'Free';
         if (await isUserOverPlanLimit(env, userData.userId, remPlan)) {
           console.log(`[Digest] Skipped weekly digest for ${userEmail} - over ${remPlan} plan limit`);
+          // Mark pending alerts as processed so they don't pile up forever
+          const skipIds = [];
+          for (const typeAlerts of Object.values(userData.alerts)) {
+            if (Array.isArray(typeAlerts)) {
+              for (const alert of typeAlerts) {
+                skipIds.push(alert.id);
+                results.alertsProcessed++;
+              }
+            }
+          }
+          if (skipIds.length > 0) {
+            await markAlertsProcessed(env, skipIds);
+          }
           continue;
         }
 
@@ -523,6 +550,19 @@ export async function runDailyDigest(env) {
         const dailyPlan = user?.fields?.Plan || 'Free';
         if (await isUserOverPlanLimit(env, userId, dailyPlan)) {
           console.log(`[Digest] Skipped daily digest for ${userEmail} - over ${dailyPlan} plan limit`);
+          // Mark alerts as processed so they don't pile up forever
+          const skipIds = [];
+          for (const typeAlerts of Object.values(userData.alerts)) {
+            if (Array.isArray(typeAlerts)) {
+              for (const alert of typeAlerts) {
+                skipIds.push(alert.id);
+                results.alertsProcessed++;
+              }
+            }
+          }
+          if (skipIds.length > 0) {
+            await markAlertsProcessed(env, skipIds);
+          }
           continue;
         }
 

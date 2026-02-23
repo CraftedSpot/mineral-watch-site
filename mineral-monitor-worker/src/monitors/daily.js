@@ -605,7 +605,7 @@ export async function runDailyMonitor(env, options = {}) {
     for (let i = 0; i < newPermits.length; i++) {
       const permit = newPermits[i];
       try {
-        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode);
+        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode, planLimitCache);
         results.permitsProcessed++;
         
         // Mark as processed
@@ -627,7 +627,7 @@ export async function runDailyMonitor(env, options = {}) {
     for (let i = 0; i < newCompletions.length; i++) {
       const completion = newCompletions[i];
       try {
-        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode);
+        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode, planLimitCache);
         results.completionsProcessed++;
         
         // Mark as processed with date to allow multiple zone completions
@@ -761,7 +761,7 @@ export async function runDailyMonitor(env, options = {}) {
 /**
  * Process a single permit record
  */
-async function processPermit(permit, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null, isTestMode = false) {
+async function processPermit(permit, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null, isTestMode = false, planLimitCache = new Map()) {
   const api10 = normalizeAPI(permit.API_Number);
   const activityType = mapApplicationType(permit.Application_Type);
   
@@ -1145,7 +1145,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
 /**
  * Process a single completion record
  */
-async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null, isTestMode = false) {
+async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null, isTestMode = false, planLimitCache = new Map()) {
   const api10 = normalizeAPI(completion.API_Number);
   
   // Try to get enhanced completion data from cache (if available)
@@ -1640,6 +1640,7 @@ function mapApplicationType(appType) {
  * @returns {Object} - Results of expiration checking
  */
 async function checkExpiringPermits(env) {
+  const planLimitCache = new Map();
   const results = {
     checked: 0,
     alertsSent: 0,
