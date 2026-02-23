@@ -529,9 +529,10 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
 
     console.log(`[DocketEntriesByWell] Found PUN: ${pun}`);
 
-    // Step 2: Get all wells in this PUN
+    // Step 2: Get all wells in this PUN (surface + bottom hole locations)
     const wellsResult = await env.WELLS_DB.prepare(`
-      SELECT DISTINCT w.section, w.township, w.range, w.meridian
+      SELECT DISTINCT w.section, w.township, w.range, w.meridian,
+             w.bh_section, w.bh_township, w.bh_range
       FROM well_pun_links l
       JOIN wells w ON l.api_number = w.api_number OR l.api_number = SUBSTR(w.api_number, 1, 10)
       WHERE l.pun = ?
@@ -550,9 +551,10 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
       });
     }
 
-    // Step 3: Get unique TRS combinations
+    // Step 3: Get unique TRS combinations (surface + bottom hole)
     const uniqueTRS = new Map<string, { section: string; township: string; range: string; meridian: string }>();
     for (const w of wells) {
+      // Surface location
       if (w.section && w.township && w.range) {
         const twpNorm = normalizeTownship(w.township);
         const rngNorm = normalizeRange(w.range);
@@ -562,6 +564,20 @@ export async function handleGetDocketEntriesByWell(request: Request, env: Env): 
             section: String(w.section),
             township: twpNorm,
             range: rngNorm,
+            meridian: (w.meridian || 'IM').toUpperCase()
+          });
+        }
+      }
+      // Bottom hole location (for horizontals)
+      if (w.bh_section && w.bh_township && w.bh_range) {
+        const bhTwpNorm = normalizeTownship(w.bh_township);
+        const bhRngNorm = normalizeRange(w.bh_range);
+        const bhKey = `${w.bh_section}-${bhTwpNorm}-${bhRngNorm}`;
+        if (!uniqueTRS.has(bhKey)) {
+          uniqueTRS.set(bhKey, {
+            section: String(w.bh_section),
+            township: bhTwpNorm,
+            range: bhRngNorm,
             meridian: (w.meridian || 'IM').toUpperCase()
           });
         }
