@@ -139,7 +139,7 @@ function d1RowToAirtableUser(row: any): AirtableUser {
       Plan: row.plan || 'Free',
       Status: row.status || 'Active',
       Organization: row.organization_id ? [row.organization_id] : [],
-      Role: row.role || 'Viewer',
+      Role: row.role || null,
       'Stripe Customer ID': row.stripe_customer_id || undefined,
       // Alert preferences — D1 stores as INTEGER (0/1), convert to boolean
       'Alert Permits': row.alert_permits !== 0,

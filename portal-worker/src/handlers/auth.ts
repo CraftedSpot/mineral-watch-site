@@ -390,8 +390,8 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
     const userId = `user_${recordId}`;
 
     await env.WELLS_DB.prepare(`
-      INSERT INTO users (id, airtable_record_id, email, name, plan, status, role)
-      VALUES (?, ?, ?, ?, 'Free', 'Active', 'Viewer')
+      INSERT INTO users (id, airtable_record_id, email, name, plan, status)
+      VALUES (?, ?, ?, ?, 'Free', 'Active')
     `).bind(userId, recordId, normalizedEmail, displayName).run();
 
     console.log(`[Register] User created in D1: ${normalizedEmail} (${recordId})`);

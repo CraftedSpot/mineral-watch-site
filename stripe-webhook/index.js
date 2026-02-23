@@ -1410,41 +1410,95 @@ async function getPlanFromSession(session, env) {
 }
 
 /**
- * Find user by email
+ * Convert D1 user row to Airtable-compatible shape.
+ * Keeps existing code working without changes to callers.
+ */
+function d1RowToAirtableShape(row) {
+  return {
+    id: row.airtable_record_id,
+    fields: {
+      Email: row.email,
+      Name: row.name,
+      Plan: row.plan,
+      Status: row.status,
+      'Stripe Customer ID': row.stripe_customer_id,
+      'Stripe Subscription ID': row.stripe_subscription_id,
+      'Plan History': row.plan_history,
+      'Payment Status': row.payment_status || null,
+      Organization: row.organization_id ? [row.organization_id] : [],
+      Role: row.role
+    }
+  };
+}
+
+/**
+ * Find user by email — D1-first with Airtable fallback.
+ * Logs loudly when falling back to Airtable (indicates D1 gap).
  */
 async function findUserByEmail(env, email) {
+  // D1-first lookup
+  if (env.WELLS_DB) {
+    try {
+      const row = await env.WELLS_DB.prepare(
+        `SELECT * FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`
+      ).bind(email).first();
+      if (row) return d1RowToAirtableShape(row);
+    } catch (err) {
+      console.error('[STRIPE] D1 findUserByEmail error:', err.message);
+    }
+    // D1 had no match — fall back to Airtable with loud logging
+    console.warn(`[STRIPE D1-MISS] User not in D1, falling back to Airtable: ${email}`);
+  }
+
+  // Airtable fallback
   const formula = `{Email} = '${email.replace(/'/g, "''")}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
-  
+
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
   });
-  
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Airtable find by email failed: ${err}`);
   }
-  
+
   const data = await response.json();
   return data.records?.[0] || null;
 }
 
 /**
- * Find user by Stripe Customer ID
+ * Find user by Stripe Customer ID — D1-first with Airtable fallback.
+ * Requires idx_users_stripe_customer_id index (migration 028).
  */
 async function findUserByStripeCustomerId(env, customerId) {
+  // D1-first lookup (indexed query)
+  if (env.WELLS_DB) {
+    try {
+      const row = await env.WELLS_DB.prepare(
+        `SELECT * FROM users WHERE stripe_customer_id = ? LIMIT 1`
+      ).bind(customerId).first();
+      if (row) return d1RowToAirtableShape(row);
+    } catch (err) {
+      console.error('[STRIPE] D1 findUserByStripeCustomerId error:', err.message);
+    }
+    // D1 had no match — fall back with loud logging
+    console.warn(`[STRIPE D1-MISS] stripe_customer_id not in D1, falling back: ${customerId}`);
+  }
+
+  // Airtable fallback
   const formula = `{Stripe Customer ID} = '${customerId.replace(/'/g, "''")}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
-  
+
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
   });
-  
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Airtable find by Stripe ID failed: ${err}`);
   }
-  
+
   const data = await response.json();
   return data.records?.[0] || null;
 }
