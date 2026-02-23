@@ -350,6 +350,24 @@
             html += '<div class="detail-field"><label>Days Since Login</label><div class="val">' + daysSince(u.last_login) + '</div></div>';
             html += '</div></div>';
 
+            // Auth events (login history)
+            if (data.authEvents && data.authEvents.length > 0) {
+                html += '<div class="detail-section"><div class="detail-section-title">Login History (' + data.authEvents.length + ')</div>';
+                html += '<table class="data-table"><thead><tr><th>Date</th><th>Event</th><th>IP</th><th>Error</th></tr></thead><tbody>';
+                for (const ev of data.authEvents) {
+                    const isError = ev.event_type.includes('failed') || ev.event_type.includes('expired') || ev.event_type.includes('error') || ev.event_type.includes('inactive') || ev.event_type.includes('no_user');
+                    const rowClass = isError ? ' class="flag-red"' : '';
+                    html += '<tr><td>' + fmtDateTime(ev.created_at) + '</td>' +
+                        '<td' + rowClass + '>' + esc(ev.event_type) + '</td>' +
+                        '<td style="font-family:var(--font-mono);font-size:11px;">' + esc(ev.ip || '—') + '</td>' +
+                        '<td style="font-size:11px;">' + esc(ev.error || '—') + '</td></tr>';
+                }
+                html += '</tbody></table></div>';
+            } else {
+                html += '<div class="detail-section"><div class="detail-section-title">Login History</div>';
+                html += '<div class="loading-cell">No auth events recorded</div></div>';
+            }
+
             // Quick links
             html += '<div class="detail-section"><div style="display:flex;gap:8px;flex-wrap:wrap;">';
             html += '<button class="btn btn-amber" onclick="impersonate(\'' + esc(u.airtable_record_id) + '\')">Impersonate User</button>';
