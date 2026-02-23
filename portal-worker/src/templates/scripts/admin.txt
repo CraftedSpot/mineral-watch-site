@@ -505,6 +505,23 @@
             }
             html += '</div></div>';
 
+            // Auth events (last 7 days)
+            if (data.authEvents7d && data.authEvents7d.length > 0) {
+                html += '<div class="detail-section"><div class="detail-section-title">Auth Events (7 days)</div>';
+                html += '<table class="data-table"><thead><tr><th>Event Type</th><th>Count</th><th>Status</th></tr></thead><tbody>';
+                for (const ev of data.authEvents7d) {
+                    const isError = ev.event_type.includes('failed') || ev.event_type.includes('expired') || ev.event_type.includes('error') || ev.event_type.includes('inactive') || ev.event_type.includes('no_user');
+                    const isSuccess = ev.event_type.includes('success') || ev.event_type.includes('sent');
+                    const dotClass = isError ? 'dot-red' : isSuccess ? 'dot-green' : '';
+                    html += '<tr><td>' + esc(ev.event_type) + '</td><td>' + ev.count + '</td>' +
+                        '<td>' + (dotClass ? '<span class="' + dotClass + '"></span>' : '—') + '</td></tr>';
+                }
+                html += '</tbody></table></div>';
+            } else {
+                html += '<div class="detail-section"><div class="detail-section-title">Auth Events (7 days)</div>';
+                html += '<div class="loading-cell">No auth events recorded yet</div></div>';
+            }
+
             document.getElementById('healthContent').innerHTML = html;
         }
 
