@@ -175,21 +175,16 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
 
         // --- LIVE WRITES ---
 
-        // 1. pun_api_crosswalk
+        // 1. pun_api_crosswalk (actual columns: api_number, pun, confidence, match_source, pun_1002a)
         if (pun) {
           await env.WELLS_DB.prepare(`
-            INSERT INTO pun_api_crosswalk (api_number, pun, well_name, county, operator, effective_date, source_document_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source, pun_1002a)
+            VALUES (?, ?, 'high', '1002a_backfill', ?)
             ON CONFLICT(api_number) DO UPDATE SET
               pun = excluded.pun,
-              updated_at = CURRENT_TIMESTAMP,
-              source_document_id = excluded.source_document_id,
-              well_name = COALESCE(excluded.well_name, pun_api_crosswalk.well_name),
-              operator = COALESCE(excluded.operator, pun_api_crosswalk.operator),
-              effective_date = COALESCE(excluded.effective_date, pun_api_crosswalk.effective_date)
-          `).bind(
-            api10, pun, wellName, data.county || null, operator, completionDate, docId
-          ).run();
+              pun_1002a = COALESCE(excluded.pun_1002a, pun_api_crosswalk.pun_1002a),
+              updated_at = CURRENT_TIMESTAMP
+          `).bind(api10, pun, pun).run();
 
           // well_pun_links
           const basePun = pun.length >= 10 ? pun.substring(0, 10) : pun;

@@ -2344,26 +2344,15 @@ export default {
                     insertedPuns.add(pun);
 
                     console.log('[PUN Crosswalk] Inserting PUN mapping:', pun, '->', apiNumber);
-                    // pun_api_crosswalk has api_number as PRIMARY KEY
+                    // pun_api_crosswalk columns: api_number, pun, confidence, match_source, pun_1002a
                     await env.WELLS_DB.prepare(`
-                      INSERT INTO pun_api_crosswalk (api_number, pun, well_name, county, operator, effective_date, source_document_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)
+                      INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source, pun_1002a)
+                      VALUES (?, ?, 'high', '1002a_extraction', ?)
                       ON CONFLICT(api_number) DO UPDATE SET
                         pun = excluded.pun,
-                        updated_at = CURRENT_TIMESTAMP,
-                        source_document_id = excluded.source_document_id,
-                        well_name = COALESCE(excluded.well_name, well_name),
-                        operator = COALESCE(excluded.operator, operator),
-                        effective_date = COALESCE(excluded.effective_date, effective_date)
-                    `).bind(
-                      apiNumber,
-                      pun,
-                      extracted_data.well_name || extracted_data.well_identification?.well_name || null,
-                      sectionCounty || extracted_data.county || county || null,
-                      extracted_data.operator?.name || extracted_data.well_identification?.operator || null,
-                      extracted_data.dates?.completion_date || null,
-                      docId
-                    ).run();
+                        pun_1002a = COALESCE(excluded.pun_1002a, pun_api_crosswalk.pun_1002a),
+                        updated_at = CURRENT_TIMESTAMP
+                    `).bind(apiNumber, pun, pun).run();
 
                     // Also insert into well_pun_links (used for production matching)
                     // base_pun (first 10 chars: XXX-XXXXXX) is critical for horizontal well production matching
