@@ -269,43 +269,70 @@ async function fetchOCCFilingCounts(
   }
 
   // Step 2: Get all sibling well locations for those PUNs
+  // Split into two fast indexed queries instead of one slow OR+SUBSTR JOIN
   const punToLocations = new Map<string, WellLocation[]>();
 
   if (allPuns.size > 0) {
     const punArray = Array.from(allPuns);
-    const sibBatches = chunk(punArray, 90);
-    const sibResults = await Promise.all(sibBatches.map(async (batch) => {
+
+    // Step 2a: Get all sibling API numbers from well_pun_links (indexed on pun)
+    const sibApiBatches = chunk(punArray, 90);
+    const sibApiResults = await Promise.all(sibApiBatches.map(async (batch) => {
       try {
         const ph = batch.map(() => '?').join(', ');
-        const r = await env.WELLS_DB.prepare(`
-          SELECT l.pun, w.section, w.township, w.range,
-                 w.bh_section, w.bh_township, w.bh_range
-          FROM well_pun_links l
-          JOIN wells w ON l.api_number = w.api_number
-                       OR l.api_number = SUBSTR(w.api_number, 1, 10)
-          WHERE l.pun IN (${ph})
-        `).bind(...batch).all();
-        return (r.results || []) as any[];
+        const r = await env.WELLS_DB.prepare(
+          `SELECT api_number, pun FROM well_pun_links WHERE pun IN (${ph})`
+        ).bind(...batch).all();
+        return (r.results || []) as { api_number: string; pun: string }[];
       } catch (err) {
-        console.error('[WellLinkCounts] Error fetching PUN sibling locations:', err);
+        console.error('[WellLinkCounts] Error fetching PUN sibling APIs:', err);
         return [];
       }
     }));
 
-    for (const rows of sibResults) {
+    // Build api→puns map for sibling wells
+    const sibApiToPuns = new Map<string, string[]>();
+    for (const rows of sibApiResults) {
       for (const row of rows) {
-        if (!punToLocations.has(row.pun)) punToLocations.set(row.pun, []);
-        const locs = punToLocations.get(row.pun)!;
+        if (!sibApiToPuns.has(row.api_number)) sibApiToPuns.set(row.api_number, []);
+        sibApiToPuns.get(row.api_number)!.push(row.pun);
+      }
+    }
 
-        const sec = normalizeSection(row.section);
-        const twn = normalizeTownship(row.township);
-        const rng = normalizeRange(row.range);
-        if (sec !== null && twn && rng) locs.push({ sec, twn, rng });
+    // Step 2b: Look up locations for sibling APIs from wells table (indexed on api_number)
+    const sibApiList = Array.from(sibApiToPuns.keys());
+    const locBatches = chunk(sibApiList, 90);
+    const locResults = await Promise.all(locBatches.map(async (batch) => {
+      try {
+        const ph = batch.map(() => '?').join(', ');
+        const r = await env.WELLS_DB.prepare(`
+          SELECT api_number, section, township, range, bh_section, bh_township, bh_range
+          FROM wells WHERE api_number IN (${ph})
+        `).bind(...batch).all();
+        return (r.results || []) as any[];
+      } catch (err) {
+        console.error('[WellLinkCounts] Error fetching sibling well locations:', err);
+        return [];
+      }
+    }));
 
-        const bhSec = normalizeSection(row.bh_section);
-        const bhTwn = normalizeTownship(row.bh_township);
-        const bhRng = normalizeRange(row.bh_range);
-        if (bhSec !== null && bhTwn && bhRng) locs.push({ sec: bhSec, twn: bhTwn, rng: bhRng });
+    for (const rows of locResults) {
+      for (const row of rows) {
+        const puns = sibApiToPuns.get(row.api_number) || [];
+        for (const pun of puns) {
+          if (!punToLocations.has(pun)) punToLocations.set(pun, []);
+          const locs = punToLocations.get(pun)!;
+
+          const sec = normalizeSection(row.section);
+          const twn = normalizeTownship(row.township);
+          const rng = normalizeRange(row.range);
+          if (sec !== null && twn && rng) locs.push({ sec, twn, rng });
+
+          const bhSec = normalizeSection(row.bh_section);
+          const bhTwn = normalizeTownship(row.bh_township);
+          const bhRng = normalizeRange(row.bh_range);
+          if (bhSec !== null && bhTwn && bhRng) locs.push({ sec: bhSec, twn: bhTwn, rng: bhRng });
+        }
       }
     }
   }

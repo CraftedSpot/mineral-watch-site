@@ -97,9 +97,9 @@ export default {
         });
       }
 
-      // Daily digest - 7 AM Central (13 UTC) every day
-      // Sends yesterday's queued alerts before the daily monitor runs at 8 AM CT
-      if (cronPattern === '0 13 * * *') {
+      // Daily digest - 5 PM Central (23 UTC) every day
+      // Sends today's queued alerts after all monitors have run (daily 8AM, docket 12PM)
+      if (cronPattern === '0 23 * * *') {
         result = await runDailyDigest(env);
         await updateHealthStatus(env, 'daily-digest', {
           timestamp: new Date().toISOString(),

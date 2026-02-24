@@ -56,42 +56,65 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
 export async function sendDailySummary(env, results) {
   const { permitsProcessed, completionsProcessed, permitsSkippedAsProcessed, completionsSkippedAsProcessed, statusChanges, alertsSent, errors, duration, dataFreshness } = results;
   
-  // Query for today's failed email sends from D1
+  // Query for today's email status from D1
+  // Distinguish between truly failed sends and alerts queued for digest
   let failedEmails = [];
+  let digestQueuedCount = 0;
   try {
     const today = new Date().toISOString().split('T')[0];
 
     if (env.WELLS_DB) {
-      // Single D1 query with JOIN — no N+1 Airtable fetches
-      const { results: failedRows } = await env.WELLS_DB.prepare(`
-        SELECT al.user_id, al.api_number, al.well_name, u.email
+      // Get all unsent activity logs today
+      const { results: unsentRows } = await env.WELLS_DB.prepare(`
+        SELECT al.id, al.user_id, al.api_number, al.well_name, u.email
         FROM activity_log al
         LEFT JOIN users u ON u.airtable_record_id = al.user_id
         WHERE date(al.detected_at) = ? AND al.email_sent = 0
       `).bind(today).all();
 
-      if (failedRows && failedRows.length > 0) {
-        const userEmailMap = new Map();
-        for (const row of failedRows) {
-          const email = row.email || 'unknown';
-          const wellInfo = `${row.well_name || 'Unknown'} (${row.api_number || 'No API'})`;
-          if (!userEmailMap.has(email)) {
-            userEmailMap.set(email, []);
+      if (unsentRows && unsentRows.length > 0) {
+        // Check which unsent entries are queued for digest (not actually failed)
+        const { results: pendingRows } = await env.WELLS_DB.prepare(`
+          SELECT activity_log_id FROM pending_alerts
+          WHERE date(created_at) = ? AND digest_sent_at IS NULL
+        `).bind(today).all();
+
+        const pendingLogIds = new Set(
+          (pendingRows || []).map((r) => String(r.activity_log_id).replace('.0', ''))
+        );
+
+        const trulyFailed = [];
+        for (const row of unsentRows) {
+          if (pendingLogIds.has(String(row.id))) {
+            digestQueuedCount++;
+          } else {
+            trulyFailed.push(row);
           }
-          userEmailMap.get(email).push(wellInfo);
         }
 
-        failedEmails = Array.from(userEmailMap.entries()).map(([email, wells]) => ({
-          email,
-          wells: wells.slice(0, 3),
-          totalCount: wells.length
-        }));
+        if (trulyFailed.length > 0) {
+          const userEmailMap = new Map();
+          for (const row of trulyFailed) {
+            const email = row.email || 'unknown';
+            const wellInfo = `${row.well_name || 'Unknown'} (${row.api_number || 'No API'})`;
+            if (!userEmailMap.has(email)) {
+              userEmailMap.set(email, []);
+            }
+            userEmailMap.get(email).push(wellInfo);
+          }
+
+          failedEmails = Array.from(userEmailMap.entries()).map(([email, wells]) => ({
+            email,
+            wells: wells.slice(0, 3),
+            totalCount: wells.length
+          }));
+        }
       }
     }
   } catch (err) {
     console.error('[AdminAlert] Error querying failed emails:', err);
   }
-  
+
   const hasErrors = errors && errors.length > 0;
   const hasFailedEmails = failedEmails.length > 0;
   const hasStaleData = dataFreshness && (dataFreshness.permits?.isStale || dataFreshness.completions?.isStale);
@@ -126,7 +149,8 @@ Daily Monitor Run Complete
 Permits: ${permitsProcessed || 0} new / ${totalPermitsInFile} total in OCC file (${permitsSkippedAsProcessed || 0} already processed)
 Completions: ${completionsProcessed || 0} new / ${totalCompletionsInFile} total in OCC file (${completionsSkippedAsProcessed || 0} already processed)
 Status Changes Detected: ${statusChanges || 0}
-Alerts Sent: ${alertsSent || 0}
+Alerts Queued for Digest: ${digestQueuedCount || 0}
+Alerts Sent Immediately: ${alertsSent || 0}
 Emails Failed: ${failedEmails.reduce((sum, f) => sum + f.totalCount, 0)}
 Duration: ${duration}ms
 ${freshnessInfo}
@@ -142,7 +166,9 @@ ${!hasErrors && !hasFailedEmails ? 'No action required.' : ''}
   `.trim();
   
   const staleWarning = hasStaleData ? ', OCC DATA STALE' : '';
-  await sendAdminAlert(env, `Daily Run: ${alertsSent} alerts sent${hasFailedEmails ? ', FAILURES DETECTED' : ''}${staleWarning}`, body, priority);
+  const alertCount = digestQueuedCount + (alertsSent || 0);
+  const alertSummary = digestQueuedCount > 0 ? `${alertCount} alerts queued` : `${alertsSent || 0} alerts sent`;
+  await sendAdminAlert(env, `Daily Run: ${alertSummary}${hasFailedEmails ? ', FAILURES DETECTED' : ''}${staleWarning}`, body, priority);
 }
 
 /**
