@@ -189,28 +189,32 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
           continue;
         }
 
-        // --- LIVE WRITES ---
+        // --- LIVE WRITES (atomic batch) ---
+        const batchStatements: any[] = [];
 
-        // 1. pun_api_crosswalk (actual columns: api_number, pun, confidence, match_source, pun_1002a)
+        // 1. pun_api_crosswalk + well_pun_links
         if (pun) {
-          await env.WELLS_DB.prepare(`
-            INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source, pun_1002a)
-            VALUES (?, ?, 'high', '1002a_backfill', ?)
-            ON CONFLICT(api_number) DO UPDATE SET
-              pun = excluded.pun,
-              pun_1002a = COALESCE(excluded.pun_1002a, pun_api_crosswalk.pun_1002a),
-              updated_at = CURRENT_TIMESTAMP
-          `).bind(api10, pun, pun).run();
+          batchStatements.push(
+            env.WELLS_DB.prepare(`
+              INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source, pun_1002a)
+              VALUES (?, ?, 'high', '1002a_backfill', ?)
+              ON CONFLICT(api_number) DO UPDATE SET
+                pun = excluded.pun,
+                pun_1002a = COALESCE(excluded.pun_1002a, pun_api_crosswalk.pun_1002a),
+                updated_at = CURRENT_TIMESTAMP
+            `).bind(api10, pun, pun)
+          );
 
-          // well_pun_links
           const basePun = normalizeBasePun(pun);
-          await env.WELLS_DB.prepare(`
-            INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
-            VALUES (?, ?, ?, '1002a_backfill', 'high')
-            ON CONFLICT(api_number, pun) DO UPDATE SET
-              base_pun = COALESCE(excluded.base_pun, well_pun_links.base_pun),
-              updated_at = CURRENT_TIMESTAMP
-          `).bind(api10, pun, basePun).run();
+          batchStatements.push(
+            env.WELLS_DB.prepare(`
+              INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+              VALUES (?, ?, ?, '1002a_backfill', 'high')
+              ON CONFLICT(api_number, pun) DO UPDATE SET
+                base_pun = COALESCE(excluded.base_pun, well_pun_links.base_pun),
+                updated_at = CURRENT_TIMESTAMP
+            `).bind(api10, pun, basePun)
+          );
         }
 
         // 2. Multi-section PUNs from allocation_factors
@@ -218,13 +222,15 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
           for (const factor of data.allocation_factors) {
             if (factor.pun && factor.pun !== pun) {
               const factorBasePun = normalizeBasePun(factor.pun);
-              await env.WELLS_DB.prepare(`
-                INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
-                VALUES (?, ?, ?, '1002a_backfill', 'high')
-                ON CONFLICT(api_number, pun) DO UPDATE SET
-                  base_pun = COALESCE(excluded.base_pun, well_pun_links.base_pun),
-                  updated_at = CURRENT_TIMESTAMP
-              `).bind(api10, factor.pun, factorBasePun).run();
+              batchStatements.push(
+                env.WELLS_DB.prepare(`
+                  INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+                  VALUES (?, ?, ?, '1002a_backfill', 'high')
+                  ON CONFLICT(api_number, pun) DO UPDATE SET
+                    base_pun = COALESCE(excluded.base_pun, well_pun_links.base_pun),
+                    updated_at = CURRENT_TIMESTAMP
+                `).bind(api10, factor.pun, factorBasePun)
+              );
             }
           }
         }
@@ -249,24 +255,38 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
           updates.push('updated_at = CURRENT_TIMESTAMP');
           const sql = `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ? OR api_number LIKE ? || '%'`;
           values.push(api10, api10);
-          await env.WELLS_DB.prepare(sql).bind(...values).run();
+          batchStatements.push(env.WELLS_DB.prepare(sql).bind(...values));
         }
 
-        // 4. Update well_1002a_tracking
-        await env.WELLS_DB.prepare(`
-          UPDATE well_1002a_tracking
-          SET status = 'processed',
-              extracted_pun = COALESCE(?, extracted_pun),
-              extraction_method = 'backfill',
-              confidence = 'high',
-              processed_at = datetime('now'),
-              updated_at = CURRENT_TIMESTAMP
-          WHERE api_number = ? OR api_number = ?
-        `).bind(pun, api10, api10).run();
+        // 4. Tracking update — last so it only marks 'processed' if everything else succeeded
+        batchStatements.push(
+          env.WELLS_DB.prepare(`
+            UPDATE well_1002a_tracking
+            SET status = 'processed',
+                extracted_pun = COALESCE(?, extracted_pun),
+                extraction_method = 'backfill',
+                confidence = 'high',
+                processed_at = datetime('now'),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE api_number = ? OR api_number = ?
+          `).bind(pun, api10, api10)
+        );
 
+        // Execute all writes atomically
+        await env.WELLS_DB.batch(batchStatements);
         results.processed++;
       } catch (err: any) {
         results.errors.push({ doc_id: docId, error: err.message || String(err) });
+        // Mark as write_failed so we can retry — distinct from extraction 'failed'
+        try {
+          await env.WELLS_DB.prepare(`
+            UPDATE well_1002a_tracking
+            SET status = 'write_failed',
+                error_message = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE api_number = ? OR api_number = ?
+          `).bind(err.message || String(err), api10, api10).run();
+        } catch (_) {}
       }
     }
   }
