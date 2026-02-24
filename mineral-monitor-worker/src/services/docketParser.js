@@ -76,7 +76,15 @@ export async function fetchDocketPdf(url, options = {}) {
  */
 export async function extractTextFromPdf(pdfBuffer) {
   const { extractText } = await import('unpdf');
-  const result = await extractText(pdfBuffer);
+
+  const PDF_EXTRACT_TIMEOUT_MS = 30_000; // 30 seconds
+
+  const result = await Promise.race([
+    extractText(pdfBuffer),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`PDF text extraction timed out after ${PDF_EXTRACT_TIMEOUT_MS / 1000}s`)), PDF_EXTRACT_TIMEOUT_MS)
+    )
+  ]);
 
   // unpdf returns { text: string[], totalPages: number }
   // text is an array of strings (one per page)

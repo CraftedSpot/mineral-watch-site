@@ -1106,8 +1106,8 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       // Add alert to user's alert list (if user wants this alert type)
       const userId = alert.user.id;
 
-      // Check user preferences before queuing alert
-      const fullUser = await getUserById(env, userId);
+      // Check user preferences before queuing alert (use pre-loaded cache, fall back to API)
+      const fullUser = userCache?.get(userId) || await getUserById(env, userId);
       if (fullUser && !userWantsAlert(fullUser, activityType)) {
         console.log(`[Permit] Skipped alert for ${alert.user.email} - user disabled ${activityType} alerts`);
         results.alertsSkipped++;
@@ -1580,8 +1580,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       // Add alert to user's alert list (if user wants this alert type)
       const userId = alert.user.id;
 
-      // Check user preferences before queuing alert
-      const fullUser = await getUserById(env, userId);
+      // Check user preferences before queuing alert (use pre-loaded cache, fall back to API)
+      const fullUser = userCache?.get(userId) || await getUserById(env, userId);
       if (fullUser && !userWantsAlert(fullUser, 'Well Completed')) {
         console.log(`[Completion] Skipped alert for ${alert.user.email} - user disabled completion alerts`);
         results.alertsSkipped++;
@@ -1673,6 +1673,7 @@ function mapApplicationType(appType) {
  */
 async function checkExpiringPermits(env) {
   const planLimitCache = new Map();
+  const expirationUserCache = new Map(); // local user cache to avoid N+1 getUserById calls
   const results = {
     checked: 0,
     alertsSent: 0,
@@ -1748,8 +1749,11 @@ async function checkExpiringPermits(env) {
         // Send alerts to matched users
         for (const match of propertyMatches) {
           try {
-            // Check user preferences before sending alert
-            const fullUser = await getUserById(env, match.user.id);
+            // Check user preferences before sending alert (cache to avoid N+1)
+            if (!expirationUserCache.has(match.user.id)) {
+              expirationUserCache.set(match.user.id, await getUserById(env, match.user.id));
+            }
+            const fullUser = expirationUserCache.get(match.user.id);
             if (fullUser && !userWantsAlert(fullUser, activityType)) {
               console.log(`[Expiration] Skipped alert for ${match.user.email} - user disabled expiration alerts`);
               continue;

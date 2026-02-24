@@ -487,8 +487,14 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
         } catch (batchErr: any) {
           console.error(`[Sync] client_wells batch ${i}..${i + batchSlice.length} FAILED:`, batchErr?.message || batchErr);
           // Try individual statements — only track IDs that actually succeed
+          // Cap retries to prevent runaway loops if D1 is unhealthy
+          const MAX_INDIVIDUAL_RETRIES = 50;
           let batchFailCount = 0;
-          for (let j = 0; j < batchSlice.length; j++) {
+          const retryCount = Math.min(batchSlice.length, MAX_INDIVIDUAL_RETRIES);
+          if (batchSlice.length > MAX_INDIVIDUAL_RETRIES) {
+            console.warn(`[Sync] client_wells: batch has ${batchSlice.length} statements, capping individual retries at ${MAX_INDIVIDUAL_RETRIES}`);
+          }
+          for (let j = 0; j < retryCount; j++) {
             try {
               await batchSlice[j].run();
               successfulClientWellIds.push(batchRecords[j].id);
@@ -500,7 +506,7 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
             }
           }
           if (batchFailCount > 0) {
-            console.warn(`[Sync] client_wells: ${batchFailCount} records failed both batch and individual insert`);
+            console.warn(`[Sync] client_wells: ${batchFailCount}/${retryCount} records failed both batch and individual insert`);
           }
         }
       }
