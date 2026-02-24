@@ -196,6 +196,31 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
         }
       }
     }
+
+    // Sync junction table for api_numbers (used by well-link-counts)
+    const apiJunctionStmts = [];
+    for (const entry of batch) {
+      if (!entry.api_numbers || entry.api_numbers.length === 0) continue;
+      apiJunctionStmts.push(
+        db.prepare('DELETE FROM docket_entry_api_numbers WHERE case_number = ?')
+          .bind(entry.case_number)
+      );
+      for (const api of entry.api_numbers) {
+        apiJunctionStmts.push(
+          db.prepare('INSERT OR IGNORE INTO docket_entry_api_numbers (case_number, api_number) VALUES (?, ?)')
+            .bind(entry.case_number, api)
+        );
+      }
+    }
+    if (apiJunctionStmts.length > 0) {
+      for (let j = 0; j < apiJunctionStmts.length; j += 500) {
+        try {
+          await db.batch(apiJunctionStmts.slice(j, j + 500));
+        } catch (jErr) {
+          console.error(`[Backfill] API numbers junction batch error:`, jErr.message);
+        }
+      }
+    }
   }
 
   return { inserted, updated };

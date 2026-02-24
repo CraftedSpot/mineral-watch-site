@@ -18,6 +18,7 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
 import { BATCH_SIZE_D1 } from '../constants.js';
 import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
+import { normalizeAPINumber } from '../utils/docket-matching.js';
 import type { Env } from '../types/env';
 
 // Document types that show on well modals (keep in sync with property-documents-d1.ts WELL_DOC_TYPES)
@@ -389,10 +390,14 @@ async function fetchOCCFilingCounts(
     }
   }
 
-  // Build API→wellIds map (for API number matching)
+  // Build API→wellIds map (for API number matching via junction table)
+  // Normalize to XXX-XXXXX docket format for junction table lookups
   const apiToWellIds: Map<string, string> = new Map();
   for (const wd of expandedWellData) {
-    if (wd.apiNumber) apiToWellIds.set(wd.apiNumber, wd.wellId);
+    if (wd.apiNumber) {
+      const normalizedApi = normalizeAPINumber(wd.apiNumber);
+      if (normalizedApi) apiToWellIds.set(normalizedApi, wd.wellId);
+    }
   }
 
   // Collect case_numbers per wellId using a Set for dedup
@@ -432,21 +437,20 @@ async function fetchOCCFilingCounts(
     }
   });
 
-  // --- Path 2: API number matching against occ_docket_entries.api_numbers ---
-  // api_numbers is stored as JSON array like ["049-24518","035-20123"]
-  // Use INSTR to find API substrings in the JSON text. Batch by 50 (2 params each = 100 max).
-  const apiBatches = chunk(uniqueApis, 50);
+  // --- Path 2: API number matching via docket_entry_api_numbers junction table ---
+  // Junction table has indexed api_number column — ~2ms lookups vs full-table INSTR scan.
+  const apiBatches = chunk(uniqueApis, 90);
   const apiPromises = apiBatches.map(async (batch) => {
     try {
-      const conditions = batch.map(() => `INSTR(api_numbers, ?) > 0`).join(' OR ');
+      const ph = batch.map(() => '?').join(', ');
       const result = await env.WELLS_DB.prepare(`
-        SELECT case_number, api_numbers
-        FROM occ_docket_entries
-        WHERE api_numbers IS NOT NULL AND (${conditions})
+        SELECT api_number, case_number
+        FROM docket_entry_api_numbers
+        WHERE api_number IN (${ph})
       `).bind(...batch).all();
-      return result.results as { case_number: string; api_numbers: string }[] || [];
+      return result.results as { api_number: string; case_number: string }[] || [];
     } catch (err) {
-      console.error('[WellLinkCounts] Error querying OCC filings (API):', err);
+      console.error('[WellLinkCounts] Error querying docket_entry_api_numbers:', err);
       hadErrors = true;
       return [];
     }
@@ -497,25 +501,12 @@ async function fetchOCCFilingCounts(
     }
   }
 
-  // Process Path 2 results: API number matches
+  // Process Path 2 results: junction table API matches (no JSON parsing needed)
   for (const rows of apiResults) {
     for (const row of rows) {
-      // Parse api_numbers JSON and match against our well API numbers
-      try {
-        const apis: string[] = JSON.parse(row.api_numbers);
-        for (const api of apis) {
-          const wellId = apiToWellIds.get(api);
-          if (wellId) {
-            wellCaseNumbers.get(wellId)!.add(row.case_number);
-          }
-        }
-      } catch {
-        // Malformed JSON — try substring match as fallback
-        for (const [api, wellId] of apiToWellIds) {
-          if (row.api_numbers.includes(api)) {
-            wellCaseNumbers.get(wellId)!.add(row.case_number);
-          }
-        }
+      const wellId = apiToWellIds.get(row.api_number);
+      if (wellId) {
+        wellCaseNumbers.get(wellId)!.add(row.case_number);
       }
     }
   }

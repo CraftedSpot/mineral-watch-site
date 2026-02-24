@@ -57,60 +57,91 @@ async function downloadRBDMSData(env) {
       });
     }
     
-    // Parse CSV
-    const text = await response.text();
-    const downloadTime = Date.now() - startTime;
-    console.log(`[RBDMS] Downloaded ${(text.length / 1024 / 1024).toFixed(1)}MB in ${downloadTime}ms`);
-    
-    // Parse CSV into Map for fast lookups
+    // Stream-parse CSV to avoid holding the entire ~10MB+ file in memory.
+    // Only the wellMap (~2MB for 37K wells × 2 fields) stays in memory.
     const wellMap = new Map();
-    const lines = text.split('\n');
-    const csvHeaders = lines[0].split(',').map(h => h.trim());
-    
-    // Log all available CSV headers
-    console.log(`[RBDMS] CSV Headers (${csvHeaders.length} columns):`);
-    csvHeaders.forEach((header, index) => {
-      console.log(`[RBDMS]   Column ${index}: "${header}"`);
-    });
-    
-    // Check for pooling unit related columns
-    const punRelatedHeaders = csvHeaders.filter(h => 
-      h.toLowerCase().includes('pun') || 
-      h.toLowerCase().includes('pool') || 
-      h.toLowerCase().includes('unit') ||
-      h.toLowerCase().includes('spacing')
-    );
-    if (punRelatedHeaders.length > 0) {
-      console.log(`[RBDMS] Found potential pooling unit related columns: ${punRelatedHeaders.join(', ')}`);
-    } else {
-      console.log(`[RBDMS] No pooling unit related columns found`);
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let csvHeaders = null;
+    let apiIndex = -1;
+    let statusIndex = -1;
+    let operatorIndex = -1;
+    let rowCount = 0;
+    let bytesRead = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      bytesRead += value.byteLength;
+      buffer += decoder.decode(value, { stream: true });
+
+      // Process all complete lines in the buffer
+      let newlineIdx;
+      while ((newlineIdx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.substring(0, newlineIdx);
+        buffer = buffer.substring(newlineIdx + 1);
+
+        if (!line.trim()) continue;
+
+        // First line = headers
+        if (!csvHeaders) {
+          csvHeaders = line.split(',').map(h => h.trim());
+          console.log(`[RBDMS] CSV Headers (${csvHeaders.length} columns):`);
+          csvHeaders.forEach((header, index) => {
+            console.log(`[RBDMS]   Column ${index}: "${header}"`);
+          });
+
+          const punRelatedHeaders = csvHeaders.filter(h =>
+            h.toLowerCase().includes('pun') ||
+            h.toLowerCase().includes('pool') ||
+            h.toLowerCase().includes('unit') ||
+            h.toLowerCase().includes('spacing')
+          );
+          if (punRelatedHeaders.length > 0) {
+            console.log(`[RBDMS] Found potential pooling unit related columns: ${punRelatedHeaders.join(', ')}`);
+          } else {
+            console.log(`[RBDMS] No pooling unit related columns found`);
+          }
+
+          apiIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('api'));
+          statusIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
+          operatorIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('operator'));
+          console.log(`[RBDMS] Key column indices: API=${apiIndex}, Status=${statusIndex}, Operator=${operatorIndex}`);
+          continue;
+        }
+
+        const values = parseCSVLine(line);
+        if (values.length < csvHeaders.length) continue;
+
+        const api = normalizeAPI(values[apiIndex]);
+        if (!api) continue;
+
+        wellMap.set(api, {
+          wellstatus: values[statusIndex]?.trim() || '',
+          operator: values[operatorIndex]?.trim() || '',
+        });
+        rowCount++;
+      }
     }
-    
-    // Find important column indices
-    const apiIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('api'));
-    const statusIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
-    const operatorIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('operator'));
-    
-    console.log(`[RBDMS] Key column indices: API=${apiIndex}, Status=${statusIndex}, Operator=${operatorIndex}`);
-    console.log(`[RBDMS] Parsing ${lines.length - 1} wells...`);
-    
-    for (let i = 1; i < lines.length; i++) {
-      if (!lines[i].trim()) continue;
-      
-      const values = parseCSVLine(lines[i]);
-      if (values.length < csvHeaders.length) continue;
-      
-      const api = normalizeAPI(values[apiIndex]);
-      if (!api) continue;
-      
-      wellMap.set(api, {
-        wellstatus: values[statusIndex]?.trim() || '',
-        operator: values[operatorIndex]?.trim() || '',
-        // Add other fields as needed
-      });
+
+    // Handle any remaining data in the buffer (last line without trailing newline)
+    if (buffer.trim() && csvHeaders) {
+      const values = parseCSVLine(buffer);
+      if (values.length >= csvHeaders.length) {
+        const api = normalizeAPI(values[apiIndex]);
+        if (api) {
+          wellMap.set(api, {
+            wellstatus: values[statusIndex]?.trim() || '',
+            operator: values[operatorIndex]?.trim() || '',
+          });
+          rowCount++;
+        }
+      }
     }
-    
-    console.log(`[RBDMS] Parsed ${wellMap.size} wells in ${Date.now() - startTime}ms total`);
+
+    console.log(`[RBDMS] Streamed ${(bytesRead / 1024 / 1024).toFixed(1)}MB, parsed ${rowCount} rows → ${wellMap.size} wells in ${Date.now() - startTime}ms`);
     return wellMap;
     
   } catch (error) {

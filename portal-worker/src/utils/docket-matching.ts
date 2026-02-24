@@ -69,7 +69,7 @@ function normalizeSection(sec: string | number | null): string | null {
 /**
  * Normalize API number to XXX-XXXXX format
  */
-function normalizeAPINumber(api: string | null): string | null {
+export function normalizeAPINumber(api: string | null): string | null {
   if (!api) return null;
   const digits = api.toString().replace(/[^0-9]/g, '');
 
@@ -184,21 +184,14 @@ export async function findDocketEntriesByAPI(
     return [];
   }
 
-  // Search for API number in the api_numbers JSON array field
-  // Format: ["049-24518", "035-20123"]
-  // Uses json_each() for exact element matching instead of LIKE substring.
+  // Use junction table for indexed API number lookups (~2ms vs full-table scan)
   const query = `
-    SELECT id, case_number, relief_type, docket_date, section, township, range,
-           county, applicant, additional_sections, api_numbers
-    FROM occ_docket_entries
-    WHERE api_numbers IS NOT NULL
-      AND api_numbers != ''
-      AND api_numbers != '[]'
-      AND EXISTS (
-        SELECT 1 FROM json_each(api_numbers) AS je
-        WHERE je.value = ?
-      )
-    ORDER BY docket_date DESC
+    SELECT d.id, d.case_number, d.relief_type, d.docket_date, d.section, d.township, d.range,
+           d.county, d.applicant, d.additional_sections, d.api_numbers
+    FROM docket_entry_api_numbers a
+    JOIN occ_docket_entries d ON d.case_number = a.case_number
+    WHERE a.api_number = ?
+    ORDER BY d.docket_date DESC
     LIMIT 50
   `;
 

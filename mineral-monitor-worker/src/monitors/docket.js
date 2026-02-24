@@ -131,6 +131,20 @@ async function storeDocketEntries(db, entries) {
           console.error(`[Docket] Error syncing junction sections for ${entry.case_number}:`, jErr.message);
         }
       }
+
+      // Sync junction table for api_numbers (used by well-link-counts)
+      if (entry.api_numbers && entry.api_numbers.length > 0) {
+        try {
+          await db.prepare('DELETE FROM docket_entry_api_numbers WHERE case_number = ?')
+            .bind(entry.case_number).run();
+          for (const api of entry.api_numbers) {
+            await db.prepare('INSERT OR IGNORE INTO docket_entry_api_numbers (case_number, api_number) VALUES (?, ?)')
+              .bind(entry.case_number, api).run();
+          }
+        } catch (jErr) {
+          console.error(`[Docket] Error syncing api_numbers junction for ${entry.case_number}:`, jErr.message);
+        }
+      }
     } catch (err) {
       if (err.message.includes('UNIQUE constraint')) {
         skipped++;
