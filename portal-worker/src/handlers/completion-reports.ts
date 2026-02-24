@@ -325,10 +325,10 @@ export async function handleGetProductionSummary(
       `).bind(...uniqueBasePuns, twelveMonthsAgoYM),
       // Lifetime totals
       env.WELLS_DB.prepare(`
-        SELECT pun, product_code, SUM(gross_volume) as volume
+        SELECT product_code, SUM(gross_volume) as volume
         FROM otc_production
         WHERE ${punWhereClause}
-        GROUP BY pun, product_code
+        GROUP BY product_code
       `).bind(...uniqueBasePuns),
       // Sparkline data (last 6 months BOE)
       env.WELLS_DB.prepare(`
@@ -347,7 +347,7 @@ export async function handleGetProductionSummary(
         WHERE ${punWhereClause} AND year_month = ?
         GROUP BY product_code
       `).bind(...uniqueBasePuns, lastYearYM),
-      // Months produced count and first production month
+      // Months produced count and first production
       env.WELLS_DB.prepare(`
         SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
         FROM otc_production

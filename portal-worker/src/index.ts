@@ -1408,8 +1408,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
             return jsonResponse({ error: 'Unauthorized' }, 401);
           }
-          // Rate limit by API key (100/hr)
-          const rl = await rateLimit(env.AUTH_TOKENS, 'otc-sync', 'api-key', 100, 3600);
+          // Rate limit by API key (50000/hr — high to support streaming historical loads)
+          const rl = await rateLimit(env.AUTH_TOKENS, 'otc-sync', 'api-key', 50000, 3600);
           if (!rl.allowed) {
             return jsonResponse({ error: 'Too many requests.' }, 429, { 'Retry-After': '3600' });
           }
