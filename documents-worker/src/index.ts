@@ -2316,7 +2316,8 @@ export default {
               }
             }
 
-            // Auto-populate pun_api_crosswalk for completion reports
+            // Auto-populate pun_api_crosswalk, well_pun_links, wells, and tracking for completion reports
+            // All writes are batched into a single D1 transaction for atomicity.
             if (doc_type === 'completion_report' && extracted_data) {
               // Normalize API to 10-char bare digits (tracking table format)
               const normalizeApi = (raw: string | null | undefined): string | null => {
@@ -2340,196 +2341,151 @@ export default {
                 return pun.length >= 10 ? pun.substring(0, 10) : pun;
               };
 
-              try {
-                // Get API - check all possible extraction paths, normalize to 10-char
-                const rawApi = extracted_data.api_number_normalized
-                  || extracted_data.api_number
-                  || extracted_data.well_identification?.api_number;
-                const apiNumber = normalizeApi(rawApi);
+              const rawApi = extracted_data.api_number_normalized
+                || extracted_data.api_number
+                || extracted_data.well_identification?.api_number;
+              const apiNumber = normalizeApi(rawApi);
 
-                if (!apiNumber) {
-                  console.log('[PUN Crosswalk] Skipping - no API number in extracted data');
-                } else {
-                  const insertedPuns = new Set<string>(); // Track to avoid duplicates
+              if (!apiNumber) {
+                console.log('[1002A Write-Back] Skipping - no API number in extracted data');
+              } else {
+                // Collect all statements for atomic batch execution
+                const batchStatements: any[] = [];
+                const insertedPuns = new Set<string>();
 
-                  // Helper function to insert a PUN mapping
-                  // pun: dashed format (e.g., 017-231497-0-0000) - matches OTC production data
-                  const insertCrosswalk = async (pun: string, sectionCounty?: string) => {
-                    if (!pun || insertedPuns.has(pun)) return;
-                    insertedPuns.add(pun);
+                // 1. PUN crosswalk + well_pun_links statements
+                const addCrosswalkStatements = (pun: string) => {
+                  if (!pun || insertedPuns.has(pun)) return;
+                  insertedPuns.add(pun);
 
-                    console.log('[PUN Crosswalk] Inserting PUN mapping:', pun, '->', apiNumber);
-                    // pun_api_crosswalk columns: api_number, pun, confidence, match_source, pun_1002a
-                    await env.WELLS_DB.prepare(`
+                  batchStatements.push(
+                    env.WELLS_DB.prepare(`
                       INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source, pun_1002a)
                       VALUES (?, ?, 'high', '1002a_extraction', ?)
                       ON CONFLICT(api_number) DO UPDATE SET
                         pun = excluded.pun,
                         pun_1002a = COALESCE(excluded.pun_1002a, pun_api_crosswalk.pun_1002a),
                         updated_at = CURRENT_TIMESTAMP
-                    `).bind(apiNumber, pun, pun).run();
+                    `).bind(apiNumber, pun, pun)
+                  );
 
-                    // Also insert into well_pun_links (used for production matching)
-                    // base_pun (XXX-XXXXXX: county-lease, lease zero-padded to 6) is critical for production matching
-                    const basePun = normalizeBasePun(pun);
-                    await env.WELLS_DB.prepare(`
+                  const basePun = normalizeBasePun(pun);
+                  batchStatements.push(
+                    env.WELLS_DB.prepare(`
                       INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
                       VALUES (?, ?, ?, '1002a_extraction', 'high')
                       ON CONFLICT(api_number, pun) DO UPDATE SET
                         base_pun = COALESCE(excluded.base_pun, base_pun),
                         updated_at = CURRENT_TIMESTAMP
-                    `).bind(apiNumber, pun, basePun).run();
-                  };
+                    `).bind(apiNumber, pun, basePun)
+                  );
+                };
 
-                  // Single well PUN (vertical wells, or primary PUN for horizontal)
-                  const primaryPunValue = extracted_data.otc_prod_unit_no || extracted_data.well_identification?.otc_prod_unit_no;
-                  if (primaryPunValue) {
-                    await insertCrosswalk(primaryPunValue);
-                  }
+                // Primary PUN
+                const primaryPunValue = extracted_data.otc_prod_unit_no || extracted_data.well_identification?.otc_prod_unit_no;
+                if (primaryPunValue) {
+                  addCrosswalkStatements(primaryPunValue);
+                }
 
-                  // Multi-section horizontal wells (multiple PUNs in allocation_factors)
-                  if (extracted_data.allocation_factors?.length) {
-                    for (const factor of extracted_data.allocation_factors) {
-                      if (factor.pun) {
-                        await insertCrosswalk(factor.pun, factor.county);
-                      }
+                // Multi-section horizontal wells
+                if (extracted_data.allocation_factors?.length) {
+                  for (const factor of extracted_data.allocation_factors) {
+                    if (factor.pun) {
+                      addCrosswalkStatements(factor.pun);
                     }
                   }
+                }
 
-                  if (insertedPuns.size > 0) {
-                    console.log('[PUN Crosswalk] Successfully inserted', insertedPuns.size, 'PUN mapping(s)');
-
-                    // Also update wells.otc_prod_unit_no if not already set
-                    // Use the dashed format for consistency with production data
-                    const api10 = apiNumber; // already 10-char from normalizeApi()
-                    const primaryPun = primaryPunValue || Array.from(insertedPuns)[0];
-                    const updateResult = await env.WELLS_DB.prepare(`
+                // 2. Update wells.otc_prod_unit_no if PUNs were found
+                if (insertedPuns.size > 0) {
+                  const primaryPun = primaryPunValue || Array.from(insertedPuns)[0];
+                  batchStatements.push(
+                    env.WELLS_DB.prepare(`
                       UPDATE wells
                       SET otc_prod_unit_no = ?
                       WHERE (api_number = ? OR api_number LIKE ? || '%')
                         AND (otc_prod_unit_no IS NULL OR otc_prod_unit_no = '')
-                    `).bind(
-                      primaryPun,
-                      api10,
-                      api10
-                    ).run();
-
-                    if (updateResult.meta.changes > 0) {
-                      console.log('[PUN Crosswalk] Updated wells.otc_prod_unit_no for API:', api10);
-                    }
-                  } else {
-                    console.log('[PUN Crosswalk] No PUNs found in extracted data');
-                  }
+                    `).bind(primaryPun, apiNumber, apiNumber)
+                  );
                 }
-              } catch (crosswalkError) {
-                // Don't fail the request if crosswalk insert fails
-                console.error('[PUN Crosswalk] Failed to insert crosswalk:', crosswalkError);
-              }
 
-              // Update well_1002a_tracking to mark as processed
-              try {
+                // 3. Wells table enrichment (IP rates, depths, formation, etc.) — COALESCE to never overwrite
+                const bhLat = extracted_data.bottom_hole_location?.latitude || null;
+                const bhLon = extracted_data.bottom_hole_location?.longitude || null;
+                const lateralLength = extracted_data.lateral_details?.lateral_length_ft || null;
+                const totalDepth = extracted_data.surface_location?.total_depth_ft || null;
+                const ipOil = extracted_data.initial_production?.oil_bbl_per_day || null;
+                const ipGas = extracted_data.initial_production?.gas_mcf_per_day || null;
+                const ipWater = extracted_data.initial_production?.water_bbl_per_day || null;
+                const completionDate = extracted_data.dates?.completion_date || null;
+
+                let formationName: string | null = null;
+                let formationDepth: number | null = null;
+                if (extracted_data.formation_zones?.length > 0) {
+                  formationName = extracted_data.formation_zones[0].formation_name || null;
+                  const perfs = extracted_data.formation_zones[0].perforated_intervals;
+                  if (perfs?.length > 0) {
+                    formationDepth = perfs[0].from_ft || null;
+                  }
+                } else if (extracted_data.formation_tops?.length > 0) {
+                  formationName = extracted_data.formation_tops[0].name || null;
+                  formationDepth = extracted_data.formation_tops[0].depth_ft || null;
+                }
+
+                const updates: string[] = [];
+                const values: any[] = [];
+                if (bhLat !== null) { updates.push('bh_latitude = COALESCE(bh_latitude, ?)'); values.push(bhLat); }
+                if (bhLon !== null) { updates.push('bh_longitude = COALESCE(bh_longitude, ?)'); values.push(bhLon); }
+                if (lateralLength !== null) { updates.push('lateral_length = COALESCE(lateral_length, ?)'); values.push(lateralLength); }
+                if (totalDepth !== null) { updates.push('measured_total_depth = COALESCE(measured_total_depth, ?)'); values.push(totalDepth); }
+                if (ipOil !== null) { updates.push('ip_oil_bbl = COALESCE(ip_oil_bbl, ?)'); values.push(ipOil); }
+                if (ipGas !== null) { updates.push('ip_gas_mcf = COALESCE(ip_gas_mcf, ?)'); values.push(ipGas); }
+                if (ipWater !== null) { updates.push('ip_water_bbl = COALESCE(ip_water_bbl, ?)'); values.push(ipWater); }
+                if (formationName !== null) { updates.push('formation_name = COALESCE(formation_name, ?)'); values.push(formationName); }
+                if (formationDepth !== null) { updates.push('formation_depth = COALESCE(formation_depth, ?)'); values.push(formationDepth); }
+                if (completionDate !== null) { updates.push('completion_date = COALESCE(completion_date, ?)'); values.push(completionDate); }
+
+                if (updates.length > 0) {
+                  updates.push('updated_at = CURRENT_TIMESTAMP');
+                  const sql = `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ? OR api_number LIKE ? || '%'`;
+                  values.push(apiNumber, apiNumber);
+                  batchStatements.push(
+                    env.WELLS_DB.prepare(sql).bind(...values)
+                  );
+                }
+
+                // 4. Tracking update — must be last so it only marks 'processed' if everything else succeeded
                 const extractedPun = extracted_data.otc_prod_unit_no_normalized || extracted_data.otc_prod_unit_no || null;
-                await env.WELLS_DB.prepare(`
-                  UPDATE well_1002a_tracking
-                  SET status = 'processed',
-                      extracted_pun = COALESCE(?, extracted_pun),
-                      extraction_method = 'claude',
-                      confidence = 'high',
-                      processed_at = datetime('now'),
-                      updated_at = CURRENT_TIMESTAMP
-                  WHERE api_number = ? OR api_number = ?
-                `).bind(
-                  extractedPun,
-                  apiNumber,
-                  apiNumber.substring(0, 10)
-                ).run();
-                console.log('[1002A Tracking] Marked as processed:', apiNumber);
-              } catch (trackingError) {
-                console.error('[1002A Tracking] Failed to update tracking:', trackingError);
-              }
+                batchStatements.push(
+                  env.WELLS_DB.prepare(`
+                    UPDATE well_1002a_tracking
+                    SET status = 'processed',
+                        extracted_pun = COALESCE(?, extracted_pun),
+                        extraction_method = 'claude',
+                        confidence = 'high',
+                        processed_at = datetime('now'),
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE api_number = ? OR api_number = ?
+                  `).bind(extractedPun, apiNumber, apiNumber.substring(0, 10))
+                );
 
-              // Update wells table with completion report data (bottom hole, lateral, IP, formation)
-              try {
-                const rawApiWells = extracted_data.api_number_normalized
-                  || extracted_data.api_number
-                  || extracted_data.well_identification?.api_number;
-                const apiNumberWells = normalizeApi(rawApiWells);
-                if (apiNumberWells) {
-                  const api10 = apiNumberWells;
-
-                  // Extract bottom hole location
-                  const bhLat = extracted_data.bottom_hole_location?.latitude || null;
-                  const bhLon = extracted_data.bottom_hole_location?.longitude || null;
-
-                  // Extract lateral length
-                  const lateralLength = extracted_data.lateral_details?.lateral_length_ft || null;
-
-                  // Extract total depth
-                  const totalDepth = extracted_data.surface_location?.total_depth_ft || null;
-
-                  // Extract initial production
-                  const ipOil = extracted_data.initial_production?.oil_bbl_per_day || null;
-                  const ipGas = extracted_data.initial_production?.gas_mcf_per_day || null;
-                  const ipWater = extracted_data.initial_production?.water_bbl_per_day || null;
-
-                  // Extract formation info (from formation_zones array or formation_tops)
-                  let formationName = null;
-                  let formationDepth = null;
-                  if (extracted_data.formation_zones?.length > 0) {
-                    // Use first/primary formation
-                    formationName = extracted_data.formation_zones[0].formation_name || null;
-                    // Get depth from perforated intervals if available
-                    const perfs = extracted_data.formation_zones[0].perforated_intervals;
-                    if (perfs?.length > 0) {
-                      formationDepth = perfs[0].from_ft || null;
-                    }
-                  } else if (extracted_data.formation_tops?.length > 0) {
-                    formationName = extracted_data.formation_tops[0].name || null;
-                    formationDepth = extracted_data.formation_tops[0].depth_ft || null;
-                  }
-
-                  // Extract completion date
-                  const completionDate = extracted_data.dates?.completion_date || null;
-
-                  // Build dynamic UPDATE - only set fields that have values
-                  const updates: string[] = [];
-                  const values: any[] = [];
-
-                  if (bhLat !== null) { updates.push('bh_latitude = ?'); values.push(bhLat); }
-                  if (bhLon !== null) { updates.push('bh_longitude = ?'); values.push(bhLon); }
-                  if (lateralLength !== null) { updates.push('lateral_length = ?'); values.push(lateralLength); }
-                  if (totalDepth !== null) { updates.push('measured_total_depth = ?'); values.push(totalDepth); }
-                  if (ipOil !== null) { updates.push('ip_oil_bbl = ?'); values.push(ipOil); }
-                  if (ipGas !== null) { updates.push('ip_gas_mcf = ?'); values.push(ipGas); }
-                  if (ipWater !== null) { updates.push('ip_water_bbl = ?'); values.push(ipWater); }
-                  if (formationName !== null) { updates.push('formation_name = ?'); values.push(formationName); }
-                  if (formationDepth !== null) { updates.push('formation_depth = ?'); values.push(formationDepth); }
-                  if (completionDate !== null) { updates.push('completion_date = ?'); values.push(completionDate); }
-
-                  if (updates.length > 0) {
-                    updates.push('updated_at = CURRENT_TIMESTAMP');
-                    const sql = `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ? OR api_number LIKE ? || '%'`;
-                    values.push(api10, api10);
-
-                    const updateResult = await env.WELLS_DB.prepare(sql).bind(...values).run();
-
-                    if (updateResult.meta.changes > 0) {
-                      console.log('[Completion Data] Updated wells table with:', {
-                        api: api10,
-                        bh_lat: bhLat,
-                        bh_lon: bhLon,
-                        lateral_length: lateralLength,
-                        ip_oil: ipOil,
-                        ip_gas: ipGas,
-                        formation: formationName
-                      });
-                    } else {
-                      console.log('[Completion Data] No matching well found for API:', api10);
-                    }
-                  }
+                // Execute all writes atomically
+                try {
+                  await env.WELLS_DB.batch(batchStatements);
+                  console.log(`[1002A Write-Back] Batch succeeded: ${apiNumber} (${batchStatements.length} statements, ${insertedPuns.size} PUNs)`);
+                } catch (writeBackErr: any) {
+                  console.error(`[1002A Write-Back] Batch failed for ${apiNumber}:`, writeBackErr.message);
+                  // Mark as write_failed so we can retry later — distinct from extraction 'failed'
+                  try {
+                    await env.WELLS_DB.prepare(`
+                      UPDATE well_1002a_tracking
+                      SET status = 'write_failed',
+                          error_message = ?,
+                          updated_at = CURRENT_TIMESTAMP
+                      WHERE api_number = ? OR api_number = ?
+                    `).bind(writeBackErr.message, apiNumber, apiNumber.substring(0, 10)).run();
+                  } catch (_) {}
                 }
-              } catch (wellUpdateError) {
-                console.error('[Completion Data] Failed to update wells table:', wellUpdateError);
               }
             }
 

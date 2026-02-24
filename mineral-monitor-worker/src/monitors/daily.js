@@ -778,18 +778,22 @@ export async function runDailyMonitor(env, options = {}) {
 
   } catch (err) {
     console.error('[Daily] Fatal error:', err);
+    // Release lock on fatal error
+    if (!isTestMode) {
+      try { await env.MINERAL_CACHE.delete(LOCK_KEY); } catch (_) {}
+    }
     throw err;
   }
 
   console.log(`[Daily] Completed. Permits: ${results.permitsProcessed}, Completions: ${results.completionsProcessed}, Status Changes: ${results.statusChanges}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}${results.expirationAlertsSent ? `, Expiration Alerts: ${results.expirationAlertsSent}` : ''}`);
-  
+
   if (dryRun && results.matchesFound.length > 0) {
     console.log(`[Daily] DRY RUN - Matches found:`);
     results.matchesFound.forEach(m => {
       console.log(`  - ${m.activityType}: ${m.wellName} (${m.api}) → ${m.userEmail} [${m.alertLevel}]`);
     });
   }
-  
+
   // Run cleanup for old statewide activity records (90 days)
   if (!dryRun) {
     try {
@@ -804,7 +808,12 @@ export async function runDailyMonitor(env, options = {}) {
       console.error(`[Daily] Error during statewide cleanup:`, err.message);
     }
   }
-  
+
+  // Release lock on successful completion
+  if (!isTestMode) {
+    try { await env.MINERAL_CACHE.delete(LOCK_KEY); } catch (_) {}
+  }
+
   return results;
 }
 

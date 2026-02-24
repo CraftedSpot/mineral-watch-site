@@ -930,7 +930,26 @@ export async function runDocketMonitor(env, options = {}) {
   console.log('[Docket Monitor] Starting...');
 
   const dryRun = env.DRY_RUN === 'true' || options.dryRun;
+  const isTestMode = !!options.testMode;
   const today = new Date();
+
+  // KV-based mutex: prevent concurrent cron runs from duplicating alerts
+  const LOCK_KEY = 'cron:docket-monitor:lock';
+  const LOCK_TTL_SECONDS = 720;
+  if (!isTestMode) {
+    try {
+      const existing = await env.MINERAL_CACHE.get(LOCK_KEY);
+      if (existing) {
+        console.log('[Docket] Another instance already running, skipping');
+        return { skipped: true, reason: 'concurrent_lock' };
+      }
+      await env.MINERAL_CACHE.put(LOCK_KEY, JSON.stringify({ startedAt: Date.now() }), {
+        expirationTtl: LOCK_TTL_SECONDS
+      });
+    } catch (lockErr) {
+      console.warn('[Docket] Lock check failed, proceeding anyway:', lockErr.message);
+    }
+  }
 
   const results = {
     dryRun,
@@ -1012,5 +1031,11 @@ export async function runDocketMonitor(env, options = {}) {
   }
 
   console.log('[Docket Monitor] Complete:', results);
+
+  // Release lock
+  if (!isTestMode) {
+    try { await env.MINERAL_CACHE.delete(LOCK_KEY); } catch (_) {}
+  }
+
   return results;
 }

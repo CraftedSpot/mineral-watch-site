@@ -228,7 +228,27 @@ function findMatchesInMap(location, propertyMap, userCache) {
  */
 export async function runWeeklyMonitor(env, options = {}) {
   console.log('[Weekly] Starting weekly monitor run');
-  
+
+  const isTestMode = !!options.testApi;
+
+  // KV-based mutex: prevent concurrent cron runs from duplicating alerts
+  const LOCK_KEY = 'cron:weekly-monitor:lock';
+  const LOCK_TTL_SECONDS = 720;
+  if (!isTestMode) {
+    try {
+      const existing = await env.MINERAL_CACHE.get(LOCK_KEY);
+      if (existing) {
+        console.log('[Weekly] Another instance already running, skipping');
+        return { skipped: true, reason: 'concurrent_lock' };
+      }
+      await env.MINERAL_CACHE.put(LOCK_KEY, JSON.stringify({ startedAt: Date.now() }), {
+        expirationTtl: LOCK_TTL_SECONDS
+      });
+    } catch (lockErr) {
+      console.warn('[Weekly] Lock check failed, proceeding anyway:', lockErr.message);
+    }
+  }
+
   const results = {
     transfersProcessed: 0,
     transfersSkippedAsProcessed: 0,
@@ -381,10 +401,19 @@ export async function runWeeklyMonitor(env, options = {}) {
     
   } catch (err) {
     console.error('[Weekly] Fatal error:', err);
+    if (!isTestMode) {
+      try { await env.MINERAL_CACHE.delete(LOCK_KEY); } catch (_) {}
+    }
     throw err;
   }
-  
+
   console.log(`[Weekly] Completed. Transfers: ${results.transfersProcessed}, Status Changes: ${results.statusChanges || 0}, Total Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
+
+  // Release lock
+  if (!isTestMode) {
+    try { await env.MINERAL_CACHE.delete(LOCK_KEY); } catch (_) {}
+  }
+
   return results;
 }
 
