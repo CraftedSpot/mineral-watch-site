@@ -408,7 +408,25 @@ export async function runDailyMonitor(env, options = {}) {
   const dryRun = isDryRun(env);
   const isTestMode = !!(options.testPermitApi || options.testCompletionApi);
   console.log(`[Daily] Starting daily monitor run ${dryRun ? '(DRY RUN)' : '(LIVE)'}${isTestMode ? ' - TEST MODE' : ''}`);
-  
+
+  // KV-based mutex: prevent concurrent cron runs from duplicating alerts
+  const LOCK_KEY = 'cron:daily-monitor:lock';
+  const LOCK_TTL_SECONDS = 720; // 12 minutes (slightly > 10-min CPU limit)
+  if (!isTestMode) {
+    try {
+      const existing = await env.MINERAL_CACHE.get(LOCK_KEY);
+      if (existing) {
+        console.log('[Daily] Another instance already running, skipping');
+        return { skipped: true, reason: 'concurrent_lock' };
+      }
+      await env.MINERAL_CACHE.put(LOCK_KEY, JSON.stringify({ startedAt: Date.now() }), {
+        expirationTtl: LOCK_TTL_SECONDS
+      });
+    } catch (lockErr) {
+      console.warn('[Daily] Lock check failed, proceeding anyway:', lockErr.message);
+    }
+  }
+
   const results = {
     permitsProcessed: 0,
     completionsProcessed: 0,
