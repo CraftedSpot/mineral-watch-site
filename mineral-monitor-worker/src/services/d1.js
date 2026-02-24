@@ -334,6 +334,101 @@ export async function updateActivityLog(env, recordId, updates) {
   return { success: false, error: 'No valid updates provided' };
 }
 
+/**
+ * Atomic: create activity log AND queue pending alert in a single D1 batch transaction.
+ * Both succeed or both fail — no orphaned activity logs without queue entries.
+ * Uses last_insert_rowid() to reference the activity log ID in the pending alert.
+ */
+export async function atomicCreateAlertAndQueue(env, activityData, queueData) {
+  const detectedAt = new Date().toISOString();
+  const mapLink = activityData.apiNumber
+    ? `https://portal.mymineralwatch.com/map?well=${activityData.apiNumber}`
+    : null;
+
+  const stmt1 = env.WELLS_DB.prepare(`
+    INSERT INTO activity_log (
+      user_id, organization_id, api_number, well_name, operator,
+      previous_operator, activity_type, alert_level, previous_value, new_value,
+      county, str_location, formation, occ_link, occ_map_link, map_link,
+      email_sent, detected_at, case_number, is_historical, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).bind(
+    activityData.userId,
+    activityData.organizationId || null,
+    activityData.apiNumber,
+    activityData.wellName,
+    activityData.operator,
+    activityData.previousOperator || null,
+    activityData.activityType,
+    activityData.alertLevel,
+    activityData.previousValue || null,
+    activityData.newValue || null,
+    activityData.county || null,
+    activityData.sectionTownshipRange || null,
+    activityData.formation || null,
+    activityData.occLink || null,
+    activityData.mapLink || null,
+    mapLink,
+    0, // email_sent = false (digest will send later)
+    detectedAt,
+    activityData.caseNumber || null,
+    0, // is_historical = false
+    null
+  );
+
+  const stmt2 = env.WELLS_DB.prepare(`
+    INSERT INTO pending_alerts (
+      user_id, user_email, organization_id,
+      activity_log_id, activity_type,
+      well_name, api_number, operator, county,
+      section_township_range, alert_level,
+      days_until_expiration, expire_date,
+      previous_status, new_status,
+      previous_operator,
+      digest_frequency,
+      case_number
+    ) VALUES (
+      ?, ?, ?,
+      last_insert_rowid(), ?,
+      ?, ?, ?, ?,
+      ?, ?,
+      ?, ?,
+      ?, ?,
+      ?,
+      ?,
+      ?
+    )
+  `).bind(
+    queueData.userId,
+    queueData.userEmail,
+    queueData.organizationId || null,
+    // activity_log_id = last_insert_rowid() (from stmt1)
+    queueData.activityType,
+    queueData.wellName || null,
+    queueData.apiNumber || null,
+    queueData.operator || null,
+    queueData.county || null,
+    queueData.sectionTownshipRange || null,
+    queueData.alertLevel || null,
+    queueData.daysUntilExpiration || null,
+    queueData.expireDate || null,
+    queueData.previousStatus || null,
+    queueData.newStatus || null,
+    queueData.previousOperator || null,
+    queueData.digestFrequency,
+    queueData.caseNumber || null
+  );
+
+  // D1 batch: both statements run in a single transaction.
+  // If either fails, the entire batch is rolled back.
+  const results = await env.WELLS_DB.batch([stmt1, stmt2]);
+
+  const activityLogId = results[0].meta.last_row_id;
+  console.log(`[D1] Atomic: created activity log #${activityLogId} + queued pending alert for ${activityData.apiNumber} - ${activityData.activityType}`);
+
+  return { activityLogId, success: true };
+}
+
 // ============================================================================
 // Transform functions - Convert D1 rows to Airtable-like format for compatibility
 // ============================================================================

@@ -1,10 +1,15 @@
 /**
  * Daily Monitor - Processes Intent to Drill and Completion files
- * OPTIMIZED: 
+ * OPTIMIZED:
  *   1. Tracks processed APIs to skip re-processing 7-day window overlap
  *   2. Batch loads users instead of individual lookups
  *   3. Preloads recent alerts for O(1) dedup checking
+ *   4. Time budget guard: stops processing before worker timeout, resumes next cron
  */
+
+// Wall-clock budget for the processing loops (permits + completions).
+// Worker cron has ~10 min limit; leave headroom for email batching + enrichment + cleanup.
+const PROCESSING_TIME_BUDGET_MS = 8 * 60 * 1000; // 8 minutes
 
 import { fetchOCCFile, checkDataFreshness, markNewRecordsReceived } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
@@ -601,17 +606,31 @@ export async function runDailyMonitor(env, options = {}) {
       return results;
     }
     
+    // Time budget: track wall-clock so we stop before the worker times out.
+    // Unprocessed records stay out of processedAPIs and will be picked up next cron run.
+    const processingStart = Date.now();
+    let timeBudgetExhausted = false;
+
     // Process permits with the optimizations
     for (let i = 0; i < newPermits.length; i++) {
+      // Time budget check — leave room for email batching + enrichment + cleanup
+      if (Date.now() - processingStart > PROCESSING_TIME_BUDGET_MS) {
+        const skipped = newPermits.length - i;
+        console.warn(`[Daily] TIME BUDGET: Stopping permit processing after ${i}/${newPermits.length} — ${skipped} permits deferred to next run`);
+        results.errors.push({ type: 'time_budget', error: `${skipped} permits deferred (${Math.round((Date.now() - processingStart) / 1000)}s elapsed)` });
+        timeBudgetExhausted = true;
+        break;
+      }
+
       const permit = newPermits[i];
       try {
         await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode, planLimitCache);
         results.permitsProcessed++;
-        
+
         // Mark as processed
         const api = normalizeAPI(permit.API_Number);
         processedAPIs.add(`${api}|permit`);
-        
+
         // Add 200ms delay between processing permits to avoid Airtable rate limits
         // (statewide activity and well location creates)
         if (i < newPermits.length - 1) {
@@ -622,19 +641,28 @@ export async function runDailyMonitor(env, options = {}) {
         results.errors.push({ api: permit.API_Number, error: err.message });
       }
     }
-    
+
     // Process completions with the optimizations
     for (let i = 0; i < newCompletions.length; i++) {
+      // Time budget check
+      if (Date.now() - processingStart > PROCESSING_TIME_BUDGET_MS) {
+        const skipped = newCompletions.length - i;
+        console.warn(`[Daily] TIME BUDGET: Stopping completion processing after ${i}/${newCompletions.length} — ${skipped} completions deferred to next run`);
+        results.errors.push({ type: 'time_budget', error: `${skipped} completions deferred (${Math.round((Date.now() - processingStart) / 1000)}s elapsed)` });
+        timeBudgetExhausted = true;
+        break;
+      }
+
       const completion = newCompletions[i];
       try {
         await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode, planLimitCache);
         results.completionsProcessed++;
-        
+
         // Mark as processed with date to allow multiple zone completions
         const api = normalizeAPI(completion.API_Number);
         const completionDate = completion.Well_Completion || 'unknown';
         processedAPIs.add(`${api}|completion|${completionDate}`);
-        
+
         // Add 200ms delay between processing completions to avoid Airtable rate limits
         // (statewide activity and well location creates)
         if (i < newCompletions.length - 1) {
@@ -644,6 +672,10 @@ export async function runDailyMonitor(env, options = {}) {
         console.error(`[Daily] Error processing completion ${completion.API_Number}:`, err);
         results.errors.push({ api: completion.API_Number, error: err.message });
       }
+    }
+
+    if (timeBudgetExhausted) {
+      console.warn(`[Daily] TIME BUDGET EXHAUSTED — processed ${results.permitsProcessed} permits, ${results.completionsProcessed} completions. Remaining will be picked up on next cron run.`);
     }
     
     // Enrich D1 wells table with completion data (formation, BH coords, depths, IP)

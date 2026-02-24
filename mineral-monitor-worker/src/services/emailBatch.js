@@ -12,6 +12,7 @@ import {
   queuePendingAlert,
   getOrganizationById
 } from './pendingAlerts.js';
+import { atomicCreateAlertAndQueue } from './d1.js';
 
 /**
  * Simple delay function for rate limiting
@@ -80,11 +81,10 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
         continue;
       }
 
-      // Create activity logs and queue alerts for digest
+      // Create activity logs and queue alerts for digest — atomic D1 batch
       for (let i = 0; i < userAlerts.length; i++) {
         const alert = userAlerts[i];
 
-        // Create activity log entry
         const activityData = {
           wellName: alert.wellName,
           apiNumber: alert.apiNumber,
@@ -99,15 +99,11 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
           formation: alert.formation || null,
           organizationId: alert.organizationId || null
         };
-        const record = await createActivityLog(env, activityData);
-        const activityLogId = record.id;
 
-        // Queue for digest delivery
-        await queuePendingAlert(env, {
+        const queueData = {
           userId: userId,
           userEmail: userEmail,
           organizationId: organizationId,
-          activityLogId: activityLogId,
           activityType: alert.activityType,
           wellName: alert.wellName,
           apiNumber: alert.apiNumber,
@@ -121,10 +117,14 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
           newStatus: alert.newStatus || null,
           previousOperator: alert.previousOperator || null,
           digestFrequency: digestFrequency
-        });
+        };
+
+        // Atomic: both activity_log INSERT and pending_alerts INSERT
+        // succeed or fail together in a single D1 batch transaction
+        await atomicCreateAlertAndQueue(env, activityData, queueData);
         results.alertsQueued++;
 
-        // Rate limit Airtable writes
+        // Rate limit between alerts
         if (i < userAlerts.length - 1) {
           await delay(200);
         }

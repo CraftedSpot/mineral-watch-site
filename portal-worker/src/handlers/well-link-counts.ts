@@ -53,8 +53,9 @@ interface WellFilingData {
 async function fetchPropertyCounts(
   env: Env,
   wellIds: string[]
-): Promise<Map<string, number>> {
+): Promise<{ data: Map<string, number>; hadErrors: boolean }> {
   const propertyCounts = new Map<string, number>();
+  let hadErrors = false;
   const batches = chunk(wellIds, BATCH_SIZE_D1);
 
   const batchPromises = batches.map(async (batch) => {
@@ -71,6 +72,7 @@ async function fetchPropertyCounts(
       return result.results as { well_airtable_id: string; count: number }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error fetching property links:', err);
+      hadErrors = true;
       return [];
     }
   });
@@ -82,7 +84,7 @@ async function fetchPropertyCounts(
     }
   }
 
-  return propertyCounts;
+  return { data: propertyCounts, hadErrors };
 }
 
 /**
@@ -92,8 +94,9 @@ async function fetchDocumentCounts(
   env: Env,
   apiNumbers: string[],
   apiToWellId: Map<string, string>
-): Promise<Map<string, number>> {
+): Promise<{ data: Map<string, number>; hadErrors: boolean }> {
   const docCounts = new Map<string, number>();
+  let hadErrors = false;
   const filteredApis = apiNumbers.filter(a => a);
   const docTypeList = WELL_DOC_TYPES.map(type => `'${type}'`).join(', ');
 
@@ -126,6 +129,7 @@ async function fetchDocumentCounts(
       }
     } catch (err) {
       console.error('[WellLinkCounts] Error resolving API to record IDs:', err);
+      hadErrors = true;
     }
     return results;
   });
@@ -180,6 +184,7 @@ async function fetchDocumentCounts(
       return Array.from(counts.entries()).map(([recordId, count]) => ({ recordId, count }));
     } catch (err) {
       console.error('[WellLinkCounts] Error fetching document counts:', err);
+      hadErrors = true;
       return [];
     }
   });
@@ -197,7 +202,7 @@ async function fetchDocumentCounts(
     }
   }
 
-  return docCounts;
+  return { data: docCounts, hadErrors };
 }
 
 /**
@@ -217,10 +222,11 @@ async function fetchDocumentCounts(
 async function fetchOCCFilingCounts(
   env: Env,
   wellData: WellFilingData[]
-): Promise<Map<string, number>> {
+): Promise<{ data: Map<string, number>; hadErrors: boolean }> {
   const filingCounts = new Map<string, number>();
+  let hadErrors = false;
 
-  if (wellData.length === 0) return filingCounts;
+  if (wellData.length === 0) return { data: filingCounts, hadErrors };
 
   // Initialize all wells to 0
   for (const wd of wellData) {
@@ -252,6 +258,7 @@ async function fetchOCCFilingCounts(
         return (r.results || []) as { api_number: string; pun: string }[];
       } catch (err) {
         console.error('[WellLinkCounts] Error fetching PUNs:', err);
+        hadErrors = true;
         return [];
       }
     }));
@@ -286,6 +293,7 @@ async function fetchOCCFilingCounts(
         return (r.results || []) as { api_number: string; pun: string }[];
       } catch (err) {
         console.error('[WellLinkCounts] Error fetching PUN sibling APIs:', err);
+        hadErrors = true;
         return [];
       }
     }));
@@ -312,6 +320,7 @@ async function fetchOCCFilingCounts(
         return (r.results || []) as any[];
       } catch (err) {
         console.error('[WellLinkCounts] Error fetching sibling well locations:', err);
+        hadErrors = true;
         return [];
       }
     }));
@@ -418,6 +427,7 @@ async function fetchOCCFilingCounts(
       return result.results as { case_number: string; sec: string; twn: string; rng: string }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error querying OCC filings (STR):', err);
+      hadErrors = true;
       return [];
     }
   });
@@ -437,6 +447,7 @@ async function fetchOCCFilingCounts(
       return result.results as { case_number: string; api_numbers: string }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error querying OCC filings (API):', err);
+      hadErrors = true;
       return [];
     }
   });
@@ -458,6 +469,7 @@ async function fetchOCCFilingCounts(
       return result.results as { case_number: string; sec: string; twn: string; rng: string }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error querying docket_entry_sections:', err);
+      hadErrors = true;
       return [];
     }
   });
@@ -533,7 +545,7 @@ async function fetchOCCFilingCounts(
   const totalFilings = Array.from(filingCounts.values()).reduce((a, b) => a + b, 0);
   console.log(`[WellLinkCounts] Filing results: ${wellsWithFilings} wells with filings, ${totalFilings} total case matches`);
 
-  return filingCounts;
+  return { data: filingCounts, hadErrors };
 }
 
 /**
@@ -631,7 +643,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
     // Run all three query types in parallel
     const tD1Start = Date.now();
-    const [propertyCounts, docCounts, filingCounts] = await Promise.all([
+    const [propertyResult, docResult, filingResult] = await Promise.all([
       fetchPropertyCounts(env, wellIds),
       fetchDocumentCounts(env, apiNumbers, apiToWellId),
       fetchOCCFilingCounts(env, wellFilingData)
@@ -640,17 +652,25 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
     // Merge results into counts
     for (const wellId of wellIds) {
-      counts[wellId].properties = propertyCounts.get(wellId) || 0;
-      counts[wellId].documents = docCounts.get(wellId) || 0;
-      counts[wellId].filings = filingCounts.get(wellId) || 0;
+      counts[wellId].properties = propertyResult.data.get(wellId) || 0;
+      counts[wellId].documents = docResult.data.get(wellId) || 0;
+      counts[wellId].filings = filingResult.data.get(wellId) || 0;
     }
+
+    // Track if any queries had errors — frontend can show "counts may be incomplete"
+    const hadErrors = propertyResult.hadErrors || docResult.hadErrors || filingResult.hadErrors;
 
     // Log summary
     const withProperties = Object.entries(counts).filter(([_, c]) => c.properties > 0);
     const withDocs = Object.entries(counts).filter(([_, c]) => c.documents > 0);
     const withFilings = Object.entries(counts).filter(([_, c]) => c.filings > 0);
-    console.log(`[WellLinkCounts timing] d1Queries=${tD1End-tD1Start}ms TOTAL=${Date.now()-start}ms. Properties: ${withProperties.length}, Docs: ${withDocs.length}, Filings: ${withFilings.length}`);
+    console.log(`[WellLinkCounts timing] d1Queries=${tD1End-tD1Start}ms TOTAL=${Date.now()-start}ms. Properties: ${withProperties.length}, Docs: ${withDocs.length}, Filings: ${withFilings.length}${hadErrors ? ' (PARTIAL - some queries failed)' : ''}`);
 
+    // If any batch queries failed, include _partial flag so frontend
+    // can show a subtle indicator instead of displaying silent zeros
+    if (hadErrors) {
+      return jsonResponse({ ...counts, _partial: true });
+    }
     return jsonResponse(counts);
 
   } catch (err) {
