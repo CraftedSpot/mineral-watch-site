@@ -16,13 +16,11 @@ import type { Env } from '../types/env.js';
 // Wells below this are intermittent/marginal and create extreme % swings (e.g. 1→10 BOE = +900%).
 const MIN_BOE_THRESHOLD = 50;
 
-// Intelligence features are currently limited to specific organizations during beta
-const INTELLIGENCE_ALLOWED_ORGS = [
-  'rec9fYy8Xwl3jNAbf', // Price Minerals
-];
+// Intelligence features available to Business plan and above
+const INTELLIGENCE_ALLOWED_PLANS = ['Business', 'Enterprise 1K'];
 
-function isIntelligenceAllowed(orgId: string | undefined): boolean {
-  return orgId ? INTELLIGENCE_ALLOWED_ORGS.includes(orgId) : false;
+function isIntelligenceAllowed(plan: string | undefined): boolean {
+  return plan ? INTELLIGENCE_ALLOWED_PLANS.includes(plan) : false;
 }
 
 /**
@@ -44,8 +42,8 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({
         activeWells: 0, countyCount: 0, estimatedRevenue: null,
         revenueChange: null, deductionFlags: null, shutInWells: 0,
@@ -273,8 +271,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({
         insights: [{
           severity: 'info',
@@ -509,8 +507,8 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({
         summary: {
           activeWells: 0, countyCount: 0, estimatedRevenue: null,
@@ -1017,8 +1015,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -1503,8 +1501,8 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -1914,8 +1912,8 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -2515,7 +2513,7 @@ export async function handlePoolingPrint(request: Request, env: Env): Promise<Re
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -2841,8 +2839,8 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Beta: Intelligence features limited to allowed organizations
-    if (!isIntelligenceAllowed(userOrgId)) {
+    // Intelligence features limited to Business plan and above
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -3182,7 +3180,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -3711,7 +3709,7 @@ export async function handleDeductionAuditPrint(request: Request, env: Env): Pro
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -4068,7 +4066,7 @@ export async function handleProductionDeclinePrint(request: Request, env: Env): 
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -4641,7 +4639,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -4988,7 +4986,7 @@ export async function handleShutInDetectorPrint(request: Request, env: Env): Pro
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -5537,7 +5535,7 @@ export async function handleGetShutInDetectorMarkets(request: Request, env: Env)
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -6156,7 +6154,7 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -6671,7 +6669,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed(userOrgId)) {
+    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
