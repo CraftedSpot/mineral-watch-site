@@ -378,31 +378,40 @@ export function checkMatch(
     return 'Bottom Hole';
   }
 
-  // Priority 4: Adjacent BH section match (horizontal wells - stronger signal)
-  if (well.bottomHoleLocation) {
-    const adjLocs = getAdjacentLocations(
-      property.location.section, property.location.township, property.location.range
-    );
-    if (adjLocs.some(a =>
-      a.section === well.bottomHoleLocation!.section &&
-      a.township === well.bottomHoleLocation!.township &&
-      a.range === well.bottomHoleLocation!.range
-    )) {
-      return 'Adjacent Section';
-    }
-  }
+  // Priority 4-5: Adjacent section matching — only for horizontal wells.
+  // A vertical well drains ~40 acres directly below; matching it to adjacent
+  // sections is noise. Horizontals can cross section boundaries, so adjacency
+  // is a meaningful signal. Detect horizontal: surface and BH in different sections.
+  const isHorizontal = well.surfaceLocation && well.bottomHoleLocation &&
+    well.surfaceLocation.section !== well.bottomHoleLocation.section;
 
-  // Priority 5: Adjacent surface section match
-  if (well.surfaceLocation) {
-    const adjLocs = getAdjacentLocations(
-      property.location.section, property.location.township, property.location.range
-    );
-    if (adjLocs.some(a =>
-      a.section === well.surfaceLocation!.section &&
-      a.township === well.surfaceLocation!.township &&
-      a.range === well.surfaceLocation!.range
-    )) {
-      return 'Adjacent Section';
+  if (isHorizontal) {
+    // Priority 4: Adjacent BH section match
+    if (well.bottomHoleLocation) {
+      const adjLocs = getAdjacentLocations(
+        property.location.section, property.location.township, property.location.range
+      );
+      if (adjLocs.some(a =>
+        a.section === well.bottomHoleLocation!.section &&
+        a.township === well.bottomHoleLocation!.township &&
+        a.range === well.bottomHoleLocation!.range
+      )) {
+        return 'Adjacent Section';
+      }
+    }
+
+    // Priority 5: Adjacent surface section match
+    if (well.surfaceLocation) {
+      const adjLocs = getAdjacentLocations(
+        property.location.section, property.location.township, property.location.range
+      );
+      if (adjLocs.some(a =>
+        a.section === well.surfaceLocation!.section &&
+        a.township === well.surfaceLocation!.township &&
+        a.range === well.surfaceLocation!.range
+      )) {
+        return 'Adjacent Section';
+      }
     }
   }
 
