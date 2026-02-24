@@ -10,7 +10,7 @@
  * Data sources:
  * - Properties: D1 property_well_links by well_airtable_id
  * - Documents: D1 documents joined with client_wells/wells by API number
- * - OCC Filings: D1 occ_docket_entries by well's section/township/range
+ * - OCC Filings: D1 occ_docket_entries by unit sections (PUN-scoped: all wells in the production unit)
  */
 
 import { jsonResponse } from '../utils/responses.js';
@@ -201,12 +201,18 @@ async function fetchDocumentCounts(
 }
 
 /**
- * Fetch OCC filing counts from D1 using three match paths:
- * 1. STR matching (surface + bottom hole) against occ_docket_entries
+ * Fetch OCC filing counts using PUN-scoped (unit-centric) counting.
+ *
+ * Each well's filing locations are expanded to include ALL sections covered by
+ * the well's production unit (PUN). This matches the modal's behavior:
+ * if a sibling well in your unit has an OCC filing, it affects your check.
+ *
+ * Uses three match paths:
+ * 1. STR matching (expanded unit sections) against occ_docket_entries
  * 2. API number matching against occ_docket_entries.api_numbers JSON
  * 3. Junction table matching against docket_entry_sections
  *
- * Uses DISTINCT case_number to deduplicate across all paths.
+ * DISTINCT case_number deduplicates across all paths.
  */
 async function fetchOCCFilingCounts(
   env: Env,
@@ -221,9 +227,125 @@ async function fetchOCCFilingCounts(
     filingCounts.set(wd.wellId, 0);
   }
 
-  // Build STR→wellIds map (surface + BH locations combined)
-  const strToWellIds: Map<string, string[]> = new Map();
+  // === PUN EXPANSION: Get unit footprint for each well ===
+  // Step 1: Look up PUNs for all user wells
+  const apiToWellIdLocal = new Map<string, string>();
+  const apisWithData: string[] = [];
   for (const wd of wellData) {
+    if (wd.apiNumber) {
+      apiToWellIdLocal.set(wd.apiNumber, wd.wellId);
+      apisWithData.push(wd.apiNumber);
+    }
+  }
+
+  const wellToPuns = new Map<string, Set<string>>();
+  const allPuns = new Set<string>();
+
+  if (apisWithData.length > 0) {
+    const punBatches = chunk(apisWithData, 90);
+    const punResults = await Promise.all(punBatches.map(async (batch) => {
+      try {
+        const ph = batch.map(() => '?').join(', ');
+        const r = await env.WELLS_DB.prepare(
+          `SELECT api_number, pun FROM well_pun_links WHERE api_number IN (${ph})`
+        ).bind(...batch).all();
+        return (r.results || []) as { api_number: string; pun: string }[];
+      } catch (err) {
+        console.error('[WellLinkCounts] Error fetching PUNs:', err);
+        return [];
+      }
+    }));
+
+    for (const rows of punResults) {
+      for (const row of rows) {
+        const wellId = apiToWellIdLocal.get(row.api_number);
+        if (wellId) {
+          if (!wellToPuns.has(wellId)) wellToPuns.set(wellId, new Set());
+          wellToPuns.get(wellId)!.add(row.pun);
+          allPuns.add(row.pun);
+        }
+      }
+    }
+  }
+
+  // Step 2: Get all sibling well locations for those PUNs
+  const punToLocations = new Map<string, WellLocation[]>();
+
+  if (allPuns.size > 0) {
+    const punArray = Array.from(allPuns);
+    const sibBatches = chunk(punArray, 90);
+    const sibResults = await Promise.all(sibBatches.map(async (batch) => {
+      try {
+        const ph = batch.map(() => '?').join(', ');
+        const r = await env.WELLS_DB.prepare(`
+          SELECT l.pun, w.section, w.township, w.range,
+                 w.bh_section, w.bh_township, w.bh_range
+          FROM well_pun_links l
+          JOIN wells w ON l.api_number = w.api_number
+                       OR l.api_number = SUBSTR(w.api_number, 1, 10)
+          WHERE l.pun IN (${ph})
+        `).bind(...batch).all();
+        return (r.results || []) as any[];
+      } catch (err) {
+        console.error('[WellLinkCounts] Error fetching PUN sibling locations:', err);
+        return [];
+      }
+    }));
+
+    for (const rows of sibResults) {
+      for (const row of rows) {
+        if (!punToLocations.has(row.pun)) punToLocations.set(row.pun, []);
+        const locs = punToLocations.get(row.pun)!;
+
+        const sec = normalizeSection(row.section);
+        const twn = normalizeTownship(row.township);
+        const rng = normalizeRange(row.range);
+        if (sec !== null && twn && rng) locs.push({ sec, twn, rng });
+
+        const bhSec = normalizeSection(row.bh_section);
+        const bhTwn = normalizeTownship(row.bh_township);
+        const bhRng = normalizeRange(row.bh_range);
+        if (bhSec !== null && bhTwn && bhRng) locs.push({ sec: bhSec, twn: bhTwn, rng: bhRng });
+      }
+    }
+  }
+
+  // Step 3: Build expanded locations per well (own sections + PUN sibling sections)
+  const expandedWellData: WellFilingData[] = [];
+  let totalExpanded = 0;
+
+  for (const wd of wellData) {
+    const locSet = new Set<string>();
+    const expandedLocs: WellLocation[] = [];
+
+    // Add well's own locations
+    for (const loc of wd.locations) {
+      const key = `${loc.sec}|${loc.twn}|${loc.rng}`;
+      if (!locSet.has(key)) { locSet.add(key); expandedLocs.push(loc); }
+    }
+
+    // Add PUN sibling locations
+    const puns = wellToPuns.get(wd.wellId);
+    if (puns) {
+      for (const pun of puns) {
+        for (const loc of (punToLocations.get(pun) || [])) {
+          const key = `${loc.sec}|${loc.twn}|${loc.rng}`;
+          if (!locSet.has(key)) { locSet.add(key); expandedLocs.push(loc); }
+        }
+      }
+    }
+
+    if (expandedLocs.length > wd.locations.length) totalExpanded++;
+    expandedWellData.push({ wellId: wd.wellId, apiNumber: wd.apiNumber, locations: expandedLocs });
+  }
+
+  console.log(`[WellLinkCounts] PUN expansion: ${wellToPuns.size} wells have PUNs, ${allPuns.size} unique PUNs, ${totalExpanded} wells gained extra sections`);
+
+  // === FILING QUERIES (3 paths with expanded unit locations) ===
+
+  // Build STR→wellIds map (expanded unit locations)
+  const strToWellIds: Map<string, string[]> = new Map();
+  for (const wd of expandedWellData) {
     for (const loc of wd.locations) {
       const key = `${loc.sec}|${loc.twn}|${loc.rng}`;
       if (!strToWellIds.has(key)) strToWellIds.set(key, []);
@@ -233,13 +355,13 @@ async function fetchOCCFilingCounts(
 
   // Build API→wellIds map (for API number matching)
   const apiToWellIds: Map<string, string> = new Map();
-  for (const wd of wellData) {
+  for (const wd of expandedWellData) {
     if (wd.apiNumber) apiToWellIds.set(wd.apiNumber, wd.wellId);
   }
 
   // Collect case_numbers per wellId using a Set for dedup
   const wellCaseNumbers: Map<string, Set<string>> = new Map();
-  for (const wd of wellData) {
+  for (const wd of expandedWellData) {
     wellCaseNumbers.set(wd.wellId, new Set());
   }
 
@@ -250,8 +372,7 @@ async function fetchOCCFilingCounts(
 
   const uniqueApis = Array.from(apiToWellIds.keys());
 
-  const bhCount = wellData.reduce((n, wd) => n + (wd.locations.length > 1 ? 1 : 0), 0);
-  console.log(`[WellLinkCounts] Filing query: ${uniqueSTRs.length} STR locations (${bhCount} wells with BH), ${uniqueApis.length} API numbers`);
+  console.log(`[WellLinkCounts] Filing query: ${uniqueSTRs.length} STR locations (${totalExpanded} PUN-expanded), ${uniqueApis.length} API numbers`);
 
   // --- Path 1: STR matching against occ_docket_entries (surface + BH) ---
   const strBatches = chunk(uniqueSTRs, BATCH_SIZE_D1);
