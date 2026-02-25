@@ -29,7 +29,7 @@ const CREDIT_PACK_PRICES: Record<string, { credits: number; name: string; price:
 };
 
 // Upload limits
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB per file
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB per file (Workers body limit)
 const MAX_TOTAL_UPLOAD_SIZE = 500 * 1024 * 1024; // 500MB total per upload
 const MAX_FILES_PER_UPLOAD = 500;
 
