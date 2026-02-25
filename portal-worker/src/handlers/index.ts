@@ -197,7 +197,8 @@ export {
   handleUploadPunProductionData,
   handleComputePunRollups,
   handleGetPunProductionStats,
-  handleTruncatePunProduction
+  handleTruncatePunProduction,
+  handleValidateNormalization
 } from './otc-production-upload.js';
 
 // OTC financial upload handlers
