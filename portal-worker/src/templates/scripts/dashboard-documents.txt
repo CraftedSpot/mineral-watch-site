@@ -7599,8 +7599,11 @@
                 const newChildren = data.documents.filter(d => d.parent_document_id && !prevIds.has(d.id));
 
                 // Show toast if documents completed
-                if (nowSplit.length > 0 && newChildren.length > 0) {
-                    showToast(`PDF split into ${newChildren.length} documents — processing complete`, 'success');
+                if (nowSplit.length > 0) {
+                    const msg = newChildren.length > 0
+                        ? `PDF split into ${newChildren.length} documents — processing complete`
+                        : 'Multi-document PDF processing complete';
+                    showToast(msg, 'success');
                     loadUsageStats();
                 } else if (nowComplete.length > 0) {
                     const message = nowComplete.length === 1
