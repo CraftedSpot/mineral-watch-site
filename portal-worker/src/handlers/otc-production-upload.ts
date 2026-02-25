@@ -803,15 +803,7 @@ export async function handleValidateNormalization(
     const results: Record<string, any> = {};
     let totalFixed = 0;
 
-    // 1. Fix NULL base_pun in otc_production
-    const fixProd = await env.WELLS_DB!.prepare(`
-      UPDATE otc_production SET base_pun = SUBSTR(pun, 1, 10)
-      WHERE base_pun IS NULL
-    `).run();
-    results.otc_production_null_base_pun_fixed = fixProd.meta.changes;
-    totalFixed += fixProd.meta.changes;
-
-    // 2. Fix NULL base_pun in puns table
+    // 1. Fix NULL base_pun in puns table (~91K rows — fast)
     const fixPuns = await env.WELLS_DB!.prepare(`
       UPDATE puns SET base_pun = SUBSTR(pun, 1, 10)
       WHERE base_pun IS NULL
@@ -819,7 +811,7 @@ export async function handleValidateNormalization(
     results.puns_null_base_pun_fixed = fixPuns.meta.changes;
     totalFixed += fixPuns.meta.changes;
 
-    // 3. Fix NULL base_pun in otc_leases
+    // 2. Fix NULL base_pun in otc_leases (~85K rows — fast)
     const fixLeases = await env.WELLS_DB!.prepare(`
       UPDATE otc_leases SET base_pun = SUBSTR(pun, 1, 10)
       WHERE base_pun IS NULL
@@ -827,28 +819,44 @@ export async function handleValidateNormalization(
     results.otc_leases_null_base_pun_fixed = fixLeases.meta.changes;
     totalFixed += fixLeases.meta.changes;
 
-    // 4. Check for malformed base_pun in well_pun_links (don't auto-fix — these need manual review)
+    // 3. Fix NULL base_pun in otc_production — batched to avoid D1 CPU limit on 11M+ rows
+    let prodFixed = 0;
+    for (let i = 0; i < 10; i++) {
+      const batch = await env.WELLS_DB!.prepare(`
+        UPDATE otc_production SET base_pun = SUBSTR(pun, 1, 10)
+        WHERE rowid IN (SELECT rowid FROM otc_production WHERE base_pun IS NULL LIMIT 25000)
+      `).run();
+      prodFixed += batch.meta.changes;
+      if (batch.meta.changes === 0) break;
+    }
+    results.otc_production_null_base_pun_fixed = prodFixed;
+    totalFixed += prodFixed;
+
+    // 4. Check for malformed base_pun in well_pun_links (~small table)
     const badLinks = await env.WELLS_DB!.prepare(`
       SELECT COUNT(*) as cnt FROM well_pun_links
-      WHERE base_pun IS NULL OR base_pun NOT LIKE '___-______'
+      WHERE base_pun IS NULL OR LENGTH(base_pun) != 10
     `).first<{ cnt: number }>();
     results.well_pun_links_malformed = badLinks?.cnt || 0;
 
-    // 5. Check for malformed PUNs in otc_production (non-standard format)
-    const badProdPuns = await env.WELLS_DB!.prepare(`
-      SELECT COUNT(*) as cnt FROM otc_production
-      WHERE pun NOT LIKE '___-______-_-____'
+    // 5. Sample check otc_production for malformed PUNs (avoid full 11M scan)
+    const badProdSample = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt FROM (
+        SELECT 1 FROM otc_production
+        WHERE LENGTH(pun) < 15
+        LIMIT 100
+      )
     `).first<{ cnt: number }>();
-    results.otc_production_malformed_pun = badProdPuns?.cnt || 0;
+    results.otc_production_short_pun_sample = badProdSample?.cnt || 0;
 
-    // 6. Check API numbers in wells table (should be 10 digits starting with 35)
+    // 6. Check API numbers in wells table (~175K rows — fast with index)
     const badApis = await env.WELLS_DB!.prepare(`
       SELECT COUNT(*) as cnt FROM wells
       WHERE api_number IS NOT NULL AND (LENGTH(api_number) != 10 OR api_number NOT LIKE '35%')
     `).first<{ cnt: number }>();
     results.wells_non_standard_api = badApis?.cnt || 0;
 
-    // 7. Check client_wells API numbers
+    // 7. Check client_wells API numbers (~small table)
     const badClientApis = await env.WELLS_DB!.prepare(`
       SELECT COUNT(*) as cnt FROM client_wells
       WHERE api_number IS NOT NULL AND api_number != '' AND (LENGTH(api_number) != 10 OR api_number NOT LIKE '35%')
@@ -857,7 +865,7 @@ export async function handleValidateNormalization(
 
     // Determine overall health
     const anomalies = (results.well_pun_links_malformed || 0)
-      + (results.otc_production_malformed_pun || 0)
+      + (results.otc_production_short_pun_sample || 0)
       + (results.wells_non_standard_api || 0)
       + (results.client_wells_non_standard_api || 0);
 

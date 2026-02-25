@@ -171,6 +171,7 @@ import {
   handleComputePunRollups,
   handleGetPunProductionStats,
   handleTruncatePunProduction,
+  handleValidateNormalization,
   // OTC financial upload handlers
   handleUploadFinancialData,
   handleGetFinancialStats,

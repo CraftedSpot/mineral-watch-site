@@ -164,6 +164,25 @@
                     const bCount = b._linkCounts?.filings || 0;
                     return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
 
+                } else if (field === 'formation') {
+                    // Formation name
+                    const aVal = (a.formation_canonical || a.formation_name || '').toLowerCase();
+                    const bVal = (b.formation_canonical || b.formation_name || '').toLowerCase();
+                    // Blank formations sort last
+                    if (!aVal && bVal) return 1;
+                    if (aVal && !bVal) return -1;
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+
+                } else if (field === 'direction') {
+                    // Horizontal vs Vertical (horizontal first in asc)
+                    const aHz = (a.lateral_length && parseInt(a.lateral_length) > 0) ? 0 : 1;
+                    const bHz = (b.lateral_length && parseInt(b.lateral_length) > 0) ? 0 : 1;
+                    if (aHz !== bHz) return aHz < bHz ? -1 * multiplier : 1 * multiplier;
+                    // Secondary sort by name within same direction
+                    const aName = (a.well_name || '').toLowerCase();
+                    const bName = (b.well_name || '').toLowerCase();
+                    return aName < bName ? -1 : (aName > bName ? 1 : 0);
+
                 } else if (field === 'boe') {
                     // Lifetime BOE (oil bbls + gas mcf / 6)
                     const aBoe = (a.otc_total_oil || 0) + ((a.otc_total_gas || 0) / 6);
@@ -566,22 +585,11 @@
             if (lastProdDisplay) extraParts.push(`<span class="well-last-prod">Last: ${lastProdDisplay}</span>`);
             if (formation) extraParts.push(`<span class="well-formation">${escapeHtml(formation)}</span>`);
 
-            // Depth (TD + lateral for horizontals)
-            const td = w.measured_total_depth || w.true_vertical_depth;
-            if (td) {
-                let depthStr = `TD ${Number(td).toLocaleString()}'`;
-                if (w.lateral_length) depthStr += ` / Lat ${Number(w.lateral_length).toLocaleString()}'`;
-                extraParts.push(`<span class="well-depth">${depthStr}</span>`);
-            }
-
-            // IP rates
-            const ipOil = w.ip_oil_bbl ? Math.round(w.ip_oil_bbl) : 0;
-            const ipGas = w.ip_gas_mcf ? Math.round(w.ip_gas_mcf) : 0;
-            if (ipOil || ipGas) {
-                const ipParts = [];
-                if (ipOil) ipParts.push(`${ipOil.toLocaleString()} bo/d`);
-                if (ipGas) ipParts.push(`${ipGas.toLocaleString()} mcf/d`);
-                extraParts.push(`<span class="well-ip">IP ${ipParts.join(', ')}</span>`);
+            // Well direction (Horizontal / Vertical)
+            if (w.lateral_length && parseInt(w.lateral_length) > 0) {
+                extraParts.push(`<span class="well-direction" style="color:#2563eb;">Horizontal</span>`);
+            } else if (w.measured_total_depth || w.true_vertical_depth || w.well_type) {
+                extraParts.push(`<span class="well-direction">Vertical</span>`);
             }
 
             const extraLine = extraParts.length > 0
