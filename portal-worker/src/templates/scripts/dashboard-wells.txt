@@ -1126,7 +1126,44 @@
             const completedDateItem = document.getElementById('wellCompletedDateItem');
             const firstProdDateItem = document.getElementById('wellFirstProdDateItem');
 
-            if (completionDate || firstProdDate) {
+            // Well specs: depth, lateral, IP
+            const td = well.measured_total_depth || well.true_vertical_depth;
+            const lateral = well.lateral_length;
+            const ipOil = well.ip_oil_bbl ? Math.round(well.ip_oil_bbl) : 0;
+            const ipGas = well.ip_gas_mcf ? Math.round(well.ip_gas_mcf) : 0;
+
+            const depthItem = document.getElementById('wellDepthItem');
+            const lateralItem = document.getElementById('wellLateralItem');
+            const ipOilItem = document.getElementById('wellIpOilItem');
+            const ipGasItem = document.getElementById('wellIpGasItem');
+
+            if (td) {
+                document.getElementById('wellDetailsDepthDisplay').textContent = Number(td).toLocaleString() + "'";
+                depthItem.style.display = 'block';
+            } else {
+                depthItem.style.display = 'none';
+            }
+            if (lateral) {
+                document.getElementById('wellDetailsLateralDisplay').textContent = Number(lateral).toLocaleString() + "'";
+                lateralItem.style.display = 'block';
+            } else {
+                lateralItem.style.display = 'none';
+            }
+            if (ipOil) {
+                document.getElementById('wellDetailsIpOilDisplay').textContent = ipOil.toLocaleString() + ' bo/d';
+                ipOilItem.style.display = 'block';
+            } else {
+                ipOilItem.style.display = 'none';
+            }
+            if (ipGas) {
+                document.getElementById('wellDetailsIpGasDisplay').textContent = ipGas.toLocaleString() + ' mcf/d';
+                ipGasItem.style.display = 'block';
+            } else {
+                ipGasItem.style.display = 'none';
+            }
+
+            const hasAnySpec = completionDate || firstProdDate || td || lateral || ipOil || ipGas;
+            if (hasAnySpec) {
                 keyDatesRow.style.display = 'block';
 
                 if (completionDate) {

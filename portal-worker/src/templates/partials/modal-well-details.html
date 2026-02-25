@@ -54,7 +54,7 @@
                 <!-- Upload Encouragement (shown when deductions are estimated) -->
                 <div id="wellUploadNudge" style="display: none; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: #1e40af;"></div>
 
-                <!-- Key Dates Row (always visible if data exists) -->
+                <!-- Key Dates & Specs Row (always visible if any data exists) -->
                 <div class="key-dates-row" id="wellKeyDatesRow" style="display: none; background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
                     <div style="display: flex; gap: 24px; flex-wrap: wrap;">
                         <div class="date-item" id="wellCompletedDateItem" style="display: none;">
@@ -64,6 +64,22 @@
                         <div class="date-item" id="wellFirstProdDateItem" style="display: none;">
                             <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">First Production</div>
                             <div id="wellDetailsFirstProdDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                        <div class="date-item" id="wellDepthItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">Total Depth</div>
+                            <div id="wellDetailsDepthDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                        <div class="date-item" id="wellLateralItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">Lateral</div>
+                            <div id="wellDetailsLateralDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                        <div class="date-item" id="wellIpOilItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">IP Oil</div>
+                            <div id="wellDetailsIpOilDisplay" style="font-size: 14px; font-weight: 600; color: #059669;">—</div>
+                        </div>
+                        <div class="date-item" id="wellIpGasItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">IP Gas</div>
+                            <div id="wellDetailsIpGasDisplay" style="font-size: 14px; font-weight: 600; color: #059669;">—</div>
                         </div>
                     </div>
                 </div>
