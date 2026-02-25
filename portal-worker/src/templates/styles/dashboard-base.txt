@@ -264,6 +264,12 @@
         .well-extra-line .well-formation {
             color: #8B5CF6;
         }
+        .well-extra-line .well-depth {
+            color: #6B7280;
+        }
+        .well-extra-line .well-ip {
+            color: #059669;
+        }
         .expand-icon {
             color: #94A3B8;
             font-size: 10px;

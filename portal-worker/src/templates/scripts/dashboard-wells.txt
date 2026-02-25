@@ -565,6 +565,25 @@
             const extraParts = [];
             if (lastProdDisplay) extraParts.push(`<span class="well-last-prod">Last: ${lastProdDisplay}</span>`);
             if (formation) extraParts.push(`<span class="well-formation">${escapeHtml(formation)}</span>`);
+
+            // Depth (TD + lateral for horizontals)
+            const td = w.measured_total_depth || w.true_vertical_depth;
+            if (td) {
+                let depthStr = `TD ${Number(td).toLocaleString()}'`;
+                if (w.lateral_length) depthStr += ` / Lat ${Number(w.lateral_length).toLocaleString()}'`;
+                extraParts.push(`<span class="well-depth">${depthStr}</span>`);
+            }
+
+            // IP rates
+            const ipOil = w.ip_oil_bbl ? Math.round(w.ip_oil_bbl) : 0;
+            const ipGas = w.ip_gas_mcf ? Math.round(w.ip_gas_mcf) : 0;
+            if (ipOil || ipGas) {
+                const ipParts = [];
+                if (ipOil) ipParts.push(`${ipOil.toLocaleString()} bo/d`);
+                if (ipGas) ipParts.push(`${ipGas.toLocaleString()} mcf/d`);
+                extraParts.push(`<span class="well-ip">IP ${ipParts.join(', ')}</span>`);
+            }
+
             const extraLine = extraParts.length > 0
                 ? `<div class="well-extra-line">${extraParts.join(' • ')}</div>` : '';
 
