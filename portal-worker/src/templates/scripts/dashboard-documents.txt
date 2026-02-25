@@ -6342,9 +6342,11 @@
                         // Status field
                         const statusColor = doc.status === 'complete' ? '#1D6F5C' :
                                            doc.status === 'failed' ? 'var(--error)' :
+                                           doc.status === 'unprocessed' ? '#9CA3AF' :
                                            doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
                         const statusText = doc.status === 'complete' ? 'Complete' :
                                           doc.status === 'failed' ? 'Failed' :
+                                          doc.status === 'unprocessed' ? 'Skipped' :
                                           doc.status === 'manual_review' ? 'Needs Review' : 'Processing';
                         content += `
                             <div class="doc-field">
@@ -6431,9 +6433,11 @@
                         // Status field
                         const statusColor = doc.status === 'complete' ? '#1D6F5C' :
                                            doc.status === 'failed' ? 'var(--error)' :
+                                           doc.status === 'unprocessed' ? '#9CA3AF' :
                                            doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
                         const statusText = doc.status === 'complete' ? 'Complete' :
                                           doc.status === 'failed' ? 'Failed' :
+                                          doc.status === 'unprocessed' ? 'Skipped' :
                                           doc.status === 'manual_review' ? 'Needs Review' : 'Processing';
                         content += `
                             <div class="doc-field">
@@ -7575,17 +7579,30 @@
                 }
                 
                 // Check if any documents changed status
-                const prevProcessing = loadedDocuments.filter(doc => 
+                const prevProcessing = loadedDocuments.filter(doc =>
                     doc.status === 'processing' || doc.status === 'pending'
                 );
-                
+
                 const nowComplete = data.documents.filter(doc => {
                     const wasProcessing = prevProcessing.find(p => p.id === doc.id);
-                    return wasProcessing && doc.status === 'complete';
+                    return wasProcessing && (doc.status === 'complete' || doc.status === 'manual_review');
                 });
-                
+
+                // Also detect multi-document splits: parent went from processing to multi_document
+                const nowSplit = data.documents.filter(doc => {
+                    const wasProcessing = prevProcessing.find(p => p.id === doc.id);
+                    return wasProcessing && (doc.doc_type === 'multi_document' || doc.category === 'multi_document');
+                });
+
+                // Count new child documents from splits
+                const prevIds = new Set(loadedDocuments.map(d => d.id));
+                const newChildren = data.documents.filter(d => d.parent_document_id && !prevIds.has(d.id));
+
                 // Show toast if documents completed
-                if (nowComplete.length > 0) {
+                if (nowSplit.length > 0 && newChildren.length > 0) {
+                    showToast(`PDF split into ${newChildren.length} documents — processing complete`, 'success');
+                    loadUsageStats();
+                } else if (nowComplete.length > 0) {
                     const message = nowComplete.length === 1
                         ? '1 document finished processing'
                         : `${nowComplete.length} documents finished processing`;
@@ -7944,6 +7961,8 @@
                 }
             } else if (doc.status === 'failed') {
                 statusColor = 'var(--error)'; statusText = 'Failed'; statusClass = 'failed';
+            } else if (doc.status === 'unprocessed') {
+                statusColor = '#9CA3AF'; statusText = 'Skipped'; statusClass = 'unprocessed';
             } else if (doc.status === 'manual_review') {
                 statusColor = '#D97706'; statusText = 'Review'; statusClass = 'manual_review';
             } else if (doc.status === 'pending') {
