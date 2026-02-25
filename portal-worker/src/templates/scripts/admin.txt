@@ -129,7 +129,7 @@
 
             const tbody = document.getElementById('usersBody');
             if (users.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="13" class="loading-cell">No users found</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="14" class="loading-cell">No users found</td></tr>';
                 return;
             }
 
@@ -154,6 +154,7 @@
                     '<td class="' + wellClass + '">' + (u.well_count || 0) + '</td>' +
                     '<td>' + (u.alerts_30d || 0) + '</td>' +
                     '<td class="' + failedClass + '">' + (u.failed_emails || 0) + '</td>' +
+                    '<td>' + (u.open_notes > 0 ? '<span class="badge badge-amber" title="' + u.open_notes + ' open note(s)">' + u.open_notes + '</span>' : '—') + '</td>' +
                     '<td>' + fmtDate(u.created_at) + '</td>' +
                     '<td style="white-space:nowrap;">' +
                         '<button class="btn btn-sm btn-secondary" onclick="openUserDetail(\'' + esc(u.airtable_record_id) + '\')">Detail</button> ' +
@@ -213,11 +214,11 @@
 
         function exportUsersCSV() {
             if (!allUsers.length) return;
-            const headers = ['Name', 'Email', 'Plan', 'Status', 'Org', 'Last Login', 'Total Logins', 'Properties', 'Wells', 'Alerts 30d', 'Failed Emails', 'Created'];
+            const headers = ['Name', 'Email', 'Plan', 'Status', 'Org', 'Last Login', 'Total Logins', 'Properties', 'Wells', 'Alerts 30d', 'Failed Emails', 'Open Notes', 'Created'];
             const rows = allUsers.map(u => [
                 u.name || '', u.email || '', u.plan || 'Free', u.status || '', u.org_name || '',
                 u.last_login || '', u.total_logins || 0, u.prop_count || 0, u.well_count || 0,
-                u.alerts_30d || 0, u.failed_emails || 0, u.created_at || ''
+                u.alerts_30d || 0, u.failed_emails || 0, u.open_notes || 0, u.created_at || ''
             ]);
             let csv = headers.join(',') + '\n';
             rows.forEach(r => {

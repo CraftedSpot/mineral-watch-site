@@ -51,7 +51,8 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
         (SELECT COUNT(*) FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active') as prop_count,
         (SELECT COUNT(*) FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active') as well_count,
         (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.detected_at > datetime('now', '-30 days')) as alerts_30d,
-        (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.email_sent = 0 AND al.detected_at > datetime('now', '-7 days')) as failed_emails
+        (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.email_sent = 0 AND al.detected_at > datetime('now', '-7 days')) as failed_emails,
+        (SELECT COUNT(*) FROM admin_notes an WHERE an.user_id = u.airtable_record_id AND an.resolved = 0) as open_notes
       FROM users u
       LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
       WHERE u.status != 'Deleted'
