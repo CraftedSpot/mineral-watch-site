@@ -142,10 +142,14 @@
                 const failedClass = (u.failed_emails > 0) ? 'flag-red' : '';
                 const isCanceled = u.status === 'Cancelled' || u.status === 'Canceled';
 
+                const planCell = u.org_name
+                    ? '<span title="Org: ' + esc(u.org_name) + '">' + esc(u.plan || 'Free') + ' <span class="badge badge-muted" style="font-size:10px;text-transform:none;">' + esc(u.org_name) + '</span></span>'
+                    : esc(u.plan || 'Free');
+
                 return '<tr>' +
                     '<td>' + esc(u.name || '—') + '</td>' +
                     '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(u.email) + '</td>' +
-                    '<td>' + esc(u.plan || 'Free') + '</td>' +
+                    '<td>' + planCell + '</td>' +
                     '<td>' + (isCanceled ? '<span class="flag-red">' + esc(u.status) + '</span>' : esc(u.status || '—')) + '</td>' +
                     '<td>' + esc(u.org_name || '—') + '</td>' +
                     '<td class="' + loginClass + '">' + fmtDate(u.last_login) + '</td>' +
