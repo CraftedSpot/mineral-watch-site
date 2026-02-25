@@ -1709,7 +1709,8 @@ MIN_TEXT_FOR_ORDER_START = 100  # Characters - "ORDER NO. XXXXX" alone is ~17 ch
 
 def extract_text_from_pdf(pdf_path: str) -> list[str]:
     """
-    Extract text from each page of a PDF using PyMuPDF.
+    Extract text from each page of a PDF using PyMuPDF, with Tesseract OCR fallback
+    for scanned pages that have no embedded text layer.
 
     Args:
         pdf_path: Path to the PDF file
@@ -1719,6 +1720,8 @@ def extract_text_from_pdf(pdf_path: str) -> list[str]:
     """
     if not pdf_path:
         return []
+
+    MIN_TEXT_FOR_HEURISTICS = 30  # Minimum chars to consider a page "has text"
 
     try:
         import fitz  # PyMuPDF
@@ -1733,14 +1736,69 @@ def extract_text_from_pdf(pdf_path: str) -> list[str]:
 
         doc.close()
         logger.debug(f"Extracted text from {len(text_by_page)} pages of {pdf_path}")
-        return text_by_page
 
     except ImportError:
         logger.warning("PyMuPDF (fitz) not installed. Heuristic checks will be skipped.")
         return []
     except Exception as e:
-        logger.warning(f"Failed to extract text from PDF {pdf_path}: {e}")
+        # Handle corrupted or password-protected PDFs gracefully
+        error_type = type(e).__name__
+        logger.warning(f"Failed to extract text from PDF {pdf_path} ({error_type}): {e}")
         return []
+
+    # Tesseract OCR fallback for scanned pages with no/minimal text
+    pages_needing_ocr = [i for i, text in enumerate(text_by_page)
+                         if len(text.strip()) < MIN_TEXT_FOR_HEURISTICS]
+
+    if pages_needing_ocr:
+        logger.info(f"Tesseract OCR: {len(pages_needing_ocr)}/{len(text_by_page)} pages have "
+                    f"insufficient text — running OCR fallback for boundary detection")
+        try:
+            import fitz
+            from PIL import Image
+            import pytesseract
+            import io
+
+            doc = fitz.open(pdf_path)  # Single open for all scanned pages
+            ocr_count = 0
+
+            for i in pages_needing_ocr:
+                try:
+                    page = doc[i]
+                    # 150 DPI — sufficient for TITLE_PATTERNS matching, ~2x faster than 200
+                    pix = page.get_pixmap(dpi=150)
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+
+                    # OCR just the top ~40% of the page for boundary detection speed
+                    # Document titles (MINERAL DEED, ORDER NO., etc.) cluster at page top
+                    w, h = img.size
+                    top_crop = img.crop((0, 0, w, int(h * 0.4)))
+                    ocr_text = pytesseract.image_to_string(top_crop, config='--psm 6')
+
+                    if len(ocr_text.strip()) >= MIN_TEXT_FOR_HEURISTICS:
+                        text_by_page[i] = ocr_text
+                        ocr_count += 1
+                    else:
+                        logger.debug(f"Tesseract OCR page {i}: only {len(ocr_text.strip())} chars (below threshold)")
+                except Exception as e:
+                    logger.warning(f"Tesseract OCR failed for page {i}: {e}")
+
+            doc.close()
+
+            if ocr_count > 0:
+                logger.info(f"Tesseract OCR: filled text for {ocr_count}/{len(pages_needing_ocr)} scanned pages")
+            else:
+                logger.warning(f"Tesseract OCR: no pages produced usable text — "
+                              f"pipeline will fall back to visual detection")
+
+        except ImportError:
+            logger.warning("pytesseract not installed — skipping OCR fallback")
+        except Exception as e:
+            logger.error(f"Tesseract OCR pass failed entirely: {e}")
+            # Graceful fallback — pipeline will use visual detection instead
+
+    return text_by_page
 
 
 def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
@@ -2172,6 +2230,35 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         logger.info(f"  Doc {i+1}: pages {chunk['page_start']+1}-{chunk['page_end']+1} ({chunk['coarse_type']}) - {chunk['split_reason']}")
 
     return result
+
+
+def _build_visual_page_classifications(detection_result: dict, total_pages: int) -> list[dict]:
+    """
+    Convert visual detection result (from detect_documents()) into the
+    page_classifications format expected by split_pages_into_documents().
+    """
+    page_classifications = []
+    doc_starts = set()
+
+    for doc in detection_result.get("documents", []):
+        start_page = doc.get("start_page", 1) - 1  # Convert to 0-indexed
+        doc_starts.add(start_page)
+
+    for page_idx in range(total_pages):
+        is_start = page_idx in doc_starts
+        page_classifications.append({
+            "page_index": page_idx,
+            "coarse_type": "unknown",  # Sonnet will determine during extraction
+            "is_document_start": is_start,
+            "start_confidence": 0.85 if is_start else 0.2,
+            "detected_title": None,
+            "features": {"has_title_phrase": is_start},
+            "classification_method": "visual_detection",
+            "is_continuation": not is_start and page_idx > 0
+        })
+
+    logger.info(f"Visual detection found {len(doc_starts)} document starts at pages: {sorted(doc_starts)}")
+    return page_classifications
 
 
 # ============================================================================
@@ -10603,9 +10690,18 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     is_small_document = total_pages <= MAX_PAGES_FOR_SCANNED_BYPASS
     has_no_usable_text = pages_with_text == 0
 
+    # Re-assess text availability after OCR fallback may have populated scanned pages
+    if page_texts:
+        pages_with_text = sum(1 for text in page_texts if len(text.strip()) >= MIN_CHARS_FOR_USABLE_TEXT)
+        pages_without_text = total_pages - pages_with_text
+        has_no_usable_text = pages_with_text == 0
+        logger.info(f"Text assessment (post-OCR): {pages_with_text}/{total_pages} pages have usable text")
+
     # For ALL multi-page documents, use visual detection for splitting
-    # Text heuristics alone aren't reliable - handwritten docs may have some OCR text
-    # but titles like "MINERAL DEED" may not be cleanly extracted
+    # Visual detection (Sonnet) is more reliable than text heuristics, especially for:
+    # - Handwritten docs where OCR may partially extract text but miss titles
+    # - Scanned docs where Tesseract OCR text is noisier than native PDF text
+    # The OCR text is still valuable for assess_ocr_quality() and Phase B pre-scan estimation
     if total_pages > 1:
         logger.info(f"MULTI-PAGE DOC: Will use visual detection for {total_pages} pages (has_text={not has_no_usable_text})")
         # Don't bypass - fall through to visual detection below
@@ -10639,28 +10735,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
         # Convert detection result to page classifications format
         if detection_result.get("is_multi_document") and detection_result.get("documents"):
-            # Build page classifications from detected boundaries
-            page_classifications = []
-            doc_starts = set()
-
-            for doc in detection_result.get("documents", []):
-                start_page = doc.get("start_page", 1) - 1  # Convert to 0-indexed
-                doc_starts.add(start_page)
-
-            for page_idx in range(total_pages):
-                is_start = page_idx in doc_starts
-                page_classifications.append({
-                    "page_index": page_idx,
-                    "coarse_type": "unknown",  # Sonnet will determine during extraction
-                    "is_document_start": is_start,
-                    "start_confidence": 0.85 if is_start else 0.2,
-                    "detected_title": None,
-                    "features": {"has_title_phrase": is_start},
-                    "classification_method": "visual_detection",
-                    "is_continuation": not is_start and page_idx > 0
-                })
-
-            logger.info(f"Visual detection found {len(doc_starts)} document starts at pages: {sorted(doc_starts)}")
+            page_classifications = _build_visual_page_classifications(
+                detection_result, total_pages)
         else:
             # Single document or detection failed - use default classification
             logger.info(f"Visual detection says single document or no boundaries found")

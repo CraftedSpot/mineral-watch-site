@@ -1415,7 +1415,15 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         // Auth guard for all OTC sync endpoints
         if (path !== "/api/otc-sync/trigger") {
           const authHeader = request.headers.get('Authorization');
-          if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          let authed = authHeader === `Bearer ${env.PROCESSING_API_KEY}`;
+          // Also allow super-admin session auth (for admin dashboard UI)
+          if (!authed) {
+            try {
+              const sessionUser = await authenticateRequest(request, env);
+              if (sessionUser && isSuperAdmin(sessionUser.email)) authed = true;
+            } catch (_) {}
+          }
+          if (!authed) {
             return jsonResponse({ error: 'Unauthorized' }, 401);
           }
           // Rate limit by API key (50000/hr — high to support streaming historical loads)
