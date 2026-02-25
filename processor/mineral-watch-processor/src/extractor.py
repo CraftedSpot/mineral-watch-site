@@ -10781,6 +10781,40 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         if detection_result.get("is_multi_document") and detection_result.get("documents"):
             page_classifications = _build_visual_page_classifications(
                 detection_result, total_pages)
+
+            # HEURISTIC ENHANCEMENT PASS: Check if text heuristics find additional
+            # document boundaries that visual detection missed.
+            # This catches "Page 1 of N", NRIS well records, and other structural
+            # signals that are invisible in low-res visual scans but clear in text.
+            if page_texts:
+                heuristic_additions = 0
+                for page_idx, page_text in enumerate(page_texts):
+                    if not page_text or page_idx == 0:
+                        continue
+                    # Skip pages already marked as document starts by visual detection
+                    if page_classifications[page_idx].get("is_document_start"):
+                        continue
+                    # Run heuristic check on this page's text
+                    hcheck = heuristic_page_check(page_text, page_idx)
+                    # If heuristics say continuation, don't override visual
+                    if hcheck.get("is_continuation"):
+                        continue
+                    # If heuristics found a high-confidence start, add it
+                    if hcheck.get("heuristic_is_start") and hcheck.get("confidence", 0) >= 0.8:
+                        logger.info(f"HEURISTIC ENHANCEMENT: Page {page_idx} — visual said continuation, "
+                                   f"but heuristics found '{hcheck.get('matched_title', 'Page 1 of N')}' "
+                                   f"(type: {hcheck.get('heuristic_type')}, conf: {hcheck['confidence']}) — upgrading to document start")
+                        page_classifications[page_idx]["is_document_start"] = True
+                        page_classifications[page_idx]["is_continuation"] = False
+                        page_classifications[page_idx]["start_confidence"] = hcheck["confidence"]
+                        page_classifications[page_idx]["classification_method"] = "visual+heuristic"
+                        if hcheck.get("heuristic_type"):
+                            page_classifications[page_idx]["coarse_type"] = hcheck["heuristic_type"]
+                        if hcheck.get("matched_title"):
+                            page_classifications[page_idx]["detected_title"] = hcheck["matched_title"]
+                        heuristic_additions += 1
+                if heuristic_additions > 0:
+                    logger.info(f"Heuristic enhancement added {heuristic_additions} document boundary(ies) that visual detection missed")
         else:
             # Single document or detection failed - use default classification
             logger.info(f"Visual detection says single document or no boundaries found")
