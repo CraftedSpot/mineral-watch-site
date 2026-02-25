@@ -565,6 +565,11 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     cutoffDate.setMonth(cutoffDate.getMonth() - 6);
     const prodCutoff = `${cutoffDate.getFullYear()}${String(cutoffDate.getMonth() + 1).padStart(2, '0')}`;
 
+    // 24-month cutoff for new wells with no production yet (spud/completion date)
+    const newWellCutoff = new Date();
+    newWellCutoff.setMonth(newWellCutoff.getMonth() - 24);
+    const newWellDateStr = newWellCutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+
     // --- Step 3: Query OCC wells at property locations (surface OR bottom hole, meridian-scoped) ---
     // Parallelized: At 10K properties ~662 surface/BH batches; parallelized in groups of 6 = ~110 rounds
     const strEntries = Array.from(strCombos.values());
@@ -593,7 +598,8 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
           WHERE (${conditions})
             AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
             AND well_status NOT IN ('PA', 'RET')
-            AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
+            AND (last_prod_month >= '${prodCutoff}'
+                 OR (last_prod_month IS NULL AND (spud_date >= '${newWellDateStr}' OR completion_date >= '${newWellDateStr}')))
         `).bind(...params).all();
 
         // Tag match method: check if STRM matches surface or BH
@@ -651,7 +657,8 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
             AND section != bh_section
             AND well_type IN ('OIL', 'GAS', 'OG', 'NT')
             AND well_status NOT IN ('PA', 'RET')
-            AND (last_prod_month >= '${prodCutoff}' OR last_prod_month IS NULL)
+            AND (last_prod_month >= '${prodCutoff}'
+                 OR (last_prod_month IS NULL AND (spud_date >= '${newWellDateStr}' OR completion_date >= '${newWellDateStr}')))
         `).bind(...params).all();
 
         return result.results || [];

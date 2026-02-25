@@ -549,6 +549,25 @@
             }
             const trackingBadge = w.tracking_source === 'discovered'
                 ? ' <span class="tracking-badge">Auto-discovered</span>' : '';
+
+            // Format last production month (YYYYMM → "Dec 2025")
+            const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            let lastProdDisplay = '';
+            if (w.otc_last_prod_month) {
+                const ym = String(w.otc_last_prod_month);
+                const yr = ym.slice(0, 4);
+                const mo = parseInt(ym.slice(4, 6), 10);
+                if (mo >= 1 && mo <= 12) lastProdDisplay = MONTH_ABBR[mo - 1] + ' ' + yr;
+            }
+            const formation = w.formation_canonical || w.formation_name || '';
+
+            // Build extra detail parts (hidden on mobile via CSS)
+            const extraParts = [];
+            if (lastProdDisplay) extraParts.push(`<span class="well-last-prod">Last: ${lastProdDisplay}</span>`);
+            if (formation) extraParts.push(`<span class="well-formation">${escapeHtml(formation)}</span>`);
+            const extraLine = extraParts.length > 0
+                ? `<div class="well-extra-line">${extraParts.join(' • ')}</div>` : '';
+
             row += `<td class="well-info-cell">
                     <div class="well-name-line">
                         <strong>${wellName}</strong>${trackingBadge}
@@ -558,6 +577,7 @@
                         <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
                         ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
                     </div>
+                    ${extraLine}
                 </td>
                 <td class="operator-contact-cell">${operatorContactDisplay}</td>
                 <td>

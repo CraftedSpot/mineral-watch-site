@@ -253,6 +253,17 @@
         .well-details-line .well-firstprod {
             color: #0891B2;
         }
+        .well-extra-line {
+            font-size: 12px;
+            color: #9CA3AF;
+            margin-top: 2px;
+        }
+        .well-extra-line .well-last-prod {
+            color: #6B7280;
+        }
+        .well-extra-line .well-formation {
+            color: #8B5CF6;
+        }
         .expand-icon {
             color: #94A3B8;
             font-size: 10px;
@@ -1893,12 +1904,15 @@
             #propertiesContent .data-table td:nth-child(5) { min-width: 100px; } /* Notes */
             
             /* Wells table specific mobile adjustments */
-            #wellsContent .col-well-map { 
+            #wellsContent .col-well-map {
                 min-width: 80px !important; /* Ensure map button has space */
                 text-align: right !important;
             }
             #wellsContent .col-well-info {
                 max-width: 50%; /* Prevent well info from taking too much space */
+            }
+            .well-extra-line {
+                display: none !important; /* Hide last-prod/formation on mobile */
             }
             
             /* Hide "Total" from "Total Acres" header on mobile to save space */

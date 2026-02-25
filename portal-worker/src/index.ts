@@ -175,6 +175,12 @@ import {
   handleUploadFinancialData,
   handleGetFinancialStats,
   handleTruncateFinancial,
+  // OTC supplementary upload handlers
+  handleUploadOtcLeases,
+  handleUploadOtcCompanies,
+  handleUpdateLeaseOperators,
+  handleUploadOtcTaxPeriods,
+  handleUploadOtcExemptions,
   // Completion reports handlers
   handleGetCompletionReports,
   handleAnalyzeCompletion,
@@ -1453,6 +1459,22 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         if (path === "/api/otc-sync/truncate-financial" && request.method === "POST") {
           return handleTruncateFinancial(request, env);
+        }
+        // OTC supplementary data uploads (leases, companies, tax periods, exemptions)
+        if (path === "/api/otc-sync/upload-leases" && request.method === "POST") {
+          return handleUploadOtcLeases(request, env);
+        }
+        if (path === "/api/otc-sync/upload-companies" && request.method === "POST") {
+          return handleUploadOtcCompanies(request, env);
+        }
+        if (path === "/api/otc-sync/update-lease-operators" && request.method === "POST") {
+          return handleUpdateLeaseOperators(request, env);
+        }
+        if (path === "/api/otc-sync/upload-tax-periods" && request.method === "POST") {
+          return handleUploadOtcTaxPeriods(request, env);
+        }
+        if (path === "/api/otc-sync/upload-exemptions" && request.method === "POST") {
+          return handleUploadOtcExemptions(request, env);
         }
         // Manual trigger for OTC sync (calls Fly machine)
         if (path === "/api/otc-sync/trigger" && request.method === "POST") {

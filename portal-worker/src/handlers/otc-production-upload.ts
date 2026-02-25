@@ -579,6 +579,29 @@ export async function handleComputePunRollups(
     const step5Changes = wellsProdResult.meta.changes;
     console.log(`${logPrefix} Step 5: Updated ${step5Changes} wells with last_prod_month`);
 
+    // Step 6: Update financial rollups from otc_production_financial
+    console.log(`${logPrefix} Step 6: Updating financial rollups...`);
+    let step6Changes = 0;
+    try {
+      const financialResult = await runQuery(`
+        UPDATE puns SET
+          total_gross_value = (
+            SELECT COALESCE(SUM(gross_value), 0) FROM otc_production_financial
+            WHERE otc_production_financial.pun = puns.pun
+          ),
+          total_net_value = (
+            SELECT COALESCE(SUM(net_value), 0) FROM otc_production_financial
+            WHERE otc_production_financial.pun = puns.pun
+          )
+        WHERE EXISTS (SELECT 1 FROM otc_production_financial WHERE otc_production_financial.pun = puns.pun)
+        ${countyCondition}
+      `);
+      step6Changes = financialResult.meta.changes;
+      console.log(`${logPrefix} Step 6: Updated financial rollups for ${step6Changes} PUNs`);
+    } catch (financialErr) {
+      console.error(`${logPrefix} Step 6: Financial rollup failed (non-fatal):`, financialErr);
+    }
+
     // Purge stale production caches so users see fresh data
     let cachesPurged = 0;
     try {
@@ -604,6 +627,7 @@ export async function handleComputePunRollups(
         step3_staleness: step3Changes,
         step4_decline_rate: step4Changes,
         step5_wells_prod_month: step5Changes,
+        step6_financial_rollups: step6Changes,
         duration_ms: duration,
       },
     });

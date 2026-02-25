@@ -207,6 +207,15 @@ export {
   handleTruncateFinancial
 } from './otc-financial-upload.js';
 
+// OTC supplementary upload handlers (leases, companies, tax periods, exemptions)
+export {
+  handleUploadOtcLeases,
+  handleUploadOtcCompanies,
+  handleUpdateLeaseOperators,
+  handleUploadOtcTaxPeriods,
+  handleUploadOtcExemptions
+} from './otc-supplementary-upload.js';
+
 // Completion reports handlers
 export {
   handleGetCompletionReports,
