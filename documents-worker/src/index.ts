@@ -932,7 +932,7 @@ export default {
         }
 
         if (file.size > MAX_FILE_SIZE) {
-          return errorResponse('File too large. Maximum size is 50MB', 400, env);
+          return errorResponse('File too large. Maximum size is 100MB', 400, env);
         }
 
         // Generate unique document ID with correct extension
@@ -1070,7 +1070,7 @@ export default {
             if (file.size > MAX_FILE_SIZE) {
               errors.push({
                 filename: file.name,
-                error: 'File too large. Maximum size is 50MB'
+                error: 'File too large. Maximum size is 100MB'
               });
               continue;
             }
@@ -3199,7 +3199,7 @@ export default {
         }
 
         if (file.size > MAX_FILE_SIZE) {
-          return errorResponse('File too large. Maximum size is 50MB', 400, env);
+          return errorResponse('File too large. Maximum size is 100MB', 400, env);
         }
 
         // Generate unique document ID
