@@ -177,6 +177,7 @@
   .flag-green { color: var(--accent-green); }
   .dot-green { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); }
   .dot-red { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-red); }
+  .dot-amber { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent-amber); }
 
   /* Tags/Badges */
   .badge {

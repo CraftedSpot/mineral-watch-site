@@ -560,7 +560,105 @@
                 html += '<div class="loading-cell">No auth events recorded yet</div></div>';
             }
 
+            // PUN Crosswalk Tools
+            html += '<div class="detail-section"><div class="detail-section-title">PUN Crosswalk Tools</div>';
+            html += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">';
+            html += '<button class="btn btn-secondary" onclick="runCrosswalkDiagnostics()">Run Diagnostics</button>';
+            html += '<button class="btn btn-secondary" onclick="runPromotePunLinks(true)">Preview Promotions</button>';
+            html += '<button class="btn btn-primary" onclick="runPromotePunLinks(false)">Promote PUN Links</button>';
+            html += '<button class="btn btn-secondary" onclick="checkMissingPuns()">HHD Missing PUNs</button>';
+            html += '</div>';
+            html += '<div id="punToolsResult"></div>';
+            html += '</div>';
+
             document.getElementById('healthContent').innerHTML = html;
+        }
+
+        // ── PUN Crosswalk Tool functions ──
+
+        async function runCrosswalkDiagnostics() {
+            const el = document.getElementById('punToolsResult');
+            el.innerHTML = '<div class="loading-cell">Running diagnostics...</div>';
+            try {
+                const res = await fetch('/api/otc-sync/crosswalk-diagnostics');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                const d = data.diagnostics;
+                let h = '<table class="data-table"><thead><tr><th>Metric</th><th>Count</th><th>Status</th></tr></thead><tbody>';
+                h += diagRow('pun_api_crosswalk records', d.table_sizes.pun_api_crosswalk, d.table_sizes.pun_api_crosswalk < 200 ? 'green' : 'amber');
+                h += diagRow('well_pun_links records', d.table_sizes.well_pun_links.toLocaleString(), 'green');
+                h += diagRow('Orphan crosswalk (migrate-able)', d.crosswalk_migration.total, d.crosswalk_migration.total === 0 ? 'green' : 'amber');
+                h += diagRow('Orphan PUNs (no well link)', d.orphan_puns.total.toLocaleString(), 'muted');
+                h += diagRow('Orphan PUNs actively producing', d.orphan_puns.actively_producing.toLocaleString(), 'muted');
+                h += diagRow('PUN drift (format disagreements)', d.pun_drift.disagreements.total.toLocaleString(), 'muted');
+                h += diagRow('Missing links (promotable)', d.pun_drift.missing_links.total, d.pun_drift.missing_links.total === 0 ? 'green' : 'amber');
+                h += '</tbody></table>';
+                el.innerHTML = h;
+            } catch (err) {
+                el.innerHTML = '<div class="loading-cell" style="color:var(--accent-red);">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        function diagRow(label, value, color) {
+            const dotClass = color === 'green' ? 'dot-green' : color === 'amber' ? 'dot-amber' : '';
+            return '<tr><td>' + esc(label) + '</td><td>' + value + '</td><td>' + (dotClass ? '<span class="' + dotClass + '"></span>' : '—') + '</td></tr>';
+        }
+
+        async function runPromotePunLinks(dryRun) {
+            const el = document.getElementById('punToolsResult');
+            const label = dryRun ? 'Previewing' : 'Promoting';
+            el.innerHTML = '<div class="loading-cell">' + label + ' PUN links...</div>';
+            try {
+                const url = '/api/otc-sync/promote-pun-links' + (dryRun ? '?dry_run=true' : '');
+                const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                let h = '<div style="margin-bottom:8px;"><strong>' + (dryRun ? 'DRY RUN' : 'PROMOTED') + '</strong>: ' +
+                    data.promoted + ' links' + (dryRun ? ' would be created' : ' created') +
+                    ' / ' + (data.skipped_junk?.length || 0) + ' junk skipped' +
+                    ' / ' + (data.skipped_no_match?.length || 0) + ' no OTC match</div>';
+                if (data.promoted_list?.length > 0) {
+                    h += '<table class="data-table"><thead><tr><th>API</th><th>Well Name</th><th>PUN</th><th>OTC Verified</th></tr></thead><tbody>';
+                    for (const r of data.promoted_list.slice(0, 30)) {
+                        h += '<tr><td>' + esc(r.api) + '</td><td>' + esc(r.well_name) + '</td><td>' + esc(r.pun) + '</td>' +
+                            '<td>' + (r.verified_in_otc ? '<span class="dot-green"></span>' : '<span class="dot-amber"></span>') + '</td></tr>';
+                    }
+                    if (data.promoted_list.length > 30) h += '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);">... and ' + (data.promoted_list.length - 30) + ' more</td></tr>';
+                    h += '</tbody></table>';
+                }
+                el.innerHTML = h;
+            } catch (err) {
+                el.innerHTML = '<div class="loading-cell" style="color:var(--accent-red);">Error: ' + esc(err.message) + '</div>';
+            }
+        }
+
+        async function checkMissingPuns() {
+            const el = document.getElementById('punToolsResult');
+            el.innerHTML = '<div class="loading-cell">Checking HHD wells...</div>';
+            try {
+                const res = await fetch('/api/otc-sync/wells-missing-puns?org_id=recNktWjeZshSUd6N');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const data = await res.json();
+                let h = '<div style="margin-bottom:8px;"><strong>HHD Wells Missing PUN Links: ' + (data.total || 0) + '</strong></div>';
+                if (data.total === 0) {
+                    h += '<div style="color:var(--accent-green);margin-bottom:8px;">All HHD wells have PUN crosswalk links!</div>';
+                } else {
+                    if (data.with_fallback_pun?.count > 0) {
+                        h += '<div style="margin-bottom:4px;color:var(--accent-amber);">' + data.with_fallback_pun.count + ' have OCC PUN (promote-able)</div>';
+                    }
+                    if (data.no_pun_at_all?.count > 0) {
+                        h += '<div style="margin-bottom:8px;color:var(--accent-red);">' + data.no_pun_at_all.count + ' need OKTAP lookup</div>';
+                        h += '<table class="data-table"><thead><tr><th>API</th><th>Well Name</th><th>County</th><th>Status</th></tr></thead><tbody>';
+                        for (const w of data.no_pun_at_all.wells.slice(0, 30)) {
+                            h += '<tr><td>' + esc(w.api_number) + '</td><td>' + esc(w.well_name || '') + '</td><td>' + esc(w.county || '') + '</td><td>' + esc(w.well_status || '') + '</td></tr>';
+                        }
+                        h += '</tbody></table>';
+                    }
+                }
+                el.innerHTML = h;
+            } catch (err) {
+                el.innerHTML = '<div class="loading-cell" style="color:var(--accent-red);">Error: ' + esc(err.message) + '</div>';
+            }
         }
 
         function healthCard(label, value, detail, color) {
