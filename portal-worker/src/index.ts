@@ -172,6 +172,9 @@ import {
   handleGetPunProductionStats,
   handleTruncatePunProduction,
   handleValidateNormalization,
+  handleCrosswalkDiagnostics,
+  handlePromotePunLinks,
+  handleWellsMissingPuns,
   // OTC financial upload handlers
   handleUploadFinancialData,
   handleGetFinancialStats,
@@ -1479,6 +1482,15 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         if (path === "/api/otc-sync/validate-normalization" && request.method === "POST") {
           return handleValidateNormalization(request, env);
+        }
+        if (path === "/api/otc-sync/crosswalk-diagnostics" && request.method === "GET") {
+          return handleCrosswalkDiagnostics(request, env);
+        }
+        if (path === "/api/otc-sync/promote-pun-links" && request.method === "POST") {
+          return handlePromotePunLinks(request, env);
+        }
+        if (path === "/api/otc-sync/wells-missing-puns" && request.method === "GET") {
+          return handleWellsMissingPuns(request, env);
         }
         // OTC sync notification (called by Fly machine after sync completes)
         if (path === "/api/otc-sync/notify" && request.method === "POST") {

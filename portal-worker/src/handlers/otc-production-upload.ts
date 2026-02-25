@@ -885,3 +885,360 @@ export async function handleValidateNormalization(
   }
 }
 
+/**
+ * Diagnostic: PUN crosswalk health report.
+ * Read-only queries to surface migration opportunities, orphan PUNs, and drift.
+ * POST /api/otc-sync/crosswalk-diagnostics
+ */
+export async function handleCrosswalkDiagnostics(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const diagnostics: Record<string, any> = {};
+
+    // ── 1. Crosswalk migration preview ──
+    // Records in pun_api_crosswalk that have NO corresponding entry in well_pun_links
+    const orphanCrosswalk = await env.WELLS_DB!.prepare(`
+      SELECT c.api_number, c.pun, c.confidence, c.match_source, c.pun_1002a
+      FROM pun_api_crosswalk c
+      LEFT JOIN well_pun_links wpl ON c.api_number = wpl.api_number AND c.pun = wpl.pun
+      WHERE wpl.api_number IS NULL
+      LIMIT 50
+    `).all();
+    const orphanCrosswalkCount = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM pun_api_crosswalk c
+      LEFT JOIN well_pun_links wpl ON c.api_number = wpl.api_number AND c.pun = wpl.pun
+      WHERE wpl.api_number IS NULL
+    `).first<{ cnt: number }>();
+
+    diagnostics.crosswalk_migration = {
+      description: "Records in pun_api_crosswalk with no matching well_pun_links entry — candidates for migration before deprecating the old table",
+      total: orphanCrosswalkCount?.cnt || 0,
+      sample: orphanCrosswalk.results,
+    };
+
+    // Also count total records in each table for context
+    const crosswalkTotal = await env.WELLS_DB!.prepare(`SELECT COUNT(*) as cnt FROM pun_api_crosswalk`).first<{ cnt: number }>();
+    const wplTotal = await env.WELLS_DB!.prepare(`SELECT COUNT(*) as cnt FROM well_pun_links`).first<{ cnt: number }>();
+    diagnostics.table_sizes = {
+      pun_api_crosswalk: crosswalkTotal?.cnt || 0,
+      well_pun_links: wplTotal?.cnt || 0,
+    };
+
+    // ── 2. Orphan PUNs — production data with no well links ──
+    // base_puns that have production but are NOT linked to any well
+    const orphanPuns = await env.WELLS_DB!.prepare(`
+      SELECT p.base_pun, p.pun, p.total_oil_bbl, p.total_gas_mcf, p.last_prod_month,
+             l.lease_name, l.county, l.formation
+      FROM puns p
+      LEFT JOIN well_pun_links wpl ON p.base_pun = wpl.base_pun
+      LEFT JOIN otc_leases l ON p.pun = l.pun
+      WHERE wpl.base_pun IS NULL
+        AND (p.total_oil_bbl > 0 OR p.total_gas_mcf > 0)
+      ORDER BY (COALESCE(p.total_oil_bbl, 0) + COALESCE(p.total_gas_mcf, 0) / 6) DESC
+      LIMIT 50
+    `).all();
+    const orphanPunsCount = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM puns p
+      LEFT JOIN well_pun_links wpl ON p.base_pun = wpl.base_pun
+      WHERE wpl.base_pun IS NULL
+        AND (p.total_oil_bbl > 0 OR p.total_gas_mcf > 0)
+    `).first<{ cnt: number }>();
+
+    // Count actively producing orphans
+    const activeOrphanCount = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM puns p
+      LEFT JOIN well_pun_links wpl ON p.base_pun = wpl.base_pun
+      WHERE wpl.base_pun IS NULL
+        AND (p.total_oil_bbl > 0 OR p.total_gas_mcf > 0)
+        AND p.is_stale = 0
+    `).first<{ cnt: number }>();
+
+    diagnostics.orphan_puns = {
+      description: "PUNs with production data but no link to any tracked well — unmatched revenue potential",
+      total: orphanPunsCount?.cnt || 0,
+      actively_producing: activeOrphanCount?.cnt || 0,
+      top_by_boe: orphanPuns.results,
+    };
+
+    // ── 3. wells.otc_prod_unit_no drift ──
+    // Wells where denormalized column disagrees with well_pun_links
+    const drift = await env.WELLS_DB!.prepare(`
+      SELECT w.api_number, w.well_name, w.otc_prod_unit_no AS wells_pun,
+             wpl.pun AS links_pun, wpl.match_method, wpl.confidence
+      FROM wells w
+      JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      WHERE w.otc_prod_unit_no IS NOT NULL
+        AND w.otc_prod_unit_no != ''
+        AND SUBSTR(w.otc_prod_unit_no, 1, 10) != wpl.base_pun
+      LIMIT 50
+    `).all();
+    const driftCount = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM wells w
+      JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      WHERE w.otc_prod_unit_no IS NOT NULL
+        AND w.otc_prod_unit_no != ''
+        AND SUBSTR(w.otc_prod_unit_no, 1, 10) != wpl.base_pun
+    `).first<{ cnt: number }>();
+
+    // Wells with otc_prod_unit_no but NO well_pun_links entry
+    const missingLinks = await env.WELLS_DB!.prepare(`
+      SELECT w.api_number, w.well_name, w.otc_prod_unit_no
+      FROM wells w
+      LEFT JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      WHERE w.otc_prod_unit_no IS NOT NULL
+        AND w.otc_prod_unit_no != ''
+        AND wpl.api_number IS NULL
+      LIMIT 50
+    `).all();
+    const missingLinksCount = await env.WELLS_DB!.prepare(`
+      SELECT COUNT(*) as cnt
+      FROM wells w
+      LEFT JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      WHERE w.otc_prod_unit_no IS NOT NULL
+        AND w.otc_prod_unit_no != ''
+        AND wpl.api_number IS NULL
+    `).first<{ cnt: number }>();
+
+    diagnostics.pun_drift = {
+      description: "Wells where otc_prod_unit_no disagrees with well_pun_links base_pun",
+      disagreements: {
+        total: driftCount?.cnt || 0,
+        sample: drift.results,
+      },
+      missing_links: {
+        description: "Wells with otc_prod_unit_no set but NO well_pun_links entry — fallback is active, could be promoted to a proper link",
+        total: missingLinksCount?.cnt || 0,
+        sample: missingLinks.results,
+      },
+    };
+
+    return jsonResponse({ success: true, diagnostics });
+  } catch (error) {
+    console.error("Error running crosswalk diagnostics:", error);
+    return jsonResponse(
+      { error: "Diagnostics failed", details: error instanceof Error ? error.message : String(error) },
+      500
+    );
+  }
+}
+
+/**
+ * Promote wells.otc_prod_unit_no → well_pun_links for wells that have a PUN
+ * in the denormalized column but no proper link row.
+ * Filters out junk values (N/A, too short, non-numeric).
+ * Supports ?dry_run=true to preview without writing.
+ *
+ * POST /api/otc-sync/promote-pun-links
+ * POST /api/otc-sync/promote-pun-links?dry_run=true
+ */
+export async function handlePromotePunLinks(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const dryRun = url.searchParams.get('dry_run') === 'true';
+
+    // Find all wells with otc_prod_unit_no but no well_pun_links entry
+    const candidates = await env.WELLS_DB!.prepare(`
+      SELECT w.api_number, w.well_name, w.otc_prod_unit_no, w.county
+      FROM wells w
+      LEFT JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      WHERE w.otc_prod_unit_no IS NOT NULL
+        AND w.otc_prod_unit_no != ''
+        AND wpl.api_number IS NULL
+    `).all();
+
+    const results = {
+      dry_run: dryRun,
+      total_candidates: candidates.results.length,
+      promoted: 0,
+      skipped_junk: [] as { api: string; well_name: string; raw_pun: string; reason: string }[],
+      skipped_no_match: [] as { api: string; well_name: string; normalized_pun: string }[],
+      promoted_list: [] as { api: string; well_name: string; pun: string; base_pun: string; verified_in_otc: boolean }[],
+    };
+
+    const JUNK_VALUES = ['N/A', 'NA', 'n/a', 'na', 'none', 'None', 'NONE', '', '-', '--', '0'];
+
+    for (const row of candidates.results) {
+      const r = row as any;
+      const rawPun = (r.otc_prod_unit_no || '').trim();
+
+      // Filter junk
+      if (JUNK_VALUES.includes(rawPun)) {
+        results.skipped_junk.push({ api: r.api_number, well_name: r.well_name, raw_pun: rawPun, reason: 'junk_value' });
+        continue;
+      }
+
+      // Must have at least 5 digits to be a plausible PUN
+      const digits = rawPun.replace(/[^0-9]/g, '');
+      if (digits.length < 5) {
+        results.skipped_junk.push({ api: r.api_number, well_name: r.well_name, raw_pun: rawPun, reason: 'too_short' });
+        continue;
+      }
+
+      // Normalize to base_pun format (XXX-XXXXXX)
+      const basePun = normalizeBasePun(rawPun);
+
+      // Try to find a full PUN in the puns table that matches this base_pun
+      const punMatch = await env.WELLS_DB!.prepare(`
+        SELECT pun FROM puns WHERE base_pun = ? LIMIT 1
+      `).bind(basePun).first<{ pun: string }>();
+
+      // Also check otc_leases if puns table doesn't have it
+      let fullPun = punMatch?.pun || null;
+      let verifiedInOtc = !!fullPun;
+
+      if (!fullPun) {
+        const leaseMatch = await env.WELLS_DB!.prepare(`
+          SELECT pun FROM otc_leases WHERE base_pun = ? LIMIT 1
+        `).bind(basePun).first<{ pun: string }>();
+        fullPun = leaseMatch?.pun || null;
+        verifiedInOtc = !!fullPun;
+      }
+
+      // If we still don't have a full PUN, synthesize one from the raw value
+      if (!fullPun) {
+        // Try to use the raw value if it looks like a full PUN (has suffix)
+        if (rawPun.match(/^\d{3}-\d{6}-\d-\d{4}$/)) {
+          fullPun = rawPun;
+        } else {
+          // Can't create a proper full PUN — record but skip
+          results.skipped_no_match.push({ api: r.api_number, well_name: r.well_name, normalized_pun: basePun });
+          continue;
+        }
+      }
+
+      results.promoted_list.push({
+        api: r.api_number,
+        well_name: r.well_name,
+        pun: fullPun,
+        base_pun: basePun,
+        verified_in_otc: verifiedInOtc,
+      });
+
+      if (!dryRun) {
+        await env.WELLS_DB!.prepare(`
+          INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+          VALUES (?, ?, ?, 'occ_well_record', ?)
+          ON CONFLICT(api_number, pun) DO NOTHING
+        `).bind(
+          r.api_number,
+          fullPun,
+          basePun,
+          verifiedInOtc ? 'high' : 'medium'
+        ).run();
+      }
+      results.promoted++;
+    }
+
+    return jsonResponse({ success: true, ...results });
+  } catch (error) {
+    console.error("Error promoting PUN links:", error);
+    return jsonResponse(
+      { error: "Promotion failed", details: error instanceof Error ? error.message : String(error) },
+      500
+    );
+  }
+}
+
+/**
+ * List tracked wells (client_wells) that are missing PUN crosswalk links.
+ * Useful for identifying wells to manually look up on OKTAP.
+ * Optional ?org_id=recXXX to filter by organization.
+ *
+ * GET /api/otc-sync/wells-missing-puns
+ * GET /api/otc-sync/wells-missing-puns?org_id=recNktWjeZshSUd6N
+ */
+export async function handleWellsMissingPuns(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const url = new URL(request.url);
+    const orgId = url.searchParams.get('org_id');
+
+    let query: string;
+    let binds: any[];
+
+    if (orgId) {
+      // Filter to a specific org's tracked wells
+      query = `
+        SELECT cw.id, cw.api_number, cw.well_name, cw.county, cw.operator,
+               cw.section, cw.township, cw.range,
+               w.otc_prod_unit_no AS occ_pun,
+               w.well_status
+        FROM client_wells cw
+        LEFT JOIN wells w ON cw.api_number = w.api_number
+        LEFT JOIN well_pun_links wpl ON cw.api_number = wpl.api_number
+        WHERE wpl.api_number IS NULL
+          AND cw.api_number IS NOT NULL AND cw.api_number != ''
+          AND (cw.organization_id = ? OR cw.user_id IN (
+            SELECT airtable_record_id FROM users WHERE organization_id = ?
+          ))
+        ORDER BY cw.county, cw.well_name
+      `;
+      binds = [orgId, orgId];
+    } else {
+      // All tracked wells missing links
+      query = `
+        SELECT cw.id, cw.api_number, cw.well_name, cw.county, cw.operator,
+               cw.section, cw.township, cw.range,
+               w.otc_prod_unit_no AS occ_pun,
+               w.well_status
+        FROM client_wells cw
+        LEFT JOIN wells w ON cw.api_number = w.api_number
+        LEFT JOIN well_pun_links wpl ON cw.api_number = wpl.api_number
+        WHERE wpl.api_number IS NULL
+          AND cw.api_number IS NOT NULL AND cw.api_number != ''
+        ORDER BY cw.county, cw.well_name
+        LIMIT 500
+      `;
+      binds = [];
+    }
+
+    const results = await env.WELLS_DB!.prepare(query).bind(...binds).all();
+
+    // Separate into two buckets: has OCC PUN (fallback active) vs no PUN at all
+    const withFallbackPun: any[] = [];
+    const noPun: any[] = [];
+
+    for (const row of results.results) {
+      const r = row as any;
+      const occPun = (r.occ_pun || '').trim();
+      if (occPun && occPun !== 'N/A' && occPun !== 'NA' && occPun.length >= 5) {
+        withFallbackPun.push(r);
+      } else {
+        noPun.push(r);
+      }
+    }
+
+    return jsonResponse({
+      success: true,
+      total: results.results.length,
+      with_fallback_pun: {
+        count: withFallbackPun.length,
+        description: "Have OCC PUN in wells table (fallback works) but no formal well_pun_links entry — promote these first",
+        wells: withFallbackPun,
+      },
+      no_pun_at_all: {
+        count: noPun.length,
+        description: "No PUN anywhere — need manual OKTAP lookup by API number",
+        wells: noPun,
+      },
+    });
+  } catch (error) {
+    console.error("Error querying wells missing PUNs:", error);
+    return jsonResponse(
+      { error: "Query failed", details: error instanceof Error ? error.message : String(error) },
+      500
+    );
+  }
+}
+

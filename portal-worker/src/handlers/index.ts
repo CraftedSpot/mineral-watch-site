@@ -198,7 +198,10 @@ export {
   handleComputePunRollups,
   handleGetPunProductionStats,
   handleTruncatePunProduction,
-  handleValidateNormalization
+  handleValidateNormalization,
+  handleCrosswalkDiagnostics,
+  handlePromotePunLinks,
+  handleWellsMissingPuns
 } from './otc-production-upload.js';
 
 // OTC financial upload handlers
