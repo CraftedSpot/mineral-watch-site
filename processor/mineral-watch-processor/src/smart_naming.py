@@ -2171,6 +2171,37 @@ def name_quit_claim_deed(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_lease_production(data: Dict[str, Any]) -> str:
+    """Lease Production - {Lease Name} Production ({First Year}-{Last Year})
+
+    For GIS NRIS lease production reports and well production summaries.
+    """
+    lease_name = data.get('lease_name') or data.get('well_name')
+
+    # Determine production year range
+    first_year = None
+    last_year = None
+    for prod_key in ('oil_production', 'gas_production', 'condensate_production'):
+        prod = data.get(prod_key, {})
+        if isinstance(prod, dict) and prod.get('has_data'):
+            fy = prod.get('first_year')
+            ly = prod.get('last_year')
+            if fy and (first_year is None or fy < first_year):
+                first_year = fy
+            if ly and (last_year is None or ly > last_year):
+                last_year = ly
+
+    if lease_name and first_year and last_year:
+        return f"{truncate_name(str(lease_name), 35)} Production ({first_year}-{last_year})"
+    elif lease_name:
+        return f"{truncate_name(str(lease_name), 35)} Production"
+    elif data.get('county'):
+        county = str(data['county']).strip()
+        return f"Lease Production - {county} County"
+    else:
+        return "Lease Production Report"
+
+
 # ============================================================================
 # MAIN DISPATCHER
 # ============================================================================
@@ -2214,6 +2245,9 @@ NAMING_FUNCTIONS = {
     'assignment_of_lease': name_assignment_of_lease,
     'quit_claim_deed': name_quit_claim_deed,
     'completion_report': name_completion_report,
+    'lease_production': name_lease_production,
+    'production_record': name_lease_production,
+    'production_summary': name_lease_production,
     'well_transfer': name_well_transfer,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,

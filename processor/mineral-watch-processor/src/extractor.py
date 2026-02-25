@@ -1675,9 +1675,10 @@ TITLE_PATTERNS = [
     # These are handled as "permit" type (well completion data)
     (r"GIS\s+NRIS.*Page\s+1\s+of\s+\d+", "permit"),  # NRIS well detail page 1
     (r"NRIS\s+Well\s+Search\s+Results", "permit"),  # NRIS search results page
-    (r"Lease\s+Production\s+Producer\s*/?\s*Purchaser", "permit"),  # NRIS lease production
-    (r"Natural\s+Gas\s+Production\s+\(MCF\)", "permit"),  # NRIS production chart
-    (r"Oil\s+Production\s+\(in\s+Bbls?\)", "permit"),  # NRIS oil production chart
+    (r"Lease\s+Production\s+Producer\s*/?\s*Purchaser", "lease_production"),  # NRIS lease production
+    (r"Natural\s+Gas\s+Production\s+\(MCF\)", "lease_production"),  # NRIS production chart
+    (r"Oil\s+Production\s+\(in\s+Bbls?\)", "lease_production"),  # NRIS oil production chart
+    (r"Producing\s+Unit\s+No[:\s]", "lease_production"),  # PUN header on production reports
     (r"ISLAND\s+PLAT", "other"),  # Hand-drawn township plat maps
 ]
 
@@ -9731,8 +9732,129 @@ DOCUMENT IDENTIFICATION:
 }}
 """
 
+# Document types that should use the LEASE PRODUCTION focused prompt
+LEASE_PRODUCTION_DOC_TYPES = ["lease_production", "production_record", "production_summary"]
+
 # Document types that should use the CORRESPONDENCE focused prompt
 CORRESPONDENCE_DOC_TYPES = ["correspondence", "letter", "email", "notice", "transmittal"]
+
+LEASE_PRODUCTION_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced petroleum landman and production analyst helping Oklahoma mineral owners understand their well and lease production history.
+Your task is to extract production summary data so owners can track cumulative output, identify decline trends, and cross-reference with royalty payments.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Lead with lease name, formation, and total cumulative production
+   - Mention production span (first to last year) and whether production was oil, gas, or both
+   - Flag if production ceased (well may be plugged/shut-in)
+
+   DETAILED ANALYSIS:
+   - Write as an experienced landman advising a mineral owner
+   - Do NOT restate individual monthly/yearly numbers the owner can see in the document
+   - Focus on:
+
+     Production Profile:
+     [Describe the overall trend — strong initial production declining over time, steady performer, erratic, etc. Mention peak year and approximate decline rate. Note any periods of zero production that might indicate shut-in or workover. Keep to 2-3 sentences.]
+
+     What This Means for Mineral Owners:
+     [Practical implications — this production data can be used to verify historical royalty payments, establish the well's economic viability, support lease negotiations, or document production history for title work. If production has ceased, note implications for lease HBP status. Keep to 2-3 sentences.]
+
+   - DO NOT cite industry averages or benchmarks not in the document
+   - Keep the entire analysis under 200 words
+
+SOURCE OF TRUTH: The DOCUMENT is the source of truth. Extract what it says. IGNORE filenames or external metadata.
+
+=============================================================================
+DOCUMENT TYPE: lease_production (GIS NRIS lease production reports, well production summaries)
+=============================================================================
+
+Return a JSON object with ONLY these fields:
+
+{{
+  "doc_type": "lease_production",
+
+  "lease_name": "FANNIE DAVISON 1-8,2-8 (lease or well name from header)",
+  "producing_unit_no": "01505431900000 (PUN / Producing Unit Number — 14-digit identifier)",
+  "operator": "Operator name if shown",
+
+  "county": "CADDO",
+  "state": "Oklahoma",
+  "section": 8,
+  "township": "11N",
+  "range": "12W",
+  "formation": "MARCHAND (primary formation name)",
+
+  "data_source": "GIS NRIS (or other source identifier from header/footer)",
+
+  "oil_production": {{
+    "has_data": true,
+    "unit": "BBL",
+    "first_year": 1979,
+    "last_year": 2001,
+    "cumulative_total": 153723,
+    "peak_year": 1984,
+    "peak_annual_volume": 17291
+  }},
+
+  "gas_production": {{
+    "has_data": false,
+    "unit": "MCF",
+    "first_year": null,
+    "last_year": null,
+    "cumulative_total": null,
+    "peak_year": null,
+    "peak_annual_volume": null
+  }},
+
+  "condensate_production": {{
+    "has_data": false,
+    "unit": "BBL",
+    "first_year": null,
+    "last_year": null,
+    "cumulative_total": null,
+    "peak_year": null,
+    "peak_annual_volume": null
+  }},
+
+  "key_takeaway": "REQUIRED",
+  "detailed_analysis": "REQUIRED"
+}}
+
+=============================================================================
+EXTRACTION NOTES FOR LEASE PRODUCTION:
+=============================================================================
+
+CUMULATIVE TOTAL:
+- Sum all annual totals from the table. If a "Total" row is shown, use that value.
+- Include ALL years, even partial years at start/end of production.
+
+PEAK YEAR:
+- The year with the highest annual production volume.
+
+PRODUCTION STATUS:
+- If the last year shown has zero or very low production followed by no more data,
+  this likely indicates the well was shut-in or plugged.
+- Note this in the analysis but do NOT add extra fields.
+
+HAS_DATA:
+- Set to false if the document explicitly says "No [Oil/Gas/Condensate] Production Information"
+- When false, set all other fields in that production object to null.
+
+PRODUCING UNIT NUMBER (PUN):
+- This is critical for linking to OTC production data and tax records.
+- Extract the full number exactly as shown (typically 14 digits).
+
+OMIT any field that is null or not present in the document.
+"""
 
 CORRESPONDENCE_EXTRACTION_PROMPT_TEMPLATE = """You are extracting basic info from oil & gas correspondence (letters, emails, notices).
 Keep extraction MINIMAL - the analysis text will explain everything else.
@@ -9832,6 +9954,9 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in DEED_DOC_TYPES:
         logger.info(f"Using FOCUSED DEED prompt for doc_type={doc_type}")
         prompt = DEED_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in LEASE_PRODUCTION_DOC_TYPES:
+        logger.info(f"Using FOCUSED LEASE PRODUCTION prompt for doc_type={doc_type}")
+        prompt = LEASE_PRODUCTION_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     elif doc_type and doc_type in CORRESPONDENCE_DOC_TYPES:
         logger.info(f"Using FOCUSED CORRESPONDENCE prompt for doc_type={doc_type}")
         prompt = CORRESPONDENCE_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
@@ -10016,6 +10141,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer, title_opinion
+- lease_production (GIS NRIS production reports, well/lease production summaries with monthly/annual volumes)
 - check_stub, joint_interest_billing, occ_order, suspense_notice, joa
 - affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map

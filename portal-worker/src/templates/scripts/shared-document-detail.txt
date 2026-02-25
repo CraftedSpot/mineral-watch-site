@@ -27,6 +27,9 @@
                 'well_proposal': 'Well Proposal',
                 'oil_gas_lease': 'Oil & Gas Lease',
                 'multi_document': 'Multi-Document PDF',
+                'lease_production': 'Lease Production Report',
+                'production_record': 'Production Record',
+                'production_summary': 'Production Summary',
                 'other': 'Other Document'
             };
             if (typeMap[docType]) return typeMap[docType];

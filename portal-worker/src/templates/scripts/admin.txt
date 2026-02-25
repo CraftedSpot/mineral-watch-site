@@ -214,12 +214,15 @@
         function impersonate(userId) {
             const user = allUsers.find(u => u.airtable_record_id === userId);
             const label = user ? (user.name || user.email) : userId;
-            const win = window.open('', '_blank');
             if (!confirm('Impersonate ' + label + '?\n\nYou will view the portal as this user in a new tab.')) {
-                if (win) win.close();
                 return;
             }
-            if (win) win.location.href = '/portal?act_as=' + userId;
+            const url = '/portal?act_as=' + userId;
+            const win = window.open(url, '_blank');
+            if (!win) {
+                // Popup blocked — navigate in current tab
+                window.location.href = url;
+            }
         }
 
         function exportUsersCSV() {

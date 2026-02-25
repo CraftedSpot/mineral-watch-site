@@ -509,6 +509,9 @@
                         'plat': 'maps_plats',
                         'multi_document': 'multi_document',
                         'production_report': 'production_reports',
+                        'lease_production': 'production_reports',
+                        'production_record': 'production_reports',
+                        'production_summary': 'production_reports',
                         'well_completion_report': 'well_completion_reports',
                         'other': 'other'
                     };
@@ -1067,6 +1070,11 @@
                 'Allocation Factors': ['allocation_factors'],
                 'Relief Granted': ['relief_granted'],
                 'Special Provisions': ['special_provisions'],
+                // Lease Production Report sections
+                'Lease & Well': ['lease_name', 'producing_unit_no', 'data_source'],
+                'Oil Production': ['oil_production'],
+                'Gas Production': ['gas_production'],
+                'Condensate Production': ['condensate_production'],
                 // Completion Report sections (Well Information consolidates well data, Surface Location removed as duplicate)
                 'Key Dates': ['dates'],
                 // 'Well Type' removed - merged into 'Well Information'
@@ -1376,6 +1384,11 @@
                 // 'Parties' - already in Mineral Deed sections above
                 // 'Interest & Consideration' - already in Mineral Deed sections above
                 // 'Recording & Execution' - already in Mineral Deed sections above
+                // Lease Production Report sections
+                'Lease & Well',
+                'Oil Production',
+                'Gas Production',
+                'Condensate Production',
                 // Check Stub / Revenue Statement sections
                 'Payment Information',
                 'Well Revenue',
