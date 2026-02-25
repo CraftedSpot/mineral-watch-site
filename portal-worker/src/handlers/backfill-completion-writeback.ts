@@ -17,29 +17,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import type { Env } from '../types/env.js';
-
-/** Normalize API to 10-char bare digits (tracking table format) */
-function normalizeApi(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  const digits = raw.replace(/[^0-9]/g, '');
-  return digits.length >= 10 ? digits.substring(0, 10) : digits || null;
-}
-
-/** Normalize PUN to 10-char base_pun format: XXX-XXXXXX (county-lease, lease zero-padded to 6) */
-function normalizeBasePun(pun: string): string {
-  const match = pun.match(/^(\d{3})-(\d+)/);
-  if (match) {
-    const county = match[1];
-    const lease = match[2].substring(0, 6).padStart(6, '0');
-    return `${county}-${lease}`;
-  }
-  // Fallback for dashless PUNs (e.g. from completions_daily): first 3 digits + dash + next 6
-  const digits = pun.replace(/[^0-9]/g, '');
-  if (digits.length >= 9) {
-    return `${digits.substring(0, 3)}-${digits.substring(3, 9)}`;
-  }
-  return pun.length >= 10 ? pun.substring(0, 10) : pun;
-}
+import { normalizeBasePun, normalizeApi } from '../utils/normalize.js';
 
 /** Resolve API number from all possible extraction paths */
 function resolveApi(data: any): string | null {

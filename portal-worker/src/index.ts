@@ -1476,6 +1476,41 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         if (path === "/api/otc-sync/upload-exemptions" && request.method === "POST") {
           return handleUploadOtcExemptions(request, env);
         }
+        // OTC sync notification (called by Fly machine after sync completes)
+        if (path === "/api/otc-sync/notify" && request.method === "POST") {
+          try {
+            const body = await request.json() as { subject?: string; body?: string; priority?: string };
+            const subject = body.subject || 'OTC Sync Update';
+            const textBody = body.body || 'No details provided.';
+            const priority = body.priority || 'info';
+            const emoji = priority === 'critical' ? '\u{1F6A8}' : priority === 'warning' ? '\u26A0\uFE0F' : '\u2705';
+
+            const response = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${env.RESEND_API_KEY}`
+              },
+              body: JSON.stringify({
+                from: 'Mineral Watch <support@mymineralwatch.com>',
+                to: 'james@mymineralwatch.com',
+                subject: `${emoji} OTC Sync: ${subject}`,
+                text: `${textBody}\n\n---\nSent: ${new Date().toISOString()}`
+              })
+            });
+
+            if (!response.ok) {
+              const err = await response.text();
+              console.error('Resend error:', err);
+              return jsonResponse({ error: 'Email send failed', details: err }, 500);
+            }
+
+            return jsonResponse({ success: true, message: 'Notification sent' });
+          } catch (error) {
+            console.error('Notify error:', error);
+            return jsonResponse({ error: 'Notification failed' }, 500);
+          }
+        }
         // Manual trigger for OTC sync (calls Fly machine)
         if (path === "/api/otc-sync/trigger" && request.method === "POST") {
           const authHeader = request.headers.get('Authorization');

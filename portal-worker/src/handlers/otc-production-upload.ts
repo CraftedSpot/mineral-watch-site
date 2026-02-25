@@ -1,5 +1,6 @@
 import { Env } from "../types/env";
 import { jsonResponse } from "../utils/responses";
+import { normalizeBasePun } from "../utils/normalize.js";
 
 /**
  * Purge all production-related KV cache keys after OTC data changes.
@@ -307,7 +308,7 @@ export async function handleUploadPunProductionData(
             record.product_code,
             record.gross_volume,
             record.gross_value || 0,
-            record.pun.substring(0, 10)
+            normalizeBasePun(record.pun)
           );
         } else {
           // Replace mode: overwrite existing values (default, for full reloads)
@@ -324,7 +325,7 @@ export async function handleUploadPunProductionData(
             record.product_code,
             record.gross_volume,
             record.gross_value || 0,
-            record.pun.substring(0, 10)
+            normalizeBasePun(record.pun)
           );
         }
       });

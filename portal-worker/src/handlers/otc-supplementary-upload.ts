@@ -1,5 +1,6 @@
 import type { Env } from "../types/env.js";
 import { jsonResponse } from "../utils/responses";
+import { normalizeBasePun } from "../utils/normalize.js";
 
 // ─── Leases ───────────────────────────────────────────────
 
@@ -38,7 +39,7 @@ export async function handleUploadOtcLeases(
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
           r.pun,
-          r.base_pun || r.pun.substring(0, 10),
+          r.base_pun || normalizeBasePun(r.pun),
           r.county || null,
           r.quarter || null,
           r.section ?? null,
@@ -200,7 +201,7 @@ export async function handleUploadOtcTaxPeriods(
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
         ).bind(
           r.pun,
-          r.base_pun || r.pun.substring(0, 10),
+          r.base_pun || normalizeBasePun(r.pun),
           r.lease_name || null,
           r.well_name || null,
           r.period_start_date || null,
@@ -261,7 +262,7 @@ export async function handleUploadOtcExemptions(
            VALUES (?, ?, ?, ?, ?)`
         ).bind(
           r.pun,
-          r.base_pun || r.pun.substring(0, 10),
+          r.base_pun || normalizeBasePun(r.pun),
           r.exemption_type || null,
           r.code || null,
           r.exemption_percentage ?? null
