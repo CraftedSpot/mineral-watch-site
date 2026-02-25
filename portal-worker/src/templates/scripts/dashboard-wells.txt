@@ -513,7 +513,7 @@
             if (county) {
                 locationDisplay = county;
                 if (section && township && range) {
-                    locationDisplay += ` • ${section}-${township}-${range}`;
+                    locationDisplay += ` • ${township}-${range}-${section}`;
                 }
             }
 
@@ -574,7 +574,7 @@
                     </div>
                     <div class="well-details-line">
                         ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}
-                        <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
+                        <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}" title="Status from OCC/OTC records. These are often outdated — a well listed as Active may be idle or shut-in. Check the Last Production date for a more reliable activity indicator." style="cursor: help;">${status}</span>
                         ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
                     </div>
                     ${extraLine}
