@@ -1618,6 +1618,9 @@ TITLE_PATTERNS = [
     (r"COMPLETION\s+REPORT", "permit"),
     (r"FORM\s+1002", "permit"),
     # Check/Statement (revenue payments)
+    # NOTE: CHECK STUB must appear near top of page (first 300 chars) to avoid false positives
+    # from letters that mention "check stub" in body text (e.g. "please provide your check stub")
+    # This is handled specially in heuristic_page_check() — see CHECK_STUB_TITLE_ZONE
     (r"CHECK\s+STUB", "check"),
     (r"ROYALTY\s+STATEMENT", "check"),
     (r"REVENUE\s+STATEMENT", "check"),
@@ -1663,7 +1666,30 @@ TITLE_PATTERNS = [
     (r"REGARDS,?\s*$", "correspondence"),  # Letter closing
     (r"TRANSMITTAL", "correspondence"),  # Transmittal letter
     (r"COVER\s+LETTER", "correspondence"),  # Explicit cover letter
+    # Solicitation / Purchase offers
+    (r"PROPOSAL\s+TO\s+PURCHASE", "correspondence"),  # Mineral buy offer
+    (r"MINERAL\s+AND\s+ROYALTY\s+PURCHASE", "correspondence"),  # Mineral buy offer
+    (r"OFFER\s+TO\s+PURCHASE.*MINERAL", "correspondence"),  # Mineral buy offer
+    # NRIS/GIS well records — printed well data from Oklahoma GIS system
+    # "Page 1 of N" with NRIS context = start of a new well record printout
+    # These are handled as "permit" type (well completion data)
+    (r"GIS\s+NRIS.*Page\s+1\s+of\s+\d+", "permit"),  # NRIS well detail page 1
+    (r"NRIS\s+Well\s+Search\s+Results", "permit"),  # NRIS search results page
+    (r"Lease\s+Production\s+Producer\s*/?\s*Purchaser", "permit"),  # NRIS lease production
+    (r"Natural\s+Gas\s+Production\s+\(MCF\)", "permit"),  # NRIS production chart
+    (r"Oil\s+Production\s+\(in\s+Bbls?\)", "permit"),  # NRIS oil production chart
+    (r"ISLAND\s+PLAT", "other"),  # Hand-drawn township plat maps
 ]
+
+# "Page 1 of N" is a strong generic boundary signal for multi-page printed documents.
+# Handled separately in heuristic_page_check() because it indicates a new document start
+# but the TYPE must come from other content on the same page.
+PAGE_1_OF_N_PATTERN = re.compile(r"Page\s+1\s+of\s+(\d+)", re.IGNORECASE)
+
+# Title zone: only the first N chars of a page are checked for certain patterns
+# that are prone to false positives when found in body text.
+# Example: "CHECK STUB" in a letter body ("please provide your check stub")
+CHECK_STUB_TITLE_ZONE = 300  # chars
 
 # Patterns that indicate start of a new document
 START_INDICATORS = [
@@ -1688,9 +1714,8 @@ CONTINUATION_PATTERNS = [
     r"Initial\s+Test\s+Data",  # Horizontal completion 1002A page 2
     r"Completion\s+and\s+Test\s+Data\s+by\s+Producing\s+Formation",  # Another 1002A page 2 variant
     r"Status:\s*Accepted",  # OCC acceptance stamp - only on processed page 2
-    # Page 2 of 2 indicator (but NOT page 1 of 2)
-    r"\b2\s+of\s+2\b",  # "2 of 2" - definitively page 2
-    r"\bPage\s+2\s+of\s+2\b",  # "Page 2 of 2"
+    # Generic "Page N of M" where N > 1 — definitively a continuation page
+    r"\bPage\s+([2-9]|\d{2,})\s+of\s+\d+\b",  # "Page 2 of 3", "Page 10 of 12", etc.
     # OCR-tolerant 1002A page 2 patterns (handles messy OCR like "tJAlM1ES OF FORMATIONS")
     r"OF\s+FORMATIONS?\b",  # Catches "NAMES OF FORMATIONS" even with corrupted first word
     r"PRODUCING\s+FORMATION",  # Common 1002A section header
@@ -1865,14 +1890,33 @@ def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
             logger.info(f"Page {page_index}: heuristic result: {result}")
             return result
 
+    # Check for "Page 1 of N" — strong generic boundary signal for multi-page printed docs
+    # This is checked before title patterns because it's a reliable structural signal
+    page1_match = PAGE_1_OF_N_PATTERN.search(page_text)
+    if page1_match:
+        total_pages = int(page1_match.group(1))
+        if total_pages > 1:
+            logger.info(f"Page {page_index}: 'Page 1 of {total_pages}' detected — new document boundary")
+            result["heuristic_is_start"] = True
+            result["confidence"] = 0.85  # High confidence this starts a new doc
+
     # Check for document titles
+    # Title zone: the first ~300 chars of the page for patterns prone to false positives
+    title_zone_upper = text_upper[:CHECK_STUB_TITLE_ZONE]
+
     for pattern, doc_type in TITLE_PATTERNS:
-        match = re.search(pattern, text_upper, re.IGNORECASE)
+        # CHECK STUB is prone to false positives (letters mention "check stub" in body text)
+        # Only match CHECK STUB if it appears in the title zone (top of page)
+        if pattern == r"CHECK\s+STUB":
+            match = re.search(pattern, title_zone_upper, re.IGNORECASE)
+        else:
+            match = re.search(pattern, text_upper, re.IGNORECASE)
         if match:
             result["heuristic_type"] = doc_type
             result["matched_title"] = match.group(0).strip()
             result["heuristic_is_start"] = True
-            result["confidence"] = 0.8
+            if result["confidence"] < 0.8:
+                result["confidence"] = 0.8
             logger.info(f"Page {page_index}: Title pattern matched: '{match.group(0)}' -> type: {doc_type}")
             break
 
