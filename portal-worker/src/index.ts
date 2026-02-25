@@ -1476,6 +1476,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         if (path === "/api/otc-sync/upload-exemptions" && request.method === "POST") {
           return handleUploadOtcExemptions(request, env);
         }
+        if (path === "/api/otc-sync/validate-normalization" && request.method === "POST") {
+          return handleValidateNormalization(request, env);
+        }
         // OTC sync notification (called by Fly machine after sync completes)
         if (path === "/api/otc-sync/notify" && request.method === "POST") {
           try {
