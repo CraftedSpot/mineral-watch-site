@@ -47,7 +47,7 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
 
   try {
     const result = await env.WELLS_DB.prepare(`
-      SELECT u.*, o.name as org_name,
+      SELECT u.*, o.name as org_name, o.plan as org_plan,
         (SELECT COUNT(*) FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active') as prop_count,
         (SELECT COUNT(*) FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active') as well_count,
         (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.detected_at > datetime('now', '-30 days')) as alerts_30d,
