@@ -286,6 +286,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'royalty_deed':
     case 'warranty_deed':
     case 'quitclaim_deed':
+    case 'quit_claim_deed':
     case 'gift_deed':
     case 'trust_funding':
       extractedFieldsHtml = generateDeedFields(data.extractedData);
@@ -314,6 +315,10 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       break;
     case 'completion_report':
       extractedFieldsHtml = generateCompletionReportFields(data.extractedData);
+      break;
+    case 'lease_production':
+    case 'production_report':
+      extractedFieldsHtml = generateLeaseProductionFields(data.extractedData);
       break;
     case 'drilling_permit':
       extractedFieldsHtml = generateDrillingPermitFields(data.extractedData);
@@ -1796,6 +1801,63 @@ function generateCompletionReportFields(data: any): string {
       </div>
       ` : ''}
     </div>
+  `;
+}
+
+function generateLeaseProductionFields(data: any): string {
+  const oil = data.oil_production || {};
+  const gas = data.gas_production || {};
+  const condensate = data.condensate_production || {};
+
+  function productionSection(label: string, prod: any, unit: string): string {
+    if (!prod || !prod.has_data) return '';
+    const rows = [
+      prod.cumulative_total != null ? `<div class="field-item"><div class="field-label">Cumulative ${label}</div><div class="field-value highlight">${escapeHtml(String(Number(prod.cumulative_total).toLocaleString()))} ${unit}</div></div>` : '',
+      prod.first_year ? `<div class="field-item"><div class="field-label">First Year</div><div class="field-value">${escapeHtml(String(prod.first_year))}</div></div>` : '',
+      prod.last_year ? `<div class="field-item"><div class="field-label">Last Year</div><div class="field-value">${escapeHtml(String(prod.last_year))}</div></div>` : '',
+      prod.peak_year ? `<div class="field-item"><div class="field-label">Peak Year</div><div class="field-value">${escapeHtml(String(prod.peak_year))}</div></div>` : '',
+      prod.peak_annual_volume != null ? `<div class="field-item"><div class="field-label">Peak Annual Volume</div><div class="field-value">${escapeHtml(String(Number(prod.peak_annual_volume).toLocaleString()))} ${unit}</div></div>` : '',
+    ].filter(Boolean).join('');
+    if (!rows) return '';
+    return `
+      <div class="section">
+        <div class="section-title">${label.toUpperCase()}</div>
+        <div class="field-grid">${rows}</div>
+      </div>`;
+  }
+
+  const hasAnyProduction = oil.has_data || gas.has_data || condensate.has_data;
+
+  return `
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label">Lease Name</div>
+        <div class="field-value">${escapeHtml(data.lease_name || data.well_name) || 'Not specified'}</div>
+      </div>
+      <div class="field-item">
+        <div class="field-label">Producing Unit No.</div>
+        <div class="field-value mono">${escapeHtml(data.producing_unit_no || data.api_number) || 'Not specified'}</div>
+      </div>
+      ${data.operator ? `
+      <div class="field-item">
+        <div class="field-label">Operator</div>
+        <div class="field-value">${escapeHtml(String(data.operator))}</div>
+      </div>` : ''}
+      ${data.formation ? `
+      <div class="field-item">
+        <div class="field-label">Formation</div>
+        <div class="field-value">${escapeHtml(String(data.formation))}</div>
+      </div>` : ''}
+      ${data.data_source ? `
+      <div class="field-item">
+        <div class="field-label">Data Source</div>
+        <div class="field-value">${escapeHtml(String(data.data_source))}</div>
+      </div>` : ''}
+    </div>
+    ${productionSection('Oil Production', oil, oil.unit || 'BBL')}
+    ${productionSection('Gas Production', gas, gas.unit || 'MCF')}
+    ${productionSection('Condensate Production', condensate, condensate.unit || 'BBL')}
+    ${!hasAnyProduction ? '<div class="field-value" style="color: #64748b; font-style: italic; margin-top: 8px;">No production data recorded for this lease.</div>' : ''}
   `;
 }
 
