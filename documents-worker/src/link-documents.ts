@@ -613,25 +613,43 @@ export async function linkDocumentToEntities(
     console.log(`[LinkDocuments] Well data - Name: '${rawWellName}', API: '${apiNumber}', Operator: '${operator}'`);
   }
   
-  // Priority 1: API Number (exact match)
+  // Priority 1: API Number (exact match — check client_wells first, then statewide)
   if (apiNumber) {
     try {
       console.log(`[LinkDocuments] Searching for well by API: ${apiNumber}`);
-      const well = await db.prepare(`
-        SELECT airtable_record_id as id FROM wells WHERE api_number = ? LIMIT 1
-      `).bind(apiNumber).first();
-      
-      if (well) {
-        wellId = well.id as string;
-        console.log(`[LinkDocuments] Found matching well by API: ${wellId}`);
-      } else {
-        console.log(`[LinkDocuments] No well found with API: ${apiNumber}`);
+
+      // Check user's client_wells first (their tracked wells take priority)
+      if (documentUserId || documentOrgId) {
+        const clientWell = await db.prepare(`
+          SELECT airtable_id as id FROM client_wells
+          WHERE (user_id = ? OR organization_id = ?)
+            AND api_number = ?
+          LIMIT 1
+        `).bind(documentUserId || '', documentOrgId || '', apiNumber).first();
+        if (clientWell) {
+          wellId = clientWell.id as string;
+          console.log(`[LinkDocuments] Found matching well by API in client_wells: ${wellId}`);
+        }
+      }
+
+      // Fall back to statewide wells table
+      if (!wellId) {
+        const well = await db.prepare(`
+          SELECT airtable_record_id as id FROM wells WHERE api_number = ? LIMIT 1
+        `).bind(apiNumber).first();
+
+        if (well) {
+          wellId = well.id as string;
+          console.log(`[LinkDocuments] Found matching well by API in wells: ${wellId}`);
+        } else {
+          console.log(`[LinkDocuments] No well found with API: ${apiNumber}`);
+        }
       }
     } catch (error) {
       console.error(`[LinkDocuments] Error matching well by API:`, error);
     }
   }
-  
+
   // Priority 1b: Base API suffix match (for short/base API numbers from check stubs)
   // When a check stub shows a partial API like "25432" (5-digit well serial) instead of full "35-017-25432",
   // normalizeApiNumber returns null. Try matching wells whose api_number ends with these digits.
