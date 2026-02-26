@@ -2281,19 +2281,29 @@ def _build_visual_page_classifications(detection_result: dict, total_pages: int)
     """
     Convert visual detection result (from detect_documents()) into the
     page_classifications format expected by split_pages_into_documents().
+
+    Propagates Sonnet's doc type classifications from detect_documents() so that
+    each chunk gets the correct extraction prompt (instead of hardcoding "unknown"
+    and relying on heuristics).
     """
     page_classifications = []
-    doc_starts = set()
 
+    # Build maps: page_index → doc_type and doc start pages from visual detection
+    page_type_map = {}
+    doc_starts = set()
     for doc in detection_result.get("documents", []):
         start_page = doc.get("start_page", 1) - 1  # Convert to 0-indexed
+        end_page = doc.get("end_page", start_page + 1) - 1
+        doc_type = doc.get("type", "unknown")
         doc_starts.add(start_page)
+        for p in range(start_page, end_page + 1):
+            page_type_map[p] = doc_type
 
     for page_idx in range(total_pages):
         is_start = page_idx in doc_starts
         page_classifications.append({
             "page_index": page_idx,
-            "coarse_type": "unknown",  # Sonnet will determine during extraction
+            "coarse_type": page_type_map.get(page_idx, "unknown"),
             "is_document_start": is_start,
             "start_confidence": 0.85 if is_start else 0.2,
             "detected_title": None,
@@ -2394,9 +2404,18 @@ IMPORTANT:
 
 Valid document types:
 - division_order
-- mineral_deed (includes royalty deeds, assignments, quitclaims)
+- mineral_deed
+- royalty_deed
+- warranty_deed
+- gift_deed
+- quit_claim_deed
+- assignment_of_lease
+- assignment
 - lease
 - drilling_permit
+- completion_report (well completion reports, GIS NRIS completion records)
+- well_transfer (transfer of well operatorship/ownership records)
+- lease_production (GIS NRIS production reports, well/lease production summaries with monthly/annual volumes)
 - title_opinion
 - check_stub (royalty check stubs, revenue statements, payment stubs showing well-level revenue with decimal interest)
 - joint_interest_billing (JIBs, joint owner invoices, operating expense invoices billed to working/mineral interest owners)
@@ -2404,6 +2423,7 @@ Valid document types:
 - increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
 - change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
 - multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for allocation percentages)
+- unitization_order (unitization of mineral interests across multiple tracts)
 - drilling_and_spacing_order (VERTICAL well spacing - establishes drilling/spacing units with well setbacks - look for "DRILLING AND SPACING", "SPACING UNIT", unit size like 160-acre, 640-acre with formation-specific setbacks)
 - horizontal_drilling_and_spacing_order (HORIZONTAL well spacing - establishes horizontal drilling units - look for "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL", lateral setbacks, completion interval setbacks)
 - location_exception_order (well location exceptions - permits drilling closer to boundaries than standard setbacks - look for "LOCATION EXCEPTION", footage distances, "exception from")
@@ -2411,7 +2431,10 @@ Valid document types:
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - affidavit_of_heirship (sworn statement identifying heirs of a deceased mineral owner - look for "AFFIDAVIT OF HEIRSHIP", decedent name, list of heirs/children/spouses, notarized)
-- ownership_entity (probate, trust docs, LLC docs - NOT affidavit of heirship)
+- death_certificate
+- trust_funding (trust funding documents, trust transfers)
+- limited_partnership (limited partnership agreements, LP documents)
+- ownership_entity (probate, trust docs, LLC docs - NOT affidavit of heirship, death certificate, trust funding, or limited partnership)
 - legal_document (lawsuits, judgments, court orders)
 - correspondence
 - tax_record (tax assessments, property tax records)
@@ -10663,34 +10686,6 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                 if observations:
                     extracted_data["ai_observations"] = observations
 
-        # POST-PROCESSING: Override doc_type when Sonnet's extraction contradicts classification
-        # Stage 1 sometimes misclassifies docs (e.g., correspondence or division order as check_stub).
-        # If Sonnet's own extraction signals a different type, trust Sonnet's reading of the content.
-        original_doc_type = extracted_data.get('doc_type')
-        statement_type = extracted_data.get('statement_type', '')
-        key_takeaway = (extracted_data.get('key_takeaway') or '').lower()
-        if original_doc_type == 'check_stub':
-            # Sonnet explicitly flagged it as correspondence
-            if statement_type == 'correspondence_letter':
-                logger.info(f"Overriding doc_type: check_stub -> correspondence (statement_type={statement_type})")
-                extracted_data['doc_type'] = 'correspondence'
-                extracted_data['_doc_type_overridden'] = 'check_stub -> correspondence'
-            # Sonnet explicitly flagged it as division order
-            elif statement_type == 'division_order':
-                logger.info(f"Overriding doc_type: check_stub -> division_order (statement_type={statement_type})")
-                extracted_data['doc_type'] = 'division_order'
-                extracted_data['_doc_type_overridden'] = 'check_stub -> division_order'
-            # Sonnet's key_takeaway says it's a division order (forced into wrong schema)
-            elif 'division order' in key_takeaway and 'not a' in key_takeaway and ('check' in key_takeaway or 'revenue' in key_takeaway):
-                logger.info(f"Overriding doc_type: check_stub -> division_order (key_takeaway contradiction)")
-                extracted_data['doc_type'] = 'division_order'
-                extracted_data['_doc_type_overridden'] = 'check_stub -> division_order (key_takeaway)'
-            # Sonnet's key_takeaway says it's correspondence
-            elif 'correspondence' in key_takeaway and 'not a' in key_takeaway and ('check' in key_takeaway or 'revenue' in key_takeaway):
-                logger.info(f"Overriding doc_type: check_stub -> correspondence (key_takeaway contradiction)")
-                extracted_data['doc_type'] = 'correspondence'
-                extracted_data['_doc_type_overridden'] = 'check_stub -> correspondence (key_takeaway)'
-
         # POST-PROCESSING: Enforce schema whitelist (strip invented fields)
         extracted_data = enforce_schema_whitelist(extracted_data)
 
@@ -11048,7 +11043,9 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                         page_classifications[page_idx]["start_confidence"] = hcheck["confidence"]
                         page_classifications[page_idx]["classification_method"] = "visual+heuristic"
                         if hcheck.get("heuristic_type"):
-                            page_classifications[page_idx]["coarse_type"] = hcheck["heuristic_type"]
+                            # Only set heuristic type if Sonnet didn't already classify this page
+                            if page_classifications[page_idx]["coarse_type"] in ("unknown", "other"):
+                                page_classifications[page_idx]["coarse_type"] = hcheck["heuristic_type"]
                         if hcheck.get("matched_title"):
                             page_classifications[page_idx]["detected_title"] = hcheck["matched_title"]
                         heuristic_additions += 1
@@ -11111,6 +11108,22 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
     # Multiple documents detected - process each chunk
     logger.info(f"Multi-document PDF: Processing {split_result['document_count']} documents")
+
+    # Quick-classify chunks that still have no type after visual detection + heuristics
+    for chunk in split_result["chunks"]:
+        chunk_coarse = chunk.get("coarse_type", "other")
+        if chunk_coarse in ("other", "unknown"):
+            page_start = chunk["page_start"]
+            try:
+                chunk_classification = await quick_classify_document(
+                    [image_paths[page_start]], model_override=model_override
+                )
+                chunk_doc_type = chunk_classification.get("doc_type")
+                if chunk_doc_type and chunk_doc_type not in ("other", "unknown", "multi_document"):
+                    chunk["coarse_type"] = chunk_doc_type
+                    logger.info(f"Quick-classified chunk {chunk['chunk_index']}: {chunk_doc_type}")
+            except Exception as e:
+                logger.warning(f"Quick-classify failed for chunk {chunk['chunk_index']}: {e}")
 
     results = {
         "is_multi_document": True,
