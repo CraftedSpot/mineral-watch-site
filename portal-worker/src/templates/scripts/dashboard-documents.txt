@@ -7397,7 +7397,7 @@
         let documentPollStartTime;
         let uploadBatchTimer;
         const POLL_INTERVAL = 15000; // 15 seconds
-        const MAX_POLL_DURATION = 10 * 60 * 1000; // 10 minutes
+        const MAX_POLL_DURATION = 30 * 60 * 1000; // 30 minutes
         
         // Document Usage Tracking
         let currentUsageStats = null;
@@ -7940,11 +7940,13 @@
         }
         
         function updateDocumentPolling() {
-            const hasProcessing = loadedDocuments.some(doc => 
-                doc.status === 'processing' || doc.status === 'pending'
+            const hasProcessing = loadedDocuments.some(doc =>
+                doc.status === 'processing' || doc.status === 'pending' || doc.status === 'pending_prescan' || doc.status === 'prescan_complete'
             );
-            
+
             if (hasProcessing && currentTab === 'documents' && !document.hidden) {
+                // Reset poll start time so returning to tab / re-checking restarts the timeout window
+                if (!documentPollInterval) documentPollStartTime = Date.now();
                 startDocumentPolling();
             } else {
                 stopDocumentPolling();

@@ -200,12 +200,13 @@
             document.addEventListener('visibilitychange', async () => {
                 if (!document.hidden && currentTab === 'documents' && documentsInitialized) {
                     // User returned to tab while on documents
-                    const hasProcessing = loadedDocuments.some(doc => 
-                        doc.status === 'processing' || doc.status === 'pending'
+                    const hasProcessing = loadedDocuments.some(doc =>
+                        doc.status === 'processing' || doc.status === 'pending' || doc.status === 'pending_prescan' || doc.status === 'prescan_complete'
                     );
                     if (hasProcessing) {
-                        console.log('[Documents] Tab became visible with processing documents, refreshing...');
+                        console.log('[Documents] Tab became visible with processing documents, refreshing and restarting poll...');
                         await loadDocuments();
+                        // loadDocuments calls updateDocumentPolling which restarts the poll timer
                     }
                 }
             });
