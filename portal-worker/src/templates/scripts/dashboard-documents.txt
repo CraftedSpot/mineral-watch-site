@@ -2070,7 +2070,7 @@
                                                         </div>
                                                         ${fractionText ? `<div style="font-weight: 600; color: #1E40AF;">${escapeHtml(fractionText)}</div>` : ''}
                                                     </div>
-                                                    ${netMineralAcres !== undefined ? `<div style="font-size: 13px; color: #4B5563; margin-top: 6px;">Net Mineral Acres: <strong>${netMineralAcres.toLocaleString()}</strong></div>` : ''}
+                                                    ${netMineralAcres != null ? `<div style="font-size: 13px; color: #4B5563; margin-top: 6px;">Net Mineral Acres: <strong>${netMineralAcres.toLocaleString()}</strong></div>` : ''}
                                                 </div>
                                                 ` : ''}
 
