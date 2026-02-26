@@ -340,10 +340,24 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.MER) ||
                    null;
 
-  // Normalize the values
-  const section = normalizeSection(rawSection);
-  const township = normalizeTownship(rawTownship);
-  const range = normalizeRange(rawRange);
+  // Normalize the values — handle comma-separated fields (e.g. "19, 24" or "27ECM, 28ECM")
+  const splitAndNormalize = (raw: any, normFn: (v: string) => string | null): string[] => {
+    if (!raw) return [];
+    const str = String(raw);
+    if (str.includes(',')) {
+      return str.split(',').map(v => normFn(v.trim())).filter((v): v is string => v !== null);
+    }
+    const normed = normFn(str);
+    return normed ? [normed] : [];
+  };
+
+  const sections = splitAndNormalize(rawSection, normalizeSection);
+  const townships = splitAndNormalize(rawTownship, normalizeTownship);
+  const ranges = splitAndNormalize(rawRange, normalizeRange);
+  // Keep single values for backward compat
+  const section = sections[0] || null;
+  const township = townships[0] || null;
+  const range = ranges[0] || null;
   const county = normalizeCounty(rawCounty);  // Strip "County" suffix
 
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
@@ -351,14 +365,20 @@ export async function linkDocumentToEntities(
     console.log(`[LinkDocuments] Legal description object found:`, JSON.stringify(legalDescObj));
   }
   console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${rawCounty}'`);
-  console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
-  
+  console.log(`[LinkDocuments] Normalized: Sections [${sections}], Townships [${townships}], Ranges [${ranges}], County '${county}', Meridian '${meridian}'`);
+
   // Build list of all sections to check (primary + unit_sections)
   const sectionsToCheck: Array<{section: string, township: string, range: string}> = [];
 
-  // Add primary section if available
-  if (section && township && range) {
-    sectionsToCheck.push({ section, township, range });
+  // Add all combinations from primary fields (handles comma-separated values like "19, 24")
+  if (sections.length > 0 && townships.length > 0 && ranges.length > 0) {
+    for (const s of sections) {
+      for (const t of townships) {
+        for (const r of ranges) {
+          sectionsToCheck.push({ section: s, township: t, range: r });
+        }
+      }
+    }
   }
 
   // Add sections from tracts array (mineral deed schema - multi-tract deeds)
