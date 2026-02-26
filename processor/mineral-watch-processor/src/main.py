@@ -542,11 +542,34 @@ async def handle_multi_document(
         display_name = generate_display_name_for_child(doc_data, page_start, page_end)
         
         # Determine confidence/status
-        # Check for extraction errors first
+        # Check for extraction errors first — but try to recover from raw_response
         if doc_data.get('error'):
-            doc_confidence = 'low'
-            status = 'failed'
-            logger.warning(f"Document {i+1} (pages {page_start}-{page_end}) had extraction error: {doc_data.get('error')}")
+            raw = doc_data.get('raw_response', '')
+            recovered = False
+            if raw and '{' in raw:
+                try:
+                    # Try to parse JSON from raw_response (may have code fences)
+                    recover_text = raw.strip()
+                    brace_start = recover_text.find('{')
+                    if brace_start != -1:
+                        recover_text = recover_text[brace_start:]
+                    brace_end = recover_text.rfind('}')
+                    if brace_end != -1:
+                        recover_text = recover_text[:brace_end + 1]
+                    recovered_data = json.loads(recover_text)
+                    if recovered_data.get('doc_type'):
+                        logger.info(f"Recovered valid extraction from raw_response for document {i+1}, doc_type: {recovered_data.get('doc_type')}")
+                        doc_data = recovered_data
+                        doc_data['_start_page'] = page_start
+                        doc_data['_end_page'] = page_end
+                        display_name = generate_display_name_for_child(doc_data, page_start, page_end)
+                        recovered = True
+                except (json.JSONDecodeError, Exception) as re:
+                    logger.debug(f"Could not recover from raw_response: {re}")
+            if not recovered:
+                doc_confidence = 'low'
+                status = 'failed'
+                logger.warning(f"Document {i+1} (pages {page_start}-{page_end}) had extraction error: {doc_data.get('error')}")
         # For skip_extraction documents (coarse_type="other"), mark as unprocessed
         elif doc_data.get('skip_extraction'):
             doc_confidence = 'medium'

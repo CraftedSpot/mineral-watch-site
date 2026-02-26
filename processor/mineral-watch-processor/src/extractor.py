@@ -10679,6 +10679,28 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         logger.error(f"Error at position {e.pos}, line {e.lineno}, col {e.colno}")
         logger.error(f"JSON string being parsed (first 500 chars): {repr(json_str[:500])}")
         logger.error(f"Full response was: {response_text}")
+
+        # Recovery attempt: try to extract JSON from the raw response fresh
+        # This handles cases where Strategy 1 incorrectly truncated the JSON
+        # (e.g., backticks inside JSON string values confused fence detection)
+        try:
+            recovery_text = response_text.strip()
+            # Strip code fences aggressively
+            if "```" in recovery_text:
+                # Remove everything before the first {
+                brace_start = recovery_text.find("{")
+                if brace_start != -1:
+                    recovery_text = recovery_text[brace_start:]
+                # Remove everything after the last }
+                brace_end = recovery_text.rfind("}")
+                if brace_end != -1:
+                    recovery_text = recovery_text[:brace_end + 1]
+            recovered = json.loads(recovery_text)
+            logger.info(f"Recovery successful! Extracted doc_type: {recovered.get('doc_type')}")
+            return recovered
+        except (json.JSONDecodeError, Exception) as recovery_err:
+            logger.error(f"Recovery also failed: {recovery_err}")
+
         return {"error": "Failed to parse response", "raw_response": response_text}
 
 
