@@ -1799,6 +1799,11 @@ function generateCompletionReportFields(data: any): string {
         <div class="field-label">Initial Production (Gas)</div>
         <div class="field-value highlight">${escapeHtml(String(gasProd))} MCFD</div>
       </div>
+      ` : ''}${surfaceLocation.quarters ? `
+      <div class="field-item">
+        <div class="field-label">Surface Location</div>
+        <div class="field-value">${escapeHtml(String(surfaceLocation.quarters))}${surfaceLocation.footage_ns ? ', ' + escapeHtml(String(surfaceLocation.footage_ns)) : ''}${surfaceLocation.footage_ew ? ', ' + escapeHtml(String(surfaceLocation.footage_ew)) : ''}</div>
+      </div>
       ` : ''}
     </div>
   `;
@@ -1847,6 +1852,11 @@ function generateLeaseProductionFields(data: any): string {
       <div class="field-item">
         <div class="field-label">Formation</div>
         <div class="field-value">${escapeHtml(String(data.formation))}</div>
+      </div>` : ''}
+      ${data.county ? `
+      <div class="field-item">
+        <div class="field-label">Location</div>
+        <div class="field-value">${escapeHtml([data.section ? `Sec ${data.section}` : '', data.township, data.range, data.county ? `${data.county} County` : ''].filter(Boolean).join(', '))}</div>
       </div>` : ''}
       ${data.data_source ? `
       <div class="field-item">

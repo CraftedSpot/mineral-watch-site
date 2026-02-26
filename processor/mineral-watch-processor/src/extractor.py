@@ -9804,6 +9804,8 @@ Return a JSON object with ONLY these fields:
   "doc_type": "lease_production",
 
   "lease_name": "FANNIE DAVISON 1-8,2-8 (lease or well name from header)",
+  "well_name": "well name if different from lease name, or null",
+  "api_number": "API number if shown on the document (e.g. 01521689), or null",
   "producing_unit_no": "01505431900000 (PUN / Producing Unit Number — 14-digit identifier)",
   "operator": "Operator name if shown",
 

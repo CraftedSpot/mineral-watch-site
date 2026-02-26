@@ -2608,6 +2608,82 @@ export default {
               }
             }
 
+            // Auto-populate well_pun_links from lease_production documents
+            // These GIS NRIS docs have PUNs (producing_unit_no) and sometimes API numbers
+            if (doc_type === 'lease_production' && extracted_data) {
+              const pun = extracted_data.producing_unit_no;
+              if (pun) {
+                try {
+                  // Normalize PUN to base_pun format: XXX-XXXXXX (county-lease)
+                  const normalizeBasePun = (p: string): string => {
+                    const digits = p.replace(/[^0-9]/g, '');
+                    if (digits.length >= 9) {
+                      return `${digits.substring(0, 3)}-${digits.substring(3, 9)}`;
+                    }
+                    return p.length >= 10 ? p.substring(0, 10) : p;
+                  };
+
+                  const basePun = normalizeBasePun(pun);
+
+                  // Normalize API if present
+                  const rawApi = extracted_data.api_number_normalized || extracted_data.api_number;
+                  const apiDigits = rawApi ? rawApi.replace(/[^0-9]/g, '') : null;
+                  const apiNumber = apiDigits && apiDigits.length >= 8 ? apiDigits.substring(0, 10) : null;
+
+                  if (apiNumber) {
+                    // We have both API and PUN — full crosswalk
+                    await env.WELLS_DB.batch([
+                      env.WELLS_DB.prepare(`
+                        INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+                        VALUES (?, ?, ?, 'gis_nris_production', 'high')
+                        ON CONFLICT(api_number, pun) DO UPDATE SET
+                          base_pun = COALESCE(excluded.base_pun, base_pun),
+                          updated_at = CURRENT_TIMESTAMP
+                      `).bind(apiNumber, pun, basePun),
+                      env.WELLS_DB.prepare(`
+                        INSERT INTO pun_api_crosswalk (api_number, pun, confidence, match_source)
+                        VALUES (?, ?, 'high', 'gis_nris_production')
+                        ON CONFLICT(api_number) DO UPDATE SET
+                          pun = COALESCE(excluded.pun, pun),
+                          updated_at = CURRENT_TIMESTAMP
+                      `).bind(apiNumber, pun),
+                      env.WELLS_DB.prepare(`
+                        UPDATE wells
+                        SET otc_prod_unit_no = ?
+                        WHERE (api_number = ? OR api_number LIKE ? || '%')
+                          AND (otc_prod_unit_no IS NULL OR otc_prod_unit_no = '')
+                      `).bind(pun, apiNumber, apiNumber),
+                    ]);
+                    console.log(`[Lease Production] PUN crosswalk: API ${apiNumber} ↔ PUN ${pun} (base: ${basePun})`);
+                  } else {
+                    // PUN only — store what we have for future matching
+                    // Try to find existing API from well_pun_links by base_pun
+                    const existing = await env.WELLS_DB.prepare(
+                      `SELECT api_number FROM well_pun_links WHERE base_pun = ? LIMIT 1`
+                    ).bind(basePun).first<{ api_number: string }>();
+
+                    if (existing?.api_number) {
+                      // Found an API via base_pun match — create the full link
+                      await env.WELLS_DB.batch([
+                        env.WELLS_DB.prepare(`
+                          INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+                          VALUES (?, ?, ?, 'gis_nris_production_basepun', 'medium')
+                          ON CONFLICT(api_number, pun) DO UPDATE SET
+                            base_pun = COALESCE(excluded.base_pun, base_pun),
+                            updated_at = CURRENT_TIMESTAMP
+                        `).bind(existing.api_number, pun, basePun),
+                      ]);
+                      console.log(`[Lease Production] PUN crosswalk via base_pun: API ${existing.api_number} ↔ PUN ${pun}`);
+                    } else {
+                      console.log(`[Lease Production] PUN ${pun} (base: ${basePun}) stored — no API to crosswalk yet`);
+                    }
+                  }
+                } catch (punErr: any) {
+                  console.error(`[Lease Production] PUN write-back failed:`, punErr.message);
+                }
+              }
+            }
+
             // Auto-populate pooling_orders, pooling_election_options, and lease_comps for pooling orders
             if ((doc_type === 'pooling_order' || doc_type === 'force_pooling_order') && extracted_data) {
               try {
