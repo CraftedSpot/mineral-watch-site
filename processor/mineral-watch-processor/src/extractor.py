@@ -10575,6 +10575,42 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             if brace_end != -1:
                 final_json_str = final_json_str[:brace_end + 1]
 
+        # Sanitize control characters inside JSON string values
+        # Sonnet sometimes puts literal newlines/tabs in string values instead of \n \t
+        import re
+        def sanitize_json_control_chars(s: str) -> str:
+            """Escape unescaped control characters inside JSON string values."""
+            # Replace literal control chars (except already-escaped ones) within strings
+            # This regex-free approach: just replace common offenders
+            result = []
+            in_str = False
+            i = 0
+            while i < len(s):
+                ch = s[i]
+                if ch == '\\' and in_str and i + 1 < len(s):
+                    # Already escaped sequence — keep as-is
+                    result.append(ch)
+                    result.append(s[i + 1])
+                    i += 2
+                    continue
+                if ch == '"':
+                    in_str = not in_str
+                    result.append(ch)
+                elif in_str and ch == '\n':
+                    result.append('\\n')
+                elif in_str and ch == '\r':
+                    result.append('\\r')
+                elif in_str and ch == '\t':
+                    result.append('\\t')
+                elif in_str and ord(ch) < 32:
+                    result.append(f'\\u{ord(ch):04x}')
+                else:
+                    result.append(ch)
+                i += 1
+            return ''.join(result)
+
+        final_json_str = sanitize_json_control_chars(final_json_str)
+
         print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
         print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
         extracted_data = json.loads(final_json_str)
