@@ -240,6 +240,18 @@ def name_mineral_deed(data: Dict[str, Any]) -> str:
         grantors = data.get('grantor_names', [])
         if grantors and isinstance(grantors, list):
             grantor = grantors[0]
+    # Fallback: lessor field (when deed was extracted with lease schema fields)
+    if not grantor:
+        lessor = data.get('lessor')
+        if isinstance(lessor, dict):
+            grantor = lessor.get('name', '')
+        elif isinstance(lessor, str):
+            grantor = lessor
+    # Fallback: mineral_deed nested object
+    if not grantor:
+        md = data.get('mineral_deed')
+        if isinstance(md, dict):
+            grantor = md.get('grantor', '')
 
     # Check 'grantees' array of objects format (v2 schema)
     grantees_array = data.get('grantees', [])
@@ -265,6 +277,18 @@ def name_mineral_deed(data: Dict[str, Any]) -> str:
         grantees = data.get('grantee_names', [])
         if grantees and isinstance(grantees, list):
             grantee = grantees[0]
+    # Fallback: lessee field (when deed was extracted with lease schema fields)
+    if not grantee:
+        lessee = data.get('lessee')
+        if isinstance(lessee, dict):
+            grantee = lessee.get('name', '')
+        elif isinstance(lessee, str):
+            grantee = lessee
+    # Fallback: mineral_deed nested object
+    if not grantee:
+        md = data.get('mineral_deed')
+        if isinstance(md, dict):
+            grantee = md.get('grantee', '')
 
     party_transfer = format_party_transfer(grantor, grantee)
     if party_transfer:

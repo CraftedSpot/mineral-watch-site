@@ -875,7 +875,9 @@ function generateDeedFields(data: any): string {
       ${data.consideration ? `
       <div class="field-item">
         <div class="field-label">Consideration</div>
-        <div class="field-value">${escapeHtml(data.consideration)}</div>
+        <div class="field-value">${typeof data.consideration === 'object'
+          ? escapeHtml(data.consideration.bonus_stated || (data.consideration.total_bonus ? `$${data.consideration.total_bonus}` : ''))
+          : escapeHtml(data.consideration)}</div>
       </div>
       ` : ''}
     </div>
@@ -2109,7 +2111,9 @@ function generateAssignmentFields(data: any): string {
       ${data.consideration ? `
       <div class="field-item">
         <div class="field-label">Consideration</div>
-        <div class="field-value">${escapeHtml(data.consideration)}</div>
+        <div class="field-value">${typeof data.consideration === 'object'
+          ? escapeHtml(data.consideration.bonus_stated || (data.consideration.total_bonus ? `$${data.consideration.total_bonus}` : ''))
+          : escapeHtml(data.consideration)}</div>
       </div>
       ` : ''}
     </div>
