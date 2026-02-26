@@ -10661,6 +10661,28 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                 extracted_data["document_confidence"] = calculated_confidence
                 extracted_data["_confidence_recalculated"] = True
 
+        # POST-PROCESSING: Correct meridian for Oklahoma panhandle counties
+        # Beaver, Texas, and Cimarron counties always use Cimarron Meridian (CM),
+        # but Claude often defaults to Indian Meridian (IM) for all of Oklahoma.
+        PANHANDLE_COUNTIES = {'beaver', 'texas', 'cimarron'}
+        def fix_meridian_for_county(data: dict) -> None:
+            county = (data.get('county') or '').lower().replace(' county', '').strip()
+            if county in PANHANDLE_COUNTIES and data.get('meridian', '').upper() in ('IM', 'I.M.', 'INDIAN MERIDIAN', 'INDIAN'):
+                logger.info(f"Correcting meridian from '{data.get('meridian')}' to 'CM' for {county.title()} County")
+                data['meridian'] = 'CM'
+
+        # Check legal_description
+        legal = extracted_data.get('legal_description', {})
+        if isinstance(legal, dict):
+            fix_meridian_for_county(legal)
+        # Check tracts array
+        for tract in (extracted_data.get('tracts') or []):
+            tract_legal = tract.get('legal', {})
+            if isinstance(tract_legal, dict):
+                fix_meridian_for_county(tract_legal)
+        # Check top-level
+        fix_meridian_for_county(extracted_data)
+
         # POST-PROCESSING: Compute review flags based on external signals
         review_flags = compute_review_flags(
             extracted_data,

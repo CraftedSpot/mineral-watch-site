@@ -493,16 +493,6 @@ export async function linkDocumentToEntities(
           sectionData.range, sectionData.range,
         ];
 
-        // Add county filter if available
-        if (county) {
-          propertyQuery += `\n            AND LOWER(REPLACE(county, ' County', '')) = LOWER(?)`;
-          propertyParams.push(county);
-        }
-
-        // Add meridian filter
-        propertyQuery += `\n            AND (meridian = ? OR meridian IS NULL OR ? IS NULL)`;
-        propertyParams.push(meridian, meridian);
-
         // Owner matching: check user_id, organization_id, and legacy owner column
         propertyQuery += `\n            AND (user_id IN (?, ?) OR organization_id IN (?, ?) OR owner IN (?, ?))`;
         propertyParams.push(
@@ -510,6 +500,15 @@ export async function linkDocumentToEntities(
           documentUserId || '', documentOrgId || '',
           documentUserId || '', documentOrgId || ''
         );
+
+        // County and meridian are soft tiebreakers, NOT hard filters.
+        // S/T/R + owner is already highly specific. County can be wrong when Claude
+        // picks the recording county instead of the land county. Meridian can be wrong
+        // because Claude defaults to IM but panhandle properties use CM.
+        propertyQuery += `\n            ORDER BY
+              CASE WHEN LOWER(REPLACE(county, ' County', '')) = LOWER(?) THEN 0 ELSE 1 END,
+              CASE WHEN meridian = ? THEN 0 WHEN meridian IS NULL OR ? IS NULL THEN 1 ELSE 2 END`;
+        propertyParams.push(county || '', meridian, meridian);
 
         console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range} county=${county || '(none)'} for owner ${ownerFilter}`);
 
