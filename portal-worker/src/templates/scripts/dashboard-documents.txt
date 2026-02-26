@@ -7910,8 +7910,8 @@
                 // Check guardrails
                 const isDocumentsTabActive = currentTab === 'documents';
                 const isTabVisible = !document.hidden;
-                const hasProcessing = loadedDocuments.some(doc => 
-                    doc.status === 'processing' || doc.status === 'pending'
+                const hasProcessing = loadedDocuments.some(doc =>
+                    doc.status === 'processing' || doc.status === 'pending' || doc.status === 'pending_prescan' || doc.status === 'prescan_complete'
                 );
                 const notExpired = (Date.now() - documentPollStartTime) < MAX_POLL_DURATION;
                 
