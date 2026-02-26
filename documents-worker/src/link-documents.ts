@@ -473,32 +473,45 @@ export async function linkDocumentToEntities(
   const ownerFilter = documentOrgId || documentUserId;
   console.log(`[LinkDocuments] Using owner filter: ${ownerFilter} (org: ${documentOrgId}, user: ${documentUserId})`);
 
-  if (sectionsToCheck.length > 0 && county && ownerFilter) {
+  if (sectionsToCheck.length > 0 && ownerFilter) {
     for (const sectionData of sectionsToCheck) {
       try {
-        // Query for ALL properties matching this section (not LIMIT 1)
-        // Strip "County" suffix from property county for comparison (handles "Blaine" vs "Blaine County")
-        // Check owner against both user_id and organization_id (properties table uses 'owner' for both)
-        const propertyQuery = `
+        // Build query: S/T/R matching with numeric comparison (handles leading zeros like 06N vs 6N)
+        // County is optional — used when available for disambiguation, skipped when missing
+        // Owner matching checks user_id and organization_id columns (not just legacy 'owner')
+        let propertyQuery = `
           SELECT airtable_record_id as id FROM properties
           WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
             AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
             AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
             AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
             AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
-            AND LOWER(REPLACE(county, ' County', '')) = LOWER(?)
-            AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
-            AND owner IN (?, ?)
         `;
-        const propertyParams = [
+        const propertyParams: any[] = [
           sectionData.section,
           sectionData.township, sectionData.township,
           sectionData.range, sectionData.range,
-          county, meridian, meridian,
-          documentUserId || '', documentOrgId || ''
         ];
 
-        console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range} for owner ${ownerFilter}`);
+        // Add county filter if available
+        if (county) {
+          propertyQuery += `\n            AND LOWER(REPLACE(county, ' County', '')) = LOWER(?)`;
+          propertyParams.push(county);
+        }
+
+        // Add meridian filter
+        propertyQuery += `\n            AND (meridian = ? OR meridian IS NULL OR ? IS NULL)`;
+        propertyParams.push(meridian, meridian);
+
+        // Owner matching: check user_id, organization_id, and legacy owner column
+        propertyQuery += `\n            AND (user_id IN (?, ?) OR organization_id IN (?, ?) OR owner IN (?, ?))`;
+        propertyParams.push(
+          documentUserId || '', documentOrgId || '',
+          documentUserId || '', documentOrgId || '',
+          documentUserId || '', documentOrgId || ''
+        );
+
+        console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range} county=${county || '(none)'} for owner ${ownerFilter}`);
 
         const properties = await db.prepare(propertyQuery).bind(...propertyParams).all();
 
@@ -523,7 +536,7 @@ export async function linkDocumentToEntities(
     } else {
       console.log(`[LinkDocuments] No property matches found for any section`);
     }
-  } else if (sectionsToCheck.length > 0 && county && !ownerFilter) {
+  } else if (sectionsToCheck.length > 0 && !ownerFilter) {
     console.log(`[LinkDocuments] Skipping property matching - could not determine document owner`);
   }
   
