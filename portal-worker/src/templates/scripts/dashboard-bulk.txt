@@ -1858,8 +1858,8 @@ async function showPrescanResults(docId, data) {
     try {
         const usageResp = await fetch('/api/documents/usage', { credentials: 'include' });
         if (usageResp.ok) {
-            const usage = await usageResp.json();
-            availableCredits = usage.total_available || 0;
+            const usageData = await usageResp.json();
+            availableCredits = usageData.usage?.total_available || usageData.credits?.totalAvailable || 0;
             // Also refresh the header display
             const creditsEl = document.getElementById('creditsAvailable');
             if (creditsEl) creditsEl.textContent = availableCredits.toLocaleString();
