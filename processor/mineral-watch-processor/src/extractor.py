@@ -1672,9 +1672,8 @@ TITLE_PATTERNS = [
     (r"OFFER\s+TO\s+PURCHASE.*MINERAL", "correspondence"),  # Mineral buy offer
     # NRIS/GIS well records — printed well data from Oklahoma GIS system
     # "Page 1 of N" with NRIS context = start of a new well record printout
-    # These are handled as "permit" type (well completion data)
-    (r"GIS\s+NRIS.*Page\s+1\s+of\s+\d+", "permit"),  # NRIS well detail page 1
-    (r"NRIS\s+Well\s+Search\s+Results", "permit"),  # NRIS search results page
+    (r"GIS\s+NRIS.*Page\s+1\s+of\s+\d+", "completion_report"),  # NRIS well detail page 1
+    (r"NRIS\s+Well\s+Search\s+Results", "completion_report"),  # NRIS search results page
     (r"Lease\s+Production\s+Producer\s*/?\s*Purchaser", "lease_production"),  # NRIS lease production
     (r"Natural\s+Gas\s+Production\s+\(MCF\)", "lease_production"),  # NRIS production chart
     (r"Oil\s+Production\s+\(in\s+Bbls?\)", "lease_production"),  # NRIS oil production chart
@@ -7942,8 +7941,7 @@ These are REQUIRED for property linking - the dashboard uses these to match docu
 # ============================================================================
 
 # Document types that should use the POOLING ORDER focused prompt
-# Includes "order" coarse_type so all OCC orders route here (pooling is most common)
-POOLING_DOC_TYPES = ["order", "pooling_order", "force_pooling_order"]
+POOLING_DOC_TYPES = ["pooling_order", "force_pooling_order"]
 
 POOLING_EXTRACTION_PROMPT_TEMPLATE = """You are extracting data from an Oklahoma Corporation Commission force pooling order.
 
@@ -11109,19 +11107,51 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # Multiple documents detected - process each chunk
     logger.info(f"Multi-document PDF: Processing {split_result['document_count']} documents")
 
-    # Quick-classify chunks that still have no type after visual detection + heuristics
+    # Valid doc types that have focused extraction prompts or are recognized by the system
+    VALID_COARSE_TYPES = {
+        "mineral_deed", "royalty_deed", "warranty_deed", "gift_deed", "quit_claim_deed",
+        "assignment_of_lease", "assignment", "lease", "division_order",
+        "pooling_order", "increased_density_order", "change_of_operator_order",
+        "multi_unit_horizontal_order", "unitization_order",
+        "drilling_and_spacing_order", "horizontal_drilling_and_spacing_order",
+        "location_exception_order", "occ_order",
+        "drilling_permit", "completion_report", "well_transfer", "title_opinion",
+        "lease_production", "check_stub", "joint_interest_billing",
+        "suspense_notice", "joa",
+        "affidavit_of_heirship", "death_certificate", "trust_funding", "limited_partnership",
+        "ownership_entity", "legal_document", "correspondence",
+        "tax_record", "map",
+    }
+
+    # Text-based GIS NRIS override + quick-classify for unrecognized types
     for chunk in split_result["chunks"]:
         chunk_coarse = chunk.get("coarse_type", "other")
-        if chunk_coarse in ("other", "unknown"):
-            page_start = chunk["page_start"]
+        page_start = chunk["page_start"]
+
+        # GIS NRIS text rule: if page text contains "GIS NRIS", it's a completion report
+        # (unless already classified as lease_production by a more specific pattern)
+        if page_texts and page_start < len(page_texts) and page_texts[page_start]:
+            page_text = page_texts[page_start]
+            if re.search(r"GIS\s+NRIS", page_text, re.IGNORECASE) and chunk_coarse not in ("lease_production",):
+                # Check if it's a production page or a well completion page
+                if re.search(r"Lease\s+Production|Producing\s+Unit\s+No|Oil\s+Production\s+\(in\s+Bbls|Natural\s+Gas\s+Production", page_text, re.IGNORECASE):
+                    chunk["coarse_type"] = "lease_production"
+                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → lease_production")
+                else:
+                    chunk["coarse_type"] = "completion_report"
+                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → completion_report")
+                continue
+
+        # Quick-classify chunks with unknown, other, or non-standard types
+        if chunk_coarse in ("other", "unknown") or chunk_coarse not in VALID_COARSE_TYPES:
             try:
                 chunk_classification = await quick_classify_document(
                     [image_paths[page_start]], model_override=model_override
                 )
                 chunk_doc_type = chunk_classification.get("doc_type")
                 if chunk_doc_type and chunk_doc_type not in ("other", "unknown", "multi_document"):
+                    logger.info(f"Quick-classified chunk {chunk['chunk_index']}: {chunk_coarse} → {chunk_doc_type}")
                     chunk["coarse_type"] = chunk_doc_type
-                    logger.info(f"Quick-classified chunk {chunk['chunk_index']}: {chunk_doc_type}")
             except Exception as e:
                 logger.warning(f"Quick-classify failed for chunk {chunk['chunk_index']}: {e}")
 
