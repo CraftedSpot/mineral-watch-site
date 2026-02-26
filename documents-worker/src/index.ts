@@ -1624,9 +1624,16 @@ export default {
 
         // Soft delete in database
         await env.WELLS_DB.prepare(`
-          UPDATE documents 
-          SET deleted_at = datetime('now', '-6 hours') 
+          UPDATE documents
+          SET deleted_at = datetime('now', '-6 hours')
           WHERE id = ?
+        `).bind(docId).run();
+
+        // Also soft-delete any child documents (for multi-document parents)
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET deleted_at = datetime('now', '-6 hours')
+          WHERE parent_document_id = ? AND deleted_at IS NULL
         `).bind(docId).run();
 
         // Delete from R2

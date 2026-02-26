@@ -8306,7 +8306,7 @@
                 });
             }
 
-            // Handle group checkbox clicks (select/deselect all children in group)
+            // Handle group checkbox clicks (select/deselect all children in group + parent)
             document.querySelectorAll('.group-checkbox').forEach(cb => {
                 // Set indeterminate state
                 if (cb.dataset.indeterminate === 'true') cb.indeterminate = true;
@@ -8314,6 +8314,12 @@
                     const parentId = cb.dataset.parentId;
                     const groupItem = displayDocuments.find(d => d._isGroupRow && d.id === parentId);
                     if (groupItem) {
+                        // Include the parent document itself in the selection
+                        if (e.target.checked) {
+                            selectedDocuments.add(parentId);
+                        } else {
+                            selectedDocuments.delete(parentId);
+                        }
                         groupItem._children.forEach(child => {
                             if (e.target.checked) {
                                 selectedDocuments.add(child.id);
