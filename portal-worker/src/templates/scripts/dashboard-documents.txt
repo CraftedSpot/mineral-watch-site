@@ -7397,7 +7397,7 @@
         let documentPollStartTime;
         let uploadBatchTimer;
         const POLL_INTERVAL = 15000; // 15 seconds
-        const MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
+        const MAX_POLL_DURATION = 10 * 60 * 1000; // 10 minutes
         
         // Document Usage Tracking
         let currentUsageStats = null;

@@ -1869,20 +1869,24 @@ async function showPrescanResults(docId, data) {
         const creditsEl = document.getElementById('creditsAvailable');
         availableCredits = creditsEl ? parseInt(creditsEl.textContent.replace(/,/g, '')) || 0 : 0;
     }
-    const hasEnough = availableCredits >= data.estimated_credits;
+    const estimateLow = data.estimated_credits;
+    const estimateHigh = Math.ceil(data.estimated_credits * 1.5);
+    const hasEnough = availableCredits >= estimateHigh;
     const creditWarning = !hasEnough
-        ? `<p style="margin: 8px 0 0; color: #DC2626; font-size: 13px; font-weight: 500;">Insufficient credits. You have ${availableCredits} available.</p>`
+        ? (availableCredits >= estimateLow
+            ? `<p style="margin: 8px 0 0; color: #D97706; font-size: 13px; font-weight: 500;">You may not have enough credits if actual usage is at the higher end of the estimate.</p>`
+            : `<p style="margin: 8px 0 0; color: #DC2626; font-size: 13px; font-weight: 500;">Insufficient credits. You have ${availableCredits} available.</p>`)
         : '';
 
     prescanDiv.innerHTML = `
         <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 20px; text-align: center;">
             <svg width="32" height="32" fill="none" stroke="#16A34A" viewBox="0 0 24 24" style="margin: 0 auto 8px; display: block;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <p style="margin: 0 0 4px; font-weight: 600; color: #15803D; font-size: 16px;">Found ${data.document_count} document${data.document_count !== 1 ? 's' : ''} in ${data.page_count} pages</p>
-            <p style="margin: 0 0 4px; color: #166534; font-size: 14px;">Estimated credits: <strong>${data.estimated_credits}</strong></p>
+            <p style="margin: 0 0 4px; font-weight: 600; color: #15803D; font-size: 16px;">Found ~${data.document_count} document${data.document_count !== 1 ? 's' : ''} in ${data.page_count} pages</p>
+            <p style="margin: 0 0 4px; color: #166534; font-size: 14px;">Estimated credits: <strong>${estimateLow}–${estimateHigh}</strong></p>
             <p style="margin: 0; color: #64748B; font-size: 12px;">You have ${availableCredits} credits available</p>
             ${creditWarning}
             <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: center;">
-                <button onclick="confirmPrescan('${docId}')" style="padding: 10px 24px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;" ${!hasEnough ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Process All</button>
+                <button onclick="confirmPrescan('${docId}')" style="padding: 10px 24px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;" ${availableCredits < estimateLow ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Process All</button>
                 <button onclick="cancelPrescan()" style="padding: 10px 24px; background: white; color: var(--oil-navy); border: 1px solid #CBD5E1; border-radius: 6px; cursor: pointer; font-size: 14px;">Cancel</button>
             </div>
         </div>
