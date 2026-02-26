@@ -10627,6 +10627,21 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                 if observations:
                     extracted_data["ai_observations"] = observations
 
+        # POST-PROCESSING: Override doc_type when Sonnet's extraction contradicts classification
+        # Stage 1 sometimes misclassifies docs (e.g., correspondence or division order as check_stub).
+        # If Sonnet's own extraction signals a different type, trust Sonnet's reading of the content.
+        original_doc_type = extracted_data.get('doc_type')
+        statement_type = extracted_data.get('statement_type', '')
+        if original_doc_type == 'check_stub':
+            if statement_type == 'correspondence_letter':
+                logger.info(f"Overriding doc_type: check_stub -> correspondence (statement_type={statement_type})")
+                extracted_data['doc_type'] = 'correspondence'
+                extracted_data['_doc_type_overridden'] = f'check_stub -> correspondence'
+            elif statement_type == 'division_order':
+                logger.info(f"Overriding doc_type: check_stub -> division_order (statement_type={statement_type})")
+                extracted_data['doc_type'] = 'division_order'
+                extracted_data['_doc_type_overridden'] = f'check_stub -> division_order'
+
         # POST-PROCESSING: Enforce schema whitelist (strip invented fields)
         extracted_data = enforce_schema_whitelist(extracted_data)
 
