@@ -10977,23 +10977,9 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
         logger.info(f"Single document detected (coarse_type: {coarse_type})")
 
-        # If all pages classified as "other", skip extraction
-        if coarse_type == "other":
-            logger.info(f"Document classified as 'other', skipping extraction")
-            return {
-                "doc_type": "other",
-                "category": "other",
-                "document_confidence": "medium",
-                "classification_model": "heuristics_only",
-                "page_count": len(image_paths),
-                "skip_extraction": True,
-                "ai_observations": "Document type not recognized for automatic extraction.",
-                "split_metadata": split_result.get("split_metadata")
-            }
-
         # Extract the single document with focused prompt based on classification
-        # If coarse_type is "unknown" (heuristics couldn't determine type),
-        # fall back to quick classification result which uses vision on page images
+        # If coarse_type is "other" or "unknown" (heuristics couldn't determine type),
+        # still send to Sonnet — let it classify and extract. Only skip if Sonnet also says "other".
         effective_doc_type = coarse_type if coarse_type not in ("other", "unknown") else None
         if not effective_doc_type and classification.get("doc_type") not in (None, "other", "unknown", "multi_document"):
             effective_doc_type = classification.get("doc_type")
@@ -11036,44 +11022,32 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.info(f"Stage 2: Extracting document {i+1}/{split_result['document_count']} "
                    f"(pages {page_start+1}-{page_end+1}, coarse_type: {coarse_type})")
 
-        # Skip extraction for "other" type chunks
-        if coarse_type == "other":
-            logger.info(f"Document {i+1} classified as 'other', skipping extraction")
-            doc_data = {
-                "doc_type": "other",
-                "category": "other",
-                "skip_extraction": True,
-                "page_count": page_end - page_start + 1,
-                "_start_page": page_start + 1,
-                "_end_page": page_end + 1,
-                "_coarse_type": coarse_type,
-                "_detected_title": detected_title,
-                "_split_reason": chunk.get("split_reason")
-            }
-        else:
-            # Extract the document with focused prompt based on classification
-            doc_data = await extract_single_document(
-                image_paths,
-                page_start + 1,  # Convert to 1-based
-                page_end + 1,
-                ocr_quality_warning,
-                ocr_quality.get('max_confidence'),
-                ocr_quality.get('quality_score'),
-                ocr_quality.get('is_likely_handwritten', False),
-                doc_type=coarse_type if coarse_type != "other" else None,
-                model_override=model_override
-            )
+        # Always send chunks to Sonnet for extraction, even if heuristic said "other".
+        # The heuristic only does text-based boundary detection — Sonnet sees the actual images
+        # and will correctly identify document types the heuristic missed.
+        effective_chunk_type = coarse_type if coarse_type not in ("other", "unknown") else None
+        doc_data = await extract_single_document(
+            image_paths,
+            page_start + 1,  # Convert to 1-based
+            page_end + 1,
+            ocr_quality_warning,
+            ocr_quality.get('max_confidence'),
+            ocr_quality.get('quality_score'),
+            ocr_quality.get('is_likely_handwritten', False),
+            doc_type=effective_chunk_type,
+            model_override=model_override
+        )
 
-            # Add metadata from splitting
-            doc_data["_start_page"] = page_start + 1
-            doc_data["_end_page"] = page_end + 1
-            doc_data["_coarse_type"] = coarse_type
-            doc_data["_detected_title"] = detected_title
-            doc_data["_split_reason"] = chunk.get("split_reason")
+        # Add metadata from splitting
+        doc_data["_start_page"] = page_start + 1
+        doc_data["_end_page"] = page_end + 1
+        doc_data["_coarse_type"] = coarse_type
+        doc_data["_detected_title"] = detected_title
+        doc_data["_split_reason"] = chunk.get("split_reason")
 
-            # Include attachment pages if any
-            if chunk.get("attachment_pages"):
-                doc_data["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
+        # Include attachment pages if any
+        if chunk.get("attachment_pages"):
+            doc_data["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
 
         results["documents"].append(doc_data)
 
