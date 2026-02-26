@@ -350,6 +350,10 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'revenue_statement':
       extractedFieldsHtml = generateCheckStubFields(data.extractedData);
       break;
+    case 'map':
+    case 'plat':
+      extractedFieldsHtml = generateMapFields(data.extractedData);
+      break;
     default:
       extractedFieldsHtml = generateGenericFields(data.extractedData);
   }
@@ -2842,6 +2846,72 @@ function generateOwnershipEntityFields(data: any): string {
     ${dissolutionHtml}
     ${propSection}
     ${execHtml}
+  `;
+}
+
+function generateMapFields(data: any): string {
+  const platInfo = data.plat_info || {};
+  const annotations = data.annotations || {};
+  const sectionsShown = data.sections_shown || [];
+  const mapType = (data.map_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+  // Plat info header
+  const title = platInfo.title || mapType || 'Map';
+  const section = platInfo.section || data.section || '';
+  const township = platInfo.township || data.township || '';
+  const range = platInfo.range || data.range || '';
+  const county = platInfo.county || data.county || '';
+
+  let locationStr = '';
+  if (section && township && range) {
+    locationStr = `Section ${section}-${township}-${range}`;
+  }
+  if (county) locationStr += locationStr ? `, ${county} County` : `${county} County`;
+
+  const platHtml = `
+    <div class="party-box" style="margin-bottom: 16px;">
+      <div class="party-label">${escapeHtml(title)}</div>
+      <div class="party-name">${escapeHtml(locationStr)}</div>
+      ${mapType && mapType !== title ? `<div class="party-detail">${escapeHtml(mapType)}</div>` : ''}
+    </div>
+  `;
+
+  // Sections shown
+  const sectionsHtml = sectionsShown.length > 0 ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Sections Shown</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        ${sectionsShown.map((s: any) => {
+          const sec = s.section || '';
+          const twp = s.township || township || '';
+          const rng = s.range || range || '';
+          return `<span style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 4px; padding: 3px 8px; font-size: 12px; font-weight: 500;">${sec}-${twp}-${rng}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // Handwritten notes / annotations
+  const notes = annotations.handwritten_notes || [];
+  const notesHtml = notes.length > 0 ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Handwritten Notes</div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        ${notes.map((n: any) => `
+          <div style="background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 6px; padding: 10px 12px;">
+            <div style="font-weight: 600; color: #92400E;">${escapeHtml(n.content || '')}</div>
+            ${n.location ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(n.location)}</div>` : ''}
+            ${n.significance ? `<div style="font-size: 12px; color: #78716C; margin-top: 4px; font-style: italic;">${escapeHtml(n.significance)}</div>` : ''}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    ${platHtml}
+    ${sectionsHtml}
+    ${notesHtml}
   `;
 }
 
