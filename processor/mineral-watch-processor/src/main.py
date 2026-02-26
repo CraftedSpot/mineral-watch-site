@@ -23,7 +23,7 @@ from PIL import Image
 from .config import CONFIG
 from .api_client import APIClient
 from .pdf_converter import convert_pdf_to_images
-from .extractor import extract_document_data
+from .extractor import extract_document_data, extract_text_from_pdf, classify_pages, split_pages_into_documents
 from .smart_naming import generate_display_name, generate_display_name_for_child
 from .notifier import send_completion_email, send_failure_email
 
@@ -219,6 +219,59 @@ def rotate_image(image_path: str, degrees: int) -> str:
         raise
 
 
+async def prescan_document(client: APIClient, doc: dict) -> dict:
+    """Run Stage 1 only: text extraction + OCR + classify + split for credit estimation."""
+    doc_id = doc['id']
+    file_path = None
+    image_paths = []
+
+    try:
+        file_path, content_type = await client.download_document(doc_id, doc.get('content_type'))
+
+        if content_type != 'application/pdf':
+            # Non-PDF: no pre-scan needed, just confirm with 1 doc
+            await client.complete_prescan(doc_id, {
+                'page_count': 1, 'document_count': 1,
+                'estimated_credits': 1, 'chunks': []
+            })
+            return {'status': 'prescan_complete', 'user_id': doc.get('user_id')}
+
+        image_paths = await convert_pdf_to_images(file_path)
+        page_texts = extract_text_from_pdf(file_path)
+        page_classifications = await classify_pages(image_paths, page_texts)
+        split_result = split_pages_into_documents(page_classifications)
+
+        # Cache OCR text for later full processing
+        if page_texts and any(t.strip() for t in page_texts):
+            await client.upload_ocr_cache(doc_id, page_texts)
+
+        # Calculate credit estimate
+        chunks = split_result.get('chunks', [])
+        non_other = [c for c in chunks if c.get('coarse_type') != 'other']
+
+        result = {
+            'page_count': len(image_paths),
+            'document_count': len(chunks),
+            'estimated_credits': len(non_other),
+            'chunks': chunks,
+        }
+
+        await client.complete_prescan(doc_id, result)
+        logger.info(f"Prescan complete for {doc_id}: {len(chunks)} docs, {len(non_other)} credits")
+        return {'status': 'prescan_complete', 'user_id': doc.get('user_id')}
+
+    except Exception as e:
+        logger.error(f"Prescan failed for {doc_id}: {e}", exc_info=True)
+        try:
+            await client.complete_prescan(doc_id, {'error': str(e), 'page_count': 0, 'document_count': 0, 'estimated_credits': 0, 'chunks': []})
+        except Exception:
+            pass
+        return {'status': 'failed', 'user_id': doc.get('user_id'), 'error': str(e)}
+
+    finally:
+        cleanup_temp_files(file_path, *image_paths)
+
+
 async def process_document(client: APIClient, doc: dict) -> dict:
     """
     Process a single document through the extraction pipeline.
@@ -306,9 +359,19 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         if model_override:
             logger.info(f"Enhanced extraction enabled — using {model_override}")
 
+        # Check for cached OCR text from prescan
+        cached_page_texts = None
+        if content_type == 'application/pdf':
+            try:
+                cached_page_texts = await client.get_ocr_cache(doc_id)
+                if cached_page_texts:
+                    logger.info(f"Using cached OCR text for {doc_id} ({len(cached_page_texts)} pages)")
+            except Exception as cache_err:
+                logger.warning(f"Failed to fetch OCR cache for {doc_id}: {cache_err}")
+
         # Pass PDF path for deterministic splitting (only for strict PDFs)
         pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and (not use_flexible or known_doc_type)) else None
-        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type, model_override=model_override)
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type, model_override=model_override, cached_page_texts=cached_page_texts)
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):
@@ -450,6 +513,11 @@ async def process_document(client: APIClient, doc: dict) -> dict:
     finally:
         # Cleanup temp files
         cleanup_temp_files(file_path, converted_tiff_path, *image_paths)
+        # Cleanup OCR cache from R2 (if it was used during prescan)
+        try:
+            await client.delete_ocr_cache(doc_id)
+        except Exception:
+            pass
 
 
 async def handle_multi_document(
@@ -631,8 +699,12 @@ async def main():
                     user_id = doc.get('user_id')
                     if user_id:
                         users_in_batch.add(user_id)
-                    
-                    result = await process_document(client, doc)
+
+                    # Route prescan docs to prescan_document(), others to process_document()
+                    if doc.get('prescan_only'):
+                        result = await prescan_document(client, doc)
+                    else:
+                        result = await process_document(client, doc)
                     processing_results.append(result)
                     
                     # Update stats

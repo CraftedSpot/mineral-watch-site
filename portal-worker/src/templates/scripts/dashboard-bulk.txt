@@ -1419,6 +1419,17 @@ function closeUploadModal() {
     // Reset form and progress display
     document.getElementById('documentUploadForm').style.display = 'block';
     document.getElementById('uploadProgress').style.display = 'none';
+
+    // Reset prescan state
+    const prescanDiv = document.getElementById('prescanProgress');
+    if (prescanDiv) {
+        prescanDiv.style.display = 'none';
+        prescanDiv.innerHTML = '';
+    }
+    if (prescanPollTimer) {
+        clearInterval(prescanPollTimer);
+        prescanPollTimer = null;
+    }
 }
 window.closeUploadModal = closeUploadModal;
 
@@ -1586,8 +1597,9 @@ async function displaySelectedFiles() {
 
     // Calculate and display credit estimation
     if (selectedFiles.length > 0) {
-        // Store totalPages globally for updateCreditEstimate
+        // Store page info globally for upload handler
         window._uploadTotalPages = totalPages;
+        window._uploadPageEstimates = pageEstimates;
         document.getElementById('totalPages').textContent = totalPages;
 
         // Calculate credits using shared function
@@ -1657,9 +1669,17 @@ async function handleDocumentUpload(e) {
         formData.append('enhanced', '1');
     }
 
+    // Determine which files need prescan (PDFs with >30 pages)
+    const pageEstimates = window._uploadPageEstimates || [];
+    const PRESCAN_THRESHOLD = 30;
+
     // Use multi-file endpoint if multiple files, otherwise single file endpoint
     if (selectedFiles.length === 1) {
         formData.append('file', selectedFiles[0]);
+        const needsPrescan = selectedFiles[0].type === 'application/pdf' && (pageEstimates[0] || 0) > PRESCAN_THRESHOLD;
+        if (needsPrescan) {
+            formData.append('prescan', '1');
+        }
 
         try {
             const response = await fetch('/api/documents/upload', {
@@ -1667,12 +1687,20 @@ async function handleDocumentUpload(e) {
                 body: formData,
                 credentials: 'include'
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Upload failed');
             }
-            
+
+            const uploadResult = await response.json();
+
+            // If prescan was requested, show scanning UI instead of closing modal
+            if (needsPrescan && uploadResult.document) {
+                showPrescanProgress(uploadResult.document.id, uploadResult.document.filename, pageEstimates[0]);
+                return;
+            }
+
             // Close modal and refresh documents list
             closeUploadModal();
             await loadDocuments();
@@ -1693,47 +1721,62 @@ async function handleDocumentUpload(e) {
         for (const file of selectedFiles) {
             formData.append('files', file);
         }
-        
+
+        // Determine which files need prescan (PDFs with >30 pages)
+        const prescanIndices = [];
+        for (let i = 0; i < selectedFiles.length; i++) {
+            if (selectedFiles[i].type === 'application/pdf' && (pageEstimates[i] || 0) > PRESCAN_THRESHOLD) {
+                prescanIndices.push(i);
+            }
+        }
+        if (prescanIndices.length > 0) {
+            formData.append('prescan_doc_ids', prescanIndices.join(','));
+        }
+
         try {
             const response = await fetch('/api/documents/upload-multiple', {
                 method: 'POST',
                 body: formData,
                 credentials: 'include'
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Upload failed');
             }
-            
+
             const result = await response.json();
-            
-            // Show results
-            let message = `Uploaded: ${result.uploaded} files`;
+
+            // Show results for any failed files
             if (result.failed > 0) {
-                message += `\nFailed: ${result.failed} files`;
+                let message = `Uploaded: ${result.uploaded} files\nFailed: ${result.failed} files`;
                 if (result.errors && result.errors.length > 0) {
                     message += '\n\nErrors:\n' + result.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
                 }
-            }
-            
-            if (result.failed > 0) {
                 alert(message);
             }
-            
-            // Close modal and refresh documents list
-            closeUploadModal();
-            await loadDocuments();
 
-            // Refresh credit display after upload
-            loadUsageStats();
+            // Check if any uploaded files went to prescan
+            const prescanResults = (result.results || []).filter(r => r.status === 'pending_prescan');
+            const normalCount = (result.results || []).filter(r => r.status === 'pending').length;
 
-            // Show processing notification for any upload
-            if (result.uploaded >= 1) {
-                showBulkProcessingModal(result.uploaded);
+            if (prescanResults.length > 0 && prescanResults.length === result.uploaded) {
+                // ALL files need prescan — show prescan UI for the first one
+                // (others will show as "Scanning..." in the document list)
+                showPrescanProgress(prescanResults[0].id, prescanResults[0].filename, pageEstimates[prescanIndices[0]]);
+                return;
             }
 
-            // Trigger debounced polling
+            // Close modal — small files start processing immediately.
+            // Prescan files (if any) will show "Scanning..." / "Ready to process" in the doc list.
+            closeUploadModal();
+            await loadDocuments();
+            loadUsageStats();
+
+            if (normalCount >= 1) {
+                showBulkProcessingModal(normalCount);
+            }
+
             onDocumentUploaded();
         } catch (error) {
             alert('Upload failed: ' + error.message);
@@ -1744,6 +1787,137 @@ async function handleDocumentUpload(e) {
     }
 }
 
+// ============================================
+// PRESCAN UI
+// ============================================
+
+function showPrescanProgress(docId, filename, pageCount) {
+    // Hide upload form and progress, show prescan section
+    document.getElementById('documentUploadForm').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'none';
+
+    const prescanDiv = document.getElementById('prescanProgress');
+    if (!prescanDiv) return;
+
+    prescanDiv.style.display = 'block';
+    prescanDiv.innerHTML = `
+        <div style="background: #E0F2FE; border-radius: 8px; padding: 20px; text-align: center;">
+            <div class="spinner" style="width: 28px; height: 28px; border: 3px solid #60A5FA; border-top: 3px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+            <p style="margin: 0 0 6px; color: #1E40AF; font-weight: 600; font-size: 15px;">Analyzing document structure...</p>
+            <p style="margin: 0; color: #3B82F6; font-size: 13px;">${filename} (${pageCount} pages)</p>
+            <p style="margin: 8px 0 0; color: #64748B; font-size: 12px;">This may take 1-2 minutes for large documents</p>
+        </div>
+    `;
+
+    // Start polling
+    pollPrescan(docId);
+}
+
+let prescanPollTimer = null;
+let prescanPollStart = null;
+
+function pollPrescan(docId) {
+    prescanPollStart = Date.now();
+    const POLL_INTERVAL = 3000;
+    const TIMEOUT = 120000; // 2 minutes
+
+    async function poll() {
+        try {
+            const response = await fetch(`/api/documents/${docId}/prescan`, { credentials: 'include' });
+            if (!response.ok) throw new Error('Failed to check prescan status');
+
+            const data = await response.json();
+
+            if (data.status === 'prescan_complete') {
+                clearInterval(prescanPollTimer);
+                showPrescanResults(docId, data);
+                return;
+            }
+
+            // Check timeout
+            if (Date.now() - prescanPollStart > TIMEOUT) {
+                clearInterval(prescanPollTimer);
+                showPrescanTimeout(docId);
+                return;
+            }
+        } catch (err) {
+            console.error('Prescan poll error:', err);
+        }
+    }
+
+    prescanPollTimer = setInterval(poll, POLL_INTERVAL);
+    poll(); // Run immediately
+}
+
+function showPrescanResults(docId, data) {
+    const prescanDiv = document.getElementById('prescanProgress');
+    if (!prescanDiv) return;
+
+    // Get available credits from the page (already loaded)
+    const creditsEl = document.getElementById('creditsAvailable');
+    const availableCredits = creditsEl ? parseInt(creditsEl.textContent) || 0 : 0;
+    const hasEnough = availableCredits >= data.estimated_credits;
+    const creditWarning = !hasEnough
+        ? `<p style="margin: 8px 0 0; color: #DC2626; font-size: 13px; font-weight: 500;">Insufficient credits. You have ${availableCredits} available.</p>`
+        : '';
+
+    prescanDiv.innerHTML = `
+        <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 20px; text-align: center;">
+            <svg width="32" height="32" fill="none" stroke="#16A34A" viewBox="0 0 24 24" style="margin: 0 auto 8px; display: block;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <p style="margin: 0 0 4px; font-weight: 600; color: #15803D; font-size: 16px;">Found ${data.document_count} document${data.document_count !== 1 ? 's' : ''} in ${data.page_count} pages</p>
+            <p style="margin: 0 0 4px; color: #166534; font-size: 14px;">Estimated credits: <strong>${data.estimated_credits}</strong></p>
+            <p style="margin: 0; color: #64748B; font-size: 12px;">You have ${availableCredits} credits available</p>
+            ${creditWarning}
+            <div style="margin-top: 16px; display: flex; gap: 12px; justify-content: center;">
+                <button onclick="confirmPrescan('${docId}')" style="padding: 10px 24px; background: var(--success); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;" ${!hasEnough ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}>Process All</button>
+                <button onclick="cancelPrescan()" style="padding: 10px 24px; background: white; color: var(--oil-navy); border: 1px solid #CBD5E1; border-radius: 6px; cursor: pointer; font-size: 14px;">Cancel</button>
+            </div>
+        </div>
+    `;
+}
+
+function showPrescanTimeout(docId) {
+    const prescanDiv = document.getElementById('prescanProgress');
+    if (!prescanDiv) return;
+
+    prescanDiv.innerHTML = `
+        <div style="background: #FEF3C7; border: 1px solid #FCD34D; border-radius: 8px; padding: 20px; text-align: center;">
+            <p style="margin: 0 0 8px; font-weight: 600; color: #92400E; font-size: 15px;">Pre-scan is taking longer than expected</p>
+            <p style="margin: 0 0 16px; color: #78716C; font-size: 13px;">The document may be very large or complex.</p>
+            <div style="display: flex; gap: 12px; justify-content: center;">
+                <button onclick="confirmPrescan('${docId}')" style="padding: 10px 20px; background: #F59E0B; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">Process Anyway</button>
+                <button onclick="pollPrescan('${docId}'); prescanPollStart = Date.now();" style="padding: 10px 20px; background: white; color: var(--oil-navy); border: 1px solid #CBD5E1; border-radius: 6px; cursor: pointer; font-size: 14px;">Keep Waiting</button>
+            </div>
+        </div>
+    `;
+}
+
+async function confirmPrescan(docId) {
+    try {
+        const response = await fetch(`/api/documents/${docId}/confirm-processing`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to confirm processing');
+        }
+
+        closeUploadModal();
+        await loadDocuments();
+        loadUsageStats();
+        onDocumentUploaded();
+    } catch (err) {
+        alert('Error: ' + err.message);
+    }
+}
+
+function cancelPrescan() {
+    if (prescanPollTimer) clearInterval(prescanPollTimer);
+    closeUploadModal();
+    loadDocuments();
+}
+
 // Expose document functions to window
 window.handleDocumentFileDrop = handleDocumentFileDrop;
 window.handleDocumentDragOver = handleDocumentDragOver;
@@ -1751,6 +1925,9 @@ window.handleDocumentDragLeave = handleDocumentDragLeave;
 window.handleDocumentFileSelect = handleDocumentFileSelect;
 window.clearSelectedFile = clearSelectedFile;
 window.handleDocumentUpload = handleDocumentUpload;
+window.confirmPrescan = confirmPrescan;
+window.cancelPrescan = cancelPrescan;
+window.pollPrescan = pollPrescan;
 
 // ============================================
 // PHOTO UPLOAD FEATURE (Mobile-Friendly)

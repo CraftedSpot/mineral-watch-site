@@ -29,7 +29,7 @@ const CREDIT_PACK_PRICES: Record<string, { credits: number; name: string; price:
 };
 
 // Upload limits
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB per file (Workers body limit)
+const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB per file
 const MAX_TOTAL_UPLOAD_SIZE = 500 * 1024 * 1024; // 500MB total per upload
 const MAX_FILES_PER_UPLOAD = 500;
 
@@ -535,7 +535,8 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'extraction_error', type: 'TEXT' },
     { name: 'source_metadata', type: 'TEXT' },  // JSON: { type, api, url, uploadedAt }
     { name: 'user_email', type: 'TEXT' },
-    { name: 'user_name', type: 'TEXT' }
+    { name: 'user_name', type: 'TEXT' },
+    { name: 'prescan_result', type: 'TEXT' }
   ];
 
   for (const column of columnsToAdd) {
@@ -932,7 +933,7 @@ export default {
         }
 
         if (file.size > MAX_FILE_SIZE) {
-          return errorResponse('File too large. Maximum size is 100MB', 400, env);
+          return errorResponse('File too large. Maximum size is 200MB', 400, env);
         }
 
         // Generate unique document ID with correct extension
@@ -959,30 +960,34 @@ export default {
         const userEmail = user.email || user.fields?.Email || null;
         const userName = user.name || user.fields?.Name || null;
         const enhanced = formData.get('enhanced') === '1' ? 1 : 0;
+        const prescan = formData.get('prescan') === '1';
 
-        // Server-side credit check before accepting upload
-        const creditsNeeded = enhanced ? 2 : 1;
-        const usageService = new UsageTrackingService(env.WELLS_DB);
-        const creditUserId = userOrg || user.id;
-        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
-        if (creditCheck.totalAvailable < creditsNeeded) {
-          return errorResponse(
-            `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
-            402, env
-          );
+        // Server-side credit check before accepting upload (skip for prescan - credits checked at confirm)
+        if (!prescan) {
+          const creditsNeeded = enhanced ? 2 : 1;
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditUserId = userOrg || user.id;
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+          if (creditCheck.totalAvailable < creditsNeeded) {
+            return errorResponse(
+              `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+              402, env
+            );
+          }
         }
 
-        // All files (PDF and images) go to pending status for processing
-        // The processor handles different file types appropriately
+        // For prescan PDFs, set pending_prescan; otherwise go straight to pending
+        const initialStatus = prescan ? 'pending_prescan' : 'pending';
+
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id,
             file_size, status, upload_date, queued_at, user_plan, content_type,
             user_email, user_name, enhanced_extraction
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName, enhanced).run();
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, initialStatus, userPlan, file.type, userEmail, userName, enhanced).run();
 
-        console.log('Document uploaded successfully:', docId);
+        console.log('Document uploaded successfully:', docId, 'status:', initialStatus);
 
         return jsonResponse({
           success: true,
@@ -990,7 +995,7 @@ export default {
             id: docId,
             filename: file.name,
             size: file.size,
-            status: 'pending'
+            status: initialStatus
           }
         }, 200, env);
       } catch (error) {
@@ -1038,11 +1043,14 @@ export default {
         const userEmail = user.email || user.fields?.Email || null;
         const userName = user.name || user.fields?.Name || null;
         const enhanced = formData.get('enhanced') === '1' ? 1 : 0;
+        const prescanDocIds = formData.get('prescan_doc_ids'); // comma-separated doc indices that need prescan
+        const prescanSet = new Set(prescanDocIds ? prescanDocIds.toString().split(',').map(Number) : []);
 
-        // Server-side credit check before accepting upload
+        // Server-side credit check before accepting upload (exclude prescan files)
         const creditsPerDoc = enhanced ? 2 : 1;
         const validFiles = files.filter(f => isAllowedFileType(f.type) && f.size <= MAX_FILE_SIZE);
-        const creditsNeeded = validFiles.length * creditsPerDoc;
+        const nonPrescanCount = validFiles.filter((_, i) => !prescanSet.has(i)).length;
+        const creditsNeeded = nonPrescanCount * creditsPerDoc;
         const usageService = new UsageTrackingService(env.WELLS_DB);
         const creditUserId = userOrg || user.id;
         const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
@@ -1070,7 +1078,7 @@ export default {
             if (file.size > MAX_FILE_SIZE) {
               errors.push({
                 filename: file.name,
-                error: 'File too large. Maximum size is 100MB'
+                error: 'File too large. Maximum size is 200MB'
               });
               continue;
             }
@@ -1088,20 +1096,21 @@ export default {
               }
             });
 
-            // All files (PDF and images) go to pending status for processing
+            const fileStatus = prescanSet.has(i) ? 'pending_prescan' : 'pending';
             await env.WELLS_DB.prepare(`
               INSERT INTO documents (
                 id, r2_key, filename, original_filename, user_id, organization_id,
                 file_size, status, upload_date, queued_at, user_plan, content_type,
                 user_email, user_name, enhanced_extraction
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName, enhanced).run();
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, fileStatus, userPlan, file.type, userEmail, userName, enhanced).run();
 
             results.push({
               success: true,
               id: docId,
               filename: file.name,
               size: file.size,
+              status: fileStatus,
             });
           } catch (fileError) {
             console.error(`Error uploading file ${file.name}:`, fileError);
@@ -1121,6 +1130,73 @@ export default {
       } catch (error) {
         console.error('Multi-upload error:', error);
         return errorResponse('Multi-upload failed', 500, env);
+      }
+    }
+
+    // Route: GET /api/documents/:id/prescan - Get prescan status/result
+    if (path.match(/^\/api\/documents\/[^\/]+\/prescan$/) && request.method === 'GET') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      try {
+        const doc = await env.WELLS_DB.prepare(
+          `SELECT status, prescan_result FROM documents WHERE id = ? AND user_id = ? AND deleted_at IS NULL`
+        ).bind(docId, user.id).first() as any;
+        if (!doc) return errorResponse('Document not found', 404, env);
+
+        if (doc.status === 'pending_prescan') {
+          return jsonResponse({ status: 'scanning' }, 200, env);
+        } else if (doc.status === 'prescan_complete' && doc.prescan_result) {
+          return jsonResponse({ status: 'prescan_complete', ...JSON.parse(doc.prescan_result) }, 200, env);
+        } else {
+          return jsonResponse({ status: doc.status }, 200, env);
+        }
+      } catch (error) {
+        console.error('Prescan status error:', error);
+        return errorResponse('Failed to get prescan status', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/:id/confirm-processing - Confirm prescan → start processing
+    if (path.match(/^\/api\/documents\/[^\/]+\/confirm-processing$/) && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      try {
+        const doc = await env.WELLS_DB.prepare(
+          `SELECT status, user_id, organization_id, user_plan, enhanced_extraction FROM documents WHERE id = ? AND user_id = ? AND deleted_at IS NULL`
+        ).bind(docId, user.id).first() as any;
+        if (!doc) return errorResponse('Document not found', 404, env);
+        if (doc.status !== 'prescan_complete') {
+          return errorResponse('Document is not in prescan_complete status', 400, env);
+        }
+
+        // Credit check before confirming processing
+        const userPlan = doc.user_plan || 'Free';
+        const creditUserId = doc.organization_id || user.id;
+        const creditsNeeded = doc.enhanced_extraction === 1 ? 2 : 1;
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+        if (creditCheck.totalAvailable < creditsNeeded) {
+          return errorResponse(
+            `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+            402, env
+          );
+        }
+
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET status = 'pending',
+              processing_attempts = 0
+          WHERE id = ?
+        `).bind(docId).run();
+        console.log(`[Prescan] Confirmed processing for ${docId}`);
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('Confirm processing error:', error);
+        return errorResponse('Failed to confirm processing', 500, env);
       }
     }
 
@@ -1743,18 +1819,29 @@ export default {
             AND extraction_started_at < datetime('now', '-6 hours', '-10 minutes')
         `).run();
 
-        // Get documents with status='pending' that haven't exceeded retry limit
+        // Auto-promote orphaned pre-scans (user closed modal / navigated away)
+        // If pending_prescan for >10 min with no prescan result, promote to pending
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET status = 'pending'
+          WHERE status = 'pending_prescan'
+            AND prescan_result IS NULL
+            AND deleted_at IS NULL
+            AND upload_date < datetime('now', '-6 hours', '-10 minutes')
+        `).run();
+
+        // Get documents for processing: pending (normal) + pending_prescan (prescan-only)
         // Round-robin by user so bulk uploaders (e.g. harvester) don't starve real users
         // Real users are prioritized over system_harvester within each round-robin slot
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id,
                  file_size, upload_date, page_count, processing_attempts, user_plan, content_type,
-                 source_metadata, enhanced_extraction
+                 source_metadata, enhanced_extraction, status as queue_status
           FROM (
             SELECT *,
               ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY upload_date ASC) as user_queue_pos
             FROM documents
-            WHERE status = 'pending'
+            WHERE (status = 'pending' OR status = 'pending_prescan')
               AND processing_attempts < 3
               AND deleted_at IS NULL
           )
@@ -1768,13 +1855,24 @@ export default {
           return jsonResponse({ documents: [], count: 0 }, 200, env);
         }
 
-        // Check credits for each user and separate documents
+        // Separate prescan docs from normal processing docs
+        const prescanDocs: any[] = [];
+        const normalDocs: any[] = [];
+        for (const doc of results.results) {
+          if (doc.queue_status === 'pending_prescan') {
+            prescanDocs.push({ ...doc, prescan_only: true });
+          } else {
+            normalDocs.push(doc);
+          }
+        }
+
+        // Check credits for normal docs (prescan docs skip credit check)
         const usageService = new UsageTrackingService(env.WELLS_DB);
         const userCreditCache: Record<string, { hasCredits: boolean; creditsRemaining: number }> = {};
-        const docsToProcess: any[] = [];
+        const docsToProcess: any[] = [...prescanDocs]; // prescan docs always proceed
         const docsNoCredits: string[] = [];
 
-        for (const doc of results.results) {
+        for (const doc of normalDocs) {
           const userId = doc.user_id as string;
           const userPlan = (doc.user_plan as string) || 'Free';
 
@@ -1824,9 +1922,10 @@ export default {
           console.log(`[Queue] Marked ${docsNoCredits.length} documents as 'unprocessed' (no credits)`);
         }
 
-        // Mark documents with credits as 'processing'
-        if (docsToProcess.length > 0) {
-          const docIds = docsToProcess.map(doc => doc.id);
+        // Mark normal docs as 'processing', prescan docs stay as 'pending_prescan'
+        const normalToProcess = docsToProcess.filter(d => !d.prescan_only);
+        if (normalToProcess.length > 0) {
+          const docIds = normalToProcess.map(doc => doc.id);
           const placeholders = docIds.map(() => '?').join(',');
           await env.WELLS_DB.prepare(`
             UPDATE documents
@@ -1835,6 +1934,18 @@ export default {
                 processing_attempts = processing_attempts + 1
             WHERE id IN (${placeholders})
           `).bind(...docIds).run();
+        }
+
+        // Mark prescan docs - increment attempts to prevent re-fetching
+        if (prescanDocs.length > 0) {
+          const prescanIds = prescanDocs.map(doc => doc.id);
+          const placeholders = prescanIds.map(() => '?').join(',');
+          await env.WELLS_DB.prepare(`
+            UPDATE documents
+            SET extraction_started_at = datetime('now', '-6 hours'),
+                processing_attempts = processing_attempts + 1
+            WHERE id IN (${placeholders})
+          `).bind(...prescanIds).run();
         }
 
         return jsonResponse({
@@ -2671,6 +2782,105 @@ export default {
       }
     }
 
+    // Route: POST /api/processing/prescan-complete/:id - Store prescan result
+    if (path.match(/^\/api\/processing\/prescan-complete\/[^\/]+$/) && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+      try {
+        const data = await request.json() as any;
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET prescan_result = ?,
+              status = 'prescan_complete',
+              page_count = ?
+          WHERE id = ?
+        `).bind(JSON.stringify(data), data.page_count || null, docId).run();
+        console.log(`[Prescan] Complete for ${docId}:`, JSON.stringify(data).slice(0, 200));
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('Prescan complete error:', error);
+        return errorResponse('Failed to store prescan result', 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/ocr-cache/:id - Upload OCR text cache
+    if (path.match(/^\/api\/processing\/ocr-cache\/[^\/]+$/) && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+      try {
+        const doc = await env.WELLS_DB.prepare(
+          `SELECT r2_key FROM documents WHERE id = ?`
+        ).bind(docId).first() as any;
+        if (!doc) return errorResponse('Document not found', 404, env);
+
+        const data = await request.json();
+        await env.UPLOADS_BUCKET.put(`${doc.r2_key}.ocr.json`, JSON.stringify(data), {
+          httpMetadata: { contentType: 'application/json' }
+        });
+        console.log(`[OCR Cache] Stored for ${docId} at ${doc.r2_key}.ocr.json`);
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('OCR cache upload error:', error);
+        return errorResponse('Failed to store OCR cache', 500, env);
+      }
+    }
+
+    // Route: GET /api/processing/ocr-cache/:id - Get OCR text cache
+    if (path.match(/^\/api\/processing\/ocr-cache\/[^\/]+$/) && request.method === 'GET') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+      try {
+        const doc = await env.WELLS_DB.prepare(
+          `SELECT r2_key FROM documents WHERE id = ?`
+        ).bind(docId).first() as any;
+        if (!doc) return errorResponse('Document not found', 404, env);
+
+        const obj = await env.UPLOADS_BUCKET.get(`${doc.r2_key}.ocr.json`);
+        if (!obj) return errorResponse('No OCR cache found', 404, env);
+
+        const data = await obj.json();
+        return jsonResponse(data, 200, env);
+      } catch (error) {
+        console.error('OCR cache get error:', error);
+        return errorResponse('Failed to get OCR cache', 500, env);
+      }
+    }
+
+    // Route: DELETE /api/processing/ocr-cache/:id - Delete OCR text cache
+    if (path.match(/^\/api\/processing\/ocr-cache\/[^\/]+$/) && request.method === 'DELETE') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+      try {
+        const doc = await env.WELLS_DB.prepare(
+          `SELECT r2_key FROM documents WHERE id = ?`
+        ).bind(docId).first() as any;
+        if (!doc) return errorResponse('Document not found', 404, env);
+
+        await env.UPLOADS_BUCKET.delete(`${doc.r2_key}.ocr.json`);
+        console.log(`[OCR Cache] Deleted for ${docId}`);
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('OCR cache delete error:', error);
+        return errorResponse('Failed to delete OCR cache', 500, env);
+      }
+    }
+
     // Route: POST /api/processing/split/:id - Create child documents for multi-document PDF
     if (path.match(/^\/api\/processing\/split\/[^\/]+$/) && request.method === 'POST') {
       // Verify processing API key
@@ -3199,7 +3409,7 @@ export default {
         }
 
         if (file.size > MAX_FILE_SIZE) {
-          return errorResponse('File too large. Maximum size is 100MB', 400, env);
+          return errorResponse('File too large. Maximum size is 200MB', 400, env);
         }
 
         // Generate unique document ID

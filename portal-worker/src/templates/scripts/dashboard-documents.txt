@@ -7357,6 +7357,22 @@
         
         // Make functions available globally
         window.viewDocumentInModal = viewDocumentInModal;
+        window.confirmPrescanFromList = async function(docId) {
+            try {
+                const response = await fetch(`/api/documents/${docId}/confirm-processing`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to confirm processing');
+                }
+                loadDocuments();
+                if (typeof loadUsageStats === 'function') loadUsageStats();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+        };
         window.closeDocumentViewer = closeDocumentViewer;
         window.downloadCurrentDocument = downloadCurrentDocument;
         window.downloadDocument = downloadDocument;
@@ -7983,11 +7999,15 @@
                 statusColor = '#D97706'; statusText = 'Review'; statusClass = 'manual_review';
             } else if (doc.status === 'pending') {
                 statusColor = '#F59E0B'; statusText = 'Queued'; statusClass = 'pending';
+            } else if (doc.status === 'pending_prescan') {
+                statusColor = '#3B82F6'; statusText = 'Scanning...'; statusClass = 'pending_prescan';
+            } else if (doc.status === 'prescan_complete') {
+                statusColor = '#16A34A'; statusText = 'Ready to process'; statusClass = 'prescan_complete';
             } else {
                 statusColor = '#F59E0B'; statusText = 'Processing'; statusClass = 'processing';
             }
 
-            const statusStyle = (doc.status === 'processing' || doc.status === 'pending')
+            const statusStyle = (doc.status === 'processing' || doc.status === 'pending' || doc.status === 'pending_prescan')
                 ? 'animation: pulse 1.5s ease-in-out infinite;' : '';
 
             const confidenceDisplay = (doc.status === 'complete' && confidenceScore !== null)
@@ -8023,8 +8043,11 @@
             row += `<td><strong>${filename}</strong></td>`;
             row += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
             row += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
+            const prescanBtn = doc.status === 'prescan_complete'
+                ? ` <button onclick="event.stopPropagation(); confirmPrescanFromList('${doc.id}')" style="padding: 1px 8px; border-radius: 8px; font-size: 11px; font-weight: 600; background: #16A34A; color: white; border: none; cursor: pointer; margin-left: 4px;">Process</button>`
+                : '';
             row += `<td>
-                <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}${confidenceDisplay}</span>${extractionBadge}
+                <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}${confidenceDisplay}</span>${extractionBadge}${prescanBtn}
                 <span class="status-dot ${statusClass}" title="${dotTitle}"></span>
             </td>`;
             row += `<td>${uploadDate}</td>`;

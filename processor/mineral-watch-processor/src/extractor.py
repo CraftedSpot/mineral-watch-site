@@ -10682,7 +10682,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         return {"error": "Failed to parse response", "raw_response": response_text}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None, model_override: str = None) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None, model_override: str = None, cached_page_texts: list[str] = None) -> dict:
     """
     Main entry point for document extraction.
     Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
@@ -10810,7 +10810,12 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
     # Extract text from PDF for heuristic checks (continuation patterns, etc.)
     # This is critical for detecting "FORMATION RECORD" on page 2 of Form 1002A
-    page_texts = extract_text_from_pdf(pdf_path) if pdf_path else None
+    # Use cached OCR text if available (from prescan) to avoid re-running Tesseract
+    if cached_page_texts:
+        page_texts = cached_page_texts
+        logger.info(f"Using cached OCR text ({len(page_texts)} pages)")
+    else:
+        page_texts = extract_text_from_pdf(pdf_path) if pdf_path else None
 
     # Log extracted text info
     if page_texts:

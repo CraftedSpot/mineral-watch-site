@@ -119,6 +119,57 @@ class APIClient:
             response.raise_for_status()
             logger.info(f"Split document {doc_id} into {len(children)} children")
     
+    async def complete_prescan(self, doc_id: str, result: dict) -> None:
+        """Update document with prescan results."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url}/api/processing/prescan-complete/{doc_id}",
+                headers=self.headers,
+                json=result
+            )
+            response.raise_for_status()
+            logger.info(f"Prescan complete for {doc_id}: {len(result.get('chunks', []))} chunks")
+
+    async def upload_ocr_cache(self, doc_id: str, page_texts: list[str]) -> None:
+        """Upload OCR text cache to R2."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url}/api/processing/ocr-cache/{doc_id}",
+                headers=self.headers,
+                json=page_texts
+            )
+            response.raise_for_status()
+            logger.info(f"Uploaded OCR cache for {doc_id} ({len(page_texts)} pages)")
+
+    async def get_ocr_cache(self, doc_id: str) -> Optional[list[str]]:
+        """Get cached OCR text from R2. Returns None if no cache."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            try:
+                response = await client.get(
+                    f"{self.base_url}/api/processing/ocr-cache/{doc_id}",
+                    headers=self.headers
+                )
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError:
+                return None
+
+    async def delete_ocr_cache(self, doc_id: str) -> None:
+        """Delete OCR text cache from R2."""
+        async with httpx.AsyncClient(timeout=60) as client:
+            try:
+                response = await client.delete(
+                    f"{self.base_url}/api/processing/ocr-cache/{doc_id}",
+                    headers=self.headers
+                )
+                if response.status_code != 404:
+                    response.raise_for_status()
+                logger.info(f"Deleted OCR cache for {doc_id}")
+            except httpx.HTTPStatusError as e:
+                logger.warning(f"Failed to delete OCR cache for {doc_id}: {e}")
+
     async def get_user_info(self, user_id: str) -> Optional[dict]:
         """Get user info for notifications."""
         async with httpx.AsyncClient(timeout=30) as client:
