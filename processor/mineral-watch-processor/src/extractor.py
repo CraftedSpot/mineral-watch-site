@@ -10767,20 +10767,20 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         logger.error(f"Full response was: {response_text}")
 
         # Recovery attempt: try to extract JSON from the raw response fresh
-        # This handles cases where Strategy 1 incorrectly truncated the JSON
-        # (e.g., backticks inside JSON string values confused fence detection)
+        # This handles cases where Strategy 1 incorrectly truncated the JSON,
+        # backticks inside JSON strings, or unescaped control characters
         try:
             recovery_text = response_text.strip()
-            # Strip code fences aggressively
-            if "```" in recovery_text:
-                # Remove everything before the first {
-                brace_start = recovery_text.find("{")
-                if brace_start != -1:
-                    recovery_text = recovery_text[brace_start:]
+            # Strip code fences aggressively — find first { and last }
+            brace_start = recovery_text.find("{")
+            if brace_start != -1:
+                recovery_text = recovery_text[brace_start:]
                 # Remove everything after the last }
                 brace_end = recovery_text.rfind("}")
                 if brace_end != -1:
                     recovery_text = recovery_text[:brace_end + 1]
+            # Sanitize control characters (Sonnet puts literal newlines in string values)
+            recovery_text = sanitize_json_control_chars(recovery_text)
             recovered = json.loads(recovery_text)
             logger.info(f"Recovery successful! Extracted doc_type: {recovered.get('doc_type')}")
             return recovered
