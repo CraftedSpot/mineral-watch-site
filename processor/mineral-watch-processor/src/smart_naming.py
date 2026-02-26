@@ -2267,6 +2267,7 @@ NAMING_FUNCTIONS = {
     'trust_funding': name_trust_funding,
     'limited_partnership': name_limited_partnership,
     'assignment_of_lease': name_assignment_of_lease,
+    'assignment_and_bill_of_sale': name_assignment_of_lease,
     'quit_claim_deed': name_quit_claim_deed,
     'completion_report': name_completion_report,
     'lease_production': name_lease_production,

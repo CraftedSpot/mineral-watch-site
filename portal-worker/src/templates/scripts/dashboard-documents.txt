@@ -452,6 +452,7 @@
                         'royalty_deed': 'royalty_deed',
                         'assignment': 'assignment',
                         'assignment_of_lease': 'assignment',
+                        'assignment_and_bill_of_sale': 'assignment',
                         'ratification': 'ratification',
                         'right_of_way': 'right_of_way',
 
@@ -2495,7 +2496,7 @@
                                         </div>`;
                                 });
                                 sectionContent += `</div>`;
-                            } else if (fieldName === 'assignors' && data.doc_type === 'assignment_of_lease') {
+                            } else if (fieldName === 'assignors' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                                 // Special handling for assignors array (assignment_of_lease schema)
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
                                 value.forEach(assignor => {
@@ -2514,7 +2515,7 @@
                                         </div>`;
                                 });
                                 sectionContent += `</div>`;
-                            } else if (fieldName === 'assignees' && data.doc_type === 'assignment_of_lease') {
+                            } else if (fieldName === 'assignees' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                                 // Special handling for assignees array (assignment_of_lease schema)
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
                                 value.forEach(assignee => {
@@ -4667,7 +4668,7 @@
                                         </div>
                                     </div>`;
                             }
-                        } else if (fieldName === 'interest_assigned' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                        } else if (fieldName === 'interest_assigned' && typeof value === 'object' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                             // Special handling for interest_assigned object (assignment_of_lease schema)
                             hasVisibleFields = true;
                             const type = value.type || '';
@@ -4702,7 +4703,7 @@
                                         ${formations.length > 0 ? `<div style="margin-top: 6px;"><span style="color: #6B7280; font-size: 12px;">Formations:</span> <strong style="color: ${textColor};">${formations.map(f => escapeHtml(f)).join(', ')}</strong></div>` : ''}
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'retained_interests' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                        } else if (fieldName === 'retained_interests' && typeof value === 'object' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                             // Special handling for retained_interests object (assignment_of_lease schema)
                             hasVisibleFields = true;
                             const hasRetained = value.has_retained_interest;
@@ -4739,7 +4740,7 @@
                                         </div>
                                     </div>`;
                             }
-                        } else if (fieldName === 'subject_to' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                        } else if (fieldName === 'subject_to' && typeof value === 'object' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                             // Special handling for subject_to object (assignment_of_lease schema)
                             if (value.has_subject_to_clause) {
                                 hasVisibleFields = true;
@@ -4761,7 +4762,7 @@
                                         </div>
                                     </div>`;
                             }
-                        } else if (fieldName === 'underlying_lease' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                        } else if (fieldName === 'underlying_lease' && typeof value === 'object' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                             // Special handling for underlying_lease object (assignment_of_lease schema)
                             hasVisibleFields = true;
                             const leaseDate = value.lease_date || '';
@@ -4797,7 +4798,7 @@
                                         ${leaseDescription ? `<div style="margin-top: 8px; font-size: 13px; color: #374151; font-style: italic;">${escapeHtml(leaseDescription)}</div>` : ''}
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'warranties' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                        } else if (fieldName === 'warranties' && typeof value === 'object' && ( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' )) {
                             // Special handling for warranties object (assignment_of_lease schema)
                             hasVisibleFields = true;
                             const hasWarranty = value.has_warranty;
@@ -5016,7 +5017,7 @@
                                         </div>
                                     </div>`;
                             }
-                        } else if (fieldName === 'annotations' && typeof value === 'object' && (data.doc_type === 'assignment_of_lease' || data.doc_type === 'quit_claim_deed')) {
+                        } else if (fieldName === 'annotations' && typeof value === 'object' && (( data.doc_type === 'assignment_of_lease' || data.doc_type === 'assignment_and_bill_of_sale' ) || data.doc_type === 'quit_claim_deed')) {
                             // Special handling for annotations object (assignment_of_lease and quit_claim_deed schemas)
                             if (value.has_annotations) {
                                 hasVisibleFields = true;
@@ -8177,7 +8178,7 @@
                 if (doc.enhanced_extraction === 1) {
                     extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #EDE9FE; color: #7C3AED; margin-left: 4px;" title="Enhanced extraction (Opus)">AI+</span>';
                 } else {
-                    extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #FEF3C7; color: #92400E; margin-left: 4px;" title="Standard extraction">STD</span>';
+                    extractionBadge = ' <span class="status-text" style="padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; background: #FEF3C7; color: #92400E; margin-left: 4px;" title="Standard extraction">Base</span>';
                 }
             }
 

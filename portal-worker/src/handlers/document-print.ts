@@ -320,6 +320,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       break;
     case 'assignment_of_lease':
     case 'assignment':
+    case 'assignment_and_bill_of_sale':
       extractedFieldsHtml = generateAssignmentFields(data.extractedData);
       break;
     case 'change_of_operator_order':
