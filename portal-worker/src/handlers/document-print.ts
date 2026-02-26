@@ -338,6 +338,12 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'transmittal':
       extractedFieldsHtml = generateCorrespondenceFields(data.extractedData);
       break;
+    case 'ownership_entity':
+    case 'partnership_agreement':
+    case 'trust_document':
+    case 'corporate_entity':
+      extractedFieldsHtml = generateOwnershipEntityFields(data.extractedData);
+      break;
     case 'check_stub':
     case 'royalty_statement':
     case 'revenue_statement':
@@ -2683,6 +2689,158 @@ function generateCheckStubFields(data: any): string {
 
     ${wellsHtml}
     ${summaryHtml}
+  `;
+}
+
+function generateOwnershipEntityFields(data: any): string {
+  const entityInfo = data.entity_info || {};
+  const term = data.term || {};
+  const office = data.principal_office || {};
+  const generalPartners = data.general_partners || [];
+  const limitedPartners = data.limited_partners || [];
+  const members = data.members || [];
+  const businessPurpose = data.business_purpose || {};
+  const executionInfo = data.execution_info || {};
+  const referencedProperty = data.referenced_property || data.property || {};
+  const management = data.management_provisions || {};
+  const assignment = data.assignment_provisions || {};
+  const succession = data.succession_provisions || {};
+  const dissolution = data.dissolution_provisions || {};
+  const contribution = data.contribution_provisions || {};
+  const distribution = data.distribution_provisions || {};
+
+  // Entity info section
+  const entityType = (entityInfo.entity_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+  const entityHtml = entityInfo.name ? `
+    <div class="party-box" style="margin-bottom: 16px;">
+      <div class="party-label">Entity</div>
+      <div class="party-name">${escapeHtml(entityInfo.name)}</div>
+      <div class="party-detail">
+        ${entityType ? `${escapeHtml(entityType)}` : ''}
+        ${entityInfo.jurisdiction ? ` · ${escapeHtml(entityInfo.jurisdiction)}` : ''}
+        ${entityInfo.formation_date ? ` · Formed ${escapeHtml(entityInfo.formation_date)}` : ''}
+      </div>
+      ${entityInfo.governing_law ? `<div class="party-detail" style="font-size: 11px; margin-top: 4px;">${escapeHtml(entityInfo.governing_law)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Term section
+  const termHtml = term.years || term.commencement_date ? `
+    <div class="field-grid" style="margin-bottom: 16px;">
+      ${term.years ? `<div class="field-item"><div class="field-label">Term</div><div class="field-value">${escapeHtml(String(term.years))} years</div></div>` : ''}
+      ${term.commencement_date ? `<div class="field-item"><div class="field-label">Commencement</div><div class="field-value">${escapeHtml(term.commencement_date)}</div></div>` : ''}
+      ${term.expiration_date ? `<div class="field-item"><div class="field-label">Expiration</div><div class="field-value">${escapeHtml(term.expiration_date)}</div></div>` : ''}
+    </div>
+  ` : '';
+
+  // Office
+  const officeHtml = office.address ? `
+    <div class="field-grid" style="margin-bottom: 16px;">
+      <div class="field-item">
+        <div class="field-label">Principal Office</div>
+        <div class="field-value">${escapeHtml(office.address)}${office.city ? `, ${escapeHtml(office.city)}` : ''}${office.state ? `, ${escapeHtml(office.state)}` : ''} ${escapeHtml(office.zip || '')}</div>
+      </div>
+    </div>
+  ` : '';
+
+  // Partners/Members table
+  const formatPartnerTable = (partners: any[], label: string): string => {
+    if (!partners || partners.length === 0) return '';
+    return `
+      <div style="margin-bottom: 16px;">
+        <div class="field-label" style="margin-bottom: 8px;">${escapeHtml(label)}</div>
+        <table class="data-table">
+          <thead>
+            <tr><th>Name</th><th>Interest</th><th>Capital</th></tr>
+          </thead>
+          <tbody>
+            ${partners.map((p: any, i: number) => {
+              const name = p.name || '';
+              const capacity = p.capacity && p.capacity !== 'Individual' ? ` (${p.capacity}${p.custodian_for ? ` for ${p.custodian_for}` : ''})` : '';
+              const interest = p.interest_fraction || (p.interest_decimal ? `${(p.interest_decimal * 100).toFixed(2)}%` : '');
+              const capital = p.capital_contribution || '';
+              return `
+                <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
+                  <td>${escapeHtml(name)}${escapeHtml(capacity)}</td>
+                  <td>${escapeHtml(interest)}</td>
+                  <td>${escapeHtml(capital)}</td>
+                </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  const gpHtml = formatPartnerTable(generalPartners, 'General Partners');
+  const lpHtml = formatPartnerTable(limitedPartners, 'Limited Partners');
+  const membersHtml = formatPartnerTable(members, 'Members');
+
+  // Business purpose
+  const purposeHtml = businessPurpose.stated_purpose ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Business Purpose</div>
+      <div class="field-value" style="font-size: 13px; line-height: 1.5;">${escapeHtml(businessPurpose.stated_purpose)}</div>
+    </div>
+  ` : '';
+
+  // Key provisions as compact grid
+  const provisions: string[] = [];
+  if (management.gp_voting_description) provisions.push(`<div class="field-item"><div class="field-label">Management</div><div class="field-value" style="font-size: 12px;">${escapeHtml(management.gp_voting_description)}</div></div>`);
+  if (assignment.assignment_restrictions_description) provisions.push(`<div class="field-item"><div class="field-label">Assignment</div><div class="field-value" style="font-size: 12px;">${escapeHtml(assignment.assignment_restrictions_description)}</div></div>`);
+  if (succession.conversion_description) provisions.push(`<div class="field-item"><div class="field-label">Succession</div><div class="field-value" style="font-size: 12px;">${escapeHtml(succession.conversion_description)}</div></div>`);
+  if (distribution.description) provisions.push(`<div class="field-item"><div class="field-label">Distribution</div><div class="field-value" style="font-size: 12px;">${escapeHtml(distribution.description)}</div></div>`);
+  if (contribution.description) provisions.push(`<div class="field-item"><div class="field-label">Contributions</div><div class="field-value" style="font-size: 12px;">${escapeHtml(contribution.description)}</div></div>`);
+
+  const provisionsHtml = provisions.length > 0 ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Key Provisions</div>
+      <div class="field-grid">${provisions.join('')}</div>
+    </div>
+  ` : '';
+
+  // Dissolution triggers
+  const dissolutionHtml = dissolution.triggers?.length > 0 ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Dissolution Triggers</div>
+      <div class="field-value" style="font-size: 12px;">${dissolution.triggers.map((t: string) => escapeHtml(t)).join('; ')}</div>
+    </div>
+  ` : '';
+
+  // Referenced property
+  const propSection = referencedProperty.section || referencedProperty.township ? `
+    <div style="margin-bottom: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Referenced Property</div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px;">
+        <div style="font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+          ${referencedProperty.section ? `Section ${escapeHtml(String(referencedProperty.section))}` : ''}${referencedProperty.township ? `-${escapeHtml(referencedProperty.township)}` : ''}${referencedProperty.range ? `-${escapeHtml(referencedProperty.range)}` : ''}
+          ${referencedProperty.county ? `, ${escapeHtml(referencedProperty.county)} County` : ''}
+        </div>
+        ${referencedProperty.description ? `<div style="font-size: 12px; color: #475569;">${escapeHtml(referencedProperty.description)}</div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  // Execution info
+  const execHtml = executionInfo.execution_date ? `
+    <div class="field-grid">
+      <div class="field-item"><div class="field-label">Executed</div><div class="field-value">${escapeHtml(executionInfo.execution_date)}</div></div>
+      ${executionInfo.notarized ? `<div class="field-item"><div class="field-label">Notarized</div><div class="field-value">${escapeHtml(executionInfo.notary_date || 'Yes')}${executionInfo.notary_county ? `, ${escapeHtml(executionInfo.notary_county)} County` : ''}</div></div>` : ''}
+    </div>
+  ` : '';
+
+  return `
+    ${entityHtml}
+    ${termHtml}
+    ${officeHtml}
+    ${gpHtml}
+    ${lpHtml}
+    ${membersHtml}
+    ${purposeHtml}
+    ${provisionsHtml}
+    ${dissolutionHtml}
+    ${propSection}
+    ${execHtml}
   `;
 }
 

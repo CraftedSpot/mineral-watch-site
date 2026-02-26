@@ -696,3 +696,52 @@
     letter-spacing: 0.5px;
     margin-top: 4px;
 }
+
+/* Collapsible Parent Document Groups */
+.doc-group-row {
+    background: #F8FAFC;
+    border-left: 3px solid var(--primary, #2563EB);
+    cursor: pointer;
+}
+.doc-group-row:hover {
+    background: #F1F5F9;
+}
+.doc-group-row td {
+    font-weight: 600;
+}
+.group-chevron {
+    display: inline-block;
+    width: 16px;
+    font-size: 11px;
+    color: #6B7280;
+    transition: transform 0.15s;
+    margin-right: 6px;
+}
+.group-chevron.expanded {
+    transform: rotate(90deg);
+}
+.doc-child-row td:nth-child(2) {
+    padding-left: 32px;
+}
+.child-page-range {
+    font-size: 11px;
+    color: #9CA3AF;
+    margin-left: 6px;
+}
+.group-status-summary {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.group-status-count {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+@media (max-width: 768px) {
+    .doc-group-row { border-left-width: 2px; }
+    .doc-child-row td:nth-child(2) { padding-left: 24px; }
+    .group-status-summary { gap: 2px; }
+    .group-status-count { font-size: 10px; padding: 1px 4px; }
+}

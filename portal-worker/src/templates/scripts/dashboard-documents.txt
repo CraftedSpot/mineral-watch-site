@@ -7974,11 +7974,166 @@
             threshold: 100
         });
 
+        // Collapsible parent document groups
+        const expandedParents = new Set();
+
+        function toggleParentGroup(parentId) {
+            if (expandedParents.has(parentId)) {
+                expandedParents.delete(parentId);
+            } else {
+                expandedParents.add(parentId);
+            }
+            renderDocumentsList(loadedDocuments);
+        }
+
+        function buildDisplayList(docs) {
+            // Check if any filter or search is active — if so, flat mode
+            const hasFilter = documentsController.filterBy !== 'all';
+            const hasSearch = documentsController.searchTerm && documentsController.searchTerm.length > 0;
+            if (hasFilter || hasSearch) return docs;
+
+            // Separate into parents, children, and standalone
+            const parentMap = new Map();  // parentId → parentDoc
+            const childMap = new Map();   // parentId → [children]
+            const standalone = [];
+
+            for (const doc of docs) {
+                const isParent = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
+                if (isParent) {
+                    parentMap.set(doc.id, doc);
+                    if (!childMap.has(doc.id)) childMap.set(doc.id, []);
+                } else if (doc.parent_document_id) {
+                    if (!childMap.has(doc.parent_document_id)) childMap.set(doc.parent_document_id, []);
+                    childMap.get(doc.parent_document_id).push(doc);
+                } else {
+                    standalone.push(doc);
+                }
+            }
+
+            // Build display list
+            const display = [];
+            const handledChildIds = new Set();
+
+            for (const doc of docs) {
+                if (handledChildIds.has(doc.id)) continue;
+
+                if (parentMap.has(doc.id)) {
+                    const children = childMap.get(doc.id) || [];
+                    children.sort((a, b) => (a.page_range_start || 0) - (b.page_range_start || 0));
+                    const expanded = expandedParents.has(doc.id);
+
+                    // Insert group header row
+                    display.push({
+                        _isGroupRow: true,
+                        _parentDoc: doc,
+                        _children: children,
+                        _expanded: expanded,
+                        id: doc.id
+                    });
+
+                    // If expanded, insert children
+                    if (expanded) {
+                        for (const child of children) {
+                            child._isChildRow = true;
+                            display.push(child);
+                            handledChildIds.add(child.id);
+                        }
+                    } else {
+                        for (const child of children) {
+                            handledChildIds.add(child.id);
+                        }
+                    }
+                } else if (!doc.parent_document_id) {
+                    // Standalone doc
+                    display.push(doc);
+                } else if (!parentMap.has(doc.parent_document_id)) {
+                    // Orphaned child — parent not in list, show as standalone
+                    display.push(doc);
+                }
+                // Children of known parents are handled above
+            }
+
+            return display;
+        }
+
+        function renderGroupRow(item) {
+            const parent = item._parentDoc;
+            const children = item._children;
+            const expanded = item._expanded;
+            const uploadDate = new Date(parent.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+            const filename = escapeHtml(parent.display_name || parent.filename);
+            const chevron = expanded ? '&#9660;' : '&#9654;';
+            const chevronClass = expanded ? 'group-chevron expanded' : 'group-chevron';
+
+            // Status summary from children
+            const statusCounts = {};
+            for (const child of children) {
+                const s = child.status || 'pending';
+                statusCounts[s] = (statusCounts[s] || 0) + 1;
+            }
+            let statusHtml = '<div class="group-status-summary">';
+            const statusConfig = {
+                complete: { color: '#10B981', bg: '#10B98120', label: 'Complete' },
+                failed: { color: '#EF4444', bg: '#EF444420', label: 'Failed' },
+                processing: { color: '#F59E0B', bg: '#F59E0B20', label: 'Processing' },
+                pending: { color: '#F59E0B', bg: '#F59E0B20', label: 'Queued' },
+                manual_review: { color: '#D97706', bg: '#D9770620', label: 'Review' },
+                unprocessed: { color: '#9CA3AF', bg: '#9CA3AF20', label: 'Skipped' }
+            };
+            for (const [status, count] of Object.entries(statusCounts)) {
+                const cfg = statusConfig[status] || { color: '#6B7280', bg: '#6B728020', label: status };
+                statusHtml += `<span class="group-status-count" style="background: ${cfg.bg}; color: ${cfg.color};">${count} ${cfg.label}</span>`;
+            }
+            statusHtml += '</div>';
+
+            // County — most common from children
+            const countyCounts = {};
+            for (const child of children) {
+                const c = child.county || child.parsedExtractedData?.county;
+                if (c) countyCounts[c] = (countyCounts[c] || 0) + 1;
+            }
+            let displayCounty = '';
+            let maxCount = 0;
+            for (const [county, count] of Object.entries(countyCounts)) {
+                if (count > maxCount) { maxCount = count; displayCounty = county; }
+            }
+            if (Object.keys(countyCounts).length > 1) {
+                displayCounty += ` +${Object.keys(countyCounts).length - 1}`;
+            }
+
+            // Checkbox — check if all/some/none children selected
+            const allSelected = children.length > 0 && children.every(c => selectedDocuments.has(c.id));
+            const someSelected = !allSelected && children.some(c => selectedDocuments.has(c.id));
+            const checkState = allSelected ? ' checked' : '';
+            const indeterminate = someSelected ? ' data-indeterminate="true"' : '';
+
+            let row = `<tr class="doc-group-row" onclick="toggleParentGroup('${parent.id}')">`;
+            row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="group-checkbox" data-parent-id="${parent.id}"${checkState}${indeterminate} aria-label="Select all documents in group"></td>`;
+            row += `<td><span class="${chevronClass}">${chevron}</span><strong>${filename}</strong></td>`;
+            row += `<td><span style="color: var(--slate-blue); font-size: 13px;">${children.length} document${children.length !== 1 ? 's' : ''}</span></td>`;
+            row += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
+            row += `<td>${statusHtml}</td>`;
+            row += `<td>${uploadDate}</td>`;
+            row += `<td style="text-align: right;" onclick="event.stopPropagation()">
+                <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                    <button onclick="openDocumentDetail('${parent.id}')" title="View parent" class="btn-action-icon" style="background: #E0F2FE; color: #1E40AF;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                        </svg>
+                    </button>
+                </div>
+            </td>`;
+            row += '</tr>';
+            return row;
+        }
+
         function getDocumentsHeader() {
             return '<thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllDocuments" title="Select all" aria-label="Select all documents"></th><th>Filename</th><th>Category</th><th>County</th><th>Status</th><th>Uploaded</th><th style="text-align: right;">Actions</th></tr></thead>';
         }
 
         function renderDocumentRow(doc) {
+            if (doc._isGroupRow) return renderGroupRow(doc);
             const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
 
             let confidenceScore = null;
@@ -8040,9 +8195,14 @@
             const contentType = doc.content_type || 'application/pdf';
             const rotation = doc.rotation_applied || 0;
 
-            let row = `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
+            const isChild = doc._isChildRow;
+            const childClass = isChild ? ' class="doc-child-row"' : '';
+            const pageRange = isChild && doc.page_range_start != null
+                ? `<span class="child-page-range">pp. ${doc.page_range_start}${doc.page_range_end && doc.page_range_end !== doc.page_range_start ? '–' + doc.page_range_end : ''}</span>` : '';
+
+            let row = `<tr${childClass} onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
             row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"${checked} aria-label="Select document ${filename}"></td>`;
-            row += `<td><strong>${filename}</strong></td>`;
+            row += `<td><strong>${filename}</strong>${pageRange}</td>`;
             row += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
             row += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
             const prescanBtn = doc.status === 'prescan_complete'
@@ -8122,15 +8282,55 @@
                 return;
             }
             
+            // Build grouped display list (collapses parent groups in unfiltered view)
+            displayDocuments = buildDisplayList(displayDocuments);
+
             documentsVS.setData(displayDocuments, renderDocumentRow, getDocumentsHeader());
 
             // Add select all checkbox handler (thead rebuilt on setData)
             const selectAllCheckbox = document.getElementById('selectAllDocuments');
             if (selectAllCheckbox) {
                 selectAllCheckbox.addEventListener('change', (e) => {
-                    selectAllItems('documents', e.target.checked);
+                    // Select All should select all actual documents (children + standalone), not group headers
+                    const checked = e.target.checked;
+                    selectedDocuments.clear();
+                    if (checked) {
+                        (loadedDocuments || []).forEach(doc => {
+                            const isParent = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
+                            if (!isParent) selectedDocuments.add(doc.id);
+                        });
+                    }
+                    document.querySelectorAll('.document-checkbox, .group-checkbox').forEach(cb => { cb.checked = checked; });
+                    updateBulkActionVisibility();
                 });
             }
+
+            // Handle group checkbox clicks (select/deselect all children in group)
+            document.querySelectorAll('.group-checkbox').forEach(cb => {
+                // Set indeterminate state
+                if (cb.dataset.indeterminate === 'true') cb.indeterminate = true;
+                cb.addEventListener('change', (e) => {
+                    const parentId = cb.dataset.parentId;
+                    const groupItem = displayDocuments.find(d => d._isGroupRow && d.id === parentId);
+                    if (groupItem) {
+                        groupItem._children.forEach(child => {
+                            if (e.target.checked) {
+                                selectedDocuments.add(child.id);
+                            } else {
+                                selectedDocuments.delete(child.id);
+                            }
+                        });
+                        // Update visible child checkboxes if expanded
+                        document.querySelectorAll(`.document-checkbox`).forEach(childCb => {
+                            if (groupItem._children.some(c => c.id === childCb.dataset.id)) {
+                                childCb.checked = e.target.checked;
+                            }
+                        });
+                    }
+                    updateSelectAllState('documents');
+                    updateBulkActionVisibility();
+                });
+            });
 
             updateSelectAllState('documents');
             updateBulkActionVisibility();
