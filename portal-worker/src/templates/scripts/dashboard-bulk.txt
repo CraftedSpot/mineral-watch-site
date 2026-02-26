@@ -1849,13 +1849,26 @@ function pollPrescan(docId) {
     poll(); // Run immediately
 }
 
-function showPrescanResults(docId, data) {
+async function showPrescanResults(docId, data) {
     const prescanDiv = document.getElementById('prescanProgress');
     if (!prescanDiv) return;
 
-    // Get available credits from the page (already loaded)
-    const creditsEl = document.getElementById('creditsAvailable');
-    const availableCredits = creditsEl ? parseInt(creditsEl.textContent) || 0 : 0;
+    // Fetch fresh credit count (DOM value may be stale after prescan wait)
+    let availableCredits = 0;
+    try {
+        const usageResp = await fetch('/api/documents/usage', { credentials: 'include' });
+        if (usageResp.ok) {
+            const usage = await usageResp.json();
+            availableCredits = usage.total_available || 0;
+            // Also refresh the header display
+            const creditsEl = document.getElementById('creditsAvailable');
+            if (creditsEl) creditsEl.textContent = availableCredits.toLocaleString();
+        }
+    } catch (e) {
+        // Fallback to DOM value
+        const creditsEl = document.getElementById('creditsAvailable');
+        availableCredits = creditsEl ? parseInt(creditsEl.textContent.replace(/,/g, '')) || 0 : 0;
+    }
     const hasEnough = availableCredits >= data.estimated_credits;
     const creditWarning = !hasEnough
         ? `<p style="margin: 8px 0 0; color: #DC2626; font-size: 13px; font-weight: 500;">Insufficient credits. You have ${availableCredits} available.</p>`
