@@ -294,6 +294,9 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'lease':
     case 'oil_and_gas_lease':
     case 'oil_gas_lease':
+    case 'lease_amendment':
+    case 'lease_extension':
+    case 'lease_ratification':
       extractedFieldsHtml = generateLeaseFields(data.extractedData);
       break;
     case 'pooling_order':

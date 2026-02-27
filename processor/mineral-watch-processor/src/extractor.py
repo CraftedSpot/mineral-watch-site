@@ -11304,6 +11304,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         "affidavit_of_heirship", "death_certificate", "trust_funding", "limited_partnership",
         "ownership_entity", "legal_document", "correspondence",
         "tax_record", "map", "corporation_commission_notice",
+        "lease_amendment", "lease_extension", "lease_ratification",
     }
 
     # Text-based GIS NRIS override + quick-classify for unrecognized types
