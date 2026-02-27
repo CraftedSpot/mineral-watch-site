@@ -10908,6 +10908,25 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         # Check top-level
         fix_meridian_for_county(extracted_data)
 
+        # POST-PROCESSING: Correct pooling_order → drilling_and_spacing_order misclassification
+        # A pooling order MUST have election options — that's its defining feature.
+        # If extraction returns pooling_order with no election options, and the key_takeaway
+        # or ai_observations mentions "spacing", it's actually a spacing order.
+        if extracted_data.get("doc_type") == "pooling_order":
+            election_opts = extracted_data.get("election_options") or []
+            if not election_opts:
+                text_signals = (
+                    (extracted_data.get("key_takeaway") or "") +
+                    (extracted_data.get("ai_observations") or "")
+                ).lower()
+                if any(term in text_signals for term in ["spacing", "drilling and spacing", "unit expansion"]):
+                    logger.info(f"POST-PROCESSING: Reclassifying pooling_order → drilling_and_spacing_order "
+                               f"(no election options + spacing language in observations)")
+                    extracted_data["doc_type"] = "drilling_and_spacing_order"
+                    extracted_data["_doc_type_corrected"] = "pooling_order→drilling_and_spacing_order"
+                else:
+                    logger.warning(f"POST-PROCESSING: pooling_order has no election options but no spacing signals found — keeping as pooling_order")
+
         # POST-PROCESSING: Compute review flags based on external signals
         review_flags = compute_review_flags(
             extracted_data,
