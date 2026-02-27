@@ -11239,7 +11239,12 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                     if hcheck.get("is_continuation"):
                         continue
                     # If heuristics found a high-confidence start, add it
-                    if hcheck.get("heuristic_is_start") and hcheck.get("confidence", 0) >= 0.8:
+                    # Only upgrade deed-type matches — deeds are single-page instruments
+                    # where Sonnet commonly groups multiples as one document.
+                    # Orders are multi-page with repeating headers; let Sonnet handle those.
+                    HEURISTIC_UPGRADE_TYPES = {"deed", "lease"}
+                    if (hcheck.get("heuristic_is_start") and hcheck.get("confidence", 0) >= 0.8
+                            and hcheck.get("heuristic_type") in HEURISTIC_UPGRADE_TYPES):
                         logger.info(f"HEURISTIC ENHANCEMENT: Page {page_idx} — visual said continuation, "
                                    f"but heuristics found '{hcheck.get('matched_title', 'Page 1 of N')}' "
                                    f"(type: {hcheck.get('heuristic_type')}, conf: {hcheck['confidence']}) — upgrading to document start")
