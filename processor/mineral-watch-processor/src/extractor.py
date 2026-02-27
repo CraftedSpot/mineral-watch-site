@@ -9548,8 +9548,54 @@ DEED TYPE DETECTION (for the "deed_type" field):
 - gift: Transfer without monetary consideration, often between family members
 - other: Grant deeds, bargain and sale, or unclear type
 
-MULTI-TRACT DEEDS: If a deed conveys interests in MULTIPLE sections or tracts, include each
+MULTI-TRACT DEEDS vs MULTIPLE INSTRUMENTS:
+- A MULTI-TRACT DEED is ONE instrument conveying interests in multiple sections — use one
+  JSON object with multiple entries in the tracts array.
+- MULTIPLE INSTRUMENTS are SEPARATE DEEDS on the same pages — use a JSON ARRAY of objects.
+
+MULTI-TRACT DEEDS: If a single deed conveys interests in MULTIPLE sections or tracts, include each
 as a separate entry in the tracts array. Each tract has its own legal description and interest details.
+
+MULTIPLE SEPARATE INSTRUMENTS:
+If this page range contains MULTIPLE SEPARATE DEEDS (identified by different recording
+information, different grantor-to-grantee pairs, or different execution dates), you MUST
+return a JSON ARRAY of document objects — one complete extraction per deed.
+
+Signs of multiple instruments:
+- Different Book/Page or Document numbers
+- Different execution or recording dates
+- Different grantor-to-grantee combinations
+- Separate notarization blocks
+- Headers like "MINERAL DEED" appearing more than once
+
+When returning an array, include "key_takeaway" and "ai_observations" as fields INSIDE
+each JSON object (not after the array). Each deed gets its own per-deed analysis.
+
+Example for 3 separate deeds:
+[
+  {{
+    "doc_type": "mineral_deed",
+    "grantors": [...],
+    "grantees": [...],
+    "tracts": [...],
+    "execution_date": "1997-12-16",
+    "recording": {{"book": "2123", "page": "639", ...}},
+    "key_takeaway": "C. Brook Coffeen conveyed a 4/239 mineral interest to Steven Foerster...",
+    "ai_observations": "This 1997 deed transfers..."
+  }},
+  {{
+    "doc_type": "mineral_deed",
+    "grantors": [...],
+    "grantees": [...],
+    "tracts": [...],
+    "execution_date": "2007-12-31",
+    "recording": {{"document_number": "R 2008 10845", ...}},
+    "key_takeaway": "Steven Foerster conveyed a 4/239 mineral interest to Price Oil and Gas...",
+    "ai_observations": "This 2007 deed is part of a consolidation..."
+  }}
+]
+
+Do NOT merge multiple instruments into one — each deed is a separate link in the chain of title.
 
 OMIT fields that don't apply - do NOT include null values or empty objects.
 
@@ -10503,6 +10549,156 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
     # Log raw response details for debugging
     logger.info(f"Raw response length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
 
+    # Helper: sanitize control characters inside JSON string values
+    # Sonnet sometimes puts literal newlines/tabs in string values instead of \n \t
+    def sanitize_json_control_chars(s: str) -> str:
+        """Escape unescaped control characters inside JSON string values."""
+        result = []
+        in_str = False
+        i = 0
+        while i < len(s):
+            ch = s[i]
+            if ch == '\\' and in_str and i + 1 < len(s):
+                result.append(ch)
+                result.append(s[i + 1])
+                i += 2
+                continue
+            if ch == '"':
+                in_str = not in_str
+                result.append(ch)
+            elif in_str and ch == '\n':
+                result.append('\\n')
+            elif in_str and ch == '\r':
+                result.append('\\r')
+            elif in_str and ch == '\t':
+                result.append('\\t')
+            elif in_str and ord(ch) < 32:
+                result.append(f'\\u{ord(ch):04x}')
+            else:
+                result.append(ch)
+            i += 1
+        return ''.join(result)
+
+    # Check for JSON array response (multiple instruments in one chunk)
+    # Must check BEFORE brace-matching strategies which only find single objects
+    array_detected = False
+    stripped_check = json_str.strip()
+    # Check for array in code fences
+    if "```json" in stripped_check:
+        fence_start = stripped_check.find("```json") + 7
+        fence_content = stripped_check[fence_start:].strip()
+        if fence_content.startswith("["):
+            array_detected = True
+    elif stripped_check.startswith("["):
+        array_detected = True
+
+    if array_detected:
+        logger.info("Detected JSON array response (multiple instruments)")
+        # Extract the array content
+        array_str = json_str.strip()
+        # Strip code fences if present
+        if "```json" in array_str:
+            fence_start = array_str.find("```json") + 7
+            fence_end = array_str.rfind("```")
+            if fence_end > fence_start:
+                array_str = array_str[fence_start:fence_end].strip()
+            else:
+                array_str = array_str[fence_start:].strip()
+        elif array_str.startswith("```"):
+            lines = array_str.split("\n")
+            lines = lines[1:]  # Remove opening fence
+            for idx_line, line in enumerate(lines):
+                if line.strip() == "```":
+                    lines = lines[:idx_line]
+                    break
+            array_str = "\n".join(lines).strip()
+
+        # Find the array bounds: first [ to matching ]
+        bracket_start = array_str.find("[")
+        if bracket_start != -1:
+            bracket_count = 0
+            bracket_end = bracket_start
+            in_string = False
+            escape_next = False
+            for ci, ch in enumerate(array_str[bracket_start:], bracket_start):
+                if escape_next:
+                    escape_next = False
+                    continue
+                if ch == '\\' and in_string:
+                    escape_next = True
+                    continue
+                if ch == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if ch == '[':
+                        bracket_count += 1
+                    elif ch == ']':
+                        bracket_count -= 1
+                        if bracket_count == 0:
+                            bracket_end = ci + 1
+                            break
+            array_str = array_str[bracket_start:bracket_end]
+
+        # Sanitize control chars and parse
+        array_str = sanitize_json_control_chars(array_str)
+        try:
+            extracted_list = json.loads(array_str)
+            if isinstance(extracted_list, list) and len(extracted_list) > 1:
+                logger.info(f"Parsed {len(extracted_list)} documents from array response")
+                # Run post-processing on each item (same pipeline as single doc)
+                processed_list = []
+                for item_idx, item in enumerate(extracted_list):
+                    # Enforce schema whitelist
+                    item = enforce_schema_whitelist(item)
+                    # Clamp confidence
+                    if max_confidence and max_confidence < 1.0:
+                        item = clamp_confidence_scores(item, max_confidence)
+                    # Validate/correct API/PUN formats
+                    item = validate_and_correct_extracted_data(item)
+                    # Schema validation
+                    schema_validation = validate_extracted_schema(item)
+                    item["_schema_validation"] = schema_validation
+                    # Confidence recalculation
+                    field_scores = item.get("field_scores", {})
+                    if field_scores:
+                        calculated_confidence = calculate_document_confidence(
+                            field_scores, item.get("doc_type"), item
+                        )
+                        item["document_confidence"] = calculated_confidence
+                        item["_confidence_recalculated"] = True
+                    # Meridian correction
+                    PANHANDLE_COUNTIES = {'beaver', 'texas', 'cimarron'}
+                    def fix_meridian_for_county(data: dict) -> None:
+                        county = (data.get('county') or '').lower().replace(' county', '').strip()
+                        if county in PANHANDLE_COUNTIES and data.get('meridian', '').upper() in ('IM', 'I.M.', 'INDIAN MERIDIAN', 'INDIAN'):
+                            data['meridian'] = 'CM'
+                    legal = item.get('legal_description', {})
+                    if isinstance(legal, dict):
+                        fix_meridian_for_county(legal)
+                    for tract in (item.get('tracts') or []):
+                        tract_legal = tract.get('legal', {})
+                        if isinstance(tract_legal, dict):
+                            fix_meridian_for_county(tract_legal)
+                    fix_meridian_for_county(item)
+                    # Review flags
+                    review_flags = compute_review_flags(
+                        item,
+                        ocr_quality=ocr_quality_score if ocr_quality_score is not None else 0.8,
+                        is_handwritten=is_handwritten
+                    )
+                    item["_review_flags"] = review_flags
+                    processed_list.append(item)
+                return processed_list
+            elif isinstance(extracted_list, list) and len(extracted_list) == 1:
+                # Single-item array — unwrap and continue with normal single-doc flow
+                logger.info("Array contained single document, unwrapping")
+                json_str = json.dumps(extracted_list[0])
+            else:
+                logger.warning("Array parse returned unexpected result, falling back to object parsing")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Array JSON parse failed ({e}), falling back to object parsing")
+
     # Try to find JSON in the response - multiple strategies
     # Strategy 1: Look for ```json blocks
     # IMPORTANT: Use rfind to find the LAST ``` before KEY TAKEAWAY, since content
@@ -10598,40 +10794,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             if brace_end != -1:
                 final_json_str = final_json_str[:brace_end + 1]
 
-        # Sanitize control characters inside JSON string values
-        # Sonnet sometimes puts literal newlines/tabs in string values instead of \n \t
-        import re
-        def sanitize_json_control_chars(s: str) -> str:
-            """Escape unescaped control characters inside JSON string values."""
-            # Replace literal control chars (except already-escaped ones) within strings
-            # This regex-free approach: just replace common offenders
-            result = []
-            in_str = False
-            i = 0
-            while i < len(s):
-                ch = s[i]
-                if ch == '\\' and in_str and i + 1 < len(s):
-                    # Already escaped sequence — keep as-is
-                    result.append(ch)
-                    result.append(s[i + 1])
-                    i += 2
-                    continue
-                if ch == '"':
-                    in_str = not in_str
-                    result.append(ch)
-                elif in_str and ch == '\n':
-                    result.append('\\n')
-                elif in_str and ch == '\r':
-                    result.append('\\r')
-                elif in_str and ch == '\t':
-                    result.append('\\t')
-                elif in_str and ord(ch) < 32:
-                    result.append(f'\\u{ord(ch):04x}')
-                else:
-                    result.append(ch)
-                i += 1
-            return ''.join(result)
-
+        # Sanitize control characters (function defined above, before array detection)
         final_json_str = sanitize_json_control_chars(final_json_str)
 
         print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
