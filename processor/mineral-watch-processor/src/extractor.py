@@ -10290,6 +10290,7 @@ Examples of "other" documents (oil and gas docs that don't fit defined categorie
         response = client.messages.create(
             model=model,
             max_tokens=512,
+            temperature=0.2,  # Low temp for classification — allows weighing close alternatives
             messages=[{"role": "user", "content": content}]
         )
 
@@ -10416,6 +10417,7 @@ async def detect_documents(image_paths: list[str], model_override: str = None) -
         return client.messages.create(
             model=detect_model,
             max_tokens=1024,  # Small response expected
+            temperature=0.2,  # Low temp for boundary detection
             messages=[
                 {"role": "user", "content": all_content}
             ]
@@ -10531,6 +10533,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         return client.messages.create(
             model=extract_model,
             max_tokens=16384,
+            temperature=0,  # Deterministic extraction — structured data needs consistency
             messages=[
                 {"role": "user", "content": content}
             ]
