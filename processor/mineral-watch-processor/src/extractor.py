@@ -2420,13 +2420,13 @@ Valid document types:
 - joint_interest_billing (JIBs, joint owner invoices, operating expense invoices billed to working/mineral interest owners)
 - drilling_and_spacing_order (HEADER-MATCH FIRST: If the document header/title says "DRILLING AND SPACING" or just "SPACING" without "POOLING", this is drilling_and_spacing_order, NOT pooling_order. Establishes vertical well units with setback distances. Look for "DRILLING AND SPACING", "SPACING UNIT", unit sizes like 160-acre, 640-acre.)
 - horizontal_drilling_and_spacing_order (If header says "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" — this is horizontal spacing, NOT pooling. Establishes horizontal drilling units with lateral setbacks, completion interval requirements.)
-- pooling_order (ONLY use if header says "POOLING" or "FORCE POOLING". Must contain ELECTION OPTIONS for mineral owners — choices like participate/cash bonus/royalty. If header says "SPACING" or "DRILLING AND SPACING", use drilling_and_spacing_order instead.)
-- increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY" or "INCREASED DENSITY")
-- change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
-- multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for "MULTIUNIT HORIZONTAL", allocation percentages per section)
-- unitization_order (unitization of mineral interests across multiple tracts - look for "UNITIZATION", "UNIT ORDER", participation percentages)
-- location_exception_order (well location exceptions - permits drilling closer to boundaries than standard setbacks - look for "LOCATION EXCEPTION", footage distances, "exception from")
-- occ_order (other OCC orders - NOT pooling, increased density, change of operator, multi-unit horizontal, spacing, or location exception)
+- change_of_operator_order (HEADER-MATCH: If the document says "CHANGE OF OPERATOR", "TRANSFER OF OPERATORSHIP", or AMENDS/MODIFIES an existing pooling order to replace the operator, this is change_of_operator_order, NOT pooling_order. An order that says "amending Pooling Order No. XXXXX" to change the operator is NOT a pooling order — it's an operator change.)
+- pooling_order (ONLY use if this is a NEW force pooling with ELECTION OPTIONS for mineral owners — choices like participate/cash bonus/royalty. If it AMENDS an existing pooling order for operator change, use change_of_operator_order. If header says "SPACING" or "DRILLING AND SPACING", use drilling_and_spacing_order.)
+- increased_density_order (look for "INCREASED WELL DENSITY" or "INCREASED DENSITY" in header)
+- multi_unit_horizontal_order (look for "MULTIUNIT HORIZONTAL" in header, allocation percentages per section)
+- unitization_order (look for "UNITIZATION", "UNIT ORDER", participation percentages)
+- location_exception_order (look for "LOCATION EXCEPTION", footage distances, "exception from")
+- occ_order (other OCC orders not matching above types — includes remand orders, plugging authorizations, well plugging orders, administrative orders)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - affidavit_of_heirship (sworn statement identifying heirs of a deceased mineral owner - look for "AFFIDAVIT OF HEIRSHIP", decedent name, list of heirs/children/spouses, notarized)
@@ -10245,14 +10245,16 @@ DRILLING PERMIT VS COMPLETION REPORT DETECTION (CRITICAL - these are different d
 
 - completion_report: Look for "FORM 1002A", "1002-A", "COMPLETION REPORT", "WELL COMPLETION REPORT", "REPORT OF COMPLETION". This is submitted AFTER drilling is FINISHED. CRITICAL DISTINGUISHING FEATURES: (1) HAS initial production test data (oil BOPD, gas MCFD, water BWPD), (2) HAS spud date AND completion date (past dates - drilling already happened), (3) HAS perforated intervals with measured depths, (4) HAS formation tops with actual drilled depths, (5) Status field showing "Accepted", "Pending", or "Rejected", (6) Contains OTC Production Unit Number (PUN) for multiunit wells. This is NOT drilling_permit - completion reports document FINISHED wells with actual production results.
 
-OCC ORDER TYPE DETECTION - be specific:
-- horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
-- drilling_and_spacing_order: Look for "DRILLING AND SPACING" without "HORIZONTAL". Establishes vertical well units with setback distances (like 660ft from boundary). Often 160-acre or 640-acre units for vertical wells.
-- location_exception_order: Look for "LOCATION EXCEPTION" - allows wells closer to boundaries than standard setbacks. Shows specific footage from boundary lines.
-- unitization_order: PRIORITY CHECK - Look for "UNITIZATION", "UNIT ORDER", "OPERATING UNIT", "ENHANCED RECOVERY", "SECONDARY RECOVERY", "WATERFLOOD UNIT", or "PRESSURE MAINTENANCE UNIT" in the title or order text. CRITICAL DISTINGUISHING FEATURES: (1) Creates a NAMED unit (e.g., "Carter Knox Subthrusted Morrow Operating Unit"), (2) Contains TRACT PARTICIPATION PERCENTAGES like "Tract 1: 0.99004430%", (3) Lists MULTIPLE TRACTS with percentage allocations, (4) Authorizes EOR/IOR operations (waterflooding, nitrogen injection, CO2 injection, pressure maintenance), (5) Often SUPERSEDES prior spacing orders, (6) Has ALLOCATION FORMULA with weighted factors (surface acreage, cumulative production, net acre-feet). This is NOT a pooling_order - pooling orders have ELECTION OPTIONS for mineral owners, unitization orders have PARTICIPATION PERCENTAGES for tracts.
-- pooling_order: Contains ELECTION OPTIONS for mineral owners to choose: participate (go working interest), cash bonus, royalty conversion, or accept non-consent penalties. Look for election deadline, bonus amounts per acre, and penalty provisions. Does NOT have tract participation percentages or enhanced recovery authorization. NOT unitization_order (which has participation percentages, not election options).
-- increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
-- change_of_operator_order: Look for "CHANGE OF OPERATOR" or "TRANSFER OF OPERATORSHIP" in the title. Key indicators: identifies previous operator and new operator, transfers operational responsibility, may modify prior orders to reflect new operator. NOT a pooling order (which creates new drilling units).
+OCC ORDER TYPE DETECTION - HEADER-MATCH FIRST, then content:
+Read the document header/title FIRST. The header determines the order type.
+
+- change_of_operator_order: PRIORITY CHECK — If the order says "CHANGE OF OPERATOR", "TRANSFER OF OPERATORSHIP", or AMENDS/MODIFIES an existing order to replace the operator, this is change_of_operator_order. CRITICAL: An order that says "amending Pooling Order No. XXXXX" to change the operator is NOT a pooling order — it's a change_of_operator_order. Key indicators: identifies previous operator and new operator, transfers operational responsibility, references existing orders being modified.
+- drilling_and_spacing_order: If header says "DRILLING AND SPACING" without "HORIZONTAL". Establishes vertical well units with setback distances (like 660ft from boundary). Often 160-acre or 640-acre units. NOT pooling_order even if it references pooling.
+- horizontal_drilling_and_spacing_order: If header says "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL". Contains lateral setbacks, completion interval requirements, often 640-acre units.
+- location_exception_order: If header says "LOCATION EXCEPTION". Allows wells closer to boundaries than standard setbacks.
+- unitization_order: If header says "UNITIZATION", "UNIT ORDER", "OPERATING UNIT", "ENHANCED RECOVERY", "SECONDARY RECOVERY", "WATERFLOOD UNIT", or "PRESSURE MAINTENANCE UNIT". Contains TRACT PARTICIPATION PERCENTAGES (not election options). NOT pooling_order.
+- increased_density_order: If header says "INCREASED DENSITY" or "INCREASED WELL DENSITY". Authorizes additional wells in existing units.
+- pooling_order: ONLY use for NEW force pooling orders with ELECTION OPTIONS (participate/cash bonus/royalty choices for mineral owners). Must have election deadline and bonus amounts. If the order merely AMENDS an existing pooling order for operator change, use change_of_operator_order instead. If header says "SPACING" or "DRILLING AND SPACING", use the spacing type instead.
 
 WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
@@ -10915,24 +10917,15 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         # Check top-level
         fix_meridian_for_county(extracted_data)
 
-        # POST-PROCESSING: Correct pooling_order → drilling_and_spacing_order misclassification
-        # A pooling order MUST have election options — that's its defining feature.
-        # If extraction returns pooling_order with no election options, and the key_takeaway
-        # or ai_observations mentions "spacing", it's actually a spacing order.
+        # POST-PROCESSING: Log pooling orders with no election options for visibility.
+        # A real pooling order MUST have election options — missing options usually means
+        # misclassification (change of operator, remand, plugging order, spacing waiver).
+        # The fix is at the front door (visual detection prompt), not here.
         if extracted_data.get("doc_type") == "pooling_order":
             election_opts = extracted_data.get("election_options") or []
             if not election_opts:
-                text_signals = (
-                    (extracted_data.get("key_takeaway") or "") +
-                    (extracted_data.get("ai_observations") or "")
-                ).lower()
-                if any(term in text_signals for term in ["spacing", "drilling and spacing", "unit expansion"]):
-                    logger.info(f"POST-PROCESSING: Reclassifying pooling_order → drilling_and_spacing_order "
-                               f"(no election options + spacing language in observations)")
-                    extracted_data["doc_type"] = "drilling_and_spacing_order"
-                    extracted_data["_doc_type_corrected"] = "pooling_order→drilling_and_spacing_order"
-                else:
-                    logger.warning(f"POST-PROCESSING: pooling_order has no election options but no spacing signals found — keeping as pooling_order")
+                logger.warning(f"POST-PROCESSING: pooling_order has no election options — "
+                              f"likely misclassified. Review key_takeaway for actual doc type.")
 
         # POST-PROCESSING: Compute review flags based on external signals
         review_flags = compute_review_flags(
