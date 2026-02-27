@@ -1063,10 +1063,12 @@ export default {
         const fileExtension = getFileExtension(body.contentType);
         const r2Key = `${docId}.${fileExtension}`;
 
-        // Create presigned PUT URL using aws4fetch
+        // Create presigned PUT URL using aws4fetch (R2 uses S3-compatible API)
         const r2Client = new AwsClient({
           accessKeyId: env.R2_ACCESS_KEY_ID,
           secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+          service: 's3',
+          region: 'auto',
         });
 
         const r2Url = new URL(
@@ -1075,14 +1077,11 @@ export default {
         r2Url.searchParams.set('X-Amz-Expires', '1800');
 
         const signed = await r2Client.sign(
-          new Request(r2Url.toString(), {
-            method: 'PUT',
-            headers: { 'Content-Type': body.contentType },
-          }),
+          new Request(r2Url.toString(), { method: 'PUT' }),
           { aws: { signQuery: true } }
         );
 
-        console.log('[Request Upload] Generated presigned URL for:', r2Key, 'user:', user.id);
+        console.log('[Request Upload] Generated presigned URL for:', r2Key, 'user:', user.id, 'url host:', new URL(signed.url).hostname);
 
         return jsonResponse({
           uploadUrl: signed.url,
