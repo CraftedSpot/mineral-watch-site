@@ -1612,29 +1612,60 @@ async function displaySelectedFiles() {
 function updateCreditEstimate() {
     const totalPages = window._uploadTotalPages || 0;
     if (!totalPages) return;
+    const pageEstimates = window._uploadPageEstimates || [];
     const enhToggle = document.getElementById('enhancedExtractionToggle');
     const creditsPerDoc = (enhToggle && enhToggle.checked) ? 2 : 1;
-    const baseCredits = Math.ceil(totalPages / 30);
-    const estimatedCredits = baseCredits * creditsPerDoc;
-    document.getElementById('estimatedCredits').textContent = estimatedCredits;
-    document.getElementById('creditPerDocText').textContent =
-        'Each document extracted uses ' + creditsPerDoc + ' credit' + (creditsPerDoc > 1 ? 's' : '');
 
-    // Update upload button to show credit cost
-    const uploadBtn = document.getElementById('uploadBtn');
-    if (uploadBtn && estimatedCredits > 0) {
-        uploadBtn.innerHTML = `
-            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-            </svg>
-            Proceed — Est. ${estimatedCredits} credit${estimatedCredits !== 1 ? 's' : ''}`;
+    // Check if any files will go through prescan (4+ page PDFs)
+    const PRESCAN_THRESHOLD = 3;
+    let anyPrescan = false;
+    for (let i = 0; i < selectedFiles.length; i++) {
+        if (selectedFiles[i].type === 'application/pdf' && (pageEstimates[i] || 0) > PRESCAN_THRESHOLD) {
+            anyPrescan = true;
+            break;
+        }
     }
 
-    if (currentUsageStats) {
-        const availableCredits = currentUsageStats.usage.total_available || 0;
-        document.getElementById('availableCreditsInModal').textContent = availableCredits;
+    const uploadBtn = document.getElementById('uploadBtn');
+
+    if (anyPrescan) {
+        // Files will be scanned first — don't show fake estimate
+        document.getElementById('estimatedCredits').textContent = 'TBD';
+        document.getElementById('creditPerDocText').textContent =
+            'Credits estimated after document detection';
+
+        if (uploadBtn) {
+            uploadBtn.innerHTML = `
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                Upload & Scan`;
+        }
+
+        // Hide credit warning for prescan files — real check happens at confirm
         const warning = document.getElementById('creditWarning');
-        warning.style.display = estimatedCredits > availableCredits ? 'block' : 'none';
+        if (warning) warning.style.display = 'none';
+    } else {
+        // Small files — direct estimate (1 credit per file)
+        const estimatedCredits = selectedFiles.length * creditsPerDoc;
+        document.getElementById('estimatedCredits').textContent = estimatedCredits;
+        document.getElementById('creditPerDocText').textContent =
+            'Each document extracted uses ' + creditsPerDoc + ' credit' + (creditsPerDoc > 1 ? 's' : '');
+
+        if (uploadBtn && estimatedCredits > 0) {
+            uploadBtn.innerHTML = `
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                Proceed — Est. ${estimatedCredits} credit${estimatedCredits !== 1 ? 's' : ''}`;
+        }
+
+        if (currentUsageStats) {
+            const availableCredits = currentUsageStats.usage.total_available || 0;
+            document.getElementById('availableCreditsInModal').textContent = availableCredits;
+            const warning = document.getElementById('creditWarning');
+            warning.style.display = estimatedCredits > availableCredits ? 'block' : 'none';
+        }
     }
 }
 window.updateCreditEstimate = updateCreditEstimate;
@@ -1685,9 +1716,9 @@ async function handleDocumentUpload(e) {
         formData.append('enhanced', '1');
     }
 
-    // Determine which files need prescan (PDFs with >30 pages)
+    // Determine which files need prescan (PDFs with 4+ pages may contain multiple documents)
     const pageEstimates = window._uploadPageEstimates || [];
-    const PRESCAN_THRESHOLD = 30;
+    const PRESCAN_THRESHOLD = 3;
 
     // Use multi-file endpoint if multiple files, otherwise single file endpoint
     if (selectedFiles.length === 1) {
