@@ -11197,6 +11197,25 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         detection_result = await detect_documents(image_paths, model_override=model_override)
         logger.info(f"Visual detection result: {detection_result}")
 
+        # DIAGNOSTIC: Log exactly what Sonnet returned for boundary debugging
+        diag_docs = detection_result.get("documents", [])
+        logger.info(f"DIAG-DETECT: is_multi={detection_result.get('is_multi_document')}, "
+                    f"doc_count={detection_result.get('document_count')}, "
+                    f"docs_returned={len(diag_docs)}")
+        for di, ddoc in enumerate(diag_docs):
+            logger.info(f"DIAG-DETECT doc[{di}]: type={ddoc.get('type')}, "
+                        f"pages={ddoc.get('start_page')}-{ddoc.get('end_page')}, "
+                        f"conf={ddoc.get('confidence')}")
+
+        # DIAGNOSTIC: Log OCR text length per page (first 10 pages) for heuristic feasibility
+        if page_texts:
+            for pi in range(min(10, len(page_texts))):
+                pt = page_texts[pi] if pi < len(page_texts) else ""
+                has_mineral = "MINERAL DEED" in (pt or "").upper()
+                logger.info(f"DIAG-OCR page {pi}: text_len={len(pt) if pt else 0}, "
+                            f"has_MINERAL_DEED={has_mineral}, "
+                            f"first_80={repr((pt or '')[:80])}")
+
         # Convert detection result to page classifications format
         if detection_result.get("is_multi_document") and detection_result.get("documents"):
             page_classifications = _build_visual_page_classifications(
