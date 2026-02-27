@@ -1179,9 +1179,10 @@ export default {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
-      // Gate to James/Business+
+      // Gate to super admin / Business+
       const userPlan = user.fields?.Plan || user.plan || user.Plan;
-      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Business' && userPlan !== 'Enterprise') {
+      const userEmail = user.email || user.fields?.Email || '';
+      if (userEmail !== 'james@mymineralwatch.com' && userPlan !== 'Business' && userPlan !== 'Enterprise') {
         return errorResponse('Feature not available for your plan', 403, env);
       }
 
@@ -1335,9 +1336,18 @@ export default {
 
       const docId = path.split('/')[3];
       try {
+        // Build ownership query - check user_id OR organization_id (like other endpoints)
+        const conditions = ['user_id = ?'];
+        const ownerParams: string[] = [user.id];
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        if (userOrg) {
+          conditions.push('organization_id = ?');
+          ownerParams.push(userOrg);
+        }
+
         const doc = await env.WELLS_DB.prepare(
-          `SELECT status, user_id, organization_id, user_plan, enhanced_extraction FROM documents WHERE id = ? AND user_id = ? AND deleted_at IS NULL`
-        ).bind(docId, user.id).first() as any;
+          `SELECT status, user_id, organization_id, user_plan, enhanced_extraction FROM documents WHERE id = ? AND (${conditions.join(' OR ')}) AND deleted_at IS NULL`
+        ).bind(docId, ...ownerParams).first() as any;
         if (!doc) return errorResponse('Document not found', 404, env);
         if (doc.status !== 'prescan_complete') {
           return errorResponse('Document is not in prescan_complete status', 400, env);
@@ -2410,7 +2420,7 @@ export default {
                     const rawDecimal = String(extracted_data.decimal_interest).replace(/[^0-9.]/g, '');
                     const decimalInterest = parseFloat(rawDecimal);
 
-                    if (decimalInterest > 0 && decimalInterest < 1) {
+                    if (decimalInterest > 0 && decimalInterest <= 1) {
                       const primaryWellId = linkResult.wellId.split(',')[0].trim();
 
                       // Determine which column to write based on interest_type
@@ -2570,7 +2580,7 @@ export default {
                               WHERE id = ?
                             `).bind(allocDecimal, docId, link.id).run();
                             console.log(`[Alloc Write-Back] Set ${(allocDecimal * 100).toFixed(2)}% on link ${link.id} (S${usNorm.sec}-T${usNorm.twn}-R${usNorm.rng}) from doc ${docId}`);
-                            break;
+                            // Don't break — multi-entity same-TRS means multiple links need updating
                           }
                         }
                       }

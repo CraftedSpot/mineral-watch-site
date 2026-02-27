@@ -8,7 +8,8 @@ const normalizeApiNumber = (api: string): string | null => {
   if (digits.length === 14 && digits.startsWith('35')) return digits;
   if (digits.length === 8) return '35' + digits;
   if (digits.length === 12) return '35' + digits;
-  return digits.length >= 8 ? digits : null;
+  // Only accept 8+ digit strings that look like Oklahoma API numbers
+  return (digits.length >= 8 && digits.startsWith('35')) ? digits : null;
 };
 
 // Normalize section (strip leading zeros)
@@ -713,10 +714,15 @@ export async function linkDocumentToEntities(
       const wellName = normalizeWellName(rawWellName);
       const baseName = wellName ? extractBaseName(wellName) : null;
       const nameVariations = wellName ? createNameVariations(wellName) : [];
-      
+
       console.log(`[LinkDocuments] Smart well matching for: "${wellName}"`);
       console.log(`[LinkDocuments] Base name: "${baseName}", Variations:`, nameVariations);
-      
+
+      // Guard: if no name variations, skip name-based strategies (avoids invalid IN () SQL)
+      if (nameVariations.length === 0) {
+        console.log(`[LinkDocuments] No name variations — skipping smart matching`);
+      } else {
+
       // Strategy 1: Name + Full Location (most specific)
       // Operator matching removed - well name + location is sufficient for confident match
       if (section && township && range) {
@@ -897,6 +903,7 @@ export async function linkDocumentToEntities(
       if (!wellId) {
         console.log(`[LinkDocuments] No well match found after all strategies (including client_wells)`);
       }
+      } // end nameVariations guard
     } catch (error) {
       console.error(`[LinkDocuments] Error in smart well matching:`, error);
     }
