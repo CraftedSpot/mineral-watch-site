@@ -1479,8 +1479,8 @@ function processSelectedFiles(files) {
             continue;
         }
 
-        if (file.size > 100 * 1024 * 1024) {
-            errors.push(`${file.name}: File size must be less than 100MB`);
+        if (file.size > 200 * 1024 * 1024) {
+            errors.push(`${file.name}: File size must be less than 200MB`);
             continue;
         }
         
@@ -1699,9 +1699,109 @@ function clearSelectedFile() {
     window._uploadTotalPages = 0;
 }
 
+// Direct-to-R2 upload for large files (>95MB) that exceed Cloudflare Worker body limits
+const DIRECT_UPLOAD_THRESHOLD = 95 * 1024 * 1024;
+
+async function handlePresignedUpload(file, { enhanced, prescan }) {
+    // Step 1: Request presigned URL from server
+    const requestResponse = await fetch('/api/documents/request-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            filename: file.name,
+            fileSize: file.size,
+            contentType: file.type,
+            enhanced: enhanced ? true : false,
+            prescan: prescan ? true : false,
+        }),
+    });
+
+    if (!requestResponse.ok) {
+        const err = await requestResponse.json();
+        throw new Error(err.error || 'Failed to prepare upload');
+    }
+
+    const { uploadUrl, r2Key, uploadId } = await requestResponse.json();
+
+    // Step 2: Upload directly to R2 with progress tracking
+    await uploadToR2WithProgress(uploadUrl, file);
+
+    // Step 3: Confirm upload and create database record
+    const confirmResponse = await fetch('/api/documents/confirm-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+            uploadId,
+            r2Key,
+            filename: file.name,
+            fileSize: file.size,
+            contentType: file.type,
+            enhanced: enhanced ? true : false,
+            prescan: prescan ? true : false,
+        }),
+    });
+
+    if (!confirmResponse.ok) {
+        const err = await confirmResponse.json();
+        throw new Error(err.error || 'Failed to confirm upload');
+    }
+
+    return await confirmResponse.json();
+}
+
+function uploadToR2WithProgress(url, file) {
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', url, true);
+        xhr.setRequestHeader('Content-Type', file.type);
+
+        xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+                const percent = Math.round((e.loaded / e.total) * 100);
+                updateUploadProgress(percent, e.loaded, e.total);
+            }
+        });
+
+        xhr.addEventListener('load', () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                resolve();
+            } else if (xhr.status === 403) {
+                reject(new Error('Upload session expired. Please try again.'));
+            } else {
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            }
+        });
+
+        xhr.addEventListener('error', () => reject(new Error('Network error during upload. Please check your connection and try again.')));
+        xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+        xhr.send(file);
+    });
+}
+
+function updateUploadProgress(percent, loaded, total) {
+    const progressDiv = document.getElementById('uploadProgress');
+    if (!progressDiv) return;
+
+    const loadedMB = (loaded / (1024 * 1024)).toFixed(1);
+    const totalMB = (total / (1024 * 1024)).toFixed(1);
+
+    progressDiv.innerHTML = `
+        <div style="background: #E0F2FE; border-radius: 6px; padding: 16px; text-align: center;">
+            <p style="margin: 0 0 8px; color: #1E40AF; font-weight: 500;">Uploading document... ${percent}%</p>
+            <div style="background: #BFDBFE; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 8px;">
+                <div style="background: #2563EB; height: 100%; width: ${percent}%; transition: width 0.3s ease;"></div>
+            </div>
+            <p style="margin: 0; color: #3B82F6; font-size: 13px;">${loadedMB} MB / ${totalMB} MB</p>
+        </div>
+    `;
+}
+
 async function handleDocumentUpload(e) {
     e.preventDefault();
-    
+
     if (!selectedFiles.length) return;
     
     // Show progress
@@ -1722,8 +1822,37 @@ async function handleDocumentUpload(e) {
 
     // Use multi-file endpoint if multiple files, otherwise single file endpoint
     if (selectedFiles.length === 1) {
-        formData.append('file', selectedFiles[0]);
-        const needsPrescan = selectedFiles[0].type === 'application/pdf' && (pageEstimates[0] || 0) > PRESCAN_THRESHOLD;
+        const file = selectedFiles[0];
+        const needsPrescan = file.type === 'application/pdf' && (pageEstimates[0] || 0) > PRESCAN_THRESHOLD;
+        const enhanced = enhToggle && enhToggle.checked;
+
+        // Route large files through direct-to-R2 presigned URL path
+        if (file.size >= DIRECT_UPLOAD_THRESHOLD) {
+            try {
+                const uploadResult = await handlePresignedUpload(file, {
+                    enhanced,
+                    prescan: needsPrescan,
+                });
+
+                if (needsPrescan && uploadResult.document) {
+                    showPrescanProgress(uploadResult.document.id, uploadResult.document.filename, pageEstimates[0]);
+                    return;
+                }
+
+                closeUploadModal();
+                await loadDocuments();
+                loadUsageStats();
+                onDocumentUploaded();
+            } catch (error) {
+                alert('Upload failed: ' + error.message);
+                document.getElementById('documentUploadForm').style.display = 'block';
+                document.getElementById('uploadProgress').style.display = 'none';
+            }
+            return;
+        }
+
+        // Standard FormData upload for small files
+        formData.append('file', file);
         if (needsPrescan) {
             formData.append('prescan', '1');
         }
@@ -1764,58 +1893,84 @@ async function handleDocumentUpload(e) {
             document.getElementById('uploadProgress').style.display = 'none';
         }
     } else {
-        // Multiple files
-        for (const file of selectedFiles) {
-            formData.append('files', file);
-        }
+        // Multiple files — split large files (presigned) from small files (FormData batch)
+        const largeFiles = [];
+        const smallFiles = [];
+        const smallFileIndices = [];
+        const enhanced = enhToggle && enhToggle.checked;
 
-        // Determine which files need prescan (PDFs with >30 pages)
-        const prescanIndices = [];
         for (let i = 0; i < selectedFiles.length; i++) {
-            if (selectedFiles[i].type === 'application/pdf' && (pageEstimates[i] || 0) > PRESCAN_THRESHOLD) {
-                prescanIndices.push(i);
+            if (selectedFiles[i].size >= DIRECT_UPLOAD_THRESHOLD) {
+                largeFiles.push({ file: selectedFiles[i], index: i });
+            } else {
+                smallFiles.push(selectedFiles[i]);
+                smallFileIndices.push(i);
             }
-        }
-        if (prescanIndices.length > 0) {
-            formData.append('prescan_doc_ids', prescanIndices.join(','));
         }
 
         try {
-            const response = await fetch('/api/documents/upload-multiple', {
-                method: 'POST',
-                body: formData,
-                credentials: 'include'
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Upload failed');
+            // Upload large files sequentially via presigned URLs
+            const largeResults = [];
+            for (let j = 0; j < largeFiles.length; j++) {
+                const { file, index } = largeFiles[j];
+                const needsPrescan = file.type === 'application/pdf' && (pageEstimates[index] || 0) > PRESCAN_THRESHOLD;
+                updateUploadProgress(0, 0, file.size);
+                const result = await handlePresignedUpload(file, { enhanced, prescan: needsPrescan });
+                if (result.document) largeResults.push(result.document);
             }
 
-            const result = await response.json();
-
-            // Show results for any failed files
-            if (result.failed > 0) {
-                let message = `Uploaded: ${result.uploaded} files\nFailed: ${result.failed} files`;
-                if (result.errors && result.errors.length > 0) {
-                    message += '\n\nErrors:\n' + result.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
+            // Upload small files via existing batch endpoint
+            let batchResult = null;
+            if (smallFiles.length > 0) {
+                const batchFormData = new FormData();
+                if (enhanced) batchFormData.append('enhanced', '1');
+                for (const file of smallFiles) {
+                    batchFormData.append('files', file);
                 }
-                alert(message);
+
+                const prescanIndices = [];
+                for (let i = 0; i < smallFiles.length; i++) {
+                    const origIndex = smallFileIndices[i];
+                    if (smallFiles[i].type === 'application/pdf' && (pageEstimates[origIndex] || 0) > PRESCAN_THRESHOLD) {
+                        prescanIndices.push(i);
+                    }
+                }
+                if (prescanIndices.length > 0) {
+                    batchFormData.append('prescan_doc_ids', prescanIndices.join(','));
+                }
+
+                const response = await fetch('/api/documents/upload-multiple', {
+                    method: 'POST',
+                    body: batchFormData,
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Upload failed');
+                }
+
+                batchResult = await response.json();
+
+                if (batchResult.failed > 0) {
+                    let message = `Uploaded: ${batchResult.uploaded} files\nFailed: ${batchResult.failed} files`;
+                    if (batchResult.errors && batchResult.errors.length > 0) {
+                        message += '\n\nErrors:\n' + batchResult.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
+                    }
+                    alert(message);
+                }
             }
 
             // Check if any uploaded files went to prescan
-            const prescanResults = (result.results || []).filter(r => r.status === 'pending_prescan');
-            const normalCount = (result.results || []).filter(r => r.status === 'pending').length;
+            const allResults = [...largeResults, ...((batchResult && batchResult.results) || [])];
+            const prescanResults = allResults.filter(r => r.status === 'pending_prescan');
+            const normalCount = allResults.filter(r => r.status === 'pending').length;
 
-            if (prescanResults.length > 0 && prescanResults.length === result.uploaded) {
-                // ALL files need prescan — show prescan UI for the first one
-                // (others will show as "Scanning..." in the document list)
-                showPrescanProgress(prescanResults[0].id, prescanResults[0].filename, pageEstimates[prescanIndices[0]]);
+            if (prescanResults.length > 0 && prescanResults.length === allResults.length) {
+                showPrescanProgress(prescanResults[0].id, prescanResults[0].filename, pageEstimates[0]);
                 return;
             }
 
-            // Close modal — small files start processing immediately.
-            // Prescan files (if any) will show "Scanning..." / "Ready to process" in the doc list.
             closeUploadModal();
             await loadDocuments();
             loadUsageStats();
@@ -1827,7 +1982,6 @@ async function handleDocumentUpload(e) {
             onDocumentUploaded();
         } catch (error) {
             alert('Upload failed: ' + error.message);
-            // Reset modal
             document.getElementById('documentUploadForm').style.display = 'block';
             document.getElementById('uploadProgress').style.display = 'none';
         }
@@ -2035,9 +2189,9 @@ async function handlePhotoFileSelect(event) {
             continue;
         }
 
-        // Check file size (100MB limit)
-        if (file.size > 100 * 1024 * 1024) {
-            alert(`${file.name} is too large. Maximum size is 100MB.`);
+        // Check file size (200MB limit)
+        if (file.size > 200 * 1024 * 1024) {
+            alert(`${file.name} is too large. Maximum size is 200MB.`);
             continue;
         }
 

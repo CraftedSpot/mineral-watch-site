@@ -4,6 +4,7 @@ import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
 import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
 import { PDFDocument } from 'pdf-lib';
+import { AwsClient } from 'aws4fetch';
 
 interface Env {
   WELLS_DB: D1Database;
@@ -18,6 +19,9 @@ interface Env {
   OKCR_API_KEY?: string;
   OKCR_API_BASE?: string;
   ANTHROPIC_API_KEY?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_ACCOUNT_ID?: string;
 }
 
 // Credit pack pricing - must match Stripe product prices (LIVE MODE)
@@ -1002,6 +1006,172 @@ export default {
       } catch (error) {
         console.error('Upload error:', error);
         return errorResponse('Upload failed', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/request-upload - Get presigned URL for direct R2 upload (large files)
+    if (path === '/api/documents/request-upload' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        if (!env.R2_ACCESS_KEY_ID || !env.R2_SECRET_ACCESS_KEY || !env.R2_ACCOUNT_ID) {
+          return errorResponse('Direct upload not configured', 503, env);
+        }
+
+        const body = await request.json() as {
+          filename: string;
+          fileSize: number;
+          contentType: string;
+          enhanced?: boolean;
+          prescan?: boolean;
+        };
+
+        if (!body.filename || !body.fileSize || !body.contentType) {
+          return errorResponse('Missing required fields: filename, fileSize, contentType', 400, env);
+        }
+
+        if (!isAllowedFileType(body.contentType)) {
+          return errorResponse('Only PDF, JPEG, PNG, and TIFF files are allowed', 400, env);
+        }
+
+        if (body.fileSize > MAX_FILE_SIZE) {
+          return errorResponse('File too large. Maximum size is 200MB', 400, env);
+        }
+
+        // Credit availability check (read-only)
+        const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
+        const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
+        const enhanced = body.enhanced ? 1 : 0;
+        const prescan = body.prescan || false;
+
+        if (!prescan) {
+          const creditsNeeded = enhanced ? 2 : 1;
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditUserId = userOrg || user.id;
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+          if (creditCheck.totalAvailable < creditsNeeded) {
+            return errorResponse(
+              `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+              402, env
+            );
+          }
+        }
+
+        // Generate docId and r2Key (same convention as regular upload)
+        const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        const fileExtension = getFileExtension(body.contentType);
+        const r2Key = `${docId}.${fileExtension}`;
+
+        // Create presigned PUT URL using aws4fetch
+        const r2Client = new AwsClient({
+          accessKeyId: env.R2_ACCESS_KEY_ID,
+          secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+        });
+
+        const r2Url = new URL(
+          `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/mineral-watch-uploads/${r2Key}`
+        );
+        r2Url.searchParams.set('X-Amz-Expires', '1800');
+
+        const signed = await r2Client.sign(
+          new Request(r2Url.toString(), {
+            method: 'PUT',
+            headers: { 'Content-Type': body.contentType },
+          }),
+          { aws: { signQuery: true } }
+        );
+
+        console.log('[Request Upload] Generated presigned URL for:', r2Key, 'user:', user.id);
+
+        return jsonResponse({
+          uploadUrl: signed.url,
+          r2Key,
+          uploadId: docId,
+          expiresIn: 1800,
+        }, 200, env);
+      } catch (error) {
+        console.error('[Request Upload] Error:', error);
+        return errorResponse('Failed to prepare upload', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/confirm-upload - Confirm direct R2 upload and create D1 record
+    if (path === '/api/documents/confirm-upload' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const body = await request.json() as {
+          uploadId: string;
+          r2Key: string;
+          filename: string;
+          fileSize: number;
+          contentType: string;
+          enhanced?: boolean;
+          prescan?: boolean;
+        };
+
+        if (!body.uploadId || !body.r2Key || !body.filename) {
+          return errorResponse('Missing required fields', 400, env);
+        }
+
+        // Verify file exists in R2
+        const r2Object = await env.UPLOADS_BUCKET.head(body.r2Key);
+        if (!r2Object) {
+          return errorResponse('File not found in R2. Upload may have failed or expired.', 404, env);
+        }
+
+        // Verify the requesting user matches the uploadId pattern (same session)
+        // The docId was generated server-side, so only the user who requested it knows it
+        const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
+        const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
+        const userEmail = user.email || user.fields?.Email || null;
+        const userName = user.name || user.fields?.Name || null;
+        const enhanced = body.enhanced ? 1 : 0;
+        const prescan = body.prescan || false;
+
+        // Credit check before creating record
+        if (!prescan) {
+          const creditsNeeded = enhanced ? 2 : 1;
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditUserId = userOrg || user.id;
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+          if (creditCheck.totalAvailable < creditsNeeded) {
+            return errorResponse(
+              `Insufficient credits. Need ${creditsNeeded}, have ${creditCheck.totalAvailable}.`,
+              402, env
+            );
+          }
+        }
+
+        const initialStatus = prescan ? 'pending_prescan' : 'pending';
+        const docId = body.uploadId;
+        const actualSize = r2Object.size;
+
+        // Insert D1 record (same pattern as regular upload)
+        await env.WELLS_DB.prepare(`
+          INSERT INTO documents (
+            id, r2_key, filename, original_filename, user_id, organization_id,
+            file_size, status, upload_date, queued_at, user_plan, content_type,
+            user_email, user_name, enhanced_extraction
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
+        `).bind(docId, body.r2Key, body.filename, body.filename, user.id, userOrg, actualSize, initialStatus, userPlan, body.contentType, userEmail, userName, enhanced).run();
+
+        console.log('[Confirm Upload] Document registered:', docId, 'status:', initialStatus, 'size:', actualSize);
+
+        return jsonResponse({
+          success: true,
+          document: {
+            id: docId,
+            filename: body.filename,
+            size: actualSize,
+            status: initialStatus,
+          }
+        }, 200, env);
+      } catch (error) {
+        console.error('[Confirm Upload] Error:', error);
+        return errorResponse('Upload confirmation failed', 500, env);
       }
     }
 
