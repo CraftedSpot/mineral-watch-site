@@ -337,6 +337,9 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'death_certificate':
       extractedFieldsHtml = generateDeathCertificateFields(data.extractedData);
       break;
+    case 'corporation_commission_notice':
+      extractedFieldsHtml = generateCommissionNoticeFields(data.extractedData);
+      break;
     case 'correspondence':
     case 'letter':
     case 'email':
@@ -2984,6 +2987,145 @@ function generateMapFields(data: any): string {
     ${platHtml}
     ${sectionsHtml}
     ${notesHtml}
+  `;
+}
+
+function generateCommissionNoticeFields(data: any): string {
+  const applicant = data.applicant || {};
+  const attorney = data.attorney || {};
+  const existingOrder = data.existing_order || {};
+  const tracts = data.tracts || [];
+  const respondents = data.respondents_include || data.respondents || [];
+  const noticeType = (data.notice_type || '').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+
+  // Build location from tracts
+  let locationStr = '';
+  if (tracts.length > 0) {
+    const t = tracts[0];
+    const legal = t.legal || t;
+    const sec = legal.section || data.section || '';
+    const twp = legal.township || data.township || '';
+    const rng = legal.range || data.range || '';
+    const county = legal.county || data.county || '';
+    if (sec && twp && rng) locationStr = `Section ${sec}-${twp}-${rng}`;
+    if (county) locationStr += locationStr ? `, ${county} County` : `${county} County`;
+  }
+
+  // Applicant box
+  const applicantHtml = applicant.name ? `
+    <div class="party-box" style="margin-bottom: 12px;">
+      <div class="party-label">Applicant</div>
+      <div class="party-name">${escapeHtml(applicant.name)}</div>
+      ${applicant.contact_person ? `<div class="party-detail">Contact: ${escapeHtml(applicant.contact_person)}</div>` : ''}
+      ${applicant.phone ? `<div class="party-detail">${escapeHtml(applicant.phone)}</div>` : ''}
+      ${applicant.address ? `<div class="party-detail">${escapeHtml(applicant.address)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Attorney box
+  const attorneyHtml = attorney.name ? `
+    <div class="party-box" style="margin-bottom: 12px;">
+      <div class="party-label">Attorney</div>
+      <div class="party-name">${escapeHtml(attorney.name)}${attorney.bar_number ? ` (${escapeHtml(attorney.bar_number)})` : ''}</div>
+      ${attorney.phone ? `<div class="party-detail">${escapeHtml(attorney.phone)}</div>` : ''}
+      ${attorney.email ? `<div class="party-detail">${escapeHtml(attorney.email)}</div>` : ''}
+      ${attorney.address ? `<div class="party-detail">${escapeHtml(attorney.address)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Tracts table
+  const tractsHtml = tracts.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Tracts / Units</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Location</th><th>Formation</th><th>Proposed Spacing</th></tr>
+        </thead>
+        <tbody>
+          ${tracts.map((t: any, i: number) => {
+            const legal = t.legal || t;
+            const sec = legal.section || '';
+            const twp = legal.township || '';
+            const rng = legal.range || '';
+            const county = legal.county || '';
+            const loc = sec && twp && rng ? `${sec}-${twp}-${rng}${county ? ', ' + county : ''}` : county || '-';
+            const formation = t.common_source || t.formation || '-';
+            const spacing = t.proposed_spacing || '-';
+            return `<tr ${i % 2 !== 0 ? 'class="alt"' : ''}><td>${escapeHtml(loc)}</td><td>${escapeHtml(formation)}</td><td>${escapeHtml(spacing)}</td></tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  // Respondents
+  const respondentsHtml = respondents.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Named Respondents (${respondents.length})</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        ${respondents.map((r: any) => {
+          const name = typeof r === 'string' ? r : (r.name || '');
+          return name ? `<span style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 4px; padding: 3px 8px; font-size: 12px;">${escapeHtml(name)}</span>` : '';
+        }).filter(Boolean).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="field-grid">
+      <div class="field-item">
+        <div class="field-label">Cause Number</div>
+        <div class="field-value mono">${escapeHtml(data.cause_number || data.case_number || '') || 'Not specified'}</div>
+      </div>
+      ${noticeType ? `
+      <div class="field-item">
+        <div class="field-label">Notice Type</div>
+        <div class="field-value">${escapeHtml(noticeType)}</div>
+      </div>
+      ` : ''}
+      ${locationStr ? `
+      <div class="field-item">
+        <div class="field-label">Location</div>
+        <div class="field-value">${escapeHtml(locationStr)}</div>
+      </div>
+      ` : ''}
+      ${existingOrder.order_number ? `
+      <div class="field-item">
+        <div class="field-label">Existing Order</div>
+        <div class="field-value mono">No. ${escapeHtml(existingOrder.order_number)}</div>
+      </div>
+      ` : ''}
+      ${data.hearing_date ? `
+      <div class="field-item">
+        <div class="field-label">Hearing Date</div>
+        <div class="field-value highlight">${formatDate(data.hearing_date)}${data.hearing_time ? ' at ' + escapeHtml(data.hearing_time) : ''}</div>
+      </div>
+      ` : ''}
+      ${data.hearing_location ? `
+      <div class="field-item">
+        <div class="field-label">Hearing Location</div>
+        <div class="field-value">${escapeHtml(data.hearing_location)}</div>
+      </div>
+      ` : ''}
+      ${data.notice_date ? `
+      <div class="field-item">
+        <div class="field-label">Notice Date</div>
+        <div class="field-value">${formatDate(data.notice_date)}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${data.relief_sought ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 6px;">Relief Sought</div>
+      <div style="background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.5;">${escapeHtml(data.relief_sought)}</div>
+    </div>
+    ` : ''}
+
+    ${applicantHtml}
+    ${attorneyHtml}
+    ${tractsHtml}
+    ${respondentsHtml}
   `;
 }
 
