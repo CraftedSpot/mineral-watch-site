@@ -2227,10 +2227,9 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
                 current_chunk["page_end"] = page_idx
                 continue
 
-        # Rule 4: Split same type if confident + title phrase
-        # Lowered from 0.9 to 0.75 — heuristic classifier returns 0.8 and has_title_phrase
-        # provides strong evidence of a new document start
-        elif is_start and start_conf >= 0.75:
+        # Rule 4 (REMOVED/TIGHTENED): Only split on same type if VERY high confidence + title
+        # Previously was >= 0.5, now requires >= 0.9 AND has_title_phrase
+        elif is_start and start_conf >= 0.9:
             has_title = page.get("features", {}).get("has_title_phrase", False)
             if has_title:
                 should_start_new = True
