@@ -2426,7 +2426,7 @@ Valid document types:
 - multi_unit_horizontal_order (look for "MULTIUNIT HORIZONTAL" in header, allocation percentages per section)
 - unitization_order (look for "UNITIZATION", "UNIT ORDER", participation percentages)
 - location_exception_order (look for "LOCATION EXCEPTION", footage distances, "exception from")
-- occ_order (other OCC orders not matching above types — includes remand orders, plugging authorizations, well plugging orders, administrative orders)
+- occ_order (FALLBACK for any OCC document not matching above types. Includes remand orders, plugging authorizations, well plugging orders, administrative orders. IMPORTANT: If a document has OCC letterhead, a cause number like CD-XXXX-XXXXXX, and an ALJ signature but you CANNOT match it to a specific order type from the headers above, classify as occ_order. Do NOT default to pooling_order when uncertain — pooling_order should ONLY be used when the header explicitly says "POOLING" or "FORCE POOLING" and the document contains election options.)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - affidavit_of_heirship (sworn statement identifying heirs of a deceased mineral owner - look for "AFFIDAVIT OF HEIRSHIP", decedent name, list of heirs/children/spouses, notarized)
@@ -10259,7 +10259,7 @@ Read the document header/title FIRST. The header determines the order type.
 WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
 - multi_unit_horizontal_order: Look for "MULTIUNIT HORIZONTAL" or "MULTI-UNIT HORIZONTAL" or "MULTIUNIT WELL" in the title. Key indicators: horizontal well crossing multiple section boundaries, allocation percentages per section, completion interval lengths, production split between units. Contains tables showing section-by-section allocation factors. NOT horizontal_drilling_and_spacing_order (which establishes spacing rules, not production allocation).
-- occ_order: ONLY use this for OCC orders that don't fit the specific types above.
+- occ_order: FALLBACK for any OCC order that doesn't fit the specific types above. Includes remand orders, plugging orders, administrative orders. If a document has OCC letterhead and a cause number but you cannot match it to a specific order type, use occ_order. Do NOT default to pooling_order when uncertain.
 
 FINANCIAL DOCUMENT TYPE DETECTION (check_stub vs joint_interest_billing vs division_order):
 
