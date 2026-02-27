@@ -2167,10 +2167,6 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         is_continuation = page.get("is_continuation", False)
         has_title = page.get("features", {}).get("has_title_phrase", False)
 
-        logger.info(f"SPLIT-TRACE page {page_idx}: is_start={is_start}, conf={start_conf}, "
-                    f"type={coarse_type}, is_cont={is_continuation}, has_title={has_title}, "
-                    f"current_chunk={current_chunk['page_start'] if current_chunk else None}-{current_chunk['page_end'] if current_chunk else None}")
-
         should_start_new = False
         split_reason = None
 
@@ -2191,7 +2187,6 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         # This prevents splitting on pages that Haiku is uncertain about
         elif is_start and start_conf >= 0.85:
             rule2_title = page.get("features", {}).get("has_title_phrase", False)
-            logger.info(f"SPLIT-TRACE page {page_idx}: Rule 2 check — has_title_phrase={rule2_title}")
             if rule2_title:
                 should_start_new = True
                 split_reason = "title_detected"
@@ -2237,9 +2232,6 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
             # else: don't split, will fall through to default
 
         # DEFAULT: If nothing matched, attach to current document (bias toward continuation)
-
-        logger.info(f"SPLIT-TRACE page {page_idx}: decision={split_reason or 'DEFAULT_attach'}, "
-                    f"new_chunk={should_start_new}")
 
         if should_start_new:
             # Close previous chunk
@@ -11234,7 +11226,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                                    f"(type: {hcheck.get('heuristic_type')}, conf: {hcheck['confidence']}) — upgrading to document start")
                         page_classifications[page_idx]["is_document_start"] = True
                         page_classifications[page_idx]["is_continuation"] = False
-                        page_classifications[page_idx]["start_confidence"] = hcheck["confidence"]
+                        page_classifications[page_idx]["start_confidence"] = max(hcheck["confidence"], 0.85)
                         page_classifications[page_idx]["classification_method"] = "visual+heuristic"
                         if hcheck.get("heuristic_type"):
                             # Only set heuristic type if Sonnet didn't already classify this page
@@ -11242,6 +11234,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                                 page_classifications[page_idx]["coarse_type"] = hcheck["heuristic_type"]
                         if hcheck.get("matched_title"):
                             page_classifications[page_idx]["detected_title"] = hcheck["matched_title"]
+                            page_classifications[page_idx]["features"]["has_title_phrase"] = True
                         heuristic_additions += 1
                 if heuristic_additions > 0:
                     logger.info(f"Heuristic enhancement added {heuristic_additions} document boundary(ies) that visual detection missed")
