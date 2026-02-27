@@ -1852,16 +1852,16 @@ def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
     text_upper = page_text.upper()
 
     # DEBUG: Log text length and check for literal "FORMATION RECORD"
-    logger.info(f"Page {page_index}: heuristic_page_check - text length: {len(page_text)}")
+    logger.debug(f"Page {page_index}: heuristic_page_check - text length: {len(page_text)}")
     has_formation_record_literal = "FORMATION RECORD" in text_upper
-    logger.info(f"Page {page_index}: Literal 'FORMATION RECORD' in text: {has_formation_record_literal}")
+    logger.debug(f"Page {page_index}: Literal 'FORMATION RECORD' in text: {has_formation_record_literal}")
 
     # CRITICAL: Check for continuation patterns FIRST, before checking titles
     # This ensures "FORMATION RECORD" on page 2 of Form 1002A is caught
     # even if other title-like text exists on the same page
     for pattern in CONTINUATION_PATTERNS:
         match = re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE)
-        logger.info(f"Page {page_index}: Checking continuation pattern '{pattern}' -> match: {match is not None}")
+        logger.debug(f"Page {page_index}: Checking continuation pattern '{pattern}' -> match: {match is not None}")
         if match:
             logger.info(f"Page {page_index}: CONTINUATION MATCHED '{pattern}' - returning is_continuation=True")
             result["heuristic_is_start"] = False
@@ -2237,6 +2237,9 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
             # else: don't split, will fall through to default
 
         # DEFAULT: If nothing matched, attach to current document (bias toward continuation)
+
+        logger.info(f"SPLIT-TRACE page {page_idx}: decision={split_reason or 'DEFAULT_attach'}, "
+                    f"new_chunk={should_start_new}")
 
         if should_start_new:
             # Close previous chunk
