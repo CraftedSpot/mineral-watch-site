@@ -3134,6 +3134,36 @@ function generateCommissionNoticeFields(data: any): string {
 }
 
 /** Render a single field for the generic template, with smart handling for nested objects/arrays */
+// Format a legal_description object into a readable string
+function formatLegalDescription(legal: any): string {
+  if (!legal || typeof legal !== 'object') return '';
+  const parts: string[] = [];
+  if (legal.quarters) parts.push(String(legal.quarters));
+  if (legal.section) parts.push(`Section ${legal.section}`);
+  if (legal.township && legal.range) parts.push(`${legal.township}-${legal.range}`);
+  else if (legal.township) parts.push(`T${legal.township}`);
+  if (legal.county) parts.push(`${legal.county} County`);
+  if (legal.state && legal.state !== 'Oklahoma' && legal.state !== 'OK') parts.push(legal.state);
+  return parts.join(', ');
+}
+
+// Format a nested object value for display (avoids raw JSON dump)
+function formatNestedValue(v: any): string {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v !== 'object') return String(v);
+  if (Array.isArray(v)) return v.map(item => typeof item === 'object' ? formatNestedValue(item) : String(item)).join(', ');
+  // Check if it looks like a legal description
+  if (v.section && (v.township || v.range || v.quarters)) return formatLegalDescription(v);
+  // Generic object: render as "key: value" pairs
+  return Object.entries(v)
+    .filter(([, val]) => val !== null && val !== undefined && val !== '' && val !== false)
+    .map(([k, val]) => {
+      const label = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return `${label}: ${typeof val === 'object' ? formatNestedValue(val) : String(val)}`;
+    })
+    .join('; ');
+}
+
 function renderGenericField(label: string, value: any): string {
   // Primitive values
   if (value === null || value === undefined) return '';
@@ -3163,7 +3193,7 @@ function renderGenericField(label: string, value: any): string {
           .filter(([, v]) => v !== null && v !== undefined && v !== '')
           .map(([k, v]) => {
             const subLabel = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-            const subVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            const subVal = formatNestedValue(v);
             return `<div><strong>${escapeHtml(subLabel)}:</strong> ${escapeHtml(subVal)}</div>`;
           })
           .join('');
@@ -3184,7 +3214,7 @@ function renderGenericField(label: string, value: any): string {
     const subFields = subEntries
       .map(([k, v]) => {
         const subLabel = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-        const subVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        const subVal = formatNestedValue(v);
         return `<div><strong>${escapeHtml(subLabel)}:</strong> ${escapeHtml(subVal)}</div>`;
       })
       .join('');
