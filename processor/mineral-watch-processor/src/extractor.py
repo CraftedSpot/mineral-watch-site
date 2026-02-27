@@ -2418,13 +2418,13 @@ Valid document types:
 - title_opinion
 - check_stub (royalty check stubs, revenue statements, payment stubs showing well-level revenue with decimal interest)
 - joint_interest_billing (JIBs, joint owner invoices, operating expense invoices billed to working/mineral interest owners)
-- pooling_order (forced pooling orders with election options - use this for pooling specifically)
-- increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
+- drilling_and_spacing_order (HEADER-MATCH FIRST: If the document header/title says "DRILLING AND SPACING" or just "SPACING" without "POOLING", this is drilling_and_spacing_order, NOT pooling_order. Establishes vertical well units with setback distances. Look for "DRILLING AND SPACING", "SPACING UNIT", unit sizes like 160-acre, 640-acre.)
+- horizontal_drilling_and_spacing_order (If header says "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" — this is horizontal spacing, NOT pooling. Establishes horizontal drilling units with lateral setbacks, completion interval requirements.)
+- pooling_order (ONLY use if header says "POOLING" or "FORCE POOLING". Must contain ELECTION OPTIONS for mineral owners — choices like participate/cash bonus/royalty. If header says "SPACING" or "DRILLING AND SPACING", use drilling_and_spacing_order instead.)
+- increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY" or "INCREASED DENSITY")
 - change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
-- multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for allocation percentages)
-- unitization_order (unitization of mineral interests across multiple tracts)
-- drilling_and_spacing_order (VERTICAL well spacing - establishes drilling/spacing units with well setbacks - look for "DRILLING AND SPACING", "SPACING UNIT", unit size like 160-acre, 640-acre with formation-specific setbacks)
-- horizontal_drilling_and_spacing_order (HORIZONTAL well spacing - establishes horizontal drilling units - look for "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL", lateral setbacks, completion interval setbacks)
+- multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for "MULTIUNIT HORIZONTAL", allocation percentages per section)
+- unitization_order (unitization of mineral interests across multiple tracts - look for "UNITIZATION", "UNIT ORDER", participation percentages)
 - location_exception_order (well location exceptions - permits drilling closer to boundaries than standard setbacks - look for "LOCATION EXCEPTION", footage distances, "exception from")
 - occ_order (other OCC orders - NOT pooling, increased density, change of operator, multi-unit horizontal, spacing, or location exception)
 - suspense_notice (Form 1081, escrow notices)
@@ -9557,16 +9557,23 @@ MULTI-TRACT DEEDS: If a single deed conveys interests in MULTIPLE sections or tr
 as a separate entry in the tracts array. Each tract has its own legal description and interest details.
 
 MULTIPLE SEPARATE INSTRUMENTS:
-If this page range contains MULTIPLE SEPARATE DEEDS (identified by different recording
-information, different grantor-to-grantee pairs, or different execution dates), you MUST
-return a JSON ARRAY of document objects — one complete extraction per deed.
+If this page range contains MULTIPLE SEPARATE DEEDS, you MUST return a JSON ARRAY of
+document objects — one complete extraction per deed.
 
-Signs of multiple instruments:
-- Different Book/Page or Document numbers
-- Different execution or recording dates
+COUNTING METHOD — use recording stamps as the definitive count:
+1. Count every DISTINCT Book/Page combination or Document Number in the recording stamps
+2. Each recording stamp = one separate deed = one JSON object in your array
+3. If you find 4 Book/Page combinations, return exactly 4 objects
+4. Do NOT group deeds together even if they have the same grantors or similar dates
+
+Additional signs confirming separate instruments:
+- Separate notarization blocks (each deed is independently notarized)
+- Headers like "MINERAL DEED" or "Know All Men By These Presents" appearing multiple times
+- Different execution dates
 - Different grantor-to-grantee combinations
-- Separate notarization blocks
-- Headers like "MINERAL DEED" appearing more than once
+
+IMPORTANT: Even if two deeds have the SAME grantor and grantee, they are separate instruments
+if they have different Book/Page numbers or different execution dates.
 
 When returning an array, include "key_takeaway" and "ai_observations" as fields INSIDE
 each JSON object (not after the array). Each deed gets its own per-deed analysis.
