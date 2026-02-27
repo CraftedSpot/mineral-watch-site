@@ -192,6 +192,7 @@ function formatDocType(docType: string): string {
     lease: 'Oil & Gas Lease',
     oil_and_gas_lease: 'Oil & Gas Lease',
     pooling_order: 'Pooling Order',
+    pooling_application: 'Pooling Application',
     division_order: 'Division Order',
     drilling_and_spacing_order: 'Spacing Order',
     horizontal_drilling_and_spacing_order: 'Horizontal Spacing Order',
@@ -3132,6 +3133,71 @@ function generateCommissionNoticeFields(data: any): string {
   `;
 }
 
+/** Render a single field for the generic template, with smart handling for nested objects/arrays */
+function renderGenericField(label: string, value: any): string {
+  // Primitive values
+  if (value === null || value === undefined) return '';
+  if (typeof value !== 'object') {
+    return `
+      <div class="field-item">
+        <div class="field-label">${escapeHtml(label)}</div>
+        <div class="field-value">${escapeHtml(String(value))}</div>
+      </div>`;
+  }
+
+  // Array of strings → comma-separated
+  if (Array.isArray(value) && value.length > 0 && value.every((v) => typeof v !== 'object')) {
+    return `
+      <div class="field-item full-width">
+        <div class="field-label">${escapeHtml(label)}</div>
+        <div class="field-value">${escapeHtml(value.join(', '))}</div>
+      </div>`;
+  }
+
+  // Array of objects → mini-cards
+  if (Array.isArray(value) && value.length > 0) {
+    const cards = value
+      .map((item, i) => {
+        if (typeof item !== 'object' || item === null) return `<div>${escapeHtml(String(item))}</div>`;
+        const subFields = Object.entries(item)
+          .filter(([, v]) => v !== null && v !== undefined && v !== '')
+          .map(([k, v]) => {
+            const subLabel = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            const subVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
+            return `<div><strong>${escapeHtml(subLabel)}:</strong> ${escapeHtml(subVal)}</div>`;
+          })
+          .join('');
+        return `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px;">${subFields}</div>`;
+      })
+      .join('');
+    return `
+      <div class="field-item full-width">
+        <div class="field-label">${escapeHtml(label)}</div>
+        <div class="field-value">${cards}</div>
+      </div>`;
+  }
+
+  // Plain object → render each key/value as sub-fields
+  if (!Array.isArray(value)) {
+    const subEntries = Object.entries(value).filter(([, v]) => v !== null && v !== undefined && v !== '');
+    if (subEntries.length === 0) return '';
+    const subFields = subEntries
+      .map(([k, v]) => {
+        const subLabel = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+        const subVal = typeof v === 'object' ? JSON.stringify(v) : String(v);
+        return `<div><strong>${escapeHtml(subLabel)}:</strong> ${escapeHtml(subVal)}</div>`;
+      })
+      .join('');
+    return `
+      <div class="field-item full-width">
+        <div class="field-label">${escapeHtml(label)}</div>
+        <div class="field-value" style="line-height: 1.6;">${subFields}</div>
+      </div>`;
+  }
+
+  return '';
+}
+
 function generateGenericFields(data: any): string {
   // Filter out meta fields, internal fields, and empty values
   const skipFields = [
@@ -3174,20 +3240,7 @@ function generateGenericFields(data: any): string {
       ${entries
         .map(([key, value]) => {
           const label = key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-          let displayValue = '';
-
-          if (typeof value === 'object') {
-            displayValue = JSON.stringify(value, null, 2);
-          } else {
-            displayValue = String(value);
-          }
-
-          return `
-          <div class="field-item${typeof value === 'object' ? ' full-width' : ''}">
-            <div class="field-label">${escapeHtml(label)}</div>
-            <div class="field-value${typeof value === 'object' ? ' mono' : ''}" style="${typeof value === 'object' ? 'white-space: pre-wrap; font-size: 11px;' : ''}">${escapeHtml(displayValue)}</div>
-          </div>
-        `;
+          return renderGenericField(label, value);
         })
         .join('')}
     </div>

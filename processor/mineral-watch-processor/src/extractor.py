@@ -2423,6 +2423,7 @@ Valid document types:
 - horizontal_drilling_and_spacing_order (If header says "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" — this is horizontal spacing, NOT pooling. Establishes horizontal drilling units with lateral setbacks, completion interval requirements.)
 - change_of_operator_order (HEADER-MATCH: If the document says "CHANGE OF OPERATOR", "TRANSFER OF OPERATORSHIP", or AMENDS/MODIFIES an existing pooling order to replace the operator, this is change_of_operator_order, NOT pooling_order. An order that says "amending Pooling Order No. XXXXX" to change the operator is NOT a pooling order — it's an operator change.)
 - pooling_order (ONLY use if this is a NEW force pooling with ELECTION OPTIONS for mineral owners — choices like participate/cash bonus/royalty. If it AMENDS an existing pooling order for operator change, use change_of_operator_order. If header says "SPACING" or "DRILLING AND SPACING", use drilling_and_spacing_order.)
+- pooling_application (forced pooling application/notice — the filing requesting a pooling order, with hearing date, respondents, and relief sought. Distinct from pooling_order which is the Commission's final decision with election options.)
 - increased_density_order (look for "INCREASED WELL DENSITY" or "INCREASED DENSITY" in header)
 - multi_unit_horizontal_order (look for "MULTIUNIT HORIZONTAL" in header, allocation percentages per section)
 - unitization_order (look for "UNITIZATION", "UNIT ORDER", participation percentages)
@@ -10215,7 +10216,7 @@ If you see evidence of multiple documents, set is_multi_document: true and estim
 
 DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
-- pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
+- pooling_order, pooling_application, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer, title_opinion
 - lease_production (GIS NRIS production reports, well/lease production summaries with monthly/annual volumes)
@@ -10256,6 +10257,7 @@ Read the document header/title FIRST. The header determines the order type.
 - unitization_order: If header says "UNITIZATION", "UNIT ORDER", "OPERATING UNIT", "ENHANCED RECOVERY", "SECONDARY RECOVERY", "WATERFLOOD UNIT", or "PRESSURE MAINTENANCE UNIT". Contains TRACT PARTICIPATION PERCENTAGES (not election options). NOT pooling_order.
 - increased_density_order: If header says "INCREASED DENSITY" or "INCREASED WELL DENSITY". Authorizes additional wells in existing units.
 - pooling_order: ONLY use for NEW force pooling orders with ELECTION OPTIONS (participate/cash bonus/royalty choices for mineral owners). Must have election deadline and bonus amounts. If the order merely AMENDS an existing pooling order for operator change, use change_of_operator_order instead. If header says "SPACING" or "DRILLING AND SPACING", use the spacing type instead.
+- pooling_application: The APPLICATION or NOTICE filing that requests a pooling order — contains hearing date, respondents, legal description, and relief sought. This is the filing BEFORE the Commission issues a pooling_order. Look for "APPLICATION", "NOTICE OF HEARING", "APPLICANT", cause number with no election options.
 
 WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
