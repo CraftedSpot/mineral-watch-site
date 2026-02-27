@@ -11264,6 +11264,24 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             doc_type=effective_doc_type,
             model_override=model_override
         )
+
+        # Handle multi-instrument returns from single-document path
+        if isinstance(result, list):
+            logger.info(f"Single-doc extraction returned {len(result)} instruments, converting to multi-doc")
+            for sub_doc in result:
+                sub_doc["_start_page"] = 1
+                sub_doc["_end_page"] = len(image_paths)
+                sub_doc["_coarse_type"] = coarse_type
+                sub_doc["_quick_classification"] = classification.get("doc_type")
+                sub_doc["_split_reason"] = "multi_instrument_in_chunk"
+            return {
+                "is_multi_document": True,
+                "document_count": len(result),
+                "split_method": "extraction_detected",
+                "split_metadata": split_result.get("split_metadata"),
+                "documents": result
+            }
+
         result["_coarse_type"] = coarse_type
         result["_quick_classification"] = classification.get("doc_type")
         result["_split_metadata"] = split_result.get("split_metadata")
@@ -11354,25 +11372,48 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             model_override=model_override
         )
 
-        # Add metadata from splitting
-        doc_data["_start_page"] = page_start + 1
-        doc_data["_end_page"] = page_end + 1
-        doc_data["_coarse_type"] = coarse_type
-        doc_data["_detected_title"] = detected_title
-        doc_data["_split_reason"] = chunk.get("split_reason")
+        # Handle multi-instrument returns (e.g., 3 deeds in one chunk)
+        if isinstance(doc_data, list):
+            logger.info(f"Chunk {i} returned {len(doc_data)} separate instruments from pages {page_start+1}-{page_end+1}")
+            for sub_doc in doc_data:
+                sub_doc["_start_page"] = page_start + 1
+                sub_doc["_end_page"] = page_end + 1
+                sub_doc["_coarse_type"] = coarse_type
+                sub_doc["_detected_title"] = detected_title
+                sub_doc["_split_reason"] = "multi_instrument_in_chunk"
+                if chunk.get("attachment_pages"):
+                    sub_doc["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
+                results["documents"].append(sub_doc)
+        else:
+            # Single result — existing behavior
+            doc_data["_start_page"] = page_start + 1
+            doc_data["_end_page"] = page_end + 1
+            doc_data["_coarse_type"] = coarse_type
+            doc_data["_detected_title"] = detected_title
+            doc_data["_split_reason"] = chunk.get("split_reason")
+            if chunk.get("attachment_pages"):
+                doc_data["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
+            results["documents"].append(doc_data)
 
-        # Include attachment pages if any
-        if chunk.get("attachment_pages"):
-            doc_data["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
-
-        results["documents"].append(doc_data)
+            # Safety net: warn if Sonnet mentions multiple deeds but returned single result
+            if doc_data.get("doc_type") in DEED_DOC_TYPES:
+                obs = (doc_data.get("ai_observations") or "").lower()
+                takeaway = (doc_data.get("key_takeaway") or "").lower()
+                combined = obs + " " + takeaway
+                if any(phrase in combined for phrase in [
+                    "separate deed", "multiple deed", "separate instrument",
+                    "three deed", "two deed", "four deed", "three separate", "two separate"
+                ]):
+                    logger.warning(f"Chunk {i} may contain multiple deeds but extraction returned single result")
 
         # Add delay between documents to avoid rate limits
         if i < len(split_result["chunks"]) - 1:
             logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
             await asyncio.sleep(BATCH_DELAY_SECONDS)
 
-    logger.info(f"Multi-document extraction complete: {len(results['documents'])} documents extracted")
+    # Finalize document count (may differ from split_result if chunks expanded into multiple instruments)
+    results["document_count"] = len(results["documents"])
+    logger.info(f"Multi-document extraction complete: {results['document_count']} documents extracted")
     return results
 
 
