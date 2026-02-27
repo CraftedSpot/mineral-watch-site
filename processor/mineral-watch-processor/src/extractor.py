@@ -2165,6 +2165,11 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         is_start = page.get("is_document_start", False)
         start_conf = page.get("start_confidence", 0.0)
         is_continuation = page.get("is_continuation", False)
+        has_title = page.get("features", {}).get("has_title_phrase", False)
+
+        logger.info(f"SPLIT-TRACE page {page_idx}: is_start={is_start}, conf={start_conf}, "
+                    f"type={coarse_type}, is_cont={is_continuation}, has_title={has_title}, "
+                    f"current_chunk={current_chunk['page_start'] if current_chunk else None}-{current_chunk['page_end'] if current_chunk else None}")
 
         should_start_new = False
         split_reason = None
@@ -2185,8 +2190,9 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         # Require: is_document_start=True AND confidence >= 0.85 AND has_title_phrase=True
         # This prevents splitting on pages that Haiku is uncertain about
         elif is_start and start_conf >= 0.85:
-            has_title = page.get("features", {}).get("has_title_phrase", False)
-            if has_title:
+            rule2_title = page.get("features", {}).get("has_title_phrase", False)
+            logger.info(f"SPLIT-TRACE page {page_idx}: Rule 2 check — has_title_phrase={rule2_title}")
+            if rule2_title:
                 should_start_new = True
                 split_reason = "title_detected"
             else:
