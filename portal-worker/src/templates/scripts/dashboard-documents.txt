@@ -7730,6 +7730,17 @@
         // Make relinkDocuments available globally
         window.relinkDocuments = relinkDocuments;
 
+        // Print summaries for selected documents
+        function bulkPrintSummaries() {
+            const ids = Array.from(selectedDocuments);
+            if (ids.length === 0) return;
+            if (ids.length > 50) {
+                showToast('Maximum 50 documents per print batch', 'error');
+                return;
+            }
+            window.open('/print/document?ids=' + ids.join(','), '_blank');
+        }
+
         // Re-analyze selected documents
         async function bulkReanalyzeSelected() {
             const ids = Array.from(selectedDocuments);

@@ -137,7 +137,8 @@ async function fetchDocumentPrintData(
 }
 
 /**
- * GET /print/document?id=XXX
+ * GET /print/document?id=XXX          — single document
+ * GET /print/document?ids=X,Y,Z       — bulk print (comma-separated)
  * Serves the document print report page
  */
 export async function handleDocumentPrint(request: Request, env: Env): Promise<Response> {
@@ -150,25 +151,52 @@ export async function handleDocumentPrint(request: Request, env: Env): Promise<R
   }
 
   const url = new URL(request.url);
-  const docId = url.searchParams.get('id');
+  const singleId = url.searchParams.get('id');
+  const bulkIds = url.searchParams.get('ids');
 
-  if (!docId) {
-    return new Response('Missing document id parameter', { status: 400 });
+  // Build list of IDs to print
+  const docIds: string[] = [];
+  if (bulkIds) {
+    docIds.push(...bulkIds.split(',').map(id => id.trim()).filter(Boolean));
+  } else if (singleId) {
+    docIds.push(singleId);
+  }
+
+  if (docIds.length === 0) {
+    return new Response('Missing document id or ids parameter', { status: 400 });
+  }
+
+  if (docIds.length > 50) {
+    return new Response('Maximum 50 documents per print batch', { status: 400 });
   }
 
   try {
-    const data = await fetchDocumentPrintData(docId, env, request);
+    // Fetch all documents in parallel
+    const results = await Promise.all(
+      docIds.map(id => fetchDocumentPrintData(id, env, request).catch(err => {
+        console.error(`[DocumentPrint] Error fetching ${id}:`, err);
+        return null;
+      }))
+    );
 
-    if (!data) {
-      return new Response('Document not found', { status: 404 });
+    const documents = results.filter((d): d is DocumentPrintData => d !== null);
+
+    if (documents.length === 0) {
+      return new Response('No documents found', { status: 404 });
     }
 
-    const html = generateDocumentPrintHtml(data);
+    // Single document — use original layout
+    if (documents.length === 1) {
+      const html = generateDocumentPrintHtml(documents[0]);
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
 
+    // Multiple documents — bulk layout with page breaks
+    const html = generateBulkPrintHtml(documents);
     return new Response(html, {
-      headers: {
-        'Content-Type': 'text/html; charset=utf-8',
-      },
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   } catch (error) {
     console.error('Error generating document print report:', error);
@@ -276,9 +304,10 @@ function formatDate(dateStr: string | null | undefined): string {
 }
 
 /**
- * Generate the main print HTML
+ * Generate the document body (the .print-container div) for a single document.
+ * Reused by both single-doc and bulk print layouts.
  */
-function generateDocumentPrintHtml(data: DocumentPrintData): string {
+function generateDocumentBody(data: DocumentPrintData): string {
   const docTypeDisplay = formatDocType(data.docType);
 
   // Generate content based on document type
@@ -413,14 +442,73 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
   `
     : '';
 
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${escapeHtml(data.displayName)} - Summary</title>
-  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
-  <style>
+  return `<div class="print-container">
+    <div class="header">
+      <div>
+        <h1>${escapeHtml(docTypeDisplay).toUpperCase()} SUMMARY</h1>
+        <div class="doc-name">${escapeHtml(data.displayName)}</div>
+        <div class="doc-meta">
+          ${data.county ? escapeHtml(data.county) + ' County' : ''}
+          ${data.confidence ? `<span class="confidence-badge confidence-${data.confidence}">${data.confidence} confidence</span>` : ''}
+        </div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
+    </div>
+
+    ${
+      data.keyTakeaway
+        ? `
+    <div class="section">
+      <div class="key-takeaway">
+        <div class="key-takeaway-label">Key Takeaway</div>
+        <div class="key-takeaway-text">${formatMarkdown(data.keyTakeaway)}</div>
+      </div>
+    </div>
+    `
+        : ''
+    }
+
+    ${
+      data.detailedAnalysis
+        ? `
+    <div class="section">
+      <div class="section-title">DETAILED ANALYSIS</div>
+      <div class="analysis-content">${formatMarkdown(data.detailedAnalysis)}</div>
+    </div>
+    `
+        : ''
+    }
+
+    <div class="section">
+      <div class="section-title">EXTRACTED INFORMATION (KEY POINTS)</div>
+      ${extractedFieldsHtml}
+    </div>
+
+    ${linkedPropertiesHtml}
+
+    ${userNotesHtml}
+
+    <div class="footer">
+      <span>Generated by Mineral Watch on ${formatDate(new Date().toISOString())}</span>
+      <span>Analyzed: ${formatDate(data.uploadDate)}</span>
+    </div>
+  </div>`;
+}
+
+/**
+ * Common CSS styles shared between single and bulk print layouts
+ */
+function getPrintStyles(): string {
+  return `
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -523,7 +611,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       letter-spacing: 0.5px;
     }
 
-    /* Key Takeaway styling - uses border instead of background for better printing */
     .key-takeaway {
       background: #fff;
       border-left: 4px solid #16a34a;
@@ -545,7 +632,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       font-weight: 500;
     }
 
-    /* Detailed Analysis styling */
     .analysis-content {
       font-size: 13px;
       line-height: 1.6;
@@ -553,7 +639,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       white-space: pre-wrap;
     }
 
-    /* Field grid styling */
     .field-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -590,7 +675,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       font-size: 12px;
     }
 
-    /* Data table styling */
     .data-table {
       width: 100%;
       border-collapse: collapse;
@@ -611,7 +695,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       background: #f8fafc;
     }
 
-    /* Legal description styling */
     .legal-description {
       background: #fefce8;
       border: 1px solid #fde047;
@@ -622,7 +705,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       color: #713f12;
     }
 
-    /* Parties styling */
     .parties-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -652,7 +734,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       color: #64748b;
     }
 
-    /* Notes styling */
     .notes-section {
       background: #fffbeb;
     }
@@ -672,7 +753,6 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       background: #f8fafc;
     }
 
-    /* Mobile responsive */
     @media screen and (max-width: 900px) {
       body { padding: 10px; }
       .print-container { width: 100%; min-height: auto; }
@@ -694,9 +774,26 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       .print-controls { display: none !important; }
       .print-container { box-shadow: none; width: 100%; }
       .header { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .print-container + .print-container { page-break-before: always; }
     }
     @page { size: letter; margin: 0.25in; }
-  </style>
+  `;
+}
+
+/**
+ * Generate full HTML page for a single document print summary
+ */
+function generateDocumentPrintHtml(data: DocumentPrintData): string {
+  const body = generateDocumentBody(data);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${escapeHtml(data.displayName)} - Summary</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>${getPrintStyles()}</style>
 </head>
 <body>
   <div class="print-controls">
@@ -721,67 +818,52 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     </div>
   </div>
 
-  <div class="print-container">
-    <div class="header">
-      <div>
-        <h1>${escapeHtml(docTypeDisplay).toUpperCase()} SUMMARY</h1>
-        <div class="doc-name">${escapeHtml(data.displayName)}</div>
-        <div class="doc-meta">
-          ${data.county ? escapeHtml(data.county) + ' County' : ''}
-          ${data.confidence ? `<span class="confidence-badge confidence-${data.confidence}">${data.confidence} confidence</span>` : ''}
-        </div>
-      </div>
-      <div class="brand">
-        <div class="brand-name">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <path d="M12 6v6l4 2"/>
-          </svg>
-          MINERAL WATCH
-        </div>
-        <div class="brand-url">mymineralwatch.com</div>
-      </div>
-    </div>
+  ${body}
 
-    ${
-      data.keyTakeaway
-        ? `
-    <div class="section">
-      <div class="key-takeaway">
-        <div class="key-takeaway-label">Key Takeaway</div>
-        <div class="key-takeaway-text">${formatMarkdown(data.keyTakeaway)}</div>
-      </div>
-    </div>
-    `
-        : ''
+</body>
+</html>`;
+}
+
+/**
+ * Generate full HTML page for bulk document print (multiple summaries with page breaks)
+ */
+function generateBulkPrintHtml(documents: DocumentPrintData[]): string {
+  const bodies = documents.map(doc => generateDocumentBody(doc));
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${documents.length} Document Summaries - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    ${getPrintStyles()}
+    .print-container + .print-container { margin-top: 24px; }
+    .bulk-doc-count {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 500;
     }
-
-    ${
-      data.detailedAnalysis
-        ? `
-    <div class="section">
-      <div class="section-title">DETAILED ANALYSIS</div>
-      <div class="analysis-content">${formatMarkdown(data.detailedAnalysis)}</div>
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <div style="display: flex; align-items: center; gap: 16px;">
+      <button class="print-btn secondary" onclick="window.close()">Back to Dashboard</button>
+      <span class="bulk-doc-count">${documents.length} document summaries</span>
     </div>
-    `
-        : ''
-    }
-
-    <div class="section">
-      <div class="section-title">EXTRACTED INFORMATION (KEY POINTS)</div>
-      ${extractedFieldsHtml}
-    </div>
-
-    ${linkedPropertiesHtml}
-
-    ${userNotesHtml}
-
-    <div class="footer">
-      <span>Generated by Mineral Watch on ${formatDate(new Date().toISOString())}</span>
-      <span>Analyzed: ${formatDate(data.uploadDate)}</span>
-    </div>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print All Summaries
+    </button>
   </div>
 
+  ${bodies.join('\n\n  ')}
 
 </body>
 </html>`;
