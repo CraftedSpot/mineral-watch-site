@@ -30,7 +30,7 @@ export async function handleGetOtcSyncFiles(request: Request, env: Env): Promise
     const url = new URL(request.url);
     const status = url.searchParams.get('status');
 
-    let query = 'SELECT * FROM otc_file_sync';
+    let query = 'SELECT filename, downloaded_at, processed_at, file_size, status, error_message FROM otc_file_sync';
     const params: string[] = [];
 
     if (status) {
@@ -77,7 +77,7 @@ export async function handleCheckOtcFile(request: Request, env: Env): Promise<Re
     }
 
     const result = await env.WELLS_DB.prepare(
-      'SELECT * FROM otc_file_sync WHERE filename = ?'
+      'SELECT filename, downloaded_at, processed_at, file_size, status, error_message FROM otc_file_sync WHERE filename = ?'
     ).bind(filename).first();
 
     if (result) {

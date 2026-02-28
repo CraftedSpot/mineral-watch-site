@@ -47,7 +47,10 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
 
   try {
     const result = await env.WELLS_DB.prepare(`
-      SELECT u.*, o.name as org_name, o.plan as org_plan,
+      SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status,
+        u.created_at, u.last_login, u.total_logins, u.organization_id,
+        u.cancellation_date, u.stripe_customer_id,
+        o.name as org_name, o.plan as org_plan,
         (SELECT COUNT(*) FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active') as prop_count,
         (SELECT COUNT(*) FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active') as well_count,
         (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.detected_at > datetime('now', '-30 days')) as alerts_30d,
@@ -77,7 +80,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
     const [neverLogged, dormantPaid, emptyAccount, failedEmails, recentlyCanceled, staleFree, engagedNoWells] = await Promise.all([
       // Never logged in (created > 3 days ago)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status != 'Deleted' AND (u.total_logins IS NULL OR u.total_logins = 0)
           AND u.created_at < datetime('now', '-3 days')
@@ -86,7 +89,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Dormant paid (no login in 30d, paid plan)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status = 'Active' AND u.plan != 'Free'
           AND u.last_login < datetime('now', '-30 days')
@@ -95,7 +98,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Empty account (0 properties AND 0 wells, created > 7 days)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status != 'Deleted'
           AND u.created_at < datetime('now', '-7 days')
@@ -116,7 +119,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Recently canceled (last 30 days)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.cancellation_date > datetime('now', '-30 days')
         ORDER BY u.cancellation_date DESC
@@ -124,7 +127,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Stale free (Free plan, no login in 60 days)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status = 'Active' AND u.plan = 'Free'
           AND u.last_login < datetime('now', '-60 days')
@@ -133,7 +136,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Engaged but empty wells (active logins, 0 wells)
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name FROM users u
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status != 'Deleted'
           AND u.total_logins >= 3
@@ -170,7 +173,13 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
     const [user, activity, properties, wells, notes, orgMembers, authEvents] = await Promise.all([
       // User record
       env.WELLS_DB.prepare(`
-        SELECT u.*, o.name as org_name, o.plan as org_plan, o.stripe_customer_id as org_stripe_id
+        SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status,
+               u.created_at, u.last_login, u.total_logins, u.organization_id,
+               u.cancellation_date, u.cancellation_reason, u.cancellation_feedback,
+               u.stripe_customer_id, u.role,
+               u.alert_new_permits, u.alert_completions, u.alert_status_changes,
+               u.alert_operator_changes, u.alert_statewide, u.alert_email_enabled,
+               o.name as org_name, o.plan as org_plan, o.stripe_customer_id as org_stripe_id
         FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.airtable_record_id = ?
@@ -178,7 +187,9 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
 
       // Recent activity (last 25)
       env.WELLS_DB.prepare(`
-        SELECT * FROM activity_log
+        SELECT id, well_name, api_number, activity_type, alert_level, operator,
+               county, detected_at, email_sent, notes, case_number
+        FROM activity_log
         WHERE user_id = ?
         ORDER BY detected_at DESC
         LIMIT 25
@@ -202,7 +213,8 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
 
       // Admin notes
       env.WELLS_DB.prepare(`
-        SELECT * FROM admin_notes
+        SELECT id, user_id, author, note, tag, resolved, resolved_at, created_at, updated_at
+        FROM admin_notes
         WHERE user_id = ?
         ORDER BY created_at DESC
       `).bind(userId).all(),
@@ -344,7 +356,10 @@ export async function handleAdminActivity(request: Request, env: Env): Promise<R
     const search = url.searchParams.get('search');
 
     let query = `
-      SELECT al.*, u.email as user_email, u.name as user_name
+      SELECT al.id, al.user_id, al.well_name, al.api_number, al.activity_type,
+             al.alert_level, al.operator, al.county, al.detected_at, al.email_sent,
+             al.notes, al.case_number,
+             u.email as user_email, u.name as user_name
       FROM activity_log al
       LEFT JOIN users u ON u.airtable_record_id = al.user_id
       WHERE 1=1

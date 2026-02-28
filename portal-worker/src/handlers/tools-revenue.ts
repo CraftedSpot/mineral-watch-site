@@ -81,8 +81,8 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
 
   // 1. Verify property ownership and get property data — org members can access all org properties
   const propQuery = orgId
-    ? `SELECT * FROM properties WHERE airtable_record_id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `SELECT * FROM properties WHERE airtable_record_id = ? AND user_id = ?`;
+    ? `SELECT airtable_record_id, county, section, township, range, meridian, ri_decimal, wi_decimal, orri_decimal, ri_acres, total_acres, acres FROM properties WHERE airtable_record_id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
+    : `SELECT airtable_record_id, county, section, township, range, meridian, ri_decimal, wi_decimal, orri_decimal, ri_acres, total_acres, acres FROM properties WHERE airtable_record_id = ? AND user_id = ?`;
   const propBinds = orgId ? [propertyId, orgId, orgId] : [propertyId, userId];
 
   const propResult = await env.WELLS_DB!.prepare(propQuery).bind(...propBinds).first() as any;
@@ -335,13 +335,14 @@ export async function handleWellProduction(request: Request, env: Env): Promise<
   const orgId = session.airtableUser?.fields?.Organization?.[0] || null;
 
   // 1. Verify well ownership through property_well_links → properties
+  const wellCols = `cw.airtable_id, cw.well_name, cw.api_number, cw.operator, cw.county, cw.well_status, cw.ri_nri, cw.wi_nri, cw.orri_nri, cw.interest_source, cw.interest_source_doc_id, cw.interest_source_date, cw.wi_nri_source, cw.wi_nri_source_doc_id, cw.wi_nri_source_date, cw.orri_nri_source, cw.orri_nri_source_doc_id, cw.orri_nri_source_date`;
   const ownerQuery = orgId
-    ? `SELECT cw.* FROM client_wells cw
+    ? `SELECT ${wellCols} FROM client_wells cw
        JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE cw.airtable_id = ? AND (p.organization_id = ? OR p.user_id = ?)
        AND pwl.status IN ('Active', 'Linked') LIMIT 1`
-    : `SELECT cw.* FROM client_wells cw
+    : `SELECT ${wellCols} FROM client_wells cw
        JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
        WHERE cw.airtable_id = ? AND p.user_id = ?

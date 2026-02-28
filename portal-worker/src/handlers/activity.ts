@@ -83,20 +83,20 @@ export async function handleListActivity(request: Request, env: Env) {
     if (days) {
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - parseInt(days));
-      query = `SELECT * FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
+      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
       params.push(orgId, orgId, sinceDate.toISOString(), recordLimit);
     } else {
-      query = `SELECT * FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) ORDER BY detected_at DESC LIMIT ?`;
+      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) ORDER BY detected_at DESC LIMIT ?`;
       params.push(orgId, orgId, recordLimit);
     }
   } else {
     if (days) {
       const sinceDate = new Date();
       sinceDate.setDate(sinceDate.getDate() - parseInt(days));
-      query = `SELECT * FROM activity_log WHERE user_id = ? AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
+      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE user_id = ? AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
       params.push(user.id, sinceDate.toISOString(), recordLimit);
     } else {
-      query = `SELECT * FROM activity_log WHERE user_id = ? ORDER BY detected_at DESC LIMIT ?`;
+      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE user_id = ? ORDER BY detected_at DESC LIMIT ?`;
       params.push(user.id, recordLimit);
     }
   }
