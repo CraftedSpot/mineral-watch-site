@@ -1606,7 +1606,19 @@
         // Removed obsolete hover handlers for old modal structure
 /* __SPLIT_WELLS_D__ */
         // CSV Export Functions (Professional tier)
-        function exportWellsCSV() {
+        async function exportWellsCSV() {
+            // Ensure wells are loaded (may not be if data hasn't arrived yet)
+            if (!loadedWells.length) {
+                try {
+                    const res = await fetch('/api/wells/v2');
+                    if (res.ok) {
+                        const data = await res.json();
+                        loadedWells = data.records || data;
+                    }
+                } catch (e) {
+                    console.warn('[Export] Failed to load wells:', e);
+                }
+            }
             if (!loadedWells.length) {
                 showToast('No wells to export', 'info');
                 return;
