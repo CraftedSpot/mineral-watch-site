@@ -5,7 +5,7 @@
  * Reads from D1 activity_log table (migrated from Airtable).
  */
 
-import { PLAN_LIMITS } from '../constants.js';
+import { ACTIVITY_RECORD_LIMIT } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
@@ -60,16 +60,9 @@ export async function handleListActivity(request: Request, env: Env) {
     return jsonResponse({ error: "Database not available" }, 500);
   }
 
-  // Get user record to access plan information
+  // Get user record to access organization info
   const userRecord = await getUserFromSession(env, user);
-  const plan = userRecord?.fields.Plan || "Free";
   const userOrganizations = userRecord?.fields.Organization || [];
-
-  // Get plan-based record limit
-  const planLimits = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS["Free"];
-  const recordLimit = planLimits.activityRecords;
-
-  console.log(`Activity handler (D1) - User: ${user.email}, Plan: ${plan}, Record Limit: ${recordLimit}`);
 
   // Get query parameters
   const url = new URL(request.url);
@@ -91,7 +84,7 @@ export async function handleListActivity(request: Request, env: Env) {
   }
 
   query += ` ORDER BY al.detected_at DESC LIMIT ?`;
-  params.push(recordLimit);
+  params.push(ACTIVITY_RECORD_LIMIT);
 
   try {
     const result = await env.WELLS_DB.prepare(query).bind(...params).all();
@@ -104,8 +97,7 @@ export async function handleListActivity(request: Request, env: Env) {
 
     return jsonResponse({
       records,
-      recordLimit,
-      plan
+      recordLimit: ACTIVITY_RECORD_LIMIT
     });
   } catch (error) {
     console.error("D1 activity query error:", error);

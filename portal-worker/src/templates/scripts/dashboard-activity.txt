@@ -1,7 +1,6 @@
         // Activity state
         let allActivityRecords = [];
-        let activityRecordLimit = 5;
-        let activityPlan = 'Free';
+        let activityRecordLimit = 2000;
         let activitySearchTerm = '';
         let activitySortBy = 'date-desc';
         let activityFilterType = null; // null = all
@@ -62,8 +61,7 @@
                 if (!res.ok) throw new Error('Failed to load');
                 const data = await res.json();
                 allActivityRecords = data.records || [];
-                activityRecordLimit = data.recordLimit || 5;
-                activityPlan = data.plan || 'Free';
+                activityRecordLimit = data.recordLimit || 2000;
 
                 if (allActivityRecords.length === 0) {
                     document.getElementById('activityContent').innerHTML = `<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they'll appear here.</p></div>`;
@@ -195,10 +193,6 @@
 
             let html = '<div class="activity-list">';
 
-            // Show limit notice for lower tiers
-            if (activityRecordLimit < 100 && activityPlan !== 'Professional' && !activityPlan.startsWith('Enterprise')) {
-                html += `<div class="activity-limit-notice">Showing last ${activityRecordLimit} alerts. <a href="/portal/upgrade">Upgrade</a> for more history.</div>`;
-            }
 
             records.forEach(r => {
                 const f = r.fields;

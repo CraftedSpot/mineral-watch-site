@@ -28,13 +28,16 @@ export const BASE_URL = "https://portal.mymineralwatch.com";
 
 // Plan Limits Configuration
 // Note: Additional seats can be purchased separately (TODO: implement seat purchasing)
+// Activity record limit — no longer plan-gated (D1 handles thousands trivially)
+export const ACTIVITY_RECORD_LIMIT = 2000;
+
 export const PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 1, activityRecords: 5, seats: 1, docCreditsMonthly: 3, docCreditsBonus: 0 },
-  "Starter": { properties: 10, wells: 10, activityRecords: 25, seats: 1, docCreditsMonthly: 10, docCreditsBonus: 75 },
-  "Standard": { properties: 50, wells: 50, activityRecords: 50, seats: 1, docCreditsMonthly: 25, docCreditsBonus: 300 },
-  "Professional": { properties: 250, wells: 250, activityRecords: 100, seats: 1, docCreditsMonthly: 50, docCreditsBonus: 1000 },
-  "Business": { properties: 500, wells: 500, activityRecords: 200, seats: 3, docCreditsMonthly: 100, docCreditsBonus: 2500 },
-  "Enterprise 1K": { properties: 1000, wells: 1000, activityRecords: 500, seats: 5, docCreditsMonthly: 150, docCreditsBonus: 5000 }
+  "Free": { properties: 1, wells: 1, seats: 1, docCreditsMonthly: 3, docCreditsBonus: 0 },
+  "Starter": { properties: 10, wells: 10, seats: 1, docCreditsMonthly: 10, docCreditsBonus: 75 },
+  "Standard": { properties: 50, wells: 50, seats: 1, docCreditsMonthly: 25, docCreditsBonus: 300 },
+  "Professional": { properties: 250, wells: 250, seats: 1, docCreditsMonthly: 50, docCreditsBonus: 1000 },
+  "Business": { properties: 500, wells: 500, seats: 3, docCreditsMonthly: 100, docCreditsBonus: 2500 },
+  "Enterprise 1K": { properties: 1000, wells: 1000, seats: 5, docCreditsMonthly: 150, docCreditsBonus: 5000 }
 } as const;
 
 // Safe plan limits lookup with fallback to Free
