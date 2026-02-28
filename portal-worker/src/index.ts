@@ -1782,7 +1782,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       
       // Well linked documents endpoint (using D1 with API number)
-      const wellLinkedDocumentsMatch = path.match(/^\/api\/well\/([a-zA-Z0-9-]+)\/linked-documents$/);
+      const wellLinkedDocumentsMatch = path.match(/^\/api\/well\/([a-zA-Z0-9_-]+)\/linked-documents$/);
       if (wellLinkedDocumentsMatch && request.method === "GET") {
         // Check if api_number query parameter is provided
         const url = new URL(request.url);
