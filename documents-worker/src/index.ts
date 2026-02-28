@@ -1622,8 +1622,11 @@ export default {
         const pageEnd = doc.page_range_end as number | null;
         const isPdf = contentType === 'application/pdf';
 
-        // If this is a child document with page ranges and it's a PDF, extract only those pages
-        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1) {
+        // Pre-extracted children have their own R2 key matching their doc ID
+        const isPreExtracted = doc.r2_key && (doc.r2_key as string).startsWith(docId);
+
+        // If this is a legacy child (shares parent r2_key) with page ranges, extract on-the-fly
+        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1 && !isPreExtracted) {
           console.log(`Extracting pages ${pageStart}-${pageEnd} for child document ${docId}`);
           try {
             // Load the full PDF
@@ -1657,6 +1660,13 @@ export default {
             // R2 body was consumed by arrayBuffer() — re-fetch for fallback
             const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
             if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
+            // Guard rail: if the fallback PDF is >50MB, don't serve it (would fail in browser anyway)
+            if (fallbackObject.size > 50 * 1024 * 1024) {
+              return new Response(JSON.stringify({ error: 'large_document' }), {
+                status: 413,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders(env) },
+              });
+            }
             // Add page range to filename so user knows where to look
             const baseName = downloadName.replace(/\.pdf$/i, '');
             const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
@@ -1671,7 +1681,7 @@ export default {
           }
         }
 
-        // Return full file with appropriate headers (for non-child docs or non-PDFs)
+        // Return full file with appropriate headers (for non-child docs, non-PDFs, or pre-extracted children)
         return new Response(object.body, {
           headers: {
             'Content-Type': contentType,
@@ -1735,8 +1745,11 @@ export default {
         const pageEnd = doc.page_range_end as number | null;
         const isPdf = contentType === 'application/pdf';
 
-        // If this is a child document with page ranges and it's a PDF, extract only those pages
-        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1) {
+        // Pre-extracted children have their own R2 key matching their doc ID
+        const isPreExtracted = doc.r2_key && (doc.r2_key as string).startsWith(docId);
+
+        // If this is a legacy child (shares parent r2_key) with page ranges, extract on-the-fly
+        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1 && !isPreExtracted) {
           console.log(`Extracting pages ${pageStart}-${pageEnd} for viewing child document ${docId}`);
           try {
             const pdfBytes = await object.arrayBuffer();
@@ -1766,6 +1779,13 @@ export default {
             // R2 body was consumed by arrayBuffer() — re-fetch for fallback
             const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
             if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
+            // Guard rail: if the fallback PDF is >50MB, don't serve it (would fail in browser anyway)
+            if (fallbackObject.size > 50 * 1024 * 1024) {
+              return new Response(JSON.stringify({ error: 'large_document' }), {
+                status: 413,
+                headers: { 'Content-Type': 'application/json', ...corsHeaders(env) },
+              });
+            }
             const baseName = (viewName as string).replace(/\.pdf$/i, '');
             const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
             return new Response(fallbackObject.body, {
@@ -1780,7 +1800,7 @@ export default {
           }
         }
 
-        // Return full file for inline viewing (for non-child docs or non-PDFs)
+        // Return full file for inline viewing (for non-child docs, non-PDFs, or pre-extracted children)
         return new Response(object.body, {
           headers: {
             'Content-Type': contentType,
@@ -3549,6 +3569,24 @@ export default {
           return errorResponse('Parent document not found', 404, env);
         }
 
+        // Pre-load parent PDF for child extraction (best-effort)
+        let fullPdfDoc: any = null;
+        try {
+          const parentR2Object = await env.UPLOADS_BUCKET.get(parentDoc.r2_key);
+          if (parentR2Object) {
+            const rawSize = parentR2Object.size;
+            if (rawSize > 60 * 1024 * 1024) {
+              console.log(`[Split] Parent PDF too large for extraction (${Math.round(rawSize / 1024 / 1024)}MB > 60MB), children will share parent r2_key`);
+            } else {
+              const pdfBytes = await parentR2Object.arrayBuffer();
+              fullPdfDoc = await PDFDocument.load(pdfBytes);
+              console.log(`[Split] Loaded parent PDF (${Math.round(rawSize / 1024)}KB, ${fullPdfDoc.getPageCount()} pages) for child extraction`);
+            }
+          }
+        } catch (loadErr) {
+          console.error(`[Split] Failed to load parent PDF for extraction, children will share parent r2_key:`, loadErr);
+        }
+
         // Create child documents
         const childIds = [];
         for (const child of children) {
@@ -3558,6 +3596,30 @@ export default {
           // Post-process extracted data for child (normalize PUNs, etc.)
           if (child.extracted_data) {
             child.extracted_data = postProcessExtractedData(child.extracted_data);
+          }
+
+          // Extract child's pages into standalone PDF and upload to R2
+          let childR2Key = parentDoc.r2_key as string;
+          if (fullPdfDoc && child.page_range_start != null && child.page_range_end != null) {
+            try {
+              const childPdf = await PDFDocument.create();
+              const pageIndices: number[] = [];
+              for (let i = child.page_range_start - 1; i <= child.page_range_end - 1 && i < fullPdfDoc.getPageCount(); i++) {
+                pageIndices.push(i);
+              }
+              const copiedPages = await childPdf.copyPages(fullPdfDoc, pageIndices);
+              copiedPages.forEach((page: any) => childPdf.addPage(page));
+              const childBytes = await childPdf.save();
+              const childKey = `${childId}.pdf`;
+              await env.UPLOADS_BUCKET.put(childKey, childBytes, {
+                httpMetadata: { contentType: 'application/pdf' },
+              });
+              childR2Key = childKey;
+              console.log(`[Split] Extracted child PDF ${childId} (pages ${child.page_range_start}-${child.page_range_end}, ${Math.round(childBytes.byteLength / 1024)}KB)`);
+            } catch (extractErr) {
+              console.error(`[Split] Failed to extract child ${childId}, using parent r2_key:`, extractErr);
+              // childR2Key remains parentDoc.r2_key
+            }
           }
 
           await env.WELLS_DB.prepare(`
@@ -3575,7 +3637,7 @@ export default {
             )
           `).bind(
             childId,
-            parentDoc.r2_key, // Same PDF file
+            childR2Key, // Own PDF if extracted, else parent's shared PDF
             parentDoc.filename,
             parentDoc.user_id,
             parentDoc.organization_id,

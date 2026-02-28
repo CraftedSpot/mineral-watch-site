@@ -19,18 +19,18 @@ from datetime import datetime
 # ============================================================================
 
 def format_legal_description(section: str = None, township: str = None, range_val: str = None) -> Optional[str]:
-    """Format legal description as S{section}-T{township}-R{range}"""
+    """Format legal description as T{township}-R{range}-S{section}"""
     if not any([section, township, range_val]):
         return None
-    
+
     parts = []
-    if section:
-        parts.append(f"S{str(section).strip()}")
     if township:
         parts.append(f"T{str(township).strip().upper()}")
     if range_val:
         parts.append(f"R{str(range_val).strip().upper()}")
-    
+    if section:
+        parts.append(f"S{str(section).strip()}")
+
     return "-".join(parts) if parts else None
 
 
@@ -1338,7 +1338,11 @@ def name_title_opinion(data: Dict[str, Any]) -> str:
     
     attorney = data.get('attorney') or data.get('law_firm') or data.get('examiner') or data.get('examining_attorney')
     if attorney:
-        parts.append(extract_last_name(attorney))
+        # examining_attorney may be a dict with 'name' key
+        if isinstance(attorney, dict):
+            attorney = attorney.get('name', '')
+        if attorney:
+            parts.append(extract_last_name(attorney))
     
     if data.get('year'):
         parts.append(str(data['year']))
