@@ -1,7 +1,12 @@
         
 
-        // Initialize map centered on Oklahoma
-        const map = L.map('map').setView([35.5, -97.5], 7);
+        // Initialize map — if deep-link STR params present, start zoomed to township area
+        // to avoid the "flash of Oklahoma" before the PLSS fetch completes
+        const _initParams = new URLSearchParams(window.location.search);
+        const _hasTRS = _initParams.get('section') && _initParams.get('township') && _initParams.get('range');
+        const _hasWellOrProp = _initParams.get('well') || _initParams.get('property');
+        const _initZoom = (_hasTRS || _hasWellOrProp) ? 12 : 7;
+        const map = L.map('map').setView([35.5, -97.5], _initZoom);
         
         // Force popup pane to have high z-index
         // Leaflet uses 'popupPane' by default for popups

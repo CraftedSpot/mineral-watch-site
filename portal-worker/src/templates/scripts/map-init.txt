@@ -91,112 +91,90 @@
                 // Note: Properties and wells layers are added automatically when loaded
                 // Section numbers will be added when sections are loaded (zoom 12+)
 
-                // Load properties after map is ready
-                setTimeout(async () => {
-                    try {
-                        // Load all data in parallel for better performance
-                        const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
-                            loadUserProperties(),
-                            loadTrackedWells(),
-                            loadActivityData()
-                        ]);
+                // Load user data (no artificial delay — deep-link zoom runs as soon as data is ready)
+                try {
+                    // Start PLSS section fetch early if we have STR params (don't wait for user data)
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const sectionParam = urlParams.get('section');
+                    const townshipParam = urlParams.get('township');
+                    const rangeParam = urlParams.get('range');
+                    const plssFetch = (sectionParam && townshipParam && rangeParam)
+                        ? fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`)
+                        : null;
 
-                        // Log any failures but don't stop the map from working
-                        if (propertiesResult.status === 'rejected') {
-                            console.error('Failed to load properties:', propertiesResult.reason);
-                        }
-                        if (wellsResult.status === 'rejected') {
-                            console.error('Failed to load wells:', wellsResult.reason);
-                        }
-                        if (activityResult.status === 'rejected') {
-                            console.error('Failed to load activity data:', activityResult.reason);
-                        }
+                    // Load all data in parallel
+                    const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
+                        loadUserProperties(),
+                        loadTrackedWells(),
+                        loadActivityData()
+                    ]);
 
-                        // Check if we need to center on a specific property from URL
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const propertyId = urlParams.get('property');
-                        const wellId = urlParams.get('well');
-
-                        if (propertyId && propertiesResult.status === 'fulfilled') {
-                            // Find the property in loaded data
-                            const property = userProperties.find(p => p.id === propertyId);
-                            if (property && propertyMarkers[propertyId]) {
-                                const marker = propertyMarkers[propertyId];
-                                const bounds = marker.getBounds();
-                                map.fitBounds(bounds, { maxZoom: 15, padding: [50, 50] });
-
-                                // Open the popup after a short delay to ensure the map has centered
-                                setTimeout(() => {
-                                    marker.openPopup();
-                                }, 500);
-                            }
-                        }
-
-                        // Check if we need to center on a specific well from URL
-                        else if (wellId && wellsResult.status === 'fulfilled') {
-                            // Wells should be loaded now, but use a short retry in case of timing issues
-                            let retryCount = 0;
-                            const maxRetries = 10; // Reduced since wells should already be loaded
-
-                            const tryZoomToWell = () => {
-                                // Find the well in loaded data
-                                const well = trackedWells.find(w => w.id === wellId);
-                                if (well && wellMarkers[wellId] && wellsLayer) {
-                                    const marker = wellMarkers[wellId];
-
-                                    // Use MarkerClusterGroup's zoomToShowLayer method
-                                    wellsLayer.zoomToShowLayer(marker, () => {
-                                        // This callback fires after the zoom/spiderfy animation
-                                        setTimeout(() => {
-                                            marker.openPopup();
-                                        }, 100);
-                                    });
-                                } else if (retryCount < maxRetries) {
-                                    // Retry in case of timing issues
-                                    retryCount++;
-                                    setTimeout(tryZoomToWell, 100);
-                                } else {
-                                    console.warn(`Could not zoom to well ${wellId} after ${maxRetries} retries`);
-                                }
-                            };
-
-                            // Start trying immediately since wells should be loaded
-                            tryZoomToWell();
-                        }
-
-                        // Fallback: center on a section from STR params (e.g., from Activity tab "View on Map")
-                        else {
-                            const sectionParam = urlParams.get('section');
-                            const townshipParam = urlParams.get('township');
-                            const rangeParam = urlParams.get('range');
-
-                            if (sectionParam && townshipParam && rangeParam) {
-                                try {
-                                    const res = await fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`);
-                                    if (res.ok) {
-                                        const geojson = await res.json();
-                                        const highlightLayer = L.geoJSON(geojson, {
-                                            style: { color: '#D97706', weight: 3, fillColor: '#FEF3C7', fillOpacity: 0.3 }
-                                        });
-                                        highlightLayer.addTo(map);
-                                        map.fitBounds(highlightLayer.getBounds(), { maxZoom: 14, padding: [50, 50] });
-
-                                        const countyParam = urlParams.get('county');
-                                        highlightLayer.bindPopup(
-                                            `<b>${townshipParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${rangeParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${sectionParam.padStart(2, '0')}</b>` +
-                                            (countyParam ? `<br>${countyParam} County` : '')
-                                        ).openPopup();
-                                    }
-                                } catch (err) {
-                                    console.error('Error loading section for deep link:', err);
-                                }
-                            }
-                        }
-
-                    } catch (error) {
-                        console.error('Error loading properties:', error);
+                    // Log any failures but don't stop the map from working
+                    if (propertiesResult.status === 'rejected') {
+                        console.error('Failed to load properties:', propertiesResult.reason);
                     }
-                }, 1000);
+                    if (wellsResult.status === 'rejected') {
+                        console.error('Failed to load wells:', wellsResult.reason);
+                    }
+                    if (activityResult.status === 'rejected') {
+                        console.error('Failed to load activity data:', activityResult.reason);
+                    }
+
+                    // Deep-link: center on a specific property
+                    const propertyId = urlParams.get('property');
+                    const wellId = urlParams.get('well');
+
+                    if (propertyId && propertiesResult.status === 'fulfilled') {
+                        const property = userProperties.find(p => p.id === propertyId);
+                        if (property && propertyMarkers[propertyId]) {
+                            const marker = propertyMarkers[propertyId];
+                            map.fitBounds(marker.getBounds(), { maxZoom: 15, padding: [50, 50] });
+                            setTimeout(() => marker.openPopup(), 300);
+                        }
+                    }
+
+                    // Deep-link: center on a specific tracked well
+                    else if (wellId && wellsResult.status === 'fulfilled') {
+                        let retryCount = 0;
+                        const tryZoomToWell = () => {
+                            const well = trackedWells.find(w => w.id === wellId);
+                            if (well && wellMarkers[wellId] && wellsLayer) {
+                                wellsLayer.zoomToShowLayer(wellMarkers[wellId], () => {
+                                    setTimeout(() => wellMarkers[wellId].openPopup(), 100);
+                                });
+                            } else if (retryCount++ < 10) {
+                                setTimeout(tryZoomToWell, 100);
+                            }
+                        };
+                        tryZoomToWell();
+                    }
+
+                    // Deep-link: highlight section from STR params (Activity tab "MW Map")
+                    else if (plssFetch) {
+                        try {
+                            const res = await plssFetch;
+                            if (res.ok) {
+                                const geojson = await res.json();
+                                const highlightLayer = L.geoJSON(geojson, {
+                                    style: { color: '#D97706', weight: 3, fillColor: '#FEF3C7', fillOpacity: 0.3 }
+                                });
+                                highlightLayer.addTo(map);
+                                map.fitBounds(highlightLayer.getBounds(), { maxZoom: 14, padding: [50, 50] });
+
+                                const countyParam = urlParams.get('county');
+                                highlightLayer.bindPopup(
+                                    `<b>${townshipParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${rangeParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${sectionParam.padStart(2, '0')}</b>` +
+                                    (countyParam ? `<br>${countyParam} County` : '')
+                                ).openPopup();
+                            }
+                        } catch (err) {
+                            console.error('Error loading section for deep link:', err);
+                        }
+                    }
+
+                } catch (error) {
+                    console.error('Error loading map data:', error);
+                }
 
             } catch (error) {
                 console.error('Error initializing map:', error);
