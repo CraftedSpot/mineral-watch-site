@@ -193,55 +193,50 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
     let revenueChange: number | null = null;
     let deductionFlags: number | null = null;
     let shutInWells = 0;
+    let wellsAnalyzed = 0;
 
-    if (basePuns.length > 0) {
-      // Revenue from otc_production
+    const sixMonthsAgo = getMonthsAgo(6);
+    const threeMonthsAgo = getMonthsAgo(3);
+
+    // Run all 4 independent query groups in parallel
+    const revenuePromise = (async () => {
+      if (basePuns.length === 0) return { revenue: null as number | null, change: null as number | null };
       try {
         const punBatch = basePuns.slice(0, 50);
         const punPlaceholders = punBatch.map(() => '?').join(',');
-
         const latestMonthResult = await env.WELLS_DB.prepare(
           `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
         ).bind(...punBatch).first() as { latest: string } | null;
-
         const latestMonth = latestMonthResult?.latest;
+        if (!latestMonth) return { revenue: null as number | null, change: null as number | null };
 
-        if (latestMonth) {
-          const revenueResult = await env.WELLS_DB.prepare(
+        const [revenueResult, priorResult] = await Promise.all([
+          env.WELLS_DB.prepare(
             `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
              FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-          ).bind(...punBatch, latestMonth).first() as { total_net: number; total_gross: number } | null;
-
-          if (revenueResult) {
-            estimatedRevenue = Math.round(revenueResult.total_net || revenueResult.total_gross || 0);
-          }
-
-          const priorMonth = getPriorMonth(latestMonth);
-          const priorResult = await env.WELLS_DB.prepare(
+          ).bind(...punBatch, latestMonth).first() as Promise<{ total_net: number; total_gross: number } | null>,
+          env.WELLS_DB.prepare(
             `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
              FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
-          ).bind(...punBatch, priorMonth).first() as { total_net: number; total_gross: number } | null;
+          ).bind(...punBatch, getPriorMonth(latestMonth)).first() as Promise<{ total_net: number; total_gross: number } | null>
+        ]);
 
-          if (priorResult && estimatedRevenue) {
-            const priorRevenue = priorResult.total_net || priorResult.total_gross || 0;
-            if (priorRevenue > 0) {
-              revenueChange = ((estimatedRevenue - priorRevenue) / priorRevenue) * 100;
-            }
-          }
+        const rev = revenueResult ? Math.round(revenueResult.total_net || revenueResult.total_gross || 0) : null;
+        let change: number | null = null;
+        if (priorResult && rev) {
+          const priorRevenue = priorResult.total_net || priorResult.total_gross || 0;
+          if (priorRevenue > 0) change = ((rev - priorRevenue) / priorRevenue) * 100;
         }
+        return { revenue: rev, change };
       } catch (revError) {
         console.error('[Intelligence Summary] Revenue query error:', revError instanceof Error ? revError.message : revError);
+        return { revenue: null as number | null, change: null as number | null };
       }
+    })();
 
-      // Deduction flags — aggregate well-level rate across ALL product codes.
-      // GOR-aware: includes single-product wells (full report provides context).
-      // The < 1.0 filter still avoids pure gas-trap false positives.
-      // Summary card uses 50% threshold for "high" wells (notable outliers).
-      // Full report uses 25% threshold for complete picture.
-      // Process ALL wells in batches of 50.
+    const deductionPromise = (async () => {
+      if (basePuns.length === 0) return 0;
       try {
-        const sixMonthsAgo = getMonthsAgo(6);
-
         const flaggedResults = await parallelBatches(api10s, 50, async (apiBatch) => {
           const apiPlaceholders = apiBatch.map(() => '?').join(',');
           const deductionResult = await env.WELLS_DB.prepare(`
@@ -260,16 +255,16 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
           `).bind(...apiBatch, sixMonthsAgo).first() as { flagged_count: number } | null;
           return [deductionResult?.flagged_count ?? 0];
         });
-
-        deductionFlags = flaggedResults.reduce((sum, n) => sum + n, 0);
+        return flaggedResults.reduce((sum, n) => sum + n, 0);
       } catch (dedError) {
         console.error('[Intelligence Summary] Deduction query error:', dedError instanceof Error ? dedError.message : dedError);
+        return 0;
       }
+    })();
 
-      // Shut-in detection from otc_production — process ALL basePuns in batches
+    const shutInPromise = (async () => {
+      if (basePuns.length === 0) return 0;
       try {
-        const threeMonthsAgo = getMonthsAgo(3);
-
         const shutInResults = await parallelBatches(basePuns, 50, async (punBatch) => {
           const punPlaceholders = punBatch.map(() => '?').join(',');
           const shutInResult = await env.WELLS_DB.prepare(`
@@ -282,39 +277,47 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
           `).bind(...punBatch, threeMonthsAgo).first() as { shut_in_count: number } | null;
           return [shutInResult?.shut_in_count ?? 0];
         });
-
-        shutInWells = shutInResults.reduce((sum, n) => sum + n, 0);
+        return shutInResults.reduce((sum, n) => sum + n, 0);
       } catch (shutInError) {
         console.error('[Intelligence Summary] Shut-in query error:', shutInError instanceof Error ? shutInError.message : shutInError);
+        return 0;
       }
-    }
+    })();
 
-    // Count wells with analyzable financial data (multi-product, >$500 gross)
-    let wellsAnalyzed = 0;
-    try {
-      const sixMonthsAgo = getMonthsAgo(6);
+    const analyzedPromise = (async () => {
+      try {
+        const analyzedResults = await parallelBatches(api10s, 50, async (apiBatch) => {
+          const apiPlaceholders = apiBatch.map(() => '?').join(',');
+          const analyzedResult = await env.WELLS_DB.prepare(`
+            SELECT COUNT(*) as cnt FROM (
+              SELECT wpl.api_number
+              FROM well_pun_links wpl
+              JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+              WHERE wpl.api_number IN (${apiPlaceholders})
+                AND opf.gross_value > 0
+                AND opf.year_month >= ?
+              GROUP BY wpl.api_number
+              HAVING SUM(opf.gross_value) > 500
+                AND COUNT(DISTINCT opf.product_code) > 1
+            )
+          `).bind(...apiBatch, sixMonthsAgo).first() as { cnt: number } | null;
+          return [analyzedResult?.cnt ?? 0];
+        });
+        return analyzedResults.reduce((sum, n) => sum + n, 0);
+      } catch (e) {
+        console.error('[Intelligence Summary] Wells analyzed count error:', e);
+        return 0;
+      }
+    })();
 
-      const analyzedResults = await parallelBatches(api10s, 50, async (apiBatch) => {
-        const apiPlaceholders = apiBatch.map(() => '?').join(',');
-        const analyzedResult = await env.WELLS_DB.prepare(`
-          SELECT COUNT(*) as cnt FROM (
-            SELECT wpl.api_number
-            FROM well_pun_links wpl
-            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
-            WHERE wpl.api_number IN (${apiPlaceholders})
-              AND opf.gross_value > 0
-              AND opf.year_month >= ?
-            GROUP BY wpl.api_number
-            HAVING SUM(opf.gross_value) > 500
-              AND COUNT(DISTINCT opf.product_code) > 1
-          )
-        `).bind(...apiBatch, sixMonthsAgo).first() as { cnt: number } | null;
-        return [analyzedResult?.cnt ?? 0];
-      });
-      wellsAnalyzed = analyzedResults.reduce((sum, n) => sum + n, 0);
-    } catch (e) {
-      console.error('[Intelligence Summary] Wells analyzed count error:', e);
-    }
+    const [revenueData, deductionCount, shutInCount, analyzedCount] = await Promise.all([
+      revenuePromise, deductionPromise, shutInPromise, analyzedPromise
+    ]);
+    estimatedRevenue = revenueData.revenue;
+    revenueChange = revenueData.change;
+    deductionFlags = deductionCount;
+    shutInWells = shutInCount;
+    wellsAnalyzed = analyzedCount;
 
     return jsonResponse({
       activeWells,
@@ -1618,46 +1621,48 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       residue_deductions: number;
       liquids_returned: number;
     };
-    const allMetrics = await parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
-      const ph = batch.map(() => '?').join(',');
-      const result = await env.WELLS_DB.prepare(`
-        SELECT
-          ol.operator_number,
-          oc.company_name,
-          COUNT(DISTINCT ol.base_pun) as well_count,
-          ROUND(SUM(opf.gross_value), 0) as total_gross,
-          ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
-          ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
-        FROM otc_production_financial opf
-        JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-        LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
-        WHERE ol.operator_number IN (${ph})
-          AND opf.gross_value > 0
-          AND opf.year_month >= ?
-        GROUP BY ol.operator_number
-        HAVING well_count >= 1
-      `).bind(...batch, sixMonthsAgo).all();
-      return (result.results || []) as MetricsRow[];
-    });
-
-    // Look up primary gas purchaser per operator for affiliated detection (batched)
     type PurchaserRow = { operator_number: string; purchaser_id: string };
-    const allPurchasers = await parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
-      const ph = batch.map(() => '?').join(',');
-      const result = await env.WELLS_DB.prepare(`
-        SELECT operator_number, purchaser_id FROM (
-          SELECT l.operator_number, opf.purchaser_id, COUNT(*) as cnt,
-            ROW_NUMBER() OVER (PARTITION BY l.operator_number ORDER BY COUNT(*) DESC) as rn
+
+    // Run metrics and purchaser queries in parallel (both independent)
+    const [allMetrics, allPurchasers] = await Promise.all([
+      parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
+        const ph = batch.map(() => '?').join(',');
+        const result = await env.WELLS_DB.prepare(`
+          SELECT
+            ol.operator_number,
+            oc.company_name,
+            COUNT(DISTINCT ol.base_pun) as well_count,
+            ROUND(SUM(opf.gross_value), 0) as total_gross,
+            ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
+            ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
           FROM otc_production_financial opf
-          JOIN otc_leases l ON SUBSTR(opf.pun, 1, 10) = l.base_pun
-          WHERE opf.product_code = '5' AND opf.purchaser_id IS NOT NULL AND opf.purchaser_id != ''
-            AND l.operator_number IN (${ph})
+          JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+          LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+          WHERE ol.operator_number IN (${ph})
+            AND opf.gross_value > 0
             AND opf.year_month >= ?
-          GROUP BY l.operator_number, opf.purchaser_id
-        ) WHERE rn = 1
-      `).bind(...batch, sixMonthsAgo).all();
-      return (result.results || []) as PurchaserRow[];
-    });
+          GROUP BY ol.operator_number
+          HAVING well_count >= 1
+        `).bind(...batch, sixMonthsAgo).all();
+        return (result.results || []) as MetricsRow[];
+      }),
+      parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
+        const ph = batch.map(() => '?').join(',');
+        const result = await env.WELLS_DB.prepare(`
+          SELECT operator_number, purchaser_id FROM (
+            SELECT l.operator_number, opf.purchaser_id, COUNT(*) as cnt,
+              ROW_NUMBER() OVER (PARTITION BY l.operator_number ORDER BY COUNT(*) DESC) as rn
+            FROM otc_production_financial opf
+            JOIN otc_leases l ON SUBSTR(opf.pun, 1, 10) = l.base_pun
+            WHERE opf.product_code = '5' AND opf.purchaser_id IS NOT NULL AND opf.purchaser_id != ''
+              AND l.operator_number IN (${ph})
+              AND opf.year_month >= ?
+            GROUP BY l.operator_number, opf.purchaser_id
+          ) WHERE rn = 1
+        `).bind(...batch, sixMonthsAgo).all();
+        return (result.results || []) as PurchaserRow[];
+      })
+    ]);
 
     // Look up purchaser company names (batched for D1 param limit)
     const purchaserIds = [...new Set(allPurchasers.map(r => r.purchaser_id))];
@@ -1829,64 +1834,65 @@ export async function handleGetDeductionResearch(request: Request, env: Env): Pr
 
     const sixMonthsAgo = getMonthsAgo(6);
 
-    // Query 1: Top counties by avg deduction %
-    const countiesResult = await env.WELLS_DB.prepare(`
-      SELECT
-        ol.county,
-        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) * 100.0
-              / NULLIF(SUM(opf.gross_value), 0), 1) AS avg_deduction_pct,
-        COUNT(DISTINCT ol.base_pun) AS well_count
-      FROM otc_production_financial opf
-      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-      WHERE opf.gross_value > 0
-        AND opf.year_month >= ?
-        AND ol.county IS NOT NULL
-      GROUP BY ol.county
-      HAVING well_count >= 20
-        AND avg_deduction_pct > 0
-      ORDER BY avg_deduction_pct DESC
-      LIMIT 5
-    `).bind(sixMonthsAgo).all();
-
-    // Query 2: Top operators by PCRR (most efficient — highest PCRR with 20+ wells)
-    const pcrrResult = await env.WELLS_DB.prepare(`
-      SELECT
-        oc.company_name AS operator_name,
-        ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END) * 100.0
-              / NULLIF(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0), 1) AS pcrr,
-        COUNT(DISTINCT ol.base_pun) AS well_count
-      FROM otc_production_financial opf
-      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      WHERE opf.gross_value > 0
-        AND opf.year_month >= ?
-        AND ol.operator_number IS NOT NULL
-      GROUP BY ol.operator_number
-      HAVING well_count >= 20
-        AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
-      ORDER BY pcrr DESC
-      LIMIT 5
-    `).bind(sixMonthsAgo).all();
-
-    // Query 3: Top operators by net value return (NGL returned - deductions)
-    const netReturnResult = await env.WELLS_DB.prepare(`
-      SELECT
-        oc.company_name AS operator_name,
-        ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END)
-              - SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) AS net_value_return,
-        COUNT(DISTINCT ol.base_pun) AS well_count
-      FROM otc_production_financial opf
-      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
-      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      WHERE opf.gross_value > 0
-        AND opf.year_month >= ?
-        AND ol.operator_number IS NOT NULL
-      GROUP BY ol.operator_number
-      HAVING well_count >= 20
-        AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
-      ORDER BY net_value_return DESC
-      LIMIT 5
-    `).bind(sixMonthsAgo).all();
+    // All 3 queries are independent — run in parallel
+    const [countiesResult, pcrrResult, netReturnResult] = await Promise.all([
+      // Query 1: Top counties by avg deduction %
+      env.WELLS_DB.prepare(`
+        SELECT
+          ol.county,
+          ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) * 100.0
+                / NULLIF(SUM(opf.gross_value), 0), 1) AS avg_deduction_pct,
+          COUNT(DISTINCT ol.base_pun) AS well_count
+        FROM otc_production_financial opf
+        JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+        WHERE opf.gross_value > 0
+          AND opf.year_month >= ?
+          AND ol.county IS NOT NULL
+        GROUP BY ol.county
+        HAVING well_count >= 20
+          AND avg_deduction_pct > 0
+        ORDER BY avg_deduction_pct DESC
+        LIMIT 5
+      `).bind(sixMonthsAgo).all(),
+      // Query 2: Top operators by PCRR
+      env.WELLS_DB.prepare(`
+        SELECT
+          oc.company_name AS operator_name,
+          ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END) * 100.0
+                / NULLIF(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0), 1) AS pcrr,
+          COUNT(DISTINCT ol.base_pun) AS well_count
+        FROM otc_production_financial opf
+        JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+        LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        WHERE opf.gross_value > 0
+          AND opf.year_month >= ?
+          AND ol.operator_number IS NOT NULL
+        GROUP BY ol.operator_number
+        HAVING well_count >= 20
+          AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
+        ORDER BY pcrr DESC
+        LIMIT 5
+      `).bind(sixMonthsAgo).all(),
+      // Query 3: Top operators by net value return
+      env.WELLS_DB.prepare(`
+        SELECT
+          oc.company_name AS operator_name,
+          ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END)
+                - SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) AS net_value_return,
+          COUNT(DISTINCT ol.base_pun) AS well_count
+        FROM otc_production_financial opf
+        JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+        LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        WHERE opf.gross_value > 0
+          AND opf.year_month >= ?
+          AND ol.operator_number IS NOT NULL
+        GROUP BY ol.operator_number
+        HAVING well_count >= 20
+          AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
+        ORDER BY net_value_return DESC
+        LIMIT 5
+      `).bind(sixMonthsAgo).all()
+    ]);
 
     const response = {
       topDeductionCounties: (countiesResult.results as any[]).map(r => ({
@@ -5813,112 +5819,106 @@ export async function handleGetShutInResearch(request: Request, env: Env): Promi
 
     console.log('[Shut-In Research] Computing statewide idle stats...');
 
-    // Query 1: Statewide HUD stats
-    const hudResult = await env.WELLS_DB!.prepare(`
-      SELECT
-        COUNT(*) as total_puns,
-        SUM(CASE WHEN months_since_production >= 3 THEN 1 ELSE 0 END) as idle_puns,
-        SUM(CASE WHEN months_since_production BETWEEN 3 AND 6 THEN 1 ELSE 0 END) as recently_idle,
-        SUM(CASE WHEN months_since_production BETWEEN 7 AND 12 THEN 1 ELSE 0 END) as extended_idle,
-        SUM(CASE WHEN months_since_production > 12 THEN 1 ELSE 0 END) as long_term_idle,
-        SUM(CASE WHEN months_since_production <= 0 THEN 1 ELSE 0 END) as active_puns
-      FROM puns
-      WHERE months_since_production IS NOT NULL
-    `).first() as any;
-
-    // Query 2: Newly idle (went idle within 6 months of data horizon)
-    const newlyIdleResult = await env.WELLS_DB!.prepare(`
-      SELECT COUNT(*) as newly_idle
-      FROM puns
-      WHERE months_since_production BETWEEN 1 AND 6
-    `).first() as any;
-
-    // Query 3: Data horizon
-    const horizonResult = await env.WELLS_DB!.prepare(`
-      SELECT MAX(year_month) as horizon FROM otc_production
-    `).first() as any;
-
-    // Query 4: Count of unassigned wells (for data note)
-    const unassignedResult = await env.WELLS_DB!.prepare(`
-      SELECT COUNT(DISTINCT w.api_number) as unassigned_count
-      FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
-      WHERE p.months_since_production IS NOT NULL
-        AND (w.operator IS NULL OR w.operator = 'OTC/OCC NOT ASSIGNED')
-    `).first() as any;
-
-    // Query 5: Top operators by idle COUNT (min 50 PUNs)
-    // Uses otc_leases → otc_companies join (matches operator detail module — same name source)
-    // Counts PUNs (production units), not wells — consistent with operator detail idle rate
-    // recently_idle = went idle within 3-6 months (trend indicator)
-    const opByCountResult = await env.WELLS_DB!.prepare(`
-      SELECT oc.company_name as operator, ol.operator_number,
-        COUNT(DISTINCT p.pun) as total_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
-      FROM puns p
-      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
-      JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      WHERE p.months_since_production IS NOT NULL
-        AND ol.operator_number IS NOT NULL
-      GROUP BY ol.operator_number
-      HAVING total_wells >= 50
-      ORDER BY idle_wells DESC
-      LIMIT 20
-    `).all();
-
-    // Query 6: Top operators by idle RATE (min 50 PUNs)
-    const opByRateResult = await env.WELLS_DB!.prepare(`
-      SELECT oc.company_name as operator, ol.operator_number,
-        COUNT(DISTINCT p.pun) as total_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
-      FROM puns p
-      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
-      JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      WHERE p.months_since_production IS NOT NULL
-        AND ol.operator_number IS NOT NULL
-      GROUP BY ol.operator_number
-      HAVING total_wells >= 50
-      ORDER BY idle_rate_pct DESC
-      LIMIT 20
-    `).all();
-
-    // Query 7: County idle rates
-    const countyResult = await env.WELLS_DB!.prepare(`
-      SELECT w.county,
-        COUNT(DISTINCT w.api_number) as total_wells,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
-        ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
-      FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
-      WHERE p.months_since_production IS NOT NULL
-        AND w.county IS NOT NULL
-      GROUP BY w.county
-      HAVING total_wells >= 10
-      ORDER BY idle_rate_pct DESC
-    `).all();
-
-    // Query 8: Top idle operator per county (using otc_leases + otc_companies for operator resolution)
-    const countyOpResult = await env.WELLS_DB!.prepare(`
-      SELECT w.county, oc.company_name as operator, ol.operator_number,
-        COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_puns
-      FROM puns p
-      JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
-      JOIN otc_companies oc ON ol.operator_number = oc.company_id
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
-      WHERE p.months_since_production IS NOT NULL
-        AND p.months_since_production >= 3
-        AND w.county IS NOT NULL
-        AND ol.operator_number IS NOT NULL
-      GROUP BY w.county, ol.operator_number
-      ORDER BY w.county, idle_puns DESC
-    `).all();
+    // All 8 queries are independent — run in parallel
+    const [hudResult, newlyIdleResult, horizonResult, unassignedResult,
+           opByCountResult, opByRateResult, countyResult, countyOpResult] = await Promise.all([
+      // Query 1: Statewide HUD stats
+      env.WELLS_DB!.prepare(`
+        SELECT
+          COUNT(*) as total_puns,
+          SUM(CASE WHEN months_since_production >= 3 THEN 1 ELSE 0 END) as idle_puns,
+          SUM(CASE WHEN months_since_production BETWEEN 3 AND 6 THEN 1 ELSE 0 END) as recently_idle,
+          SUM(CASE WHEN months_since_production BETWEEN 7 AND 12 THEN 1 ELSE 0 END) as extended_idle,
+          SUM(CASE WHEN months_since_production > 12 THEN 1 ELSE 0 END) as long_term_idle,
+          SUM(CASE WHEN months_since_production <= 0 THEN 1 ELSE 0 END) as active_puns
+        FROM puns
+        WHERE months_since_production IS NOT NULL
+      `).first() as Promise<any>,
+      // Query 2: Newly idle
+      env.WELLS_DB!.prepare(`
+        SELECT COUNT(*) as newly_idle
+        FROM puns
+        WHERE months_since_production BETWEEN 1 AND 6
+      `).first() as Promise<any>,
+      // Query 3: Data horizon
+      env.WELLS_DB!.prepare(`
+        SELECT MAX(year_month) as horizon FROM otc_production
+      `).first() as Promise<any>,
+      // Query 4: Unassigned wells
+      env.WELLS_DB!.prepare(`
+        SELECT COUNT(DISTINCT w.api_number) as unassigned_count
+        FROM puns p
+        JOIN well_pun_links wpl ON p.pun = wpl.pun
+        JOIN wells w ON wpl.api_number = w.api_number
+        WHERE p.months_since_production IS NOT NULL
+          AND (w.operator IS NULL OR w.operator = 'OTC/OCC NOT ASSIGNED')
+      `).first() as Promise<any>,
+      // Query 5: Top operators by idle COUNT
+      env.WELLS_DB!.prepare(`
+        SELECT oc.company_name as operator, ol.operator_number,
+          COUNT(DISTINCT p.pun) as total_wells,
+          COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
+          COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
+          ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
+        FROM puns p
+        JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+        JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        WHERE p.months_since_production IS NOT NULL
+          AND ol.operator_number IS NOT NULL
+        GROUP BY ol.operator_number
+        HAVING total_wells >= 50
+        ORDER BY idle_wells DESC
+        LIMIT 20
+      `).all(),
+      // Query 6: Top operators by idle RATE
+      env.WELLS_DB!.prepare(`
+        SELECT oc.company_name as operator, ol.operator_number,
+          COUNT(DISTINCT p.pun) as total_wells,
+          COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_wells,
+          COUNT(DISTINCT CASE WHEN p.months_since_production BETWEEN 3 AND 6 THEN p.pun END) as recently_idle,
+          ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) / COUNT(DISTINCT p.pun), 1) as idle_rate_pct
+        FROM puns p
+        JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+        JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        WHERE p.months_since_production IS NOT NULL
+          AND ol.operator_number IS NOT NULL
+        GROUP BY ol.operator_number
+        HAVING total_wells >= 50
+        ORDER BY idle_rate_pct DESC
+        LIMIT 20
+      `).all(),
+      // Query 7: County idle rates
+      env.WELLS_DB!.prepare(`
+        SELECT w.county,
+          COUNT(DISTINCT w.api_number) as total_wells,
+          COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) as idle_wells,
+          ROUND(100.0 * COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN w.api_number END) / COUNT(DISTINCT w.api_number), 1) as idle_rate_pct
+        FROM puns p
+        JOIN well_pun_links wpl ON p.pun = wpl.pun
+        JOIN wells w ON wpl.api_number = w.api_number
+        WHERE p.months_since_production IS NOT NULL
+          AND w.county IS NOT NULL
+        GROUP BY w.county
+        HAVING total_wells >= 10
+        ORDER BY idle_rate_pct DESC
+      `).all(),
+      // Query 8: Top idle operator per county
+      env.WELLS_DB!.prepare(`
+        SELECT w.county, oc.company_name as operator, ol.operator_number,
+          COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN p.pun END) as idle_puns
+        FROM puns p
+        JOIN otc_leases ol ON SUBSTR(p.pun, 1, 10) = ol.base_pun
+        JOIN otc_companies oc ON ol.operator_number = oc.company_id
+        JOIN well_pun_links wpl ON p.pun = wpl.pun
+        JOIN wells w ON wpl.api_number = w.api_number
+        WHERE p.months_since_production IS NOT NULL
+          AND p.months_since_production >= 3
+          AND w.county IS NOT NULL
+          AND ol.operator_number IS NOT NULL
+        GROUP BY w.county, ol.operator_number
+        ORDER BY w.county, idle_puns DESC
+      `).all()
+    ]);
 
     // Post-process: build top idle operator lookup by county
     const topOpByCounty = new Map<string, { operator: string; operatorNumber: string }>();
@@ -6020,82 +6020,81 @@ export async function handleGetDeclineResearch(request: Request, env: Env): Prom
 
     console.log('[Decline Research] Computing statewide decline stats...');
 
-    // Query 1: Statewide HUD stats (active PUNs with reasonable decline data)
-    const hudResult = await env.WELLS_DB!.prepare(`
-      SELECT
-        COUNT(*) as total_puns,
-        SUM(CASE WHEN months_since_production <= 3 THEN 1 ELSE 0 END) as active_puns,
-        ROUND(AVG(CASE WHEN decline_rate_12m BETWEEN -100 AND 100
-          AND months_since_production <= 3 THEN decline_rate_12m END), 1) as avg_decline,
-        SUM(CASE WHEN decline_rate_12m < -25 AND decline_rate_12m >= -100
-          AND months_since_production <= 3 THEN 1 ELSE 0 END) as steep_decline,
-        SUM(CASE WHEN decline_rate_12m BETWEEN -5 AND 5
-          AND months_since_production <= 3 THEN 1 ELSE 0 END) as flat_wells,
-        SUM(CASE WHEN decline_rate_12m > 5 AND decline_rate_12m <= 100
-          AND months_since_production <= 3 THEN 1 ELSE 0 END) as growing_wells
-      FROM puns
-      WHERE decline_rate_12m IS NOT NULL
-    `).first() as any;
-
-    // Query 2: Data horizon
-    const horizonResult = await env.WELLS_DB!.prepare(`
-      SELECT MAX(year_month) as horizon FROM otc_production
-    `).first() as any;
-
-    // Query 3: Top operators by steepest DECLINE (min 20 active PUNs)
-    const opByDeclineResult = await env.WELLS_DB!.prepare(`
-      SELECT w.operator,
-        COUNT(DISTINCT p.pun) as active_wells,
-        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
-      FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
-      WHERE p.decline_rate_12m IS NOT NULL
-        AND p.decline_rate_12m BETWEEN -100 AND 100
-        AND p.months_since_production <= 3
-        AND w.operator IS NOT NULL
-        AND w.operator != 'OTC/OCC NOT ASSIGNED'
-      GROUP BY w.operator
-      HAVING active_wells >= 20
-      ORDER BY avg_decline ASC
-      LIMIT 20
-    `).all();
-
-    // Query 4: Top operators by GROWTH (min 20 active PUNs)
-    const opByGrowthResult = await env.WELLS_DB!.prepare(`
-      SELECT w.operator,
-        COUNT(DISTINCT p.pun) as active_wells,
-        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
-      FROM puns p
-      JOIN well_pun_links wpl ON p.pun = wpl.pun
-      JOIN wells w ON wpl.api_number = w.api_number
-      WHERE p.decline_rate_12m IS NOT NULL
-        AND p.decline_rate_12m BETWEEN -100 AND 100
-        AND p.months_since_production <= 3
-        AND w.operator IS NOT NULL
-        AND w.operator != 'OTC/OCC NOT ASSIGNED'
-      GROUP BY w.operator
-      HAVING active_wells >= 20
-      ORDER BY avg_decline DESC
-      LIMIT 20
-    `).all();
-
-    // Query 5: County decline rates (all qualifying counties)
-    const countyResult = await env.WELLS_DB!.prepare(`
-      SELECT p.county,
-        COUNT(*) as active_wells,
-        ROUND(AVG(p.decline_rate_12m), 1) as avg_decline,
-        SUM(CASE WHEN p.decline_rate_12m < 0 THEN 1 ELSE 0 END) as declining_wells,
-        SUM(CASE WHEN p.decline_rate_12m >= 0 THEN 1 ELSE 0 END) as growing_wells
-      FROM puns p
-      WHERE p.decline_rate_12m IS NOT NULL
-        AND p.decline_rate_12m BETWEEN -100 AND 100
-        AND p.months_since_production <= 3
-        AND p.county IS NOT NULL
-      GROUP BY p.county
-      HAVING active_wells >= 10
-      ORDER BY avg_decline ASC
-    `).all();
+    // First 5 queries are independent — run in parallel
+    const [hudResult, horizonResult, opByDeclineResult, opByGrowthResult, countyResult] = await Promise.all([
+      // Query 1: Statewide HUD stats
+      env.WELLS_DB!.prepare(`
+        SELECT
+          COUNT(*) as total_puns,
+          SUM(CASE WHEN months_since_production <= 3 THEN 1 ELSE 0 END) as active_puns,
+          ROUND(AVG(CASE WHEN decline_rate_12m BETWEEN -100 AND 100
+            AND months_since_production <= 3 THEN decline_rate_12m END), 1) as avg_decline,
+          SUM(CASE WHEN decline_rate_12m < -25 AND decline_rate_12m >= -100
+            AND months_since_production <= 3 THEN 1 ELSE 0 END) as steep_decline,
+          SUM(CASE WHEN decline_rate_12m BETWEEN -5 AND 5
+            AND months_since_production <= 3 THEN 1 ELSE 0 END) as flat_wells,
+          SUM(CASE WHEN decline_rate_12m > 5 AND decline_rate_12m <= 100
+            AND months_since_production <= 3 THEN 1 ELSE 0 END) as growing_wells
+        FROM puns
+        WHERE decline_rate_12m IS NOT NULL
+      `).first() as Promise<any>,
+      // Query 2: Data horizon
+      env.WELLS_DB!.prepare(`
+        SELECT MAX(year_month) as horizon FROM otc_production
+      `).first() as Promise<any>,
+      // Query 3: Top operators by steepest DECLINE
+      env.WELLS_DB!.prepare(`
+        SELECT w.operator,
+          COUNT(DISTINCT p.pun) as active_wells,
+          ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
+        FROM puns p
+        JOIN well_pun_links wpl ON p.pun = wpl.pun
+        JOIN wells w ON wpl.api_number = w.api_number
+        WHERE p.decline_rate_12m IS NOT NULL
+          AND p.decline_rate_12m BETWEEN -100 AND 100
+          AND p.months_since_production <= 3
+          AND w.operator IS NOT NULL
+          AND w.operator != 'OTC/OCC NOT ASSIGNED'
+        GROUP BY w.operator
+        HAVING active_wells >= 20
+        ORDER BY avg_decline ASC
+        LIMIT 20
+      `).all(),
+      // Query 4: Top operators by GROWTH
+      env.WELLS_DB!.prepare(`
+        SELECT w.operator,
+          COUNT(DISTINCT p.pun) as active_wells,
+          ROUND(AVG(p.decline_rate_12m), 1) as avg_decline
+        FROM puns p
+        JOIN well_pun_links wpl ON p.pun = wpl.pun
+        JOIN wells w ON wpl.api_number = w.api_number
+        WHERE p.decline_rate_12m IS NOT NULL
+          AND p.decline_rate_12m BETWEEN -100 AND 100
+          AND p.months_since_production <= 3
+          AND w.operator IS NOT NULL
+          AND w.operator != 'OTC/OCC NOT ASSIGNED'
+        GROUP BY w.operator
+        HAVING active_wells >= 20
+        ORDER BY avg_decline DESC
+        LIMIT 20
+      `).all(),
+      // Query 5: County decline rates
+      env.WELLS_DB!.prepare(`
+        SELECT p.county,
+          COUNT(*) as active_wells,
+          ROUND(AVG(p.decline_rate_12m), 1) as avg_decline,
+          SUM(CASE WHEN p.decline_rate_12m < 0 THEN 1 ELSE 0 END) as declining_wells,
+          SUM(CASE WHEN p.decline_rate_12m >= 0 THEN 1 ELSE 0 END) as growing_wells
+        FROM puns p
+        WHERE p.decline_rate_12m IS NOT NULL
+          AND p.decline_rate_12m BETWEEN -100 AND 100
+          AND p.months_since_production <= 3
+          AND p.county IS NOT NULL
+        GROUP BY p.county
+        HAVING active_wells >= 10
+        ORDER BY avg_decline ASC
+      `).all()
+    ]);
 
     // Batch lookup: resolve operator names → operator_numbers
     // Pick the operator_number with the most wells for each name (canonical resolution)
