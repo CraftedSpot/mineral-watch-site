@@ -55,6 +55,7 @@ import {
 import {
   authenticateRequest,
   isSuperAdmin,
+  timingSafeKeyCheck,
   generateToken,
   verifyToken,
   getCookieValue
@@ -333,8 +334,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
     // Temporary manual sync trigger (auth-protected)
     if (path === "/api/admin/trigger-sync" && request.method === "POST") {
-      const authHeader = request.headers.get('Authorization');
-      if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+      const authHeader = request.headers.get('Authorization') || '';
+      if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
       try {
@@ -919,7 +920,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       // Proxy marketing endpoints to marketing-worker (super-admin or API key)
       if (path.startsWith("/api/marketing/")) {
         const authHeader = request.headers.get('Authorization') || '';
-        const hasApiKey = authHeader === `Bearer ${env.PROCESSING_API_KEY}`;
+        const hasApiKey = timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`);
         if (!hasApiKey) {
           const mktUser = await authenticateRequest(request, env);
           if (!mktUser || !isSuperAdmin(mktUser.email)) {
@@ -1414,8 +1415,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path.startsWith("/api/otc-sync/")) {
         // Auth guard for all OTC sync endpoints
         if (path !== "/api/otc-sync/trigger") {
-          const authHeader = request.headers.get('Authorization');
-          let authed = authHeader === `Bearer ${env.PROCESSING_API_KEY}`;
+          const authHeader = request.headers.get('Authorization') || '';
+          let authed = timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`);
           // Also allow super-admin session auth (for admin dashboard UI)
           if (!authed) {
             try {
@@ -1537,8 +1538,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         // Manual trigger for OTC sync (calls Fly machine)
         if (path === "/api/otc-sync/trigger" && request.method === "POST") {
-          const authHeader = request.headers.get('Authorization');
-          if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          const authHeader = request.headers.get('Authorization') || '';
+          if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
             return jsonResponse({ error: 'Unauthorized' }, 401);
           }
           try {
@@ -1592,16 +1593,16 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       // Formation harvest endpoints (PROCESSING_API_KEY auth)
       if (path === "/api/admin/wells-missing-formation" && request.method === "GET") {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleGetWellsMissingFormation } = await import('./handlers/formation-harvest.js');
         return handleGetWellsMissingFormation(request, env as any);
       }
       if (path === "/api/admin/formation-harvest-results" && request.method === "POST") {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleFormationHarvestResults } = await import('./handlers/formation-harvest.js');
@@ -1610,24 +1611,24 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       // Operator deduction matrix admin endpoints (PROCESSING_API_KEY auth)
       if (path === "/api/admin/bootstrap-operator-aliases" && request.method === "POST") {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleBootstrapOperatorAliases } = await import('./handlers/operator-deductions.js');
         return handleBootstrapOperatorAliases(request, env);
       }
       if (path === "/api/admin/seed-operator-profiles" && request.method === "POST") {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleSeedOperatorProfiles } = await import('./handlers/operator-deductions.js');
         return handleSeedOperatorProfiles(request, env);
       }
       if (path === "/api/admin/ingest-check-stub-deductions" && request.method === "POST") {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
           return jsonResponse({ error: 'Unauthorized' }, 401);
         }
         const { handleIngestCheckStubDeductions } = await import('./handlers/operator-deductions.js');
@@ -1727,7 +1728,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       if (path === "/api/intelligence/well-risk-profile" && request.method === "GET") {
         const { handleGetWellRiskProfile } = await import('./handlers/intelligence.js');
-        return handleGetWellRiskProfile(request, env);
+        return handleGetWellRiskProfile(request, env, ctx);
       }
 
       // Operator Directory API (contact info, no financial data - fast)

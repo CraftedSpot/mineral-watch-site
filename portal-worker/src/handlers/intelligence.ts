@@ -18,6 +18,98 @@ import type { Env } from '../types/env.js';
 // Wells below this are intermittent/marginal and create extreme % swings (e.g. 1→10 BOE = +900%).
 const MIN_BOE_THRESHOLD = 50;
 
+// Commodity price cache: 48h hard TTL, 4h soft expiry, 60s mutex
+const PRICE_CACHE_KEY = 'commodity-prices-cached';
+const PRICE_MUTEX_KEY = 'commodity-prices-refreshing';
+const PRICE_SOFT_EXPIRY_MS = 4 * 3600 * 1000; // 4 hours
+const PRICE_HARD_TTL_S = 172800; // 48 hours
+const PRICE_MUTEX_TTL_S = 60;
+
+interface CachedPrices {
+  wti: number | null;
+  henryHub: number | null;
+  updatedAt: string;
+  source: string;
+  fetchedAt: number;
+}
+
+/**
+ * Get commodity prices with serve-stale + KV mutex to prevent thundering herd.
+ *
+ * - Fresh cache (<4h): return immediately
+ * - Stale cache (4h–48h): return stale, refresh in background via ctx.waitUntil
+ * - Hard miss (>48h or first request): fetch synchronously
+ *
+ * @param forceRefresh  If true (cron), always fetch fresh regardless of cache state
+ */
+async function getCommodityPrices(
+  env: Env,
+  ctx?: ExecutionContext,
+  forceRefresh = false
+): Promise<CachedPrices | null> {
+  // Try reading cache
+  let cached: CachedPrices | null = null;
+  if (env.OCC_CACHE) {
+    try {
+      cached = await env.OCC_CACHE.get(PRICE_CACHE_KEY, 'json') as CachedPrices | null;
+    } catch (e) { /* ignore */ }
+  }
+
+  const isFresh = cached && (Date.now() - cached.fetchedAt < PRICE_SOFT_EXPIRY_MS);
+
+  // Fresh and not forced — return immediately
+  if (cached && isFresh && !forceRefresh) {
+    return cached;
+  }
+
+  // Stale but usable — serve stale, refresh in background (user requests only)
+  if (cached && !forceRefresh) {
+    // Check if another request is already refreshing
+    const refreshing = env.OCC_CACHE ? await env.OCC_CACHE.get(PRICE_MUTEX_KEY) : null;
+    if (!refreshing) {
+      // Grab mutex and refresh in background
+      if (env.OCC_CACHE) {
+        await env.OCC_CACHE.put(PRICE_MUTEX_KEY, '1', { expirationTtl: PRICE_MUTEX_TTL_S });
+      }
+      const refreshPromise = fetchAndCachePrices(env).finally(async () => {
+        try { if (env.OCC_CACHE) await env.OCC_CACHE.delete(PRICE_MUTEX_KEY); } catch (_) {}
+      });
+      if (ctx) {
+        ctx.waitUntil(refreshPromise);
+      }
+      // Don't await — serve stale
+    }
+    return cached;
+  }
+
+  // Hard miss or forceRefresh — fetch synchronously
+  return fetchAndCachePrices(env);
+}
+
+async function fetchAndCachePrices(env: Env): Promise<CachedPrices | null> {
+  try {
+    const priceResp = env.TOOLS_WORKER
+      ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
+      : await fetch('https://mymineralwatch.com/api/prices');
+    const prices = await priceResp.json() as Record<string, any>;
+    const result: CachedPrices = {
+      wti: prices.wti?.price || null,
+      henryHub: prices.henryHub?.price || null,
+      updatedAt: new Date().toISOString(),
+      source: prices.source || 'tools-worker',
+      fetchedAt: Date.now()
+    };
+    if (env.OCC_CACHE) {
+      await env.OCC_CACHE.put(PRICE_CACHE_KEY, JSON.stringify(result), { expirationTtl: PRICE_HARD_TTL_S });
+    }
+    console.log('[CommodityPrices] Refreshed: WTI=$' + (result.wti || '?'));
+    return result;
+  } catch (e) {
+    console.error('[CommodityPrices] Fetch failed:', e);
+    return null;
+  }
+}
+
 // Intelligence features available to Business plan and above
 const INTELLIGENCE_ALLOWED_PLANS = ['Business', 'Enterprise 1K'];
 
@@ -6502,22 +6594,8 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
 export async function precomputeRiskProfiles(env: Env): Promise<void> {
   console.log('[Risk Profiles] Starting pre-compute...');
 
-  // Step 1: Refresh commodity prices in KV (via service binding to tools-worker)
-  try {
-    const priceResp = env.TOOLS_WORKER
-      ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
-      : await fetch('https://mymineralwatch.com/api/prices');
-    const prices = await priceResp.json() as Record<string, any>;
-    await env.OCC_CACHE.put('commodity-prices-cached', JSON.stringify({
-      wti: prices.wti?.price || null,
-      henryHub: prices.henryHub?.price || null,
-      updatedAt: new Date().toISOString(),
-      source: prices.source || 'tools-worker'
-    }), { expirationTtl: 86400 });
-    console.log('[Risk Profiles] Cached commodity prices: WTI=$' + (prices.wti?.price || '?'));
-  } catch (e) {
-    console.error('[Risk Profiles] Failed to cache prices:', e);
-  }
+  // Step 1: Refresh commodity prices in KV (force refresh on cron)
+  await getCommodityPrices(env, undefined, true);
 
   // Step 2: Reset + batch UPDATE wells with risk_profile_id
   const db = env.WELLS_DB!;
@@ -6607,7 +6685,7 @@ function getRiskLevel(netBackPrice: number, breakeven: number): { level: string;
  * Formation-based profile assignment determines breakeven; risk level
  * computed as % cushion above breakeven.
  */
-export async function handleGetWellRiskProfile(request: Request, env: Env): Promise<Response> {
+export async function handleGetWellRiskProfile(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   try {
     const authUser = await authenticateRequest(request, env);
     if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
@@ -6637,45 +6715,15 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       }
     }
 
-    // Step 1: Get cached WTI price
-    let wtiPrice: number | null = null;
-    let henryHubPrice: number | null = null;
-    let priceDate: string | null = null;
-    let priceSource = 'tools-worker';
-
-    if (env.OCC_CACHE) {
-      try {
-        const cachedPrices = await env.OCC_CACHE.get('commodity-prices-cached', 'json') as {
-          wti: number | null; henryHub: number | null; updatedAt: string; source: string;
-        } | null;
-        if (cachedPrices) {
-          wtiPrice = cachedPrices.wti;
-          henryHubPrice = cachedPrices.henryHub;
-          priceDate = cachedPrices.updatedAt;
-          priceSource = cachedPrices.source;
-        }
-      } catch (e) { /* ignore */ }
-    }
-
-    // Fallback: fetch live prices if not cached (via service binding to tools-worker)
-    if (wtiPrice === null) {
-      try {
-        const priceResp = env.TOOLS_WORKER
-          ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
-          : await fetch('https://mymineralwatch.com/api/prices');
-        const prices = await priceResp.json() as Record<string, any>;
-        wtiPrice = prices.wti?.price || null;
-        henryHubPrice = prices.henryHub?.price || null;
-        priceDate = new Date().toISOString();
-        priceSource = prices.source || 'tools-worker';
-      } catch (e) {
-        console.error('[Well Risk Profile] Price fetch failed:', e);
-      }
-    }
-
-    if (wtiPrice === null) {
+    // Step 1: Get commodity prices (serve-stale + background refresh)
+    const priceData = await getCommodityPrices(env, ctx);
+    if (!priceData || priceData.wti === null) {
       return jsonResponse({ error: 'Unable to retrieve current oil prices. Please try again later.' }, 503);
     }
+    const wtiPrice = priceData.wti!;
+    const henryHubPrice = priceData.henryHub;
+    const priceDate = priceData.updatedAt;
+    const priceSource = priceData.source;
 
     // Step 2: Query user's tracked wells with risk profile data
     const db = env.WELLS_DB!;

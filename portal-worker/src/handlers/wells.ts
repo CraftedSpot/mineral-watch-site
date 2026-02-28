@@ -29,6 +29,7 @@ import {
 } from '../utils/auth.js';
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 
 // Operator lookup no longer needed - data comes from D1 via /api/wells/v2
 // import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
@@ -443,15 +444,13 @@ async function findClientWellD1(
   organizationId: string | undefined,
   env: Env
 ): Promise<any | null> {
-  const ownerWhere = organizationId
-    ? `AND (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `AND cw.user_id = ?`;
-  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', organizationId, userId, memberIds);
 
   return env.WELLS_DB.prepare(`
     SELECT cw.* FROM client_wells cw
     WHERE (cw.airtable_id = ? OR cw.id = ?)
-    ${ownerWhere}
+    AND ${ownerWhere}
   `).bind(wellId, wellId, ...ownerParams).first();
 }
 
@@ -472,10 +471,8 @@ async function matchSingleWellD1(
 
   if (!well || !well.section) return { linksCreated: 0, propertiesChecked: 0 };
 
-  const ownerWhere = organizationId
-    ? `(p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `p.user_id = ?`;
-  const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('p', organizationId, userId, memberIds);
 
   const matchConditions = [`(p.section = ? AND p.township = ? AND p.range = ?)`];
   const matchParams: string[] = [String(well.section), well.township, well.range];
@@ -557,10 +554,9 @@ export async function handleListWellsV2(request: Request, env: Env) {
   const isSuperAdmin = !!(user as any).impersonating;
 
   // Build WHERE clause — org members see all wells belonging to any user in the org
-  const whereClause = organizationId
-    ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `WHERE cw.user_id = ?`;
-  const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: ownerWhere, params: bindParams } = buildOwnershipFilter('cw', organizationId, user.id, memberIds);
+  const whereClause = `WHERE ${ownerWhere}`;
 
   // COUNT (no LIMIT — total records owned) + SELECT (with LIMIT) in parallel
   const countStmt = env.WELLS_DB.prepare(

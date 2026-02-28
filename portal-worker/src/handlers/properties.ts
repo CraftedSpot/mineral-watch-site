@@ -33,6 +33,7 @@ import { matchSingleProperty } from '../utils/property-well-matching.js';
 import { getOccFilingsForProperty } from '../utils/docket-matching.js';
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -61,10 +62,9 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
   const isSuperAdmin = !!(user as any).impersonating;
 
   // Build WHERE clause — org members see all properties belonging to any user in the org
-  const whereClause = organizationId
-    ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `WHERE p.user_id = ?`;
-  const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: ownerWhere, params: bindParams } = buildOwnershipFilter('p', organizationId, user.id, memberIds);
+  const whereClause = `WHERE ${ownerWhere}`;
 
   // Run COUNT and SELECT in parallel via batch
   const countStmt = env.WELLS_DB.prepare(
@@ -437,13 +437,11 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
   }
 
   const orgId = userRecord?.fields.Organization?.[0];
-  const ownerClause = orgId
-    ? `(user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?) OR organization_id = ?)`
-    : `user_id = ?`;
-  const ownerParams = orgId ? [orgId, orgId] : [user.id];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, orgId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('p', orgId, user.id, memberIds);
 
   const prop = await env.WELLS_DB.prepare(
-    `SELECT airtable_record_id FROM properties WHERE airtable_record_id = ? AND ${ownerClause}`
+    `SELECT p.airtable_record_id FROM properties p WHERE p.airtable_record_id = ? AND ${ownerWhere}`
   ).bind(propertyId, ...ownerParams).first();
 
   if (!prop) {
@@ -492,20 +490,16 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
   }
 
   // D1-first: Check ownership via D1
+  const userOrg = userRecord?.fields.Organization?.[0];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrg);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('p', userOrg, user.id, memberIds);
+
   const prop = await env.WELLS_DB.prepare(
-    `SELECT airtable_record_id, user_id, organization_id FROM properties WHERE airtable_record_id = ?`
-  ).bind(propertyId).first() as any;
+    `SELECT p.airtable_record_id FROM properties p WHERE p.airtable_record_id = ? AND ${ownerWhere}`
+  ).bind(propertyId, ...ownerParams).first() as any;
 
   if (!prop) {
-    return jsonResponse({ error: "Property not found" }, 404);
-  }
-
-  // Ownership check: user owns it directly or via org membership
-  const userOrg = userRecord?.fields.Organization?.[0];
-  const isOwner = prop.user_id === user.id;
-  const isOrgMember = userOrg && prop.organization_id === userOrg;
-  if (!isOwner && !isOrgMember) {
-    return jsonResponse({ error: "Not authorized" }, 403);
+    return jsonResponse({ error: "Property not found or not authorized" }, 404);
   }
 
   // D1: Delete property + cascade property_well_links

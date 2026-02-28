@@ -10,6 +10,7 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env';
 
 interface LinkCounts {
@@ -36,18 +37,16 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
 
     const organizationId = userRecord.fields.Organization?.[0];
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
 
     // Single D1 query — org members see all properties belonging to any user in the org
-    const whereClause = organizationId
-      ? `WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `WHERE user_id = ?`;
-    const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('p', organizationId, user.id, memberIds);
 
     const result = await env.WELLS_DB.prepare(`
       SELECT airtable_record_id, id, well_count, document_count, filing_count
-      FROM properties
-      ${whereClause}
-    `).bind(...bindParams).all();
+      FROM properties p
+      WHERE ${ownerWhere}
+    `).bind(...ownerParams).all();
 
     for (const row of result.results as any[]) {
       const propId = row.airtable_record_id || row.id;

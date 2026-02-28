@@ -9,6 +9,7 @@ import { PLAN_LIMITS } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -74,32 +75,23 @@ export async function handleListActivity(request: Request, env: Env) {
   const url = new URL(request.url);
   const days = url.searchParams.get('days');
 
-  // Build D1 query
-  let query: string;
-  const params: any[] = [];
+  // Build D1 query using shared ownership helpers
+  const orgId = userOrganizations.length > 0 ? userOrganizations[0] : null;
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, orgId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('al', orgId, user.id, memberIds);
 
-  if (userOrganizations.length > 0) {
-    const orgId = userOrganizations[0];
-    if (days) {
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - parseInt(days));
-      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
-      params.push(orgId, orgId, sinceDate.toISOString(), recordLimit);
-    } else {
-      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) ORDER BY detected_at DESC LIMIT ?`;
-      params.push(orgId, orgId, recordLimit);
-    }
-  } else {
-    if (days) {
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - parseInt(days));
-      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE user_id = ? AND detected_at >= ? ORDER BY detected_at DESC LIMIT ?`;
-      params.push(user.id, sinceDate.toISOString(), recordLimit);
-    } else {
-      query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log WHERE user_id = ? ORDER BY detected_at DESC LIMIT ?`;
-      params.push(user.id, recordLimit);
-    }
+  let query = `SELECT id, well_name, api_number, activity_type, alert_level, operator, previous_operator, county, str_location, formation, occ_link, occ_map_link, map_link, previous_value, new_value, detected_at, notes, case_number FROM activity_log al WHERE ${ownerWhere}`;
+  const params: any[] = [...ownerParams];
+
+  if (days) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - parseInt(days));
+    query += ` AND al.detected_at >= ?`;
+    params.push(sinceDate.toISOString());
   }
+
+  query += ` ORDER BY al.detected_at DESC LIMIT ?`;
+  params.push(recordLimit);
 
   try {
     const result = await env.WELLS_DB.prepare(query).bind(...params).all();
@@ -141,31 +133,23 @@ export async function handleActivityStats(request: Request, env: Env) {
   const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
 
   try {
-    let whereClause: string;
-    const baseParams: any[] = [];
-
-    if (userOrganizations.length > 0) {
-      const orgId = userOrganizations[0];
-      whereClause = '(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))';
-      baseParams.push(orgId, orgId);
-    } else {
-      whereClause = 'user_id = ?';
-      baseParams.push(user.id);
-    }
+    const orgId = userOrganizations.length > 0 ? userOrganizations[0] : null;
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, orgId);
+    const { where: ownerWhere, params: baseParams } = buildOwnershipFilter('al', orgId, user.id, memberIds);
 
     // Run all three queries in parallel
     const [lastAlertResult, monthResult, yearResult, totalResult] = await Promise.all([
       env.WELLS_DB.prepare(
-        `SELECT detected_at FROM activity_log WHERE ${whereClause} ORDER BY detected_at DESC LIMIT 1`
+        `SELECT al.detected_at FROM activity_log al WHERE ${ownerWhere} ORDER BY al.detected_at DESC LIMIT 1`
       ).bind(...baseParams).first(),
       env.WELLS_DB.prepare(
-        `SELECT COUNT(*) as count FROM activity_log WHERE ${whereClause} AND detected_at >= ?`
+        `SELECT COUNT(*) as count FROM activity_log al WHERE ${ownerWhere} AND al.detected_at >= ?`
       ).bind(...baseParams, startOfMonth).first(),
       env.WELLS_DB.prepare(
-        `SELECT COUNT(*) as count FROM activity_log WHERE ${whereClause} AND detected_at >= ?`
+        `SELECT COUNT(*) as count FROM activity_log al WHERE ${ownerWhere} AND al.detected_at >= ?`
       ).bind(...baseParams, startOfYear).first(),
       env.WELLS_DB.prepare(
-        `SELECT COUNT(*) as count FROM activity_log WHERE ${whereClause}`
+        `SELECT COUNT(*) as count FROM activity_log al WHERE ${ownerWhere}`
       ).bind(...baseParams).first()
     ]);
 
@@ -196,18 +180,13 @@ export async function handleDeleteActivity(activityId: string, request: Request,
   const userOrganizations = userRecord?.fields.Organization || [];
 
   try {
-    let result;
-    if (userOrganizations.length > 0) {
-      const orgId = userOrganizations[0];
-      // Org members can delete any activity visible to the org
-      result = await env.WELLS_DB.prepare(
-        `DELETE FROM activity_log WHERE id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      ).bind(parseInt(activityId), orgId, orgId).run();
-    } else {
-      result = await env.WELLS_DB.prepare(
-        `DELETE FROM activity_log WHERE id = ? AND user_id = ?`
-      ).bind(parseInt(activityId), user.id).run();
-    }
+    const orgId = userOrganizations.length > 0 ? userOrganizations[0] : null;
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, orgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('al', orgId, user.id, memberIds);
+
+    const result = await env.WELLS_DB.prepare(
+      `DELETE FROM activity_log WHERE id = ? AND id IN (SELECT al.id FROM activity_log al WHERE ${ownerWhere})`
+    ).bind(parseInt(activityId), ...ownerParams).run();
 
     if ((result.meta?.changes || 0) === 0) {
       return jsonResponse({ error: "Activity record not found or not authorized" }, 404);

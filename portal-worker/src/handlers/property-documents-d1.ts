@@ -7,6 +7,7 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env.js';
 
 // Document types that show on property modals (snake_case format)
@@ -41,7 +42,8 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
     
     const userOrgId = userRecord.fields.Organization?.[0];
-    
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+
     console.log(`[GetPropertyDocuments-D1] Attempting D1 query for property ${propertyId}`);
     
     try {
@@ -50,6 +52,8 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
       const docTypeList = PROPERTY_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
 
       console.log(`[GetPropertyDocuments-D1] Querying documents for property ${propertyId}`);
+
+      const docOwner = buildOwnershipFilter('documents', userOrgId, authUser.id, memberIds, { includeUserId: true });
 
       // Support both single property_id and comma-separated multiple property_ids
       // Build patterns in JS to avoid SQL concatenation issues
@@ -74,9 +78,9 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
         )
           AND (deleted_at IS NULL OR deleted_at = '')
           AND doc_type IN (${docTypeList})
-          AND (organization_id = ? OR user_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+          AND ${docOwner.where}
         ORDER BY upload_date DESC
-      `).bind(propertyId, startsWithPattern, endsWithPattern, containsPattern, userOrgId, authUser.id, userOrgId).all();
+      `).bind(propertyId, startsWithPattern, endsWithPattern, containsPattern, ...docOwner.params).all();
       
       console.log(`[GetPropertyDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       

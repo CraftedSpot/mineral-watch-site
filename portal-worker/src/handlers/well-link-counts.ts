@@ -16,6 +16,7 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import { BATCH_SIZE_D1 } from '../constants.js';
 import { normalizeTownship, normalizeRange, normalizeSection, chunk } from '../utils/str-normalize.js';
 import { normalizeAPINumber } from '../utils/docket-matching.js';
@@ -561,13 +562,11 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     // Get user record (D1-first) for org membership
     const userRecord = await getUserByIdD1First(env, user.id);
     const organizationId = userRecord?.fields.Organization?.[0];
+    const memberIds = await getOrgMemberIds(env.WELLS_DB!, organizationId);
     const tSession = Date.now();
 
     // Query wells from D1 (same ownership pattern as /api/wells/v2)
-    const whereClause = organizationId
-      ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `WHERE cw.user_id = ?`;
-    const bindParams = organizationId ? [organizationId, organizationId] : [user.id];
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', organizationId, user.id, memberIds);
 
     const wellsResult = await env.WELLS_DB!.prepare(`
       SELECT cw.airtable_id, cw.api_number, cw.section, cw.township, cw.range_val,
@@ -575,8 +574,8 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
              w.bh_section, w.bh_township, w.bh_range
       FROM client_wells cw
       LEFT JOIN wells w ON w.api_number = cw.api_number
-      ${whereClause}
-    `).bind(...bindParams).all();
+      WHERE ${ownerWhere}
+    `).bind(...ownerParams).all();
 
     const wells = wellsResult.results || [];
     const tWellsFetch = Date.now();

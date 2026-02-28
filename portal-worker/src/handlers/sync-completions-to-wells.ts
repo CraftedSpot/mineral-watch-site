@@ -9,6 +9,7 @@
  */
 
 import { jsonResponse } from '../utils/responses.js';
+import { timingSafeKeyCheck } from '../utils/auth.js';
 import type { Env, CompletionData } from '../types/env.js';
 
 interface SyncResult {
@@ -285,10 +286,11 @@ export async function handleSyncSingleCompletion(
   apiNumber: string
 ): Promise<Response> {
   // Validate admin key or processing key (for automated triggers)
-  const authHeader = request.headers.get('Authorization');
-  const apiKey = authHeader?.replace('Bearer ', '');
+  const authHeader = request.headers.get('Authorization') || '';
+  const hasSyncKey = env.SYNC_API_KEY && timingSafeKeyCheck(authHeader, `Bearer ${env.SYNC_API_KEY}`);
+  const hasProcessingKey = env.PROCESSING_API_KEY && timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`);
 
-  if (!apiKey || (apiKey !== env.SYNC_API_KEY && apiKey !== env.PROCESSING_API_KEY)) {
+  if (!hasSyncKey && !hasProcessingKey) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 

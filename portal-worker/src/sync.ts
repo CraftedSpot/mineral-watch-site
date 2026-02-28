@@ -1,6 +1,7 @@
 import { fetchWellDetailsFromOCC } from './handlers/wells.js';
 import { runFullPropertyWellMatching, getAdjacentLocations } from './utils/property-well-matching.js';
 import { normalizeSection, normalizeTownship, normalizeRange } from './utils/str-normalize.js';
+import { getOrgMemberIds, buildOwnershipFilter } from './utils/ownership.js';
 
 // Airtable configuration
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
@@ -818,6 +819,15 @@ async function reconcileLinkCounts(env: any): Promise<void> {
     console.error('[Reconcile] Error loading filings, will skip filing counts this cycle:', err);
   }
 
+  // Pre-resolve org member IDs once before the loop
+  const orgMemberCache = new Map<string, string[] | null>();
+  const uniqueOrgIds = [...new Set(
+    (owners.results as any[]).map((o: any) => o.organization_id).filter(Boolean)
+  )];
+  for (const oid of uniqueOrgIds) {
+    orgMemberCache.set(oid, await getOrgMemberIds(env.WELLS_DB, oid));
+  }
+
   for (const owner of owners.results as any[]) {
     // Time budget check
     if (Date.now() - start > RECONCILE_BUDGET_MS) {
@@ -827,12 +837,11 @@ async function reconcileLinkCounts(env: any): Promise<void> {
 
     const userId = owner.user_id;
     const orgId = owner.organization_id;
+    const memberIds = orgId ? (orgMemberCache.get(orgId) ?? null) : null;
 
     // Build owner WHERE clause — include all org members' data
-    const ownerWhere = orgId
-      ? `(p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `p.user_id = ?`;
-    const ownerParams = orgId ? [orgId, orgId] : [userId];
+    const propFilter = buildOwnershipFilter('p', orgId, userId, memberIds);
+    const linkFilter = buildOwnershipFilter('pwl', orgId, userId, memberIds);
 
     try {
       // Get current properties with their stored counts
@@ -840,8 +849,8 @@ async function reconcileLinkCounts(env: any): Promise<void> {
         SELECT id, airtable_record_id, section, township, range,
                well_count, document_count, filing_count
         FROM properties p
-        WHERE ${ownerWhere}
-      `).bind(...ownerParams).all();
+        WHERE ${propFilter.where}
+      `).bind(...propFilter.params).all();
 
       if (!props.results || props.results.length === 0) continue;
 
@@ -853,15 +862,12 @@ async function reconcileLinkCounts(env: any): Promise<void> {
 
       // 1. Well counts — use owner filter on links table
       const wellMap = new Map<string, number>();
-      const ownerLinkWhere = orgId
-        ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-        : `user_id = ?`;
       const wellResult = await env.WELLS_DB.prepare(`
         SELECT property_airtable_id, COUNT(*) as cnt
-        FROM property_well_links
-        WHERE status IN ('Active', 'Linked') AND ${ownerLinkWhere}
+        FROM property_well_links pwl
+        WHERE status IN ('Active', 'Linked') AND ${linkFilter.where}
         GROUP BY property_airtable_id
-      `).bind(...ownerParams).all();
+      `).bind(...linkFilter.params).all();
       for (const r of wellResult.results as any[]) {
         wellMap.set(r.property_airtable_id, r.cnt);
       }

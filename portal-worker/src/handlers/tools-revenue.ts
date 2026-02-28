@@ -13,6 +13,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env.js';
 
 // Batch sizes to stay under D1's 100-param limit
@@ -80,10 +81,10 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   const orgId = session.airtableUser?.fields?.Organization?.[0] || null;
 
   // 1. Verify property ownership and get property data — org members can access all org properties
-  const propQuery = orgId
-    ? `SELECT airtable_record_id, county, section, township, range, meridian, ri_decimal, wi_decimal, orri_decimal, ri_acres, total_acres, acres FROM properties WHERE airtable_record_id = ? AND (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    : `SELECT airtable_record_id, county, section, township, range, meridian, ri_decimal, wi_decimal, orri_decimal, ri_acres, total_acres, acres FROM properties WHERE airtable_record_id = ? AND user_id = ?`;
-  const propBinds = orgId ? [propertyId, orgId, orgId] : [propertyId, userId];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB!, orgId);
+  const ownerFilter = buildOwnershipFilter('properties', orgId, userId, memberIds);
+  const propQuery = `SELECT airtable_record_id, county, section, township, range, meridian, ri_decimal, wi_decimal, orri_decimal, ri_acres, total_acres, acres FROM properties WHERE airtable_record_id = ? AND ${ownerFilter.where}`;
+  const propBinds = [propertyId, ...ownerFilter.params];
 
   const propResult = await env.WELLS_DB!.prepare(propQuery).bind(...propBinds).first() as any;
   if (!propResult) return jsonResponse({ error: 'Property not found' }, 404);

@@ -17,6 +17,7 @@ import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First, countUserWellsD1 } from '../services/airtable.js';
 import { getPlanLimits } from '../constants.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import {
   normalizeSection,
   createLocationKey,
@@ -63,25 +64,22 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
     console.log(`[PropertyWellMatch] Starting D1-first match for user ${authUser.email}, org=${organizationId || 'none'}`);
 
+    // Pre-resolve org member IDs once for all ownership queries
+    const memberIds = await getOrgMemberIds(env.WELLS_DB!, organizationId);
+
     // --- Step 1: Query properties from D1 ---
-    const propWhereClause = organizationId
-      ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `WHERE p.user_id = ?`;
-    const propBindParams = organizationId ? [organizationId, organizationId] : [userId];
+    const propOwner = buildOwnershipFilter('p', organizationId, userId, memberIds);
 
     const propResult = await env.WELLS_DB!.prepare(`
       SELECT p.airtable_record_id, p.section, p.township, p.range, p.county, p.meridian
       FROM properties p
-      ${propWhereClause}
-    `).bind(...propBindParams).all();
+      WHERE ${propOwner.where}
+    `).bind(...propOwner.params).all();
 
     const tPropsFetch = Date.now();
 
     // --- Step 2: Query wells from D1 (JOIN statewide wells for BH + sections_affected) ---
-    const wellWhereClause = organizationId
-      ? `WHERE (cw.organization_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `WHERE cw.user_id = ?`;
-    const wellBindParams = organizationId ? [organizationId, organizationId] : [userId];
+    const wellOwner = buildOwnershipFilter('cw', organizationId, userId, memberIds);
 
     const wellResult = await env.WELLS_DB!.prepare(`
       SELECT
@@ -103,8 +101,8 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         cw.well_type AS cw_well_type
       FROM client_wells cw
       LEFT JOIN wells w ON w.api_number = cw.api_number
-      ${wellWhereClause}
-    `).bind(...wellBindParams).all();
+      WHERE ${wellOwner.where}
+    `).bind(...wellOwner.params).all();
 
     const tWellsFetch = Date.now();
     const propRows = propResult.results || [];
@@ -513,17 +511,17 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     console.log(`[DiscoverWells] Starting for user ${authUser.email}, org=${organizationId || 'none'}, plan=${plan}, remaining=${remaining}, preview=${previewOnly}`);
 
+    // Pre-resolve org member IDs once for all ownership queries
+    const memberIds = await getOrgMemberIds(env.WELLS_DB!, organizationId);
+
     // --- Step 1: Get user properties with STR data ---
-    const propWhereClause = organizationId
-      ? `WHERE (p.organization_id = ? OR p.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `WHERE p.user_id = ?`;
-    const propBindParams = organizationId ? [organizationId, organizationId] : [userId];
+    const propOwner = buildOwnershipFilter('p', organizationId, userId, memberIds);
 
     const propResult = await env.WELLS_DB!.prepare(`
       SELECT p.airtable_record_id, p.section, p.township, p.range, p.county, p.meridian
       FROM properties p
-      ${propWhereClause}
-    `).bind(...propBindParams).all();
+      WHERE ${propOwner.where}
+    `).bind(...propOwner.params).all();
 
     const propRows = propResult.results || [];
     if (propRows.length === 0) {
@@ -712,15 +710,12 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
     }
 
     // --- Step 4: Deduplicate — remove wells already tracked by user/org ---
-    const ownerClause = organizationId
-      ? `(organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `user_id = ?`;
-    const ownerParams = organizationId ? [organizationId, organizationId] : [userId];
+    const cwOwner = buildOwnershipFilter('cw', organizationId, userId, memberIds);
 
     // Get all api_numbers already tracked
     const trackedResult = await env.WELLS_DB!.prepare(
-      `SELECT api_number FROM client_wells WHERE ${ownerClause}`
-    ).bind(...ownerParams).all();
+      `SELECT cw.api_number FROM client_wells cw WHERE ${cwOwner.where}`
+    ).bind(...cwOwner.params).all();
 
     const trackedApis = new Set<string>();
     for (const row of (trackedResult.results || []) as any[]) {

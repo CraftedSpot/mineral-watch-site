@@ -16,6 +16,7 @@
  */
 
 import { jsonResponse } from '../utils/responses.js';
+import { timingSafeKeyCheck } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 import { normalizeBasePun, normalizeApi } from '../utils/normalize.js';
 
@@ -35,8 +36,8 @@ function resolvePun(data: any): string | null {
 }
 
 export async function handleBackfillCompletionWriteback(request: Request, env: Env): Promise<Response> {
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+  const authHeader = request.headers.get('Authorization') || '';
+  if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 

@@ -7,7 +7,7 @@
  */
 
 import { jsonResponse } from '../utils/responses.js';
-import { authenticateRequest } from '../utils/auth.js';
+import { authenticateRequest, timingSafeKeyCheck } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 
 const OCC_FETCHER_URL = 'https://occ-fetcher.photog12.workers.dev';
@@ -367,10 +367,11 @@ export async function handleSyncPermitToWell(
   request: Request,
   env: Env
 ): Promise<Response> {
-  const authHeader = request.headers.get('Authorization');
-  const apiKey = authHeader?.replace('Bearer ', '');
+  const authHeader = request.headers.get('Authorization') || '';
+  const hasSyncKey = (env as any).SYNC_API_KEY && timingSafeKeyCheck(authHeader, `Bearer ${(env as any).SYNC_API_KEY}`);
+  const hasProcessingKey = env.PROCESSING_API_KEY && timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`);
 
-  if (!apiKey || (apiKey !== (env as any).SYNC_API_KEY && apiKey !== (env as any).PROCESSING_API_KEY)) {
+  if (!hasSyncKey && !hasProcessingKey) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 

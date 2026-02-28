@@ -14,6 +14,22 @@ import type { Env } from '../types/env.js';
 const recentlyUpsertedUsers = new Set<string>();
 
 /**
+ * Timing-safe comparison for API keys / bearer tokens.
+ * Prevents timing attacks by using constant-time comparison.
+ */
+export function timingSafeKeyCheck(provided: string, expected: string): boolean {
+  const enc = new TextEncoder();
+  const a = enc.encode(provided);
+  const b = enc.encode(expected);
+  if (a.byteLength !== b.byteLength) {
+    // Compare against itself to avoid length-leak timing difference
+    crypto.subtle.timingSafeEqual(a, a);
+    return false;
+  }
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+
+/**
  * Check if a user is a super admin (can act on behalf of other users/orgs)
  */
 export function isSuperAdmin(email: string): boolean {

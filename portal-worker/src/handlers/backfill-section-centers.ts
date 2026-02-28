@@ -9,6 +9,7 @@
  */
 
 import { jsonResponse } from '../utils/responses.js';
+import { timingSafeKeyCheck } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -44,8 +45,8 @@ function calculateCentroid(geometry: any): { lat: number; lng: number } | null {
 
 export async function handleBackfillSectionCenters(request: Request, env: Env): Promise<Response> {
   // Verify admin key
-  const authHeader = request.headers.get('Authorization');
-  if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+  const authHeader = request.headers.get('Authorization') || '';
+  if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
     return jsonResponse({ error: 'Unauthorized' }, 401);
   }
 

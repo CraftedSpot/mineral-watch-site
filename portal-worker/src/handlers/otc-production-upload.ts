@@ -1,6 +1,7 @@
 import { Env } from "../types/env";
 import { jsonResponse } from "../utils/responses";
 import { normalizeBasePun } from "../utils/normalize.js";
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 
 /**
  * Purge all production-related KV cache keys after OTC data changes.
@@ -1169,6 +1170,8 @@ export async function handleWellsMissingPuns(
 
     if (orgId) {
       // Filter to a specific org's tracked wells
+      const memberIds = await getOrgMemberIds(env.WELLS_DB!, orgId);
+      const ownerFilter = buildOwnershipFilter('cw', orgId, '', memberIds);
       query = `
         SELECT cw.id, cw.api_number, cw.well_name, cw.county, cw.operator,
                cw.section, cw.township, cw.range,
@@ -1179,12 +1182,10 @@ export async function handleWellsMissingPuns(
         LEFT JOIN well_pun_links wpl ON cw.api_number = wpl.api_number
         WHERE wpl.api_number IS NULL
           AND cw.api_number IS NOT NULL AND cw.api_number != ''
-          AND (cw.organization_id = ? OR cw.user_id IN (
-            SELECT airtable_record_id FROM users WHERE organization_id = ?
-          ))
+          AND ${ownerFilter.where}
         ORDER BY cw.county, cw.well_name
       `;
-      binds = [orgId, orgId];
+      binds = [...ownerFilter.params];
     } else {
       // All tracked wells missing links
       query = `

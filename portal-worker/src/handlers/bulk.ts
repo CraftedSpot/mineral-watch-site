@@ -29,6 +29,8 @@ import {
   fetchUserWellsD1
 } from '../services/airtable.js';
 
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
+
 // fetchWellDetailsFromOCC still needed for validation (checking well exists)
 // lookupCompletionData and findOperatorByName no longer needed - D1 is source for metadata
 import {
@@ -497,18 +499,11 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   const organizationId = userRecord?.fields.Organization?.[0];
 
   // Get user's current properties for duplicate checking (from D1, includes property_code)
-  let existingRows: any[];
-  if (organizationId) {
-    const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    );
-    existingRows = (await stmt.bind(organizationId, organizationId).all()).results || [];
-  } else {
-    const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`
-    );
-    existingRows = (await stmt.bind(user.id).all()).results || [];
-  }
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const ownership = buildOwnershipFilter('p', organizationId, user.id, memberIds);
+  const existingRows = (await env.WELLS_DB.prepare(
+    `SELECT section, township, range, meridian, group_name, property_code FROM properties p WHERE ${ownership.where}`
+  ).bind(...ownership.params).all()).results || [];
   // D1 stores section as zero-padded string ("01"), normalized SEC is a number (1)
   // Parse section to int so keys match the validation output
   const existingSet = new Set(
@@ -667,19 +662,11 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   }
 
   // Get existing properties for duplicate check (from D1, includes property_code)
-  const existingOrgId = userOrganization;
-  let existingRows: any[];
-  if (existingOrgId) {
-    const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-    );
-    existingRows = (await stmt.bind(existingOrgId, existingOrgId).all()).results || [];
-  } else {
-    const stmt = env.WELLS_DB.prepare(
-      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`
-    );
-    existingRows = (await stmt.bind(targetUserId).all()).results || [];
-  }
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrganization);
+  const ownership = buildOwnershipFilter('p', userOrganization, targetUserId, memberIds);
+  const existingRows = (await env.WELLS_DB.prepare(
+    `SELECT section, township, range, meridian, group_name, property_code FROM properties p WHERE ${ownership.where}`
+  ).bind(...ownership.params).all()).results || [];
   // D1 stores section as zero-padded string ("01"), normalized SEC is a number (1)
   const existingSet = new Set(
     existingRows.map((p: any) =>
