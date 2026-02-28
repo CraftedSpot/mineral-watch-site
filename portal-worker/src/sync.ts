@@ -933,11 +933,12 @@ async function reconcileLinkCounts(env: any): Promise<void> {
       for (const [propId, prop] of propMap) {
         const newWells = wellMap.get(propId) || 0;
         const newDocs = docMap.get(propId) || 0;
-        const newFilings = filingMap.get(propId) || 0;
+        // Only update filing_count when filings were actually loaded — otherwise preserve existing value
+        const currentFilings = prop.filing_count || 0;
+        const newFilings = filingsLoaded ? (filingMap.get(propId) || 0) : currentFilings;
 
         const currentWells = prop.well_count || 0;
         const currentDocs = prop.document_count || 0;
-        const currentFilings = prop.filing_count || 0;
 
         // Skip if nothing changed
         if (newWells === currentWells && newDocs === currentDocs && newFilings === currentFilings) {
