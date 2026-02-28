@@ -109,7 +109,7 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
 
       // Failed emails in last 7 days
       env.WELLS_DB.prepare(`
-        SELECT DISTINCT u.*, o.name as org_name FROM users u
+        SELECT DISTINCT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         INNER JOIN activity_log al ON al.user_id = u.airtable_record_id
         WHERE u.status != 'Deleted' AND al.email_sent = 0
