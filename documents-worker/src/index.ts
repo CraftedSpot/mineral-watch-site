@@ -2316,6 +2316,16 @@ export default {
         // Post-process extracted data (normalize PUNs, etc.)
         const extracted_data = postProcessExtractedData(raw_extracted_data);
 
+        // Chain-of-title doc types — earmarked for future chain-of-title feature
+        const CHAIN_OF_TITLE_TYPES = new Set([
+          'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
+          'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
+          'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
+          'memorandum_of_lease', 'lease_amendment', 'death_certificate',
+          'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+        ]);
+        const chainOfTitle = doc_type && CHAIN_OF_TITLE_TYPES.has(doc_type) ? 1 : 0;
+
         // Update the document with extraction results
         // Handle both success and failure cases
         if (status === 'failed') {
@@ -2396,6 +2406,7 @@ export default {
                   field_scores = ?,
                   fields_needing_review = ?,
                   rotation_applied = ?,
+                  chain_of_title = ?,
                   extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
@@ -2415,6 +2426,7 @@ export default {
               field_scores !== undefined ? JSON.stringify(field_scores) : null,
               fields_needing_review !== undefined ? JSON.stringify(fields_needing_review) : null,
               rotation_applied ?? 0,
+              chainOfTitle,
               docId
             ).run();
             

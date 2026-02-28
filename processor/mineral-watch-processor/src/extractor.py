@@ -2490,6 +2490,13 @@ Valid document types:
 EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights documents.
 Your task is to extract key information from the document. Return raw values directly - do NOT wrap values in confidence objects.
 
+FILLER CHARACTER RULE:
+- Old forms often have dash-fill or dot-fill lines (e.g., "Ten and no/100 - - - - - - - - - - - - -" or "___________").
+- NEVER reproduce these filler characters. Extract only the meaningful text.
+- Example: "Ten and no/100 - - - - - - - -" → extract as "10.00" or "$10.00"
+- If a field is entirely filler (dashes, dots, underscores), return null.
+- This applies to ALL string fields — bonus amounts, legal descriptions, addresses, etc.
+
 CURRENT DATE: {current_date}
 
 DATE ANALYSIS RULES:
@@ -7603,6 +7610,12 @@ LEASE_DOC_TYPES = ["oil_gas_lease", "lease", "lease_amendment", "lease_extension
 LEASE_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights attorney specializing in oil & gas lease review.
 Your task is to extract comprehensive lease terms and identify protective clauses that affect mineral owner rights.
 
+FILLER CHARACTER RULE:
+- Old lease forms often have dash-fill or dot-fill lines (e.g., "Ten and no/100 - - - - - - - - - - - - -" or "___________").
+- NEVER reproduce these filler characters. Extract only the meaningful text.
+- Example: "Ten and no/100 - - - - - - - -" → extract as "10.00" or "$10.00"
+- If a field is entirely filler (dashes, dots, underscores), return null.
+
 CURRENT DATE: {current_date}
 
 DATE ANALYSIS RULES:
@@ -11027,6 +11040,23 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
 
         # Sanitize control characters (function defined above, before array detection)
         final_json_str = sanitize_json_control_chars(final_json_str)
+
+        # Collapse repeated filler characters (dashes, dots, underscores) inside string values.
+        # Old lease forms have lines like "Ten and no/100 - - - - - - - - ..." that the model
+        # sometimes reproduces verbatim, burning 30KB+ of tokens on filler.
+        import re
+        def collapse_filler(s: str) -> str:
+            # Match repeated dash patterns (with or without spaces): "- - - - -" or "---..."
+            s = re.sub(r'(?:- ){5,}[-]?', '- ', s)       # "- - - - - - ..." → "- "
+            s = re.sub(r'-{10,}', '---', s)               # "----------..." → "---"
+            s = re.sub(r'\.{10,}', '...', s)              # "..........…" → "..."
+            s = re.sub(r'_{10,}', '___', s)               # "__________…" → "___"
+            s = re.sub(r'\*{10,}', '***', s)              # "**********…" → "***"
+            return s
+        original_len = len(final_json_str)
+        final_json_str = collapse_filler(final_json_str)
+        if len(final_json_str) < original_len:
+            logger.info(f"Collapsed filler characters: {original_len} → {len(final_json_str)} bytes")
 
         print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
         print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
