@@ -761,6 +761,63 @@ async function reconcileLinkCounts(env: any): Promise<void> {
   let totalUpdated = 0;
   let totalDrift = 0;
 
+  // Pre-load filings once (not per-owner) — this is the biggest D1 read cost saver.
+  // KV cursor skip: only reload if new docket entries exist since last reconcile.
+  const ADJACENT_RELIEF_TYPES = "'HORIZONTAL_WELL','INCREASED_DENSITY','POOLING'";
+  let filingsByTRS = new Map<string, Array<{case_number: string; relief_type: string}>>();
+  let filingsLoaded = false;
+
+  try {
+    const cursorKey = 'reconcile:filings-cursor';
+    const lastCursor = await env.OCC_CACHE?.get(cursorKey);
+
+    let needsReload = true;
+    if (lastCursor) {
+      const newCount = await env.WELLS_DB.prepare(
+        `SELECT COUNT(*) as cnt FROM occ_docket_entries WHERE created_at > ?`
+      ).bind(lastCursor).first() as any;
+      if (newCount && newCount.cnt === 0) {
+        needsReload = false;
+        console.log(`[Reconcile] No new filings since ${lastCursor}, skipping filings reload`);
+      }
+    }
+
+    if (needsReload) {
+      const allFilings = await env.WELLS_DB.prepare(`
+        SELECT case_number, CAST(section AS INTEGER) as sec,
+          LTRIM(UPPER(township), '0') as twn, LTRIM(UPPER(range), '0') as rng,
+          relief_type
+        FROM occ_docket_entries WHERE section IS NOT NULL
+        UNION ALL
+        SELECT d.case_number, CAST(ds.section AS INTEGER) as sec,
+          LTRIM(UPPER(ds.township), '0') as twn, LTRIM(UPPER(ds.range), '0') as rng,
+          d.relief_type
+        FROM docket_entry_sections ds
+        JOIN occ_docket_entries d ON d.case_number = ds.case_number
+        WHERE ds.section IS NOT NULL
+        LIMIT 200000
+      `).all();
+
+      if (allFilings.results && allFilings.results.length >= 200000) {
+        console.warn(`[Reconcile] Filings query hit 200K safety limit — counts may be incomplete`);
+      }
+
+      for (const f of (allFilings.results || []) as any[]) {
+        const key = `${f.sec}|${f.twn}|${f.rng}`;
+        if (!filingsByTRS.has(key)) filingsByTRS.set(key, []);
+        filingsByTRS.get(key)!.push({ case_number: f.case_number, relief_type: f.relief_type });
+      }
+
+      console.log(`[Reconcile] Loaded ${allFilings.results?.length || 0} filing rows into ${filingsByTRS.size} TRS keys`);
+
+      // Update cursor for next cycle
+      await env.OCC_CACHE?.put(cursorKey, new Date().toISOString(), { expirationTtl: 86400 });
+      filingsLoaded = true;
+    }
+  } catch (err) {
+    console.error('[Reconcile] Error loading filings, will skip filing counts this cycle:', err);
+  }
+
   for (const owner of owners.results as any[]) {
     // Time budget check
     if (Date.now() - start > RECONCILE_BUDGET_MS) {
@@ -830,35 +887,8 @@ async function reconcileLinkCounts(env: any): Promise<void> {
         }
       }
 
-      // 3. Filing counts — direct + adjacent section matches (matching modal behavior)
-      // Adjacent filings (HORIZONTAL_WELL, INCREASED_DENSITY, POOLING) are shown in the
-      // OCC Filings modal, so the counter must include them to avoid mismatches.
+      // 3. Filing counts — use pre-loaded filingsByTRS Map (hoisted before owner loop)
       const filingMap = new Map<string, number>();
-      const ADJACENT_RELIEF_TYPES = "'HORIZONTAL_WELL','INCREASED_DENSITY','POOLING'";
-
-      // Build a Map of TRS key → Set<case_number> for all docket entries
-      // Then for each property, collect direct + adjacent matches
-      const allFilings = await env.WELLS_DB.prepare(`
-        SELECT case_number, CAST(section AS INTEGER) as sec,
-          LTRIM(UPPER(township), '0') as twn, LTRIM(UPPER(range), '0') as rng,
-          relief_type
-        FROM occ_docket_entries WHERE section IS NOT NULL
-        UNION ALL
-        SELECT d.case_number, CAST(ds.section AS INTEGER) as sec,
-          LTRIM(UPPER(ds.township), '0') as twn, LTRIM(UPPER(ds.range), '0') as rng,
-          d.relief_type
-        FROM docket_entry_sections ds
-        JOIN occ_docket_entries d ON d.case_number = ds.case_number
-        WHERE ds.section IS NOT NULL
-      `).all();
-
-      // Index filings by TRS key: "sec|twn|rng" → [{case_number, relief_type}]
-      const filingsByTRS = new Map<string, Array<{case_number: string; relief_type: string}>>();
-      for (const f of allFilings.results as any[]) {
-        const key = `${f.sec}|${f.twn}|${f.rng}`;
-        if (!filingsByTRS.has(key)) filingsByTRS.set(key, []);
-        filingsByTRS.get(key)!.push({ case_number: f.case_number, relief_type: f.relief_type });
-      }
 
       // For each property, collect direct matches + adjacent matches (relevant types only)
       for (const prop of props.results as any[]) {
