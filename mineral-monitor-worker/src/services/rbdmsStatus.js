@@ -395,9 +395,9 @@ export async function checkAllWellStatuses(env, options = {}) {
           
           const activityResult = await createActivityLog(env, activityData);
           
-          if (!activityResult.success) {
-            console.error(`[RBDMS] Failed to create activity log: ${activityResult.error}`);
-            results.errors.push(`Activity log failed: ${activityResult.error}`);
+          if (!activityResult || !activityResult.id) {
+            console.error(`[RBDMS] Failed to create activity log`);
+            results.errors.push(`Activity log failed: no record ID returned`);
           }
           
           // Send alert email

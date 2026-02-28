@@ -119,9 +119,9 @@ export async function checkWellStatusChange(api10, currentData, env) {
           
           const activityResult = await createActivityLog(env, activityData);
           
-          if (!activityResult.success) {
-            console.error(`[Status Change] Failed to create activity log: ${activityResult.error}`);
-            result.errors.push(`Activity log failed: ${activityResult.error}`);
+          if (!activityResult || !activityResult.id) {
+            console.error(`[Status Change] Failed to create activity log`);
+            result.errors.push(`Activity log failed: no record ID returned`);
           }
           
           // Send alert email

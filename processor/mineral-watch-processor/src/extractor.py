@@ -2452,7 +2452,7 @@ Valid document types:
 - warranty_deed
 - gift_deed
 - quit_claim_deed
-- assignment_of_lease
+- assignment_of_lease (if BOTH a lease AND an assignment of that lease appear together, use this — the assignment is the actionable document)
 - assignment
 - lease
 - drilling_permit
@@ -10458,6 +10458,7 @@ LIMITED PARTNERSHIP DETECTION:
 
 ASSIGNMENT OF LEASE DETECTION:
 - assignment_of_lease: Look for "ASSIGNMENT OF OIL AND GAS LEASE", "ASSIGNMENT OF LEASEHOLD INTEREST", "PARTIAL ASSIGNMENT OF LEASE", or "ASSIGNMENT OF OPERATING RIGHTS". Key indicators: references an underlying lease (date, lessor, lessee), transfers working interest/operating rights from assignor to assignee, may retain an overriding royalty (ORRI). Contains legal description, consideration, warranty language. NOT trust_funding (which transfers to a trust where assignor is trustee).
+  COMBO RULE: When a chunk contains BOTH an original lease AND an assignment of that lease stapled together, classify as assignment_of_lease (NOT oil_gas_lease). The assignment is the more recent, actionable document — it shows who CURRENTLY holds the leasehold rights. Look for assignment language like "assigns, transfers, and conveys all right, title, and interest" or "KNOW ALL MEN BY THESE PRESENTS that [Assignor] does hereby assign" appearing AFTER lease language.
 
 QUIT CLAIM DEED DETECTION:
 - quit_claim_deed: Look for "QUIT CLAIM DEED", "QUITCLAIM DEED", "CORRECTION QUIT CLAIM DEED", or "CORRECTIVE QUIT CLAIM DEED". Key indicators: language like "quitclaim, grant, bargain", "remise, release, quitclaim", or "without warranty". Transfers whatever interest grantor MAY have with NO WARRANTY. Common uses: trust funding (individual → own trust), clearing title defects, correction of prior errors, divorce/family transfers. If same person is grantor (individual) AND grantee (trustee of their trust), this is trust funding but still classify as quit_claim_deed due to deed type. NOT mineral_deed (which has warranty). Look for "Correction" in title for correction deeds.

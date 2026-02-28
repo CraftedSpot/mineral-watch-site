@@ -287,7 +287,7 @@ export async function runWeeklyMonitor(env, options = {}) {
       
       // Process just this test transfer
       const recentAlerts = await preloadRecentAlerts(env);
-      results.testResults = await processTransfer(testTransfer, env, results, recentAlerts);
+      results.testResults = await processTransfer(testTransfer, env, results, recentAlerts, planLimitCache);
       results.transfersProcessed = 1;
       
       console.log(`[Weekly] TEST MODE complete. Alerts sent: ${results.alertsSent}`);
@@ -371,7 +371,7 @@ export async function runWeeklyMonitor(env, options = {}) {
     // Process each transfer - match by API Number against Client Wells
     for (const transfer of newTransfers) {
       try {
-        await processTransfer(transfer, env, results, recentAlerts);
+        await processTransfer(transfer, env, results, recentAlerts, planLimitCache);
         results.transfersProcessed++;
         
         // Mark as processed
@@ -429,7 +429,7 @@ export async function runWeeklyMonitor(env, options = {}) {
  *   EventDate (not Transfer_Date)
  *   Section, Township, Range, PM, County
  */
-async function processTransfer(transfer, env, results, recentAlerts) {
+async function processTransfer(transfer, env, results, recentAlerts, planLimitCache = new Map()) {
   // Use correct column names from OCC file
   const api10 = normalizeAPI(transfer['API Number']);
   const previousOperator = transfer.FromOperatorName;
