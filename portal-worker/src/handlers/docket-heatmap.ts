@@ -52,6 +52,7 @@ export async function handleGetDocketHeatmap(request: Request, env: Env): Promis
       WHERE relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL')
         AND docket_date >= ?
       ORDER BY docket_date DESC
+      LIMIT 5000
     `;
 
     const result = await env.WELLS_DB.prepare(query).bind(minDate).all();
