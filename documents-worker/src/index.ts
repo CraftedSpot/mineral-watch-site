@@ -2748,6 +2748,222 @@ export default {
                     console.error('[JOA Write-Back] Error:', joaWriteBackError);
                   }
                 }
+
+                // Write-back decimal interest from check stubs to client_wells
+                // Check stubs carry the actual decimal the operator uses for payment — ground truth.
+                // Source priority: DO >= check_stub > JOA > manual > bulk
+                if (doc_type === 'check_stub' && linkResult.wellId) {
+                  try {
+                    const wells = extracted_data?.wells;
+                    const topInterestType = String(extracted_data?.interest_type || '').toLowerCase();
+
+                    // Determine target column from top-level interest_type
+                    let targetColumn = 'ri_nri'; // default royalty
+                    let interestLabel = 'RI';
+                    if (topInterestType.includes('working')) {
+                      targetColumn = 'wi_nri';
+                      interestLabel = 'WI';
+                    } else if (topInterestType.includes('overrid') || topInterestType === 'orri') {
+                      targetColumn = 'orri_nri';
+                      interestLabel = 'ORRI';
+                    }
+
+                    // Source columns for this interest type
+                    const srcCol = targetColumn === 'ri_nri' ? 'interest_source' : `${targetColumn}_source`;
+                    const srcDocCol = targetColumn === 'ri_nri' ? 'interest_source_doc_id' : `${targetColumn}_source_doc_id`;
+                    const srcDateCol = targetColumn === 'ri_nri' ? 'interest_source_date' : `${targetColumn}_source_date`;
+
+                    // Ensure source columns exist
+                    const stubSourceCols = [
+                      { name: srcCol, type: 'TEXT' },
+                      { name: srcDocCol, type: 'TEXT' },
+                      { name: srcDateCol, type: 'TEXT' },
+                    ];
+                    for (const col of stubSourceCols) {
+                      try {
+                        await env.WELLS_DB.prepare(`SELECT ${col.name} FROM client_wells LIMIT 1`).first();
+                      } catch {
+                        try {
+                          await env.WELLS_DB.prepare(`ALTER TABLE client_wells ADD COLUMN ${col.name} ${col.type}`).run();
+                        } catch { /* already exists */ }
+                      }
+                    }
+
+                    // Check stubs have wells[] array with per-product decimal_interest
+                    if (Array.isArray(wells) && wells.length > 0) {
+                      for (const well of wells) {
+                        // Get decimal from first product that has one
+                        let decimal: number | null = null;
+                        if (Array.isArray(well.products)) {
+                          for (const prod of well.products) {
+                            if (prod.decimal_interest != null) {
+                              const parsed = parseFloat(String(prod.decimal_interest));
+                              if (parsed > 0 && parsed <= 1) {
+                                decimal = parsed;
+                                break;
+                              }
+                            }
+                          }
+                        }
+                        if (decimal == null) continue;
+
+                        // Find the client_well by API number
+                        const apiRaw = well.api_number;
+                        if (!apiRaw) continue;
+                        const apiDigits = String(apiRaw).replace(/[^0-9]/g, '');
+                        if (apiDigits.length < 5) continue;
+
+                        // Get document owner for ownership scoping
+                        const docOwner = await env.WELLS_DB.prepare(
+                          `SELECT user_id, organization_id FROM documents WHERE id = ?`
+                        ).bind(docId).first() as any;
+                        if (!docOwner) continue;
+
+                        // Try exact airtable_id match via linked well IDs first
+                        let clientWell: any = null;
+                        const linkedWellIds = (linkResult.wellId || '').split(',').map((w: string) => w.trim()).filter(Boolean);
+                        for (const wid of linkedWellIds) {
+                          const cw = await env.WELLS_DB.prepare(
+                            `SELECT id, airtable_id, api_number, ${targetColumn}, ${srcCol} FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                          ).bind(wid).first() as any;
+                          if (cw) {
+                            // Match by API suffix (check stub may have short API)
+                            const cwApi = String(cw.api_number || '').replace(/[^0-9]/g, '');
+                            if (cwApi.endsWith(apiDigits) || apiDigits.endsWith(cwApi) || cwApi === apiDigits) {
+                              clientWell = cw;
+                              break;
+                            }
+                          }
+                        }
+
+                        // Fallback: direct API search scoped to owner
+                        if (!clientWell) {
+                          clientWell = await env.WELLS_DB.prepare(
+                            `SELECT id, airtable_id, api_number, ${targetColumn}, ${srcCol} FROM client_wells
+                             WHERE api_number LIKE ? AND (user_id = ? OR organization_id = ?) LIMIT 1`
+                          ).bind(`%${apiDigits.slice(-5)}`, docOwner.user_id || '', docOwner.organization_id || '').first() as any;
+                        }
+
+                        if (!clientWell) continue;
+
+                        // Check source priority — don't overwrite DO
+                        const existingSource = String(clientWell[srcCol] || '');
+                        if (existingSource === 'extracted_division_order') {
+                          console.log(`[CheckStub Write-Back] Skipping well ${clientWell.airtable_id} — DO-sourced ${targetColumn}=${clientWell[targetColumn]}`);
+                          continue;
+                        }
+
+                        await env.WELLS_DB.prepare(
+                          `UPDATE client_wells
+                           SET ${targetColumn} = ?,
+                               ${srcCol} = 'extracted_check_stub',
+                               ${srcDocCol} = ?,
+                               ${srcDateCol} = datetime('now', '-6 hours')
+                           WHERE id = ?`
+                        ).bind(decimal, docId, clientWell.id).run();
+                        console.log(`[CheckStub Write-Back] Set ${targetColumn}=${decimal} (${interestLabel}) on well ${clientWell.airtable_id} from doc ${docId}`);
+                      }
+                    } else {
+                      // Fallback: top-level decimal_interest (some stubs don't have wells array)
+                      const topDecimal = extracted_data?.decimal_interest;
+                      if (topDecimal != null) {
+                        const parsed = parseFloat(String(topDecimal).replace(/[^0-9.]/g, ''));
+                        if (parsed > 0 && parsed <= 1 && linkResult.wellId) {
+                          const primaryWellId = linkResult.wellId.split(',')[0].trim();
+                          const clientWell = await env.WELLS_DB.prepare(
+                            `SELECT id, airtable_id, ${targetColumn}, ${srcCol} FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                          ).bind(primaryWellId).first() as any;
+
+                          if (clientWell) {
+                            const existingSource = String(clientWell[srcCol] || '');
+                            if (existingSource !== 'extracted_division_order') {
+                              await env.WELLS_DB.prepare(
+                                `UPDATE client_wells
+                                 SET ${targetColumn} = ?,
+                                     ${srcCol} = 'extracted_check_stub',
+                                     ${srcDocCol} = ?,
+                                     ${srcDateCol} = datetime('now', '-6 hours')
+                                 WHERE id = ?`
+                              ).bind(parsed, docId, clientWell.id).run();
+                              console.log(`[CheckStub Write-Back] Set ${targetColumn}=${parsed} (${interestLabel}, top-level) on well ${clientWell.airtable_id} from doc ${docId}`);
+                            }
+                          }
+                        }
+                      }
+                    }
+                  } catch (stubWriteBackError) {
+                    console.error('[CheckStub Write-Back] Error:', stubWriteBackError);
+                  }
+                }
+
+                // Write-back decimal interest from JIBs to client_wells
+                // JIBs are always working interest (only WI owners get billed for operating expenses)
+                // Source priority: DO >= check_stub > JOA > JIB > manual > bulk
+                if (doc_type === 'joint_interest_billing' && extracted_data?.decimal_interest && linkResult.wellId) {
+                  try {
+                    const rawDecimal = String(extracted_data.decimal_interest).replace(/[^0-9.]/g, '');
+                    const decimalInterest = parseFloat(rawDecimal);
+
+                    if (decimalInterest > 0 && decimalInterest <= 1) {
+                      const primaryWellId = linkResult.wellId.split(',')[0].trim();
+
+                      // Ensure WI source columns exist
+                      const jibSourceCols = [
+                        { name: 'wi_nri_source', type: 'TEXT' },
+                        { name: 'wi_nri_source_doc_id', type: 'TEXT' },
+                        { name: 'wi_nri_source_date', type: 'TEXT' },
+                      ];
+                      for (const col of jibSourceCols) {
+                        try {
+                          await env.WELLS_DB.prepare(`SELECT ${col.name} FROM client_wells LIMIT 1`).first();
+                        } catch {
+                          try {
+                            await env.WELLS_DB.prepare(`ALTER TABLE client_wells ADD COLUMN ${col.name} ${col.type}`).run();
+                          } catch { /* already exists */ }
+                        }
+                      }
+
+                      let clientWell = await env.WELLS_DB.prepare(
+                        `SELECT id, airtable_id, wi_nri, wi_nri_source FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                      ).bind(primaryWellId).first() as any;
+
+                      if (!clientWell && extracted_data?.api_number) {
+                        const apiDigits = String(extracted_data.api_number).replace(/[^0-9]/g, '');
+                        if (apiDigits.length >= 5) {
+                          const docOwner = await env.WELLS_DB.prepare(
+                            `SELECT user_id, organization_id FROM documents WHERE id = ?`
+                          ).bind(docId).first() as any;
+                          if (docOwner) {
+                            clientWell = await env.WELLS_DB.prepare(
+                              `SELECT id, airtable_id, wi_nri, wi_nri_source FROM client_wells
+                               WHERE api_number LIKE ? AND (user_id = ? OR organization_id = ?) LIMIT 1`
+                            ).bind(`%${apiDigits.slice(-5)}`, docOwner.user_id || '', docOwner.organization_id || '').first() as any;
+                          }
+                        }
+                      }
+
+                      if (clientWell) {
+                        const existingSource = clientWell.wi_nri_source || '';
+                        // Don't overwrite DO, check stub, or JOA sources
+                        if (['extracted_division_order', 'extracted_check_stub', 'extracted_joa'].includes(existingSource)) {
+                          console.log(`[JIB Write-Back] Skipping well ${clientWell.airtable_id} — ${existingSource} sourced wi_nri=${clientWell.wi_nri}`);
+                        } else {
+                          await env.WELLS_DB.prepare(
+                            `UPDATE client_wells
+                             SET wi_nri = ?,
+                                 wi_nri_source = 'extracted_jib',
+                                 wi_nri_source_doc_id = ?,
+                                 wi_nri_source_date = datetime('now', '-6 hours')
+                             WHERE id = ?`
+                          ).bind(decimalInterest, docId, clientWell.id).run();
+                          console.log(`[JIB Write-Back] Set wi_nri=${decimalInterest} on well ${clientWell.airtable_id} from doc ${docId}`);
+                        }
+                      }
+                    }
+                  } catch (jibWriteBackError) {
+                    console.error('[JIB Write-Back] Error:', jibWriteBackError);
+                  }
+                }
               } catch (linkError) {
                 console.error('[Documents] Error during auto-link:', linkError);
                 console.error('[Documents] Error stack:', linkError.stack);
