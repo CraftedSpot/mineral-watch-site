@@ -6,7 +6,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { BASE_ID, USERS_TABLE } from '../constants.js';
+
 import type { Env } from '../types/env.js';
 
 interface PreferencesUpdate {
@@ -117,17 +117,6 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
       `UPDATE users SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`
     ).bind(...d1Values).run();
     console.log(`[Preferences] D1 updated ${d1Updates.length - 1} fields for ${user.id}`);
-
-    // Fire-and-forget Airtable mirror
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${user.id}`;
-    fetch(updateUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ fields })
-    }).catch(e => console.warn('[Preferences] Airtable mirror failed:', e));
 
     return jsonResponse({
       success: true,

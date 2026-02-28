@@ -4,9 +4,7 @@
  * Handles authentication flow including magic links, registration, and user management
  */
 
-import { 
-  BASE_ID,
-  USERS_TABLE,
+import {
   COOKIE_NAME,
   TOKEN_EXPIRY,
   SESSION_EXPIRY,
@@ -449,34 +447,6 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
 
     console.log(`[Register] Magic link sent to: ${normalizedEmail}`);
 
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    if (ctx) {
-      ctx.waitUntil((async () => {
-        try {
-          const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
-          const resp = await fetch(createUrl, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              fields: {
-                Email: normalizedEmail,
-                Name: displayName,
-                Plan: "Free",
-                Status: "Active",
-                Newsletter: newsletter === true
-              }
-            })
-          });
-          if (!resp.ok) console.error('[Register] Airtable mirror failed:', resp.status);
-        } catch (e) {
-          console.error('[Register] Airtable mirror error:', e);
-        }
-      })());
-    }
-
     return jsonResponse({
       success: true,
       message: "Account created! Check your email to verify and log in."
@@ -655,17 +625,6 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
       console.error(`[EmailChange] No D1 user found for ${payload.userId}`);
       return Response.redirect(`${BASE_URL}/portal/account?error=Failed%20to%20update%20email`, 302);
     }
-
-    // Fire-and-forget Airtable mirror
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${payload.userId}`;
-    fetch(updateUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ fields: { Email: payload.newEmail } })
-    }).catch(e => console.warn('[EmailChange] Airtable mirror failed:', e));
 
     console.log(`Email successfully changed for user ${payload.userId}: ${payload.currentEmail} -> ${payload.newEmail}`);
     

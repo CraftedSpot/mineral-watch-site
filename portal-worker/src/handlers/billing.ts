@@ -5,8 +5,6 @@
  */
 
 import {
-  BASE_ID,
-  USERS_TABLE,
   BASE_URL,
   COOKIE_NAME,
   PRICE_IDS,
@@ -142,15 +140,6 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
       console.error('[Billing] D1 plan update failed:', (err as Error).message);
     }
 
-    // Fire-and-forget Airtable mirror
-    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ fields: { Plan: targetPlan } })
-    }).catch(e => console.warn('[Billing] Airtable mirror failed:', e));
   }
 
   console.log(`User ${user.email} upgraded to ${targetPlan}`);
@@ -303,22 +292,6 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
         } catch (err) {
           console.error('[Billing] D1 upgrade write failed:', (err as Error).message);
         }
-
-        // Fire-and-forget Airtable mirror
-        fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fields: {
-              Plan: targetPlan,
-              'Stripe Customer ID': stripeCustomerId,
-              'Stripe Subscription ID': subscriptionId
-            }
-          })
-        }).catch(e => console.warn('[Billing] Airtable mirror failed:', e));
 
         console.log(`[Billing] User ${customerEmail} upgraded to ${targetPlan}`);
       }

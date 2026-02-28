@@ -7,9 +7,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest, SessionPayload } from '../utils/auth.js';
-import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
-import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 
 // Reporting status categories (matches dashboard)
 type ReportingStatus = 'active' | 'recently_idle' | 'extended_idle' | 'no_recent_production';
@@ -325,35 +323,23 @@ async function fetchUnitPrintData(
     const propertyIds = uniqueResults.map((r: any) => r.airtable_record_id).filter(Boolean);
     console.log(`[UnitPrint] Unique property IDs: ${propertyIds.length}`);
 
-    // Fetch RI Acres + WI Acres from Airtable to calculate NMA (not synced to D1)
+    // Fetch RI Acres + WI Acres from D1 to calculate NMA
     const nmaMap = new Map<string, number>();
-    console.log(`[UnitPrint] Fetching NMA for ${propertyIds.length} properties:`, propertyIds);
     if (propertyIds.length > 0) {
-      const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${escapeAirtableValue(id)}'`).join(',')})`;
-      const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
-
       try {
-        const response = await fetch(airtableUrl, {
-          headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        });
-
-        console.log(`[UnitPrint] Airtable response status: ${response.status}`);
-        if (response.ok) {
-          const data = await response.json() as { records: Array<{ id: string; fields: any }> };
-          console.log(`[UnitPrint] Airtable returned ${data.records.length} records`);
-          for (const record of data.records) {
-            const riAcres = parseFloat(record.fields['RI Acres'] || 0);
-            const wiAcres = parseFloat(record.fields['WI Acres'] || 0);
-            const nma = riAcres + wiAcres;
-            console.log(`[UnitPrint] Property ${record.id}: RI=${riAcres}, WI=${wiAcres}, NMA=${nma}`);
-            nmaMap.set(record.id, nma);
-          }
-        } else {
-          const errorText = await response.text();
-          console.error(`[UnitPrint] Airtable error: ${errorText}`);
+        const placeholders = propertyIds.map(() => '?').join(',');
+        const { results: nmaResults } = await env.WELLS_DB.prepare(
+          `SELECT airtable_record_id, ri_acres, wi_acres FROM properties WHERE airtable_record_id IN (${placeholders})`
+        ).bind(...propertyIds).all();
+        for (const row of nmaResults || []) {
+          const riAcres = parseFloat(String(row.ri_acres || 0));
+          const wiAcres = parseFloat(String(row.wi_acres || 0));
+          const nma = riAcres + wiAcres;
+          nmaMap.set(row.airtable_record_id as string, nma);
         }
+        console.log(`[UnitPrint] D1 returned NMA for ${nmaMap.size} properties`);
       } catch (err) {
-        console.error('[UnitPrint] Error fetching NMA from Airtable:', err);
+        console.error('[UnitPrint] Error fetching NMA from D1:', err);
       }
     }
 

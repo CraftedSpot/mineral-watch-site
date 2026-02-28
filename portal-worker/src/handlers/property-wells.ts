@@ -4,7 +4,7 @@
  * Handles API endpoints for managing property-well relationships
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, LINKS_TABLE } from '../constants.js';
+import { BASE_ID, WELLS_TABLE, LINKS_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
@@ -35,28 +35,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     `).bind(propertyId).first();
 
     if (!propertyCheck) {
-      // Property not in D1 yet - fall back to Airtable check
-      const propertyResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        }
-      );
-
-      if (!propertyResponse.ok) {
-        if (propertyResponse.status === 404) {
-          return jsonResponse({ error: "Property not found" }, 404);
-        }
-        throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
-      }
-
-      const propertyData: any = await propertyResponse.json();
-      const propertyUserId = propertyData.fields.User?.[0];
-      const propertyOrgId = propertyData.fields.Organization?.[0];
-
-      if (propertyUserId !== authUser.id && (!userOrgId || propertyOrgId !== userOrgId)) {
-        return jsonResponse({ error: "Unauthorized" }, 403);
-      }
+      return jsonResponse({ error: "Property not found" }, 404);
     }
 
     // Query linked wells from D1 - join property_well_links with client_wells

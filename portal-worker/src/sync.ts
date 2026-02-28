@@ -473,47 +473,9 @@ async function syncWellsCombinedChunked(env: any, cursor: SyncCursor, tickStart:
 
       console.log(`[Sync] Fetched ${response.records.length} wells${cursor.offset ? ' (continued)' : ''}`);
 
-      // --- Part 1: Upsert to client_wells (batch, always) ---
-      const clientWellStatements = response.records.map(record => buildClientWellUpsert(env, record));
-      const successfulClientWellIds: string[] = [];
-
-      for (let i = 0; i < clientWellStatements.length; i += BATCH_SIZE) {
-        const batchSlice = clientWellStatements.slice(i, i + BATCH_SIZE);
-        const batchRecords = response.records.slice(i, i + batchSlice.length);
-        try {
-          await env.WELLS_DB.batch(batchSlice);
-          // Entire batch succeeded — all IDs are valid
-          successfulClientWellIds.push(...batchRecords.map(r => r.id));
-          console.log(`[Sync] client_wells batch ${i}..${i + batchSlice.length} succeeded`);
-        } catch (batchErr: any) {
-          console.error(`[Sync] client_wells batch ${i}..${i + batchSlice.length} FAILED:`, batchErr?.message || batchErr);
-          // Try individual statements — only track IDs that actually succeed
-          // Cap retries to prevent runaway loops if D1 is unhealthy
-          const MAX_INDIVIDUAL_RETRIES = 50;
-          let batchFailCount = 0;
-          const retryCount = Math.min(batchSlice.length, MAX_INDIVIDUAL_RETRIES);
-          if (batchSlice.length > MAX_INDIVIDUAL_RETRIES) {
-            console.warn(`[Sync] client_wells: batch has ${batchSlice.length} statements, capping individual retries at ${MAX_INDIVIDUAL_RETRIES}`);
-          }
-          for (let j = 0; j < retryCount; j++) {
-            try {
-              await batchSlice[j].run();
-              successfulClientWellIds.push(batchRecords[j].id);
-            } catch (singleErr: any) {
-              batchFailCount++;
-              const rec = batchRecords[j];
-              console.error(`[Sync] client_wells INDIVIDUAL FAIL record=${rec?.id} api=${rec?.fields?.['API Number']}: ${singleErr?.message}`);
-              cursor.stats.clientWells.errors.push(`Record ${rec?.id}: ${singleErr?.message}`);
-            }
-          }
-          if (batchFailCount > 0) {
-            console.warn(`[Sync] client_wells: ${batchFailCount}/${retryCount} records failed both batch and individual insert`);
-          }
-        }
-      }
-      cursor.collectedIds.client_wells.push(...successfulClientWellIds);
-      cursor.stats.clientWells.synced += successfulClientWellIds.length;
-      cursor.stats.clientWells.updated += successfulClientWellIds.length;
+      // --- Part 1: client_wells sync SKIPPED (D1 is authoritative) ---
+      // D1 is the source of truth for client_wells — all CRUD goes through D1-first handlers.
+      // Airtable→D1 sync was overwriting fresh D1 data with stale Airtable values.
 
       // --- Part 2: Batch update wells table (airtable_record_id + status) ---
       // Batched instead of per-record to avoid Worker timeout on 1400+ individual queries
@@ -648,35 +610,10 @@ async function syncLinksChunked(env: any, cursor: SyncCursor, tickStart: number)
 // ============================================================================
 
 async function runCleanup(env: any, cursor: SyncCursor): Promise<void> {
-  console.log('[Sync] Running orphan cleanup with safety guards...');
-
-  const SAFETY_THRESHOLD = 0.9; // Only cleanup if we synced ≥90% of expected records
-
-  // --- Properties ---
-  await safeCleanup(env, {
-    tableName: 'properties',
-    airtableIdColumn: 'airtable_record_id',
-    collectedIds: cursor.collectedIds.properties,
-    threshold: SAFETY_THRESHOLD,
-  });
-
-  // --- Client Wells ---
-  await safeCleanup(env, {
-    tableName: 'client_wells',
-    airtableIdColumn: 'airtable_id',
-    collectedIds: cursor.collectedIds.client_wells,
-    threshold: SAFETY_THRESHOLD,
-  });
-
-  // --- Property-Well Links ---
-  await safeCleanup(env, {
-    tableName: 'property_well_links',
-    airtableIdColumn: 'airtable_record_id',
-    collectedIds: cursor.collectedIds.links,
-    threshold: SAFETY_THRESHOLD,
-  });
-
-  console.log('[Sync] Orphan cleanup complete');
+  // D1 is authoritative for properties, client_wells, and property_well_links.
+  // Orphan cleanup for these tables is skipped — D1-first records (e.g. bulk uploads)
+  // may never exist in Airtable, and deleting them would cause data loss.
+  console.log('[Sync] Orphan cleanup skipped (D1 is authoritative for properties/wells/links)');
 }
 
 /**
@@ -1361,11 +1298,8 @@ export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<
   try {
     // Phase machine — falls through phases until time budget exceeded or complete
     if (cursor.phase === 'properties') {
-      const done = await syncPropertiesChunked(env, cursor, tickStart);
-      if (!done) {
-        await saveCursor(env, cursor);
-        return buildResult(cursor, tickStart);
-      }
+      // D1 is authoritative for properties — skip Airtable→D1 sync
+      console.log('[Sync] Skipping properties phase (D1 is authoritative)');
       cursor.phase = 'wells_combined';
       cursor.offset = null;
     }
@@ -1381,11 +1315,9 @@ export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<
     }
 
     if (cursor.phase === 'links') {
-      const done = await syncLinksChunked(env, cursor, tickStart);
-      if (!done) {
-        await saveCursor(env, cursor);
-        return buildResult(cursor, tickStart);
-      }
+      // D1 is authoritative for links — skip Airtable→D1 sync
+      // (INSERT OR REPLACE was destroying section_allocation_pct, allocation_source, allocation_source_doc_id)
+      console.log('[Sync] Skipping links phase (D1 is authoritative)');
       cursor.phase = 'cleanup';
     }
 

@@ -5,9 +5,6 @@
  */
 
 import {
-  BASE_ID,
-  PROPERTIES_TABLE,
-  WELLS_TABLE,
   PLAN_LIMITS,
   MAX_NOTES_LENGTH,
   getPlanLimits
@@ -746,79 +743,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
     }
   }
 
-  console.log(`[BulkPropertyUpload] D1 writes complete: ${results.successful} created, ${results.failed} failed`);
-
-  // ====================================================================
-  // STEP 2: Create minimal Airtable records (ownership only)
-  // ====================================================================
-  const airtableBatchSize = 10;
-  const successfulD1 = d1Records.filter((_, idx) => idx < results.successful);
-
-  for (let i = 0; i < successfulD1.length; i += airtableBatchSize) {
-    const batch = successfulD1.slice(i, i + airtableBatchSize);
-
-    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
-    try {
-      const response = await fetch(createUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          records: batch.map(({ prop }) => {
-            const fields: any = {
-              User: [targetUserId],
-              SEC: String(prop.SEC).padStart(2, '0'),
-              TWN: prop.TWN,
-              RNG: prop.RNG,
-              MERIDIAN: prop.MERIDIAN,
-              COUNTY: prop.COUNTY || "",
-              Group: prop.GROUP || "",
-              "Monitor Adjacent": true,
-              Status: "Active",
-              Notes: prop.NOTES || "",
-              "RI Acres": prop['RI Acres'] || 0,
-              "WI Acres": prop['WI Acres'] || 0
-            };
-            if (userOrganization) {
-              fields.Organization = [userOrganization];
-            }
-            return { fields };
-          })
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json() as any;
-        // Link D1 records to Airtable records
-        const linkStmts = data.records.map((rec: any, j: number) => {
-          const d1Id = batch[j].d1Id;
-          return env.WELLS_DB.prepare(
-            `UPDATE properties SET airtable_record_id = ? WHERE id = ?`
-          ).bind(rec.id, d1Id);
-        });
-        if (linkStmts.length > 0) {
-          await env.WELLS_DB.batch(linkStmts);
-        }
-      } else {
-        const err = await response.text();
-        console.error(`[BulkPropertyUpload] Airtable batch ${Math.floor(i / airtableBatchSize) + 1} failed:`, err);
-        // D1 records still exist — they'll get linked on next sync
-        results.errors.push(`Airtable batch failed (D1 records OK, will link on sync)`);
-      }
-    } catch (err: any) {
-      console.error(`[BulkPropertyUpload] Airtable batch error:`, err.message);
-      results.errors.push(`Airtable batch error`);
-    }
-
-    // Small delay between batches to avoid Airtable rate limits
-    if (i + airtableBatchSize < successfulD1.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-
-  console.log(`[BulkPropertyUpload] Complete: ${results.successful} D1, Airtable ownership records created`);
+  console.log(`[BulkPropertyUpload] Complete: ${results.successful} D1 records created`);
 
   // Trigger full property-well matching if any properties were created
   if (results.successful > 0 && ctx) {
@@ -1865,118 +1790,72 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   console.log(`[BulkUpload] Processing ${toCreate.length} new wells (${results.skipped} skipped: ${results.duplicatesSkipped} duplicates, ${results.skipped - results.duplicatesSkipped} other reasons)`);
   
-  // Create minimal Airtable records + write enterprise fields to D1
-  // Airtable stores: User relationship, tracking status, and user notes
-  // D1 stores: Enterprise interest decimals (wi_nri, ri_nri, orri_nri, user_well_code)
-  const batchSize = 10;
+  // Write wells directly to D1 (D1-first, no Airtable mirror)
+  const batchSize = 50; // D1 can handle larger batches than Airtable's 10-record limit
   for (let i = 0; i < toCreate.length; i += batchSize) {
     const batch = toCreate.slice(i, i + batchSize);
 
+    try {
+      // Fetch TRS data from OCC wells table for all APIs in this batch
+      const apiNumbers = batch.map((w: any) => w.apiNumber);
+      const placeholders = apiNumbers.map(() => '?').join(', ');
+      const occWells = await env.WELLS_DB.prepare(`
+        SELECT api_number, well_name, operator, county, section, township, range
+        FROM wells WHERE api_number IN (${placeholders})
+      `).bind(...apiNumbers).all();
 
-    const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        records: batch.map((well: any) => {
-          const fields: any = {
-            User: [targetUserId],
-            "API Number": well.apiNumber,
-            Notes: well.notes || "",
-            Status: "Active"
-          };
-
-          // Add organization if user has one
-          if (userOrganization) {
-            fields.Organization = [userOrganization];
-          }
-
-          return { fields };
-        })
-      })
-    });
-
-    if (response.ok) {
-      const data = await response.json() as any;
-      results.successful += data.records.length;
-
-      // Write to D1 client_wells with TRS data from OCC wells table
-      // This ensures OCC filings can be matched via TRS location
-      if (env.WELLS_DB) {
-        try {
-          // Fetch TRS data from OCC wells table for all APIs in this batch
-          const apiNumbers = batch.map((w: any) => w.apiNumber);
-          const placeholders = apiNumbers.map(() => '?').join(', ');
-          const occWells = await env.WELLS_DB.prepare(`
-            SELECT api_number, well_name, operator, county, section, township, range
-            FROM wells WHERE api_number IN (${placeholders})
-          `).bind(...apiNumbers).all();
-
-          const occDataMap = new Map<string, any>();
-          for (const row of occWells.results || []) {
-            occDataMap.set(row.api_number as string, row);
-          }
-
-          const d1Stmts = data.records.map((rec: any, j: number) => {
-            const well = batch[j];
-            const occData = occDataMap.get(well.apiNumber);
-            const d1Id = `cwell_${rec.id}`;
-            return env.WELLS_DB.prepare(`
-              INSERT INTO client_wells (
-                id, airtable_id, api_number, user_id, organization_id,
-                well_name, operator, county, section, township, range_val,
-                user_well_code, wi_nri, ri_nri, orri_nri, status, synced_at
-              )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', CURRENT_TIMESTAMP)
-              ON CONFLICT(airtable_id) DO UPDATE SET
-                well_name = COALESCE(excluded.well_name, client_wells.well_name),
-                operator = COALESCE(excluded.operator, client_wells.operator),
-                county = COALESCE(excluded.county, client_wells.county),
-                section = COALESCE(excluded.section, client_wells.section),
-                township = COALESCE(excluded.township, client_wells.township),
-                range_val = COALESCE(excluded.range_val, client_wells.range_val),
-                user_well_code = COALESCE(excluded.user_well_code, client_wells.user_well_code),
-                wi_nri = COALESCE(excluded.wi_nri, client_wells.wi_nri),
-                ri_nri = COALESCE(excluded.ri_nri, client_wells.ri_nri),
-                orri_nri = COALESCE(excluded.orri_nri, client_wells.orri_nri),
-                updated_at = datetime('now')
-            `).bind(
-              d1Id,
-              rec.id,
-              well.apiNumber,
-              targetUserId,
-              userOrganization || null,
-              occData?.well_name || well.wellName || null,
-              occData?.operator || null,
-              occData?.county || null,
-              occData?.section ? String(occData.section) : null,
-              occData?.township || null,
-              occData?.range || null,
-              well.user_well_code || null,
-              well.wi_nri || null,
-              well.ri_nri || null,
-              well.orri_nri || null
-            );
-          });
-          await env.WELLS_DB.batch(d1Stmts);
-          console.log(`[BulkUpload] D1 client_wells written for ${d1Stmts.length} wells (with TRS data)`);
-        } catch (d1Err: any) {
-          console.error(`[BulkUpload] D1 write failed (non-fatal):`, d1Err.message);
-          // Non-fatal — the fields will be populated on next sync
-        }
+      const occDataMap = new Map<string, any>();
+      for (const row of occWells.results || []) {
+        occDataMap.set(row.api_number as string, row);
       }
-    } else {
-      const err = await response.text();
-      console.error(`[BulkUpload] Batch create wells failed:`, err);
-      results.failed += batch.length;
-      results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed`);
-    }
 
-    // Small delay between batches
-    if (i + batchSize < toCreate.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      const d1Stmts = batch.map((well: any) => {
+        const occData = occDataMap.get(well.apiNumber);
+        const d1Id = `cwell_${crypto.randomUUID()}`;
+        return env.WELLS_DB.prepare(`
+          INSERT INTO client_wells (
+            id, api_number, user_id, organization_id,
+            well_name, operator, county, section, township, range_val,
+            user_well_code, wi_nri, ri_nri, orri_nri, notes, status, synced_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', CURRENT_TIMESTAMP)
+          ON CONFLICT(api_number, user_id) DO UPDATE SET
+            well_name = COALESCE(excluded.well_name, client_wells.well_name),
+            operator = COALESCE(excluded.operator, client_wells.operator),
+            county = COALESCE(excluded.county, client_wells.county),
+            section = COALESCE(excluded.section, client_wells.section),
+            township = COALESCE(excluded.township, client_wells.township),
+            range_val = COALESCE(excluded.range_val, client_wells.range_val),
+            user_well_code = COALESCE(excluded.user_well_code, client_wells.user_well_code),
+            wi_nri = COALESCE(excluded.wi_nri, client_wells.wi_nri),
+            ri_nri = COALESCE(excluded.ri_nri, client_wells.ri_nri),
+            orri_nri = COALESCE(excluded.orri_nri, client_wells.orri_nri),
+            updated_at = datetime('now')
+        `).bind(
+          d1Id,
+          well.apiNumber,
+          targetUserId,
+          userOrganization || null,
+          occData?.well_name || well.wellName || null,
+          occData?.operator || null,
+          occData?.county || null,
+          occData?.section ? String(occData.section) : null,
+          occData?.township || null,
+          occData?.range || null,
+          well.user_well_code || null,
+          well.wi_nri || null,
+          well.ri_nri || null,
+          well.orri_nri || null,
+          well.notes || null
+        );
+      });
+      await env.WELLS_DB.batch(d1Stmts);
+      results.successful += batch.length;
+      console.log(`[BulkUpload] D1 client_wells written for ${d1Stmts.length} wells (with TRS data)`);
+    } catch (d1Err: any) {
+      console.error(`[BulkUpload] D1 write failed:`, d1Err.message);
+      results.failed += batch.length;
+      results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${d1Err.message}`);
     }
   }
 

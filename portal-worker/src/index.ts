@@ -77,8 +77,7 @@ import {
   handleListActivity,
   handleActivityStats,
   handleDeleteActivity,
-  // Property handlers
-  handleListProperties,
+  // Property handlers (V1 handleListProperties removed)
   handleListPropertiesV2,
   handleAddProperty,
   handleUpdateProperty,
@@ -121,31 +120,21 @@ import {
   generateTrackWellErrorPage,
   // OCC proxy handler
   handleOccProxy,
-  // Formation backfill handlers
-  handleBackfillFormations,
-  handleGetFormationForActivity,
+  // Formation backfill handlers (deleted)
   // Well locations backfill handler
   handleBackfillWellLocations,
   // Statewide activity handler
   handleStatewideActivity,
-  // Statewide activity backfill handler
-  handleBackfillStatewideActivity,
+  // Statewide activity backfill handler (deleted)
   handleBackfillSectionCenters,
   handleBackfillBhCoordinates,
   handleBackfillCompletionWriteback,
   // Property-well matching handler
   handleMatchPropertyWells,
   handleDiscoverAndTrackWells,
-  // Debug handler
-  handleDebugAirtable,
-  // Property-Wells handlers (now using D1 handlers with dynamic imports)
-  // handleGetPropertyLinkedWells, // Removed - using D1 handler
-  // handleGetWellLinkedProperties, // Removed - using D1 handler
+  // Property-Wells handlers
   handleUnlinkPropertyWell,
   handleRelinkPropertyWell,
-  // Single item matching handlers
-  handleMatchSingleProperty,
-  handleMatchSingleWell,
   // Sync handler
   handleAirtableSync,
   // Map data handlers
@@ -1070,10 +1059,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/properties/v2" && request.method === "GET") {
         return handleListPropertiesV2(request, env);
       }
-      // GET /api/properties - Legacy Airtable endpoint
-      if (path === "/api/properties" && request.method === "GET") {
-        return handleListProperties(request, env);
-      }
+      // V1 GET /api/properties removed — Airtable-based, deprecated. Use /api/v2/properties.
       if (path === "/api/properties/link-counts" && request.method === "GET") {
         return handleGetPropertyLinkCounts(request, env);
       }
@@ -1558,24 +1544,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
       }
 
-      // Formation backfill endpoints
-      if (path === "/api/backfill-formations" && request.method === "POST") {
-        return handleBackfillFormations(request, env);
-      }
-      if (path === "/api/formation-for-activity" && request.method === "GET") {
-        return handleGetFormationForActivity(request, env);
-      }
-      
       // Well locations backfill endpoint
       if (path === "/api/backfill-well-locations" && request.method === "POST") {
         return handleBackfillWellLocations(request, env);
       }
       
-      // Statewide activity backfill endpoint
-      if (path === "/api/backfill-statewide-activity" && request.method === "POST") {
-        return handleBackfillStatewideActivity(request, env);
-      }
-
       // Section centers backfill endpoint
       if (path === "/api/admin/backfill-section-centers" && request.method === "POST") {
         return handleBackfillSectionCenters(request, env);
@@ -1753,11 +1726,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleGetOperatorDetail(request, env, operatorDetailMatch[1]);
       }
 
-      // Debug endpoint
-      if (path === "/api/debug-airtable" && request.method === "GET") {
-        return handleDebugAirtable(request, env);
-      }
-      
       // Property linked wells endpoint (using D1 with fallback)
       const propertyLinkedWellsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9]+)\/linked-wells$/);
       if (propertyLinkedWellsMatch && request.method === "GET") {
@@ -1810,18 +1778,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       if (unlinkMatch && request.method === "PATCH") {
         return handleRelinkPropertyWell(unlinkMatch[1], request, env);
-      }
-      
-      // Match single property endpoint
-      const matchPropertyMatch = path.match(/^\/api\/match-single-property\/([a-zA-Z0-9]+)$/);
-      if (matchPropertyMatch && request.method === "POST") {
-        return handleMatchSingleProperty(matchPropertyMatch[1], request, env);
-      }
-      
-      // Match single well endpoint
-      const matchWellMatch = path.match(/^\/api\/match-single-well\/([a-zA-Z0-9]+)$/);
-      if (matchWellMatch && request.method === "POST") {
-        return handleMatchSingleWell(matchWellMatch[1], request, env);
       }
       
       // Test endpoint for TRS parsing debug

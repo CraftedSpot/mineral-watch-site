@@ -307,39 +307,6 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
         .catch(err => console.error('[PropertyCreate] Auto-match failed:', err.message))
     );
 
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    ctx.waitUntil((async () => {
-      try {
-        const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
-        const resp = await fetch(createUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            fields: {
-              User: [user.id],
-              COUNTY: body.COUNTY,
-              SEC: section,
-              TWN: township,
-              RNG: range,
-              MERIDIAN: meridian,
-              Group: body.Group || "",
-              Notes: body.Notes || "",
-              "RI Acres": body['RI Acres'] || 0,
-              "WI Acres": body['WI Acres'] || 0,
-              "Monitor Adjacent": true,
-              Status: "Active",
-              ...(userOrganization && { Organization: [userOrganization] })
-            }
-          })
-        });
-        if (!resp.ok) console.error('[PropertyCreate] Airtable mirror failed:', resp.status);
-      } catch (e) {
-        console.error('[PropertyCreate] Airtable mirror error:', e);
-      }
-    })());
   }
 
   return jsonResponse(newRecord, 201);
@@ -456,19 +423,6 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
     await env.WELLS_DB.prepare(sql).bind(...d1Binds).run();
   }
 
-  // Fire-and-forget Airtable mirror (non-enterprise fields only)
-  if (Object.keys(updateFields).length > 0) {
-    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-    fetch(updateUrl, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ fields: updateFields })
-    }).catch(e => console.warn('[UpdateProperty] Airtable mirror failed:', e));
-  }
-
   return jsonResponse({ success: true });
 }
 
@@ -509,22 +463,6 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
   ]);
 
   console.log(`[PropertyDelete] D1 deleted: ${propertyId} by ${user.email}`);
-
-  // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-  if (ctx) {
-    ctx.waitUntil((async () => {
-      try {
-        const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-        const resp = await fetch(deleteUrl, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        });
-        if (!resp.ok) console.error('[PropertyDelete] Airtable mirror failed:', resp.status);
-      } catch (e) {
-        console.error('[PropertyDelete] Airtable mirror error:', e);
-      }
-    })());
-  }
 
   return jsonResponse({ success: true });
 }

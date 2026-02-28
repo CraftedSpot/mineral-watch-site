@@ -5,9 +5,6 @@
  */
 
 import {
-  BASE_ID,
-  ORGANIZATION_TABLE,
-  USERS_TABLE,
   CORS_HEADERS,
   BASE_URL,
   INVITE_TOKEN_EXPIRY,
@@ -241,18 +238,6 @@ export async function handleInviteMember(request: Request, env: Env) {
         `UPDATE users SET organization_id = ?, role = ? WHERE airtable_record_id = ?`
       ).bind(organizationId, role, existingUser.id).run();
 
-      // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-      fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
-        {
-          method: 'PATCH',
-          headers: {
-            Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ fields: { Organization: [organizationId], Role: role } })
-        }
-      ).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
       // Generate magic link and send invite
       const token = generateToken();
@@ -320,25 +305,6 @@ export async function handleInviteMember(request: Request, env: Env) {
     ).run();
 
     const newUser = { id: recordId };
-
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        fields: {
-          Email: normalizedEmail,
-          Name: displayName,
-          Plan: userRecord.fields.Plan,
-          Status: "Active",
-          Organization: [organizationId],
-          Role: role
-        }
-      })
-    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     // Generate magic link token
     const token = generateToken();
@@ -440,16 +406,6 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
     await env.WELLS_DB.prepare(
       `UPDATE users SET role = ? WHERE airtable_record_id = ?`
     ).bind(role, memberId).run();
-
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ fields: { Role: role } })
-    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     return jsonResponse({ success: true });
 
@@ -618,22 +574,6 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
       ).bind(...d1Binds).run();
     }
 
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    const airtableFields: Record<string, any> = {};
-    if (defaultNotificationMode !== undefined) airtableFields['Default Notification Mode'] = defaultNotificationMode;
-    if (allowUserOverride !== undefined) airtableFields['Allow User Override'] = allowUserOverride;
-
-    if (Object.keys(airtableFields).length > 0) {
-      fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`, {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fields: airtableFields })
-      }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
-    }
-
     return jsonResponse({ success: true });
 
   } catch (error) {
@@ -686,16 +626,6 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
     await env.WELLS_DB.prepare(
       `UPDATE users SET organization_id = NULL, role = NULL WHERE airtable_record_id = ?`
     ).bind(memberId).run();
-
-    // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
-    fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ fields: { Organization: [], Role: null } })
-    }).catch(e => console.error('[Organization] Airtable mirror failed:', e));
 
     return jsonResponse({ success: true });
 
