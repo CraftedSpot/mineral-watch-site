@@ -1607,38 +1607,39 @@
 /* __SPLIT_WELLS_D__ */
         // CSV Export Functions (Professional tier)
         async function exportWellsCSV() {
-            // Ensure wells are loaded (may not be if data hasn't arrived yet)
-            if (!loadedWells.length) {
+            // Wells are lazy-loaded (only when Wells tab is clicked).
+            // Always ensure data is available — fetch directly if needed.
+            let wells = loadedWells;
+            if (!wells || !wells.length) {
                 try {
                     const res = await fetch('/api/wells/v2');
                     if (res.ok) {
                         const data = await res.json();
-                        loadedWells = data.records || data;
+                        wells = data.records || [];
+                        loadedWells = wells;
                     }
                 } catch (e) {
                     console.warn('[Export] Failed to load wells:', e);
                 }
             }
-            if (!loadedWells.length) {
+            if (!wells || !wells.length) {
                 showToast('No wells to export', 'info');
                 return;
             }
-            
-            // Helper function to escape CSV values
+
             function escapeCSV(value) {
                 if (value === null || value === undefined) return '';
                 value = value.toString();
-                // If contains comma, quote, or newline, wrap in quotes and escape quotes
                 if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                     return `"${value.replace(/"/g, '""')}"`;
                 }
                 return value;
             }
-            
+
             // Determine which decimal columns have data
-            const hasRI = loadedWells.some(w => w.ri_nri);
-            const hasWI = loadedWells.some(w => w.wi_nri);
-            const hasORRI = loadedWells.some(w => w.orri_nri);
+            const hasRI = wells.some(w => w.ri_nri);
+            const hasWI = wells.some(w => w.wi_nri);
+            const hasORRI = wells.some(w => w.orri_nri);
 
             const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Meridian', 'Formation', 'Direction', 'Well Type', 'Status (OCC)', 'Production Status'];
             if (hasRI) headers.push('RI Decimal');
@@ -1646,15 +1647,27 @@
             if (hasORRI) headers.push('ORRI Decimal');
             headers.push('Notes');
 
-            // Reset horizon cache so getProductionStatus recalculates for export set
-            getProductionStatus._horizon = null;
-            getProductionStatus._threeMonthsAgo = null;
+            // Compute production status inline (getProductionStatus is scoped to filterWells)
+            const allMonths = wells.map(w => w.otc_last_prod_month).filter(Boolean).sort();
+            const horizon = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
+            let threeMonthsAgo;
+            if (horizon) {
+                const hYear = parseInt(horizon.substring(0, 4));
+                const hMonth = parseInt(horizon.substring(4, 6));
+                let m3 = hMonth - 3, y3 = hYear;
+                if (m3 <= 0) { m3 += 12; y3--; }
+                threeMonthsAgo = `${y3}${String(m3).padStart(2, '0')}`;
+            } else {
+                const d3 = new Date(); d3.setMonth(d3.getMonth() - 3);
+                threeMonthsAgo = `${d3.getFullYear()}${String(d3.getMonth() + 1).padStart(2, '0')}`;
+            }
 
-            const rows = loadedWells.map(w => {
-                // V2: flat object
+            const rows = wells.map(w => {
                 const direction = w.lateral_length && parseInt(w.lateral_length) > 0 ? 'Horizontal' : 'Vertical';
-                const prodStatus = getProductionStatus(w);
-                const prodLabel = prodStatus === 'active' ? 'Producing' : prodStatus === 'idle' ? 'Idle' : '';
+                let prodLabel = '';
+                if (w.otc_last_prod_month) {
+                    prodLabel = w.otc_last_prod_month >= threeMonthsAgo ? 'Producing' : 'Idle';
+                }
                 const cols = [
                     escapeCSV(w.apiNumber || ''),
                     escapeCSV(w.well_name || ''),
@@ -1676,7 +1689,7 @@
                 cols.push(escapeCSV(w.notes || ''));
                 return cols.join(',');
             });
-            
+
             const csv = [headers.join(','), ...rows].join('\n');
             downloadCSV(csv, 'mineral-watch-wells.csv');
         }
