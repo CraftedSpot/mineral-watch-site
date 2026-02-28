@@ -10,6 +10,8 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
 import { parseTownship, parseRange, getAdjacentLocations } from '../utils/property-well-matching.js';
 import { classifyWellGor, classifyOperatorGor } from '../utils/gor-classification.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
+import { parallelBatches } from '../utils/batch.js';
 import type { Env } from '../types/env.js';
 
 // Minimum annual BOE threshold for including a well in county YoY calculations.
@@ -52,14 +54,14 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       });
     }
 
-    // Query wells — org members see all wells belonging to any user in the org
-    const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, well_status FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ?`;
+    // Pre-resolve org member IDs (one query, reused below)
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
 
-    const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    // Query wells — org members see all wells belonging to any user in the org
+    const wellsResult = await env.WELLS_DB.prepare(
+      `SELECT api_number, well_name, county, well_status FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string }>;
 
     if (!wells || wells.length === 0) {
@@ -82,15 +84,14 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
     let basePuns: string[] = [];
     try {
       if (api10s.length > 0) {
-        for (let i = 0; i < api10s.length; i += 50) {
-          const batch = api10s.slice(i, i + 50);
+        const punResults = await parallelBatches(api10s, 50, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const punsResult = await env.WELLS_DB.prepare(
             `SELECT DISTINCT base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
           ).bind(...batch).all();
-          basePuns.push(...(punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun));
-        }
-        basePuns = [...new Set(basePuns)];
+          return (punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun);
+        });
+        basePuns = [...new Set(punResults)];
       }
     } catch (punError) {
       console.error('[Intelligence Summary] PUN linking error:', punError instanceof Error ? punError.message : punError);
@@ -147,13 +148,10 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       // Full report uses 25% threshold for complete picture.
       // Process ALL wells in batches of 50.
       try {
-        let totalFlagged = 0;
         const sixMonthsAgo = getMonthsAgo(6);
 
-        for (let i = 0; i < api10s.length; i += 50) {
-          const apiBatch = api10s.slice(i, i + 50);
+        const flaggedResults = await parallelBatches(api10s, 50, async (apiBatch) => {
           const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
           const deductionResult = await env.WELLS_DB.prepare(`
             SELECT COUNT(*) as flagged_count FROM (
               SELECT wpl.api_number
@@ -168,24 +166,20 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
                 AND SUM(opf.market_deduction) / SUM(opf.gross_value) < 1.0
             )
           `).bind(...apiBatch, sixMonthsAgo).first() as { flagged_count: number } | null;
+          return [deductionResult?.flagged_count ?? 0];
+        });
 
-          totalFlagged += deductionResult?.flagged_count ?? 0;
-        }
-
-        deductionFlags = totalFlagged;
+        deductionFlags = flaggedResults.reduce((sum, n) => sum + n, 0);
       } catch (dedError) {
         console.error('[Intelligence Summary] Deduction query error:', dedError instanceof Error ? dedError.message : dedError);
       }
 
       // Shut-in detection from otc_production — process ALL basePuns in batches
       try {
-        let totalShutIn = 0;
         const threeMonthsAgo = getMonthsAgo(3);
 
-        for (let i = 0; i < basePuns.length; i += 50) {
-          const punBatch = basePuns.slice(i, i + 50);
+        const shutInResults = await parallelBatches(basePuns, 50, async (punBatch) => {
           const punPlaceholders = punBatch.map(() => '?').join(',');
-
           const shutInResult = await env.WELLS_DB.prepare(`
             SELECT COUNT(*) as shut_in_count FROM (
               SELECT base_pun FROM otc_production
@@ -194,11 +188,10 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
               HAVING MAX(year_month) <= ?
             )
           `).bind(...punBatch, threeMonthsAgo).first() as { shut_in_count: number } | null;
+          return [shutInResult?.shut_in_count ?? 0];
+        });
 
-          totalShutIn += shutInResult?.shut_in_count ?? 0;
-        }
-
-        shutInWells = totalShutIn;
+        shutInWells = shutInResults.reduce((sum, n) => sum + n, 0);
       } catch (shutInError) {
         console.error('[Intelligence Summary] Shut-in query error:', shutInError instanceof Error ? shutInError.message : shutInError);
       }
@@ -209,10 +202,8 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
     try {
       const sixMonthsAgo = getMonthsAgo(6);
 
-      for (let i = 0; i < api10s.length; i += 50) {
-        const apiBatch = api10s.slice(i, i + 50);
+      const analyzedResults = await parallelBatches(api10s, 50, async (apiBatch) => {
         const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
         const analyzedResult = await env.WELLS_DB.prepare(`
           SELECT COUNT(*) as cnt FROM (
             SELECT wpl.api_number
@@ -226,9 +217,9 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
               AND COUNT(DISTINCT opf.product_code) > 1
           )
         `).bind(...apiBatch, sixMonthsAgo).first() as { cnt: number } | null;
-
-        wellsAnalyzed += analyzedResult?.cnt ?? 0;
-      }
+        return [analyzedResult?.cnt ?? 0];
+      });
+      wellsAnalyzed = analyzedResults.reduce((sum, n) => sum + n, 0);
     } catch (e) {
       console.error('[Intelligence Summary] Wells analyzed count error:', e);
     }
@@ -282,14 +273,14 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       });
     }
 
-    // Query wells — org members see all wells belonging to any user in the org
-    const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `SELECT api_number, well_name, county FROM client_wells WHERE user_id = ?`;
+    // Pre-resolve org member IDs (one query, reused below)
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
 
-    const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    // Query wells — org members see all wells belonging to any user in the org
+    const wellsResult = await env.WELLS_DB.prepare(
+      `SELECT api_number, well_name, county FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string }>;
 
     const insights: Array<{
@@ -316,15 +307,14 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
     let basePuns: string[] = [];
     try {
       if (api10s.length > 0) {
-        for (let i = 0; i < api10s.length; i += 50) {
-          const batch = api10s.slice(i, i + 50);
+        const punResults = await parallelBatches(api10s, 50, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const punsResult = await env.WELLS_DB.prepare(
             `SELECT DISTINCT base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
           ).bind(...batch).all();
-          basePuns.push(...(punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun));
-        }
-        basePuns = [...new Set(basePuns)];
+          return (punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun);
+        });
+        basePuns = [...new Set(punResults)];
       }
     } catch (punError) {
       console.error('[Insights] PUN linking error:', punError instanceof Error ? punError.message : punError);
@@ -343,13 +333,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     // Insight: Recently idle wells (3-5 months = just went idle)
     try {
-      let totalIdle = 0;
-      let recentlyIdle = 0;
-
-      for (let i = 0; i < api10s.length; i += 50) {
-        const apiBatch = api10s.slice(i, i + 50);
+      const idleResults = await parallelBatches(api10s, 50, async (apiBatch) => {
         const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
         const shutInResult = await env.WELLS_DB.prepare(`
           SELECT
             COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN wpl.api_number END) as idle_count,
@@ -358,13 +343,12 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
           JOIN puns p ON p.pun = wpl.pun
           WHERE wpl.api_number IN (${apiPlaceholders})
         `).bind(...apiBatch).all();
-
         const row = shutInResult.results[0] as { idle_count: number; recently_idle: number } | undefined;
-        if (row) {
-          totalIdle += row.idle_count;
-          recentlyIdle += row.recently_idle;
-        }
-      }
+        return [{ idle: row?.idle_count ?? 0, recent: row?.recently_idle ?? 0 }];
+      });
+
+      const totalIdle = idleResults.reduce((sum, r) => sum + r.idle, 0);
+      const recentlyIdle = idleResults.reduce((sum, r) => sum + r.recent, 0);
 
       if (recentlyIdle > 0) {
         const longTermIdle = totalIdle - recentlyIdle;
@@ -385,13 +369,10 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     // Insight 3: New pooling orders (filed in last 30 days) near user's properties
     try {
-      const propsQuery = userOrgId
-        ? `SELECT section, township, range FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
-        : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
-
-      const propsResult = userOrgId
-        ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
-        : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+      const { where: propOwnerWhere, params: propOwnerParams } = buildOwnershipFilter('p', userOrgId, authUser.id, memberIds);
+      const propsResult = await env.WELLS_DB.prepare(
+        `SELECT section, township, range FROM properties p WHERE ${propOwnerWhere} AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+      ).bind(...propOwnerParams).all();
 
       const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
 
@@ -525,13 +506,12 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     }
 
     // ---- Shared setup: wells query (once) — org members see all org wells ----
-    const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells WHERE user_id = ?`;
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
 
-    const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    const wellsResult = await env.WELLS_DB.prepare(
+      `SELECT api_number, well_name, county, well_status, airtable_id, ri_nri, wi_nri, orri_nri FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string; airtable_id: string; ri_nri: number | null; wi_nri: number | null; orri_nri: number | null }>;
 
     if (!wells || wells.length === 0) {
@@ -561,15 +541,14 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     let basePuns: string[] = [];
     try {
       if (api10s.length > 0) {
-        for (let i = 0; i < api10s.length; i += 50) {
-          const batch = api10s.slice(i, i + 50);
+        const punResults = await parallelBatches(api10s, 50, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const punsResult = await env.WELLS_DB.prepare(
             `SELECT DISTINCT base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
           ).bind(...batch).all();
-          basePuns.push(...(punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun));
-        }
-        basePuns = [...new Set(basePuns)];
+          return (punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun);
+        });
+        basePuns = [...new Set(punResults)];
       }
     } catch (punError) {
       console.error('[Intelligence Data] PUN linking error:', punError instanceof Error ? punError.message : punError);
@@ -692,10 +671,8 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
             if (latestFinMonth) {
               // Per-well financial net for latest month (batch by 20 — join uses more params)
-              for (let i = 0; i < otcApis.length; i += 20) {
-                const apiBatch = otcApis.slice(i, i + 20);
+              const perWellRows = await parallelBatches(otcApis, 20, async (apiBatch) => {
                 const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
                 const perWellResult = await env.WELLS_DB.prepare(`
                   SELECT wpl.api_number, SUM(opf.net_value) as well_net, SUM(opf.gross_value) as well_gross
                   FROM well_pun_links wpl
@@ -703,14 +680,15 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
                   WHERE wpl.api_number IN (${apiPlaceholders})
                   GROUP BY wpl.api_number
                 `).bind(latestFinMonth, ...apiBatch).all();
+                return (perWellResult.results || []) as any[];
+              });
 
-                for (const row of perWellResult.results) {
-                  const api = row.api_number as string;
-                  const wellValue = (row.well_net as number) || (row.well_gross as number) || 0;
-                  const decimal = wellMap.get(api)?.decimal || 0;
-                  if (wellValue > 0 && decimal > 0) {
-                    otcRevenue.set(api, wellValue * decimal);
-                  }
+              for (const row of perWellRows) {
+                const api = row.api_number as string;
+                const wellValue = (row.well_net as number) || (row.well_gross as number) || 0;
+                const decimal = wellMap.get(api)?.decimal || 0;
+                if (wellValue > 0 && decimal > 0) {
+                  otcRevenue.set(api, wellValue * decimal);
                 }
               }
             }
@@ -774,10 +752,8 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       try {
         const sixMonthsAgo = getMonthsAgo(6);
 
-        for (let i = 0; i < api10s.length; i += 50) {
-          const apiBatch = api10s.slice(i, i + 50);
+        const batchResults = await parallelBatches(api10s, 50, async (apiBatch) => {
           const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
           const analyzedResult = await env.WELLS_DB.prepare(`
             SELECT wpl.api_number,
               ROUND(SUM(opf.market_deduction) / SUM(opf.gross_value) * 100, 1) as agg_deduction_pct,
@@ -790,13 +766,12 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
             GROUP BY wpl.api_number
             HAVING SUM(opf.gross_value) > 500
           `).bind(...apiBatch, sixMonthsAgo).all();
+          return (analyzedResult.results || []) as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
+        });
 
-          const batchResults = analyzedResult.results as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
-          wellsAnalyzed += batchResults.length;
-
-          const flagged = batchResults.filter(r => r.agg_deduction_pct > 50 && r.agg_deduction_pct < 100);
-          allFlaggedWells.push(...flagged);
-        }
+        wellsAnalyzed = batchResults.length;
+        const flagged = batchResults.filter(r => r.agg_deduction_pct > 50 && r.agg_deduction_pct < 100);
+        allFlaggedWells.push(...flagged);
       } catch (e) {
         console.error('[Intelligence Data] Deduction error:', e instanceof Error ? e.message : e);
       }
@@ -811,10 +786,8 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       let recentlyIdle = 0;
 
       try {
-        for (let i = 0; i < api10s.length; i += 50) {
-          const apiBatch = api10s.slice(i, i + 50);
+        const idleResults = await parallelBatches(api10s, 50, async (apiBatch) => {
           const apiPlaceholders = apiBatch.map(() => '?').join(',');
-
           const shutInResult = await env.WELLS_DB.prepare(`
             SELECT
               COUNT(DISTINCT CASE WHEN p.months_since_production >= 3 THEN wpl.api_number END) as idle_count,
@@ -823,13 +796,11 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
             JOIN puns p ON p.pun = wpl.pun
             WHERE wpl.api_number IN (${apiPlaceholders})
           `).bind(...apiBatch).all();
-
           const row = shutInResult.results[0] as { idle_count: number; recently_idle: number } | undefined;
-          if (row) {
-            totalIdle += row.idle_count;
-            recentlyIdle += row.recently_idle;
-          }
-        }
+          return [{ idle: row?.idle_count ?? 0, recent: row?.recently_idle ?? 0 }];
+        });
+        totalIdle = idleResults.reduce((sum, r) => sum + r.idle, 0);
+        recentlyIdle = idleResults.reduce((sum, r) => sum + r.recent, 0);
       } catch (e) {
         console.error('[Intelligence Data] Shut-in error:', e instanceof Error ? e.message : e);
       }
@@ -841,13 +812,10 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
     // Returns total (90 days), new (30 days), and deadline info
     async function queryPooling(): Promise<{ count: number; newCount: number; nearestDeadline: string | null; isUrgent: boolean }> {
       try {
-        const propsQuery = userOrgId
-          ? `SELECT section, township, range FROM properties WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?)) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
-          : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
-
-        const propsResult = userOrgId
-          ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
-          : await env.WELLS_DB.prepare(propsQuery).bind(authUser!.id).all();
+        const { where: propPoolWhere, params: propPoolParams } = buildOwnershipFilter('p', userOrgId, authUser!.id, memberIds);
+        const propsResult = await env.WELLS_DB.prepare(
+          `SELECT section, township, range FROM properties p WHERE ${propPoolWhere} AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+        ).bind(...propPoolParams).all();
 
         const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
 
@@ -1037,13 +1005,11 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     }
 
     // Get user's wells — org members see all wells belonging to any user in the org
-    const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, county, operator FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `SELECT api_number, well_name, county, operator FROM client_wells WHERE user_id = ?`;
-
-    const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
+    const wellsResult = await env.WELLS_DB.prepare(
+      `SELECT api_number, well_name, county, operator FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; operator: string | null }>;
     if (!wells || wells.length === 0) {
       const empty = { flaggedWells: [], portfolio: { avg_deduction_pct: 0, total_wells_analyzed: 0 }, summary: { flagged_count: 0, worst_deduction_pct: 0, total_excess_deductions: 0, analysis_period: '6 months', latest_month: null } };
@@ -1058,10 +1024,7 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
 
     // Query 1: Product-level breakdown for ALL wells with financial data
     type ProductRow = { api_number: string; product_code: string; gross_value: number; market_deduction: number; net_value: number };
-    const allProductRows: ProductRow[] = [];
-
-    for (let i = 0; i < api10s.length; i += 50) {
-      const batch = api10s.slice(i, i + 50);
+    const allProductRows = await parallelBatches(api10s, 50, async (batch) => {
       const placeholders = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(`
         SELECT wpl.api_number, opf.product_code,
@@ -1075,8 +1038,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           AND opf.year_month >= ?
         GROUP BY wpl.api_number, opf.product_code
       `).bind(...batch, sixMonthsAgo).all();
-      allProductRows.push(...(result.results as ProductRow[]));
-    }
+      return (result.results || []) as ProductRow[];
+    });
 
     // Group by api_number and compute per-well aggregates
     const wellMap = new Map<string, { products: ProductRow[]; totalGross: number; totalDeductions: number; totalNet: number; productCount: number }>();
@@ -1241,10 +1204,7 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     // Query 2: Monthly trends for flagged wells
     if (flaggedApiNumbers.length > 0) {
       type MonthlyRow = { api_number: string; year_month: string; gross_value: number; market_deduction: number; net_value: number };
-      const monthlyRows: MonthlyRow[] = [];
-
-      for (let i = 0; i < flaggedApiNumbers.length; i += 50) {
-        const batch = flaggedApiNumbers.slice(i, i + 50);
+      const monthlyRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
         const placeholders = batch.map(() => '?').join(',');
         const result = await env.WELLS_DB.prepare(`
           SELECT wpl.api_number, opf.year_month,
@@ -1259,8 +1219,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           GROUP BY wpl.api_number, opf.year_month
           ORDER BY wpl.api_number, opf.year_month DESC
         `).bind(...batch, sixMonthsAgo).all();
-        monthlyRows.push(...(result.results as MonthlyRow[]));
-      }
+        return (result.results || []) as MonthlyRow[];
+      });
 
       // Attach monthly data to each flagged well
       for (const row of monthlyRows) {
@@ -1283,16 +1243,16 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       try {
         // Map flagged wells to county codes via their base_pun prefix
         const wellCountyCodes = new Map<string, string>(); // api_number -> county_code (3-digit)
-        for (let i = 0; i < flaggedApiNumbers.length; i += 50) {
-          const batch = flaggedApiNumbers.slice(i, i + 50);
+        const punRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const punResult = await env.WELLS_DB.prepare(
             `SELECT api_number, base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
           ).bind(...batch).all();
-          for (const row of punResult.results as Array<{ api_number: string; base_pun: string }>) {
-            const countyCode = row.base_pun.replace(/-/g, '').substring(0, 3);
-            wellCountyCodes.set(row.api_number, countyCode);
-          }
+          return (punResult.results || []) as Array<{ api_number: string; base_pun: string }>;
+        });
+        for (const row of punRows) {
+          const countyCode = row.base_pun.replace(/-/g, '').substring(0, 3);
+          wellCountyCodes.set(row.api_number, countyCode);
         }
 
         const uniqueCountyCodes = [...new Set(wellCountyCodes.values())];
@@ -1344,10 +1304,7 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           purchaser_name: string | null;
           operator_number: string | null;
         };
-        const purchaserRows: PurchaserRow[] = [];
-
-        for (let i = 0; i < flaggedApiNumbers.length; i += 50) {
-          const batch = flaggedApiNumbers.slice(i, i + 50);
+        const purchaserRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           // Get purchaser_id for Product 5 (residue gas) for each well
           // Use MAX to get a consistent purchaser when there are multiple
@@ -1366,8 +1323,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
               AND opf.year_month >= ?
             GROUP BY wpl.api_number
           `).bind(...batch, sixMonthsAgo).all();
-          purchaserRows.push(...(result.results as PurchaserRow[]));
-        }
+          return (result.results || []) as PurchaserRow[];
+        });
 
         // Look up purchaser names
         const purchaserIds = [...new Set(purchaserRows.map(r => r.purchaser_id).filter(Boolean))];
@@ -1523,13 +1480,11 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
     }
 
     // Get user's wells — org members see all wells belonging to any user in the org
-    const wellsQuery = userOrgId
-      ? `SELECT api_number, well_name, operator FROM client_wells WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))`
-      : `SELECT api_number, well_name, operator FROM client_wells WHERE user_id = ?`;
-
-    const wellsResult = userOrgId
-      ? await env.WELLS_DB.prepare(wellsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
+    const wellsResult = await env.WELLS_DB.prepare(
+      `SELECT api_number, well_name, operator FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
     const wells = wellsResult.results as Array<{ api_number: string; well_name: string; operator: string | null }>;
 
     if (!wells || wells.length === 0) {
@@ -1541,10 +1496,7 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
 
     // Get operator numbers for user's wells via well_pun_links -> otc_leases
     type OperatorWell = { api_number: string; operator_number: string };
-    const operatorWells: OperatorWell[] = [];
-
-    for (let i = 0; i < api10s.length; i += 50) {
-      const batch = api10s.slice(i, i + 50);
+    const operatorWells = await parallelBatches(api10s, 50, async (batch) => {
       const placeholders = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(`
         SELECT DISTINCT wpl.api_number, ol.operator_number
@@ -1553,8 +1505,8 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
         WHERE wpl.api_number IN (${placeholders})
           AND ol.operator_number IS NOT NULL
       `).bind(...batch).all();
-      operatorWells.push(...(result.results as OperatorWell[]));
-    }
+      return (result.results || []) as OperatorWell[];
+    });
 
     const uniqueOperators = [...new Set(operatorWells.map(ow => ow.operator_number))];
 
@@ -1577,10 +1529,7 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       residue_deductions: number;
       liquids_returned: number;
     };
-    const allMetrics: MetricsRow[] = [];
-
-    for (let i = 0; i < uniqueOperators.length; i += OP_BATCH) {
-      const batch = uniqueOperators.slice(i, i + OP_BATCH);
+    const allMetrics = await parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
       const ph = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(`
         SELECT
@@ -1599,15 +1548,12 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
         GROUP BY ol.operator_number
         HAVING well_count >= 1
       `).bind(...batch, sixMonthsAgo).all();
-      allMetrics.push(...(result.results as MetricsRow[]));
-    }
+      return (result.results || []) as MetricsRow[];
+    });
 
     // Look up primary gas purchaser per operator for affiliated detection (batched)
     type PurchaserRow = { operator_number: string; purchaser_id: string };
-    const allPurchasers: PurchaserRow[] = [];
-
-    for (let i = 0; i < uniqueOperators.length; i += OP_BATCH) {
-      const batch = uniqueOperators.slice(i, i + OP_BATCH);
+    const allPurchasers = await parallelBatches(uniqueOperators, OP_BATCH, async (batch) => {
       const ph = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(`
         SELECT operator_number, purchaser_id FROM (
@@ -1621,21 +1567,21 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
           GROUP BY l.operator_number, opf.purchaser_id
         ) WHERE rn = 1
       `).bind(...batch, sixMonthsAgo).all();
-      allPurchasers.push(...(result.results as PurchaserRow[]));
-    }
+      return (result.results || []) as PurchaserRow[];
+    });
 
     // Look up purchaser company names (batched for D1 param limit)
     const purchaserIds = [...new Set(allPurchasers.map(r => r.purchaser_id))];
     const purchaserNameMap = new Map<string, string>();
-    for (let i = 0; i < purchaserIds.length; i += OP_BATCH) {
-      const batch = purchaserIds.slice(i, i + OP_BATCH);
+    const nameRows = await parallelBatches(purchaserIds, OP_BATCH, async (batch) => {
       const ph = batch.map(() => '?').join(',');
       const nameResult = await env.WELLS_DB.prepare(
         `SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${ph})`
       ).bind(...batch).all();
-      for (const r of nameResult.results as Array<{ company_id: string; company_name: string }>) {
-        purchaserNameMap.set(r.company_id, r.company_name || '');
-      }
+      return (nameResult.results || []) as Array<{ company_id: string; company_name: string }>;
+    });
+    for (const r of nameRows) {
+      purchaserNameMap.set(r.company_id, r.company_name || '');
     }
 
     const purchaserMap = new Map<string, { purchaser_id: string; purchaser_name: string }>();
@@ -1934,19 +1880,14 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
     }
 
     // Step 1: Get user's properties with TRS data — org members see all org properties
-    const propsQuery = userOrgId
-      ? `SELECT id, section, township, range, county, airtable_record_id
-         FROM properties
-         WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
-           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
-      : `SELECT id, section, township, range, county, airtable_record_id
-         FROM properties
-         WHERE user_id = ?
-           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
-
-    const propsResult = userOrgId
-      ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: propOwnerWhere, params: propOwnerParams } = buildOwnershipFilter('p', userOrgId, authUser.id, memberIds);
+    const propsResult = await env.WELLS_DB.prepare(
+      `SELECT id, section, township, range, county, airtable_record_id
+       FROM properties p
+       WHERE ${propOwnerWhere}
+         AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+    ).bind(...propOwnerParams).all();
 
     const properties = propsResult.results as Array<{
       id: string;
@@ -2867,6 +2808,9 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
 
     // Step 1: Get user's wells with metadata from D1
     // CTE approach with scoped production query for performance
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: cteWhere, params: cteParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds, { includeUserId: true });
+
     const query = `
       WITH user_wells AS (
         SELECT cw.id as client_well_id, cw.api_number,
@@ -2874,7 +2818,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
                w.formation_name, w.well_type, w.is_horizontal
         FROM client_wells cw
         JOIN wells w ON w.api_number = cw.api_number
-        WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+        WHERE ${cteWhere}
       ),
       production AS (
         SELECT wpl.api_number, op.year_month,
@@ -2893,7 +2837,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
     `;
 
     const result = await env.WELLS_DB.prepare(query)
-      .bind(userOrgId || '', authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .bind(...cteParams, twentyFourMonthsAgo)
       .all();
 
     const rows = result.results as Array<{
@@ -3211,12 +3155,15 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
     const twentyFourMonthsAgo = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
 
     // Get user's wells with production data
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: cteWhere, params: cteParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds, { includeUserId: true });
+
     const userWellsQuery = `
       WITH user_wells AS (
         SELECT cw.api_number, w.county, w.formation_name, w.is_horizontal
         FROM client_wells cw
         JOIN wells w ON w.api_number = cw.api_number
-        WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+        WHERE ${cteWhere}
           AND w.county IS NOT NULL
       ),
       production AS (
@@ -3237,7 +3184,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
     `;
 
     const userWellsResult = await env.WELLS_DB.prepare(userWellsQuery)
-      .bind(userOrgId || '', authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .bind(...cteParams, twentyFourMonthsAgo)
       .all();
 
     const userWellRows = userWellsResult.results as Array<{
@@ -4660,6 +4607,9 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
     }
 
     // Step 1: Get ALL user wells with puns data (need all for operator pattern calc)
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: cteWhere, params: cteParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds, { includeUserId: true });
+
     const allWellsQuery = `
       SELECT cw.id as client_well_id, cw.api_number, cw.well_name as cw_well_name,
              w.well_name as w_well_name, w.operator, w.county, w.well_type,
@@ -4684,13 +4634,13 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
         FROM otc_pun_tax_periods
         GROUP BY pun
       ) tp ON tp.pun = wpl.pun
-      WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+      WHERE ${cteWhere}
     `;
 
     console.log('[Shut-In Detector] Querying wells for user:', authUser.id, 'org:', userOrgId || 'none');
 
     const allWellsResult = await env.WELLS_DB!.prepare(allWellsQuery)
-      .bind(userOrgId || '', authUser.id, userOrgId || '')
+      .bind(...cteParams)
       .all();
 
     console.log('[Shut-In Detector] Query returned', allWellsResult.results.length, 'rows');
@@ -4813,8 +4763,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
 
         // Limit batch size to 100 to avoid D1 query timeouts on otc_production (7M+ rows)
         const BATCH_SIZE = 100;
-        for (let i = 0; i < punList.length; i += BATCH_SIZE) {
-          const batch = punList.slice(i, i + BATCH_SIZE);
+        const prodRows = await parallelBatches(punList, BATCH_SIZE, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const prodResult = await env.WELLS_DB!.prepare(`
             SELECT pun, year_month,
@@ -4825,13 +4774,14 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
               AND year_month >= ?
             GROUP BY pun, year_month
           `).bind(...batch, lookbackStart).all();
+          return (prodResult.results || []) as Array<{ pun: string; year_month: string; boe: number }>;
+        });
 
-          for (const row of prodResult.results as Array<{ pun: string; year_month: string; boe: number }>) {
-            if (!punProdMap.has(row.pun)) {
-              punProdMap.set(row.pun, []);
-            }
-            punProdMap.get(row.pun)!.push({ year_month: row.year_month, boe: row.boe });
+        for (const row of prodRows) {
+          if (!punProdMap.has(row.pun)) {
+            punProdMap.set(row.pun, []);
           }
+          punProdMap.get(row.pun)!.push({ year_month: row.year_month, boe: row.boe });
         }
 
         console.log('[Shut-In Detector] Production data retrieved for', punProdMap.size, 'PUNs');
@@ -5561,6 +5511,9 @@ export async function handleGetShutInDetectorMarkets(request: Request, env: Env)
     console.log('[Shut-In Markets] Computing county benchmarks...');
 
     // Step 1: Get user wells with counties + idle status
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: cteWhere, params: cteParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds, { includeUserId: true });
+
     const userWellsQuery = `
       SELECT cw.api_number, w.county, w.operator,
              p.months_since_production, p.is_stale
@@ -5568,12 +5521,12 @@ export async function handleGetShutInDetectorMarkets(request: Request, env: Env)
       JOIN wells w ON w.api_number = cw.api_number
       LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
       LEFT JOIN puns p ON p.pun = wpl.pun
-      WHERE (cw.organization_id = ? OR cw.user_id = ? OR cw.user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+      WHERE ${cteWhere}
         AND w.county IS NOT NULL
     `;
 
     const userWellsResult = await env.WELLS_DB!.prepare(userWellsQuery)
-      .bind(userOrgId || '', authUser.id, userOrgId || '')
+      .bind(...cteParams)
       .all();
 
     const userWellRows = userWellsResult.results as Array<{
@@ -6175,19 +6128,14 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
     }
 
     // Step 1: Get user's properties with TRS data
-    const propsQuery = userOrgId
-      ? `SELECT id, section, township, range, county, airtable_record_id
-         FROM properties
-         WHERE (organization_id = ? OR user_id IN (SELECT airtable_record_id FROM users WHERE organization_id = ?))
-           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
-      : `SELECT id, section, township, range, county, airtable_record_id
-         FROM properties
-         WHERE user_id = ?
-           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
-
-    const propsResult = userOrgId
-      ? await env.WELLS_DB.prepare(propsQuery).bind(userOrgId, userOrgId).all()
-      : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const { where: propOwnerWhere, params: propOwnerParams } = buildOwnershipFilter('p', userOrgId, authUser.id, memberIds);
+    const propsResult = await env.WELLS_DB.prepare(
+      `SELECT id, section, township, range, county, airtable_record_id
+       FROM properties p
+       WHERE ${propOwnerWhere}
+         AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+    ).bind(...propOwnerParams).all();
 
     const properties = propsResult.results as Array<{
       id: string;
@@ -6731,6 +6679,8 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
 
     // Step 2: Query user's tracked wells with risk profile data
     const db = env.WELLS_DB!;
+    const memberIds = await getOrgMemberIds(db, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
 
     const wellsQuery = `
       SELECT cw.id as client_well_id, cw.api_number, cw.well_name as cw_well_name,
@@ -6746,12 +6696,11 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
       LEFT JOIN well_risk_profiles rp ON rp.id = w.risk_profile_id
       LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
       LEFT JOIN puns p ON p.pun = wpl.pun
-      WHERE (cw.organization_id = ? OR cw.user_id IN
-        (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+      WHERE ${ownerWhere}
     `;
 
     const wellsResult = await db.prepare(wellsQuery)
-      .bind(userOrgId || '', userOrgId || '')
+      .bind(...ownerParams)
       .all();
 
     const rows = wellsResult.results as unknown as RiskWellRow[];
@@ -6806,8 +6755,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
         total_net: number; total_mkt: number; total_gp_tax: number; total_pe_tax: number;
       }>();
       try {
-        for (let i = 0; i < apiNumbers.length; i += DEDUCTION_BATCH) {
-          const batch = apiNumbers.slice(i, i + DEDUCTION_BATCH);
+        const mixRows = await parallelBatches(apiNumbers, DEDUCTION_BATCH, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const mixResult = await db.prepare(`
             SELECT wpl.api_number,
@@ -6827,18 +6775,19 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
             GROUP BY wpl.api_number
             HAVING SUM(opf.gross_value) > 500
           `).bind(...batch, cutoff12m).all();
-
-          for (const r of mixResult.results as Array<{
+          return (mixResult.results || []) as Array<{
             api_number: string; oil_gross: number; gas_gross: number; ngl_gross: number;
             total_gross: number; total_net: number; total_mkt: number;
             total_gp_tax: number; total_pe_tax: number;
-          }>) {
-            productMixMap.set(r.api_number, {
-              oil_gross: r.oil_gross, gas_gross: r.gas_gross, ngl_gross: r.ngl_gross,
-              total_gross: r.total_gross, total_net: r.total_net, total_mkt: r.total_mkt,
-              total_gp_tax: r.total_gp_tax, total_pe_tax: r.total_pe_tax,
-            });
-          }
+          }>;
+        });
+
+        for (const r of mixRows) {
+          productMixMap.set(r.api_number, {
+            oil_gross: r.oil_gross, gas_gross: r.gas_gross, ngl_gross: r.ngl_gross,
+            total_gross: r.total_gross, total_net: r.total_net, total_mkt: r.total_mkt,
+            total_gp_tax: r.total_gp_tax, total_pe_tax: r.total_pe_tax,
+          });
         }
       } catch (e) {
         console.error('[Well Risk Profile] Upfront product mix query error:', e);
@@ -6847,8 +6796,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
 
       // --- Level 1: Check stub observations ---
       try {
-        for (let i = 0; i < apiNumbers.length; i += DEDUCTION_BATCH) {
-          const batch = apiNumbers.slice(i, i + DEDUCTION_BATCH);
+        const stubRows = await parallelBatches(apiNumbers, DEDUCTION_BATCH, async (batch) => {
           const placeholders = batch.map(() => '?').join(',');
           const stubResult = await db.prepare(`
             SELECT api_number,
@@ -6860,20 +6808,21 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
             GROUP BY api_number
             HAVING obs_count >= 2
           `).bind(...batch).all();
-
-          for (const r of stubResult.results as Array<{
+          return (stubResult.results || []) as Array<{
             api_number: string; avg_deduction: number; obs_count: number;
-          }>) {
-            const discount = Math.max(0, Math.min(r.avg_deduction, 1));
-            wellDeductions.set(r.api_number, {
-              totalDiscount: discount,
-              mktDeductionPct: 0,
-              taxPct: 0,
-              source: 'check_stub',
-              confidence: r.obs_count >= 6 ? 'high' : r.obs_count >= 3 ? 'medium' : 'low'
-            });
-            unresolvedApis.delete(r.api_number);
-          }
+          }>;
+        });
+
+        for (const r of stubRows) {
+          const discount = Math.max(0, Math.min(r.avg_deduction, 1));
+          wellDeductions.set(r.api_number, {
+            totalDiscount: discount,
+            mktDeductionPct: 0,
+            taxPct: 0,
+            source: 'check_stub',
+            confidence: r.obs_count >= 6 ? 'high' : r.obs_count >= 3 ? 'medium' : 'low'
+          });
+          unresolvedApis.delete(r.api_number);
         }
       } catch (e) {
         console.error('[Well Risk Profile] Level 1 (check stub) error:', e);
@@ -6888,8 +6837,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
           const apiOperatorMap = new Map<string, { operatorNumber: string; county: string }>();
 
           // 2a: Resolve via PUN bridge (well_pun_links → otc_leases)
-          for (let i = 0; i < unresolvedArr.length; i += DEDUCTION_BATCH) {
-            const batch = unresolvedArr.slice(i, i + DEDUCTION_BATCH);
+          const punBridgeRows = await parallelBatches(unresolvedArr, DEDUCTION_BATCH, async (batch) => {
             const placeholders = batch.map(() => '?').join(',');
             const punResult = await db.prepare(`
               SELECT wpl.api_number, ol.operator_number, ol.county
@@ -6898,18 +6846,18 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
               WHERE wpl.api_number IN (${placeholders})
                 AND ol.operator_number IS NOT NULL
             `).bind(...batch).all();
-            for (const r of punResult.results as Array<{
+            return (punResult.results || []) as Array<{
               api_number: string; operator_number: string; county: string;
-            }>) {
-              apiOperatorMap.set(r.api_number, { operatorNumber: r.operator_number, county: r.county });
-            }
+            }>;
+          });
+          for (const r of punBridgeRows) {
+            apiOperatorMap.set(r.api_number, { operatorNumber: r.operator_number, county: r.county });
           }
 
           // 2b: For wells without PUN linkage, try operator_aliases on wells.operator
           const noPunApis = unresolvedArr.filter(a => !apiOperatorMap.has(a));
           if (noPunApis.length > 0) {
-            for (let i = 0; i < noPunApis.length; i += DEDUCTION_BATCH) {
-              const batch = noPunApis.slice(i, i + DEDUCTION_BATCH);
+            const aliasRows = await parallelBatches(noPunApis, DEDUCTION_BATCH, async (batch) => {
               const placeholders = batch.map(() => '?').join(',');
               const aliasResult = await db.prepare(`
                 SELECT w.api_number, oa.canonical_operator_number, w.county
@@ -6917,15 +6865,16 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
                 JOIN operator_aliases oa ON UPPER(TRIM(w.operator)) = oa.alias_name
                 WHERE w.api_number IN (${placeholders})
               `).bind(...batch).all();
-              for (const r of aliasResult.results as Array<{
+              return (aliasResult.results || []) as Array<{
                 api_number: string; canonical_operator_number: string; county: string;
-              }>) {
-                if (!apiOperatorMap.has(r.api_number)) {
-                  apiOperatorMap.set(r.api_number, {
-                    operatorNumber: r.canonical_operator_number,
-                    county: r.county
-                  });
-                }
+              }>;
+            });
+            for (const r of aliasRows) {
+              if (!apiOperatorMap.has(r.api_number)) {
+                apiOperatorMap.set(r.api_number, {
+                  operatorNumber: r.canonical_operator_number,
+                  county: r.county
+                });
               }
             }
           }
@@ -6947,8 +6896,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
               tax_pct: number;
             }>();
 
-            for (let i = 0; i < uniqueOpNums.length; i += 30) {
-              const opBatch = uniqueOpNums.slice(i, i + 30);
+            const profileRows = await parallelBatches(uniqueOpNums, 30, async (opBatch) => {
               const placeholders = opBatch.map(() => '?').join(',');
               const profileResult = await db.prepare(`
                 SELECT operator_number, operator_name, county,
@@ -6957,21 +6905,22 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
                 FROM operator_deduction_profiles
                 WHERE operator_number IN (${placeholders})
               `).bind(...opBatch).all();
-
-              for (const r of profileResult.results as Array<{
+              return (profileResult.results || []) as Array<{
                 operator_number: string; operator_name: string; county: string | null;
                 blended_all_in_pct: number; confidence: string;
                 oil_marketing_pct: number | null; gas_gathering_pct: number | null;
                 ngl_deduction_pct: number | null; tax_pct: number | null;
-              }>) {
-                const key = `${r.operator_number}|${r.county || ''}`;
-                profileMap.set(key, {
-                  blended: r.blended_all_in_pct, confidence: r.confidence,
-                  operator_name: r.operator_name,
-                  oil_pct: r.oil_marketing_pct, gas_pct: r.gas_gathering_pct,
-                  ngl_pct: r.ngl_deduction_pct, tax_pct: r.tax_pct ?? 0,
-                });
-              }
+              }>;
+            });
+
+            for (const r of profileRows) {
+              const key = `${r.operator_number}|${r.county || ''}`;
+              profileMap.set(key, {
+                blended: r.blended_all_in_pct, confidence: r.confidence,
+                operator_name: r.operator_name,
+                oil_pct: r.oil_marketing_pct, gas_pct: r.gas_gathering_pct,
+                ngl_pct: r.ngl_deduction_pct, tax_pct: r.tax_pct ?? 0,
+              });
             }
 
             // Assign profiles to wells: use blended rate
@@ -7039,8 +6988,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
           if (uniqueCounties.length > 0) {
             // Query county averages from profiles (require >= 3 operators per county)
             const countyAvgs = new Map<string, number>();
-            for (let i = 0; i < uniqueCounties.length; i += 30) {
-              const batch = uniqueCounties.slice(i, i + 30);
+            const countyAvgRows = await parallelBatches(uniqueCounties, 30, async (batch) => {
               const placeholders = batch.map(() => '?').join(',');
               const countyResult = await db.prepare(`
                 SELECT UPPER(county) as county,
@@ -7052,12 +7000,12 @@ export async function handleGetWellRiskProfile(request: Request, env: Env): Prom
                 GROUP BY UPPER(county)
                 HAVING op_count >= 3
               `).bind(...batch).all();
-
-              for (const r of countyResult.results as Array<{
+              return (countyResult.results || []) as Array<{
                 county: string; avg_blended: number; op_count: number;
-              }>) {
-                countyAvgs.set(r.county, r.avg_blended);
-              }
+              }>;
+            });
+            for (const r of countyAvgRows) {
+              countyAvgs.set(r.county, r.avg_blended);
             }
 
             // Assign county averages to unresolved wells
