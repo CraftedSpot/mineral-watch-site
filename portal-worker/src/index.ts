@@ -1766,7 +1766,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       
       // Well linked properties endpoint (using D1 with fallback)
-      const wellLinkedPropertiesMatch = path.match(/^\/api\/well\/([a-zA-Z0-9]+)\/linked-properties$/);
+      const wellLinkedPropertiesMatch = path.match(/^\/api\/well\/([a-zA-Z0-9_-]+)\/linked-properties$/);
       if (wellLinkedPropertiesMatch && request.method === "GET") {
         // Import and use D1 handler
         const { handleGetWellLinkedProperties } = await import('./handlers/property-wells-d1.js');
