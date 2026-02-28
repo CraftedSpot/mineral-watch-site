@@ -204,6 +204,8 @@ function formatDocType(docType: string): string {
     title_opinion: 'Title Opinion',
     affidavit: 'Affidavit',
     check_stub: 'Check Stub / Revenue Statement',
+    joa: 'Joint Operating Agreement',
+    joint_operating_agreement: 'Joint Operating Agreement',
     other: 'Document',
   };
   return typeMap[docType] || docType.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -365,6 +367,10 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'map':
     case 'plat':
       extractedFieldsHtml = generateMapFields(data.extractedData);
+      break;
+    case 'joa':
+    case 'joint_operating_agreement':
+      extractedFieldsHtml = generateJOAFields(data.extractedData);
       break;
     default:
       extractedFieldsHtml = generateGenericFields(data.extractedData);
@@ -3226,6 +3232,113 @@ function renderGenericField(label: string, value: any): string {
   }
 
   return '';
+}
+
+function generateJOAFields(data: any): string {
+  const operatorName = data.operator_name || '';
+  const operatorAddress = data.operator_address || '';
+  const modelForm = data.model_form || '';
+  const effectiveDate = data.effective_date || '';
+  const executionDate = data.execution_date || '';
+  const contractArea = data.contract_area_name || data.unit_name || '';
+  const wellName = data.well_name || '';
+  const apiNumber = data.api_number || '';
+  const unitSize = data.unit_size_acres || '';
+  const parties = data.parties || [];
+
+  // Accounting procedure (COPAS)
+  const acctProc = data.accounting_procedure || {};
+  const copasForm = acctProc.form || '';
+  const overheadDrilling = acctProc.overhead_drilling_rate_monthly;
+  const overheadProducing = acctProc.overhead_producing_rate_monthly;
+  const overheadDrillingVar = acctProc.overhead_drilling_variable_pct;
+  const overheadProducingVar = acctProc.overhead_producing_variable_pct;
+  const interestPastDue = acctProc.interest_on_past_due_pct;
+
+  // Operational terms
+  const nonConsentPenalty = data.non_consent_penalty_pct;
+  const noticeDays = data.subsequent_operations_notice_days;
+  const prefRight = data.preferential_right_to_purchase;
+  const takeInKind = data.take_in_kind_allowed;
+
+  // Build operator party box
+  const operatorHtml = operatorName ? `
+    <div class="party-box">
+      <div class="party-label">Designated Operator</div>
+      <div class="party-name">${escapeHtml(operatorName)}</div>
+      ${operatorAddress ? `<div class="party-detail">${escapeHtml(operatorAddress)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Build parties table
+  const partiesHtml = parties.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: #64748b;">Working Interest Parties</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Party</th><th>Role</th><th>WI%</th><th>NRI%</th></tr>
+        </thead>
+        <tbody>
+          ${parties.map((p: any, i: number) => `
+            <tr ${i % 2 !== 0 ? 'style="background:#f8fafc;"' : ''}>
+              <td>${escapeHtml(String(p.name || ''))}</td>
+              <td style="text-transform: capitalize;">${escapeHtml(String(p.role || '').replace(/_/g, ' '))}</td>
+              <td style="font-weight: 600; color: #1e40af;">${p.working_interest_pct != null ? escapeHtml(String(p.working_interest_pct)) + '%' : '-'}</td>
+              <td>${p.net_revenue_interest_pct != null ? escapeHtml(String(p.net_revenue_interest_pct)) + '%' : '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  // Build COPAS/overhead section
+  const hasOverhead = copasForm || overheadDrilling != null || overheadProducing != null || overheadDrillingVar != null || overheadProducingVar != null;
+  const overheadHtml = hasOverhead ? `
+    <div style="margin-top: 16px; padding: 12px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+      <div style="font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: #64748b; margin-bottom: 8px;">Accounting Procedure / COPAS</div>
+      <div class="field-grid">
+        ${copasForm ? `<div class="field-item"><div class="field-label">Form</div><div class="field-value">${escapeHtml(copasForm)}</div></div>` : ''}
+        ${overheadDrilling != null ? `<div class="field-item"><div class="field-label">Overhead (Drilling)</div><div class="field-value" style="font-weight:600;color:#1e40af;">$${escapeHtml(String(Number(overheadDrilling).toLocaleString()))}/mo</div></div>` : ''}
+        ${overheadProducing != null ? `<div class="field-item"><div class="field-label">Overhead (Producing)</div><div class="field-value" style="font-weight:600;color:#1e40af;">$${escapeHtml(String(Number(overheadProducing).toLocaleString()))}/mo</div></div>` : ''}
+        ${overheadDrillingVar != null ? `<div class="field-item"><div class="field-label">Variable Overhead (Drilling)</div><div class="field-value">${escapeHtml(String(overheadDrillingVar))}%</div></div>` : ''}
+        ${overheadProducingVar != null ? `<div class="field-item"><div class="field-label">Variable Overhead (Producing)</div><div class="field-value">${escapeHtml(String(overheadProducingVar))}%</div></div>` : ''}
+        ${interestPastDue != null ? `<div class="field-item"><div class="field-label">Interest on Past Due</div><div class="field-value">${escapeHtml(String(interestPastDue))}%/mo</div></div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  // Non-consent penalty highlight
+  const penaltyNum = nonConsentPenalty != null ? Number(nonConsentPenalty) : null;
+  const penaltyHtml = penaltyNum != null ? `
+    <div style="margin-top: 12px; padding: 8px 12px; background: ${penaltyNum > 300 ? '#fef2f2' : '#fffbeb'}; border-radius: 6px; border-left: 4px solid ${penaltyNum > 300 ? '#dc2626' : '#f59e0b'};">
+      <strong>Non-Consent Penalty: ${escapeHtml(String(penaltyNum))}%</strong>
+      <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+        Non-consenting party must pay ${escapeHtml(String(penaltyNum))}% of well costs before sharing in revenue
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    ${operatorHtml ? `<div class="parties-grid" style="margin-bottom: 16px;">${operatorHtml}</div>` : ''}
+
+    <div class="field-grid">
+      ${modelForm ? `<div class="field-item"><div class="field-label">Model Form</div><div class="field-value">${escapeHtml(modelForm.replace(/_/g, ' '))}</div></div>` : ''}
+      <div class="field-item"><div class="field-label">Effective Date</div><div class="field-value">${formatDate(effectiveDate) || 'Not specified'}</div></div>
+      ${executionDate ? `<div class="field-item"><div class="field-label">Execution Date</div><div class="field-value">${formatDate(executionDate)}</div></div>` : ''}
+      ${contractArea ? `<div class="field-item"><div class="field-label">Contract Area / Unit</div><div class="field-value">${escapeHtml(contractArea)}</div></div>` : ''}
+      ${wellName ? `<div class="field-item"><div class="field-label">Well Name</div><div class="field-value">${escapeHtml(wellName)}</div></div>` : ''}
+      ${apiNumber ? `<div class="field-item"><div class="field-label">API Number</div><div class="field-value" style="font-family:monospace;">${escapeHtml(apiNumber)}</div></div>` : ''}
+      ${unitSize ? `<div class="field-item"><div class="field-label">Unit Size</div><div class="field-value">${escapeHtml(String(unitSize))} acres</div></div>` : ''}
+      ${noticeDays != null ? `<div class="field-item"><div class="field-label">Notice Period</div><div class="field-value">${escapeHtml(String(noticeDays))} days</div></div>` : ''}
+      ${prefRight != null ? `<div class="field-item"><div class="field-label">Preferential Right to Purchase</div><div class="field-value">${prefRight ? 'Yes' : 'No'}</div></div>` : ''}
+      ${takeInKind != null ? `<div class="field-item"><div class="field-label">Take-in-Kind</div><div class="field-value">${takeInKind ? 'Allowed' : 'Not allowed'}</div></div>` : ''}
+    </div>
+
+    ${partiesHtml}
+    ${overheadHtml}
+    ${penaltyHtml}
+  `;
 }
 
 function generateGenericFields(data: any): string {

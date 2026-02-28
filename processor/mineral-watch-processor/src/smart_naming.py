@@ -1447,7 +1447,7 @@ def name_joa(data: Dict[str, Any]) -> str:
     """JOA - {Unit/Well Name} - {Operator} - {Year}"""
     parts = ["JOA"]
     
-    unit_name = data.get('unit_name') or data.get('well_name')
+    unit_name = data.get('contract_area_name') or data.get('unit_name') or data.get('well_name')
     if unit_name:
         parts.append(truncate_name(str(unit_name), 35))
     

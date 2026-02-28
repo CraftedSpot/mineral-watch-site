@@ -641,6 +641,46 @@ JOINT_INTEREST_BILLING_SCHEMA = {
     }
 }
 
+JOA_SCHEMA = {
+    "required": {
+        "doc_type", "operator_name"
+    },
+    "expected": {
+        "parties", "effective_date", "county",
+        "key_takeaway", "detailed_analysis"
+    },
+    "known": {
+        # Core JOA fields
+        "doc_type", "model_form", "effective_date", "execution_date",
+        "operator_name", "operator_address",
+        # Parties array and sub-fields
+        "parties", "name", "role", "working_interest_pct", "net_revenue_interest_pct",
+        # Contract area
+        "contract_area_name", "well_name", "api_number", "unit_name", "unit_size_acres",
+        # COPAS / accounting procedure (nested object)
+        "accounting_procedure", "form",
+        "overhead_drilling_rate_monthly", "overhead_producing_rate_monthly",
+        "overhead_drilling_variable_pct", "overhead_producing_variable_pct",
+        "interest_on_past_due_pct", "material_markup_pct", "insurance_provisions",
+        # Operational terms
+        "non_consent_penalty_pct", "consent_threshold_pct",
+        "subsequent_operations_notice_days", "preferential_right_to_purchase",
+        "take_in_kind_allowed", "commingling_allowed",
+        # Linking fields
+        "county", "state", "section", "township", "range",
+        "legal_description",
+        # Legacy/fallback fields (from mega-prompt schema)
+        "non_operators", "operator_interest",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
 # Map doc_type to schema
 DOC_TYPE_SCHEMAS = {
     "completion_report": COMPLETION_REPORT_SCHEMA,
@@ -664,6 +704,9 @@ DOC_TYPE_SCHEMAS = {
     "check_stub": CHECK_STUB_SCHEMA,
     # Joint Interest Billing (operating expense invoices)
     "joint_interest_billing": JOINT_INTEREST_BILLING_SCHEMA,
+    # Joint Operating Agreements
+    "joa": JOA_SCHEMA,
+    "joint_operating_agreement": JOA_SCHEMA,
 }
 
 
@@ -2571,7 +2614,7 @@ DOCUMENT RECOGNITION RULES:
 - Ownership/Entity: Look for "trust agreement", "LLC operating agreement", "probate", "letters testamentary", "affidavit of heirship", "death certificate"
 - Legal Documents: Look for "lawsuit", "judgment", "court order", case numbers, "plaintiff", "defendant", court names
 - Title Opinion: Look for "TITLE OPINION", attorney name/signature, "examining attorney", ownership chain analysis
-- JOA: Look for "JOINT OPERATING AGREEMENT", "working interest", "operator", participation percentages
+- JOA: Look for "OPERATING AGREEMENT", "A.A.P.L. FORM 610", "AAPL FORM 610", "JOINT OPERATING AGREEMENT", "MODEL FORM OPERATING AGREEMENT". Strong signals: "COPAS" (accounting procedure), "non-operator", "AFE" (Authority for Expenditure), "non-consent penalty", working interest percentages for multiple parties. KEY DISTINCTION FROM OIL_GAS_LEASE: JOAs allocate WORKING INTEREST between co-owners of the leasehold (operator + non-operators), NOT lessor/lessee royalty terms. If title says "OPERATING AGREEMENT" with "AAPL" or "COPAS", this is DEFINITELY joa, NOT oil_gas_lease.
 - Tax Records: Look for "tax assessment", "property tax", "tax bill", "assessed value", tax year
 - Maps/Plats: Visual documents with survey lines, section/township/range grid, well locations, unit boundaries
 
@@ -9987,6 +10030,173 @@ RULES:
 - The analysis should be thorough - it's the main content the user will read
 """
 
+# ============================================================================
+# JOINT OPERATING AGREEMENT (JOA) FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the JOA focused prompt
+JOA_DOC_TYPES = ["joa", "joint_operating_agreement"]
+
+JOA_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced oil and gas attorney reviewing a Joint Operating Agreement (JOA) for a mineral/working interest owner.
+Your task is to extract the key business terms that affect revenue distribution, cost allocation, and operational risk.
+
+CURRENT DATE: {{current_date}}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Identify the operator and the owner's working interest percentage
+   - Highlight any unusual terms (high non-consent penalty, restrictive assignment, aggressive overhead)
+
+   DETAILED ANALYSIS:
+   Write as an experienced oil and gas attorney advising a client.
+
+   What This Operating Agreement Covers:
+   [Effective date, contract area description, model form version (AAPL 610-1989, 610-2015, etc.)]
+
+   Working Interest Allocation:
+   [List each party's WI% and NRI% if stated. Note who is designated operator. If Exhibit A lists different interests than the body text, Exhibit A controls.]
+
+   Cost Provisions & Overhead:
+   [COPAS form version, monthly overhead rates during drilling vs producing. If rates seem high relative to standard COPAS terms, note this. Explain what overhead charges mean for a working interest owner — these are charges the operator deducts from your share of revenue.]
+
+   Risk Provisions:
+   [Non-consent penalty (e.g., 300% means non-consenting party pays 300% of well costs before sharing in revenue). Notice periods for subsequent operations. Preferential right to purchase. Take-in-kind provisions.]
+
+   Action Items:
+   [What the owner should verify or be aware of. 1-3 bullet points.]
+
+TERMINOLOGY RULES:
+- Working Interest owners receive "revenue" or "proceeds" - NEVER use "royalties" for WI owners
+- "Non-consent penalty" = the multiple of well costs a non-consenting party must pay before participating in revenue
+- "Overhead" = the operator's administrative charge for managing operations, deducted from WI owners' shares
+
+Return a JSON object with this structure:
+
+{{{{
+  "doc_type": "joa",
+
+  "model_form": "AAPL_610_2015 (read from form footer/header: AAPL_610_1956, AAPL_610_1977, AAPL_610_1982, AAPL_610_1989, AAPL_610_2015, or 'custom' if not a standard AAPL form)",
+  "effective_date": "YYYY-MM-DD",
+  "execution_date": "YYYY-MM-DD (date parties signed, if different from effective_date; null if same)",
+
+  "operator_name": "Designated Operator name exactly as written",
+  "operator_address": "Operator mailing address if shown",
+
+  "parties": [
+    {{{{
+      "name": "XYZ Oil Company (exactly as written in agreement)",
+      "role": "operator (or non_operator)",
+      "working_interest_pct": 75.0,
+      "net_revenue_interest_pct": 62.5
+    }}}},
+    {{{{
+      "name": "ABC Energy LLC",
+      "role": "non_operator",
+      "working_interest_pct": 25.0,
+      "net_revenue_interest_pct": 20.833333
+    }}}}
+  ],
+
+  "contract_area_name": "Smith Unit (named area/unit covered by this JOA, null if unnamed)",
+  "well_name": "Smith 1-16H (if a specific well is named in the agreement)",
+  "api_number": "35-051-12345 (if shown; Oklahoma APIs start with 35)",
+  "unit_size_acres": 640,
+
+  "accounting_procedure": {{{{
+    "form": "COPAS 2005 (or COPAS 1984, COPAS 2019, bespoke, null if not specified)",
+    "overhead_drilling_rate_monthly": 10000.00,
+    "overhead_producing_rate_monthly": 5000.00,
+    "overhead_drilling_variable_pct": null,
+    "overhead_producing_variable_pct": null,
+    "interest_on_past_due_pct": 1.5,
+    "material_markup_pct": null
+  }}}},
+
+  "non_consent_penalty_pct": 300.0,
+  "consent_threshold_pct": null,
+  "subsequent_operations_notice_days": 30,
+  "preferential_right_to_purchase": true,
+  "take_in_kind_allowed": true,
+  "commingling_allowed": false,
+
+  "county": "Grady",
+  "state": "OK",
+  "section": "16",
+  "township": "12N",
+  "range": "7W",
+
+  "key_takeaway": "REQUIRED",
+  "detailed_analysis": "REQUIRED"
+}}}}
+
+=============================================================================
+EXTRACTION RULES:
+=============================================================================
+
+PARTIES ARRAY - CRITICAL:
+- Extract ALL parties listed in the agreement with their role and WI%
+- If an Exhibit A lists working interests, use those values (they supersede Article text)
+- WI percentages should approximately sum to 100%
+- NRI = WI × (1 - aggregate royalty burden). If NRI not explicitly stated, set to null — do NOT calculate it
+- "Operator" is the party designated to conduct operations. All others are "non_operator"
+- If the agreement names a party as "carried" (carried interest), set role to "non_operator" and note in analysis
+
+COPAS OVERHEAD RATES - CRITICAL FOR DEDUCTION TRACKING:
+- Look in Exhibit C, the Accounting Procedure attachment, or COPAS attachment
+- Two rate structures exist: drilling/reworking and producing
+- Fixed monthly rates ($/month): extract as overhead_drilling_rate_monthly and overhead_producing_rate_monthly
+- Variable rates (% of expenditures): extract as overhead_drilling_variable_pct and overhead_producing_variable_pct
+- Some JOAs have both fixed and variable — extract both
+- COPAS 2005 Article III.3.A = Fixed Rate, III.3.B = Adjustable Rate
+- If overhead rates are specified as annual amounts, divide by 12 for monthly
+- interest_on_past_due_pct: Monthly interest rate on late payments (look in COPAS Article I.5 or similar)
+- If COPAS terms are not attached or not specified, set accounting_procedure to null
+
+NON-CONSENT PENALTY:
+- Standard is 200-300% of well costs
+- Extract as percentage (e.g., 300 means non-consenting party pays 300% of costs before sharing)
+- If not specified, set to null
+- If multiple penalty tiers exist (e.g., 300% for drilling, 200% for reworking), extract the drilling tier
+
+LEGAL DESCRIPTION:
+- Usually in Exhibit A or the first article ("Contract Area")
+- Extract section, township, range, county for the primary contract area
+- Township format: number + direction (e.g., "12N" for Township 12 North)
+- Range format: number + direction (e.g., "7W" for Range 7 West)
+
+MODEL FORM IDENTIFICATION:
+- Check the footer/header for "A.A.P.L. Form 610" and year
+- Common versions: 1956, 1977, 1982, 1989, 2015
+- If it says "Model Form Operating Agreement" without a year, check the copyright line
+- If custom/bespoke (not a standard AAPL form), set to "custom"
+
+FIELD RULES:
+- Extract raw values (strings, numbers, dates) — NOT wrapped in confidence objects
+- Use null if a field is not found or illegible
+- For dates, format as "YYYY-MM-DD" when possible
+- For percentages, extract as numbers (75.0 not "75%")
+- For dollar amounts, extract as numbers (10000.00 not "$10,000")
+- Omit fields that are not present in the document — do NOT fill in defaults
+
+API NUMBER VALIDATION:
+- Oklahoma API numbers start with "35" (state code)
+- Format: 35-CCC-WWWWW where CCC=county code (3 digits), WWWWW=well number (5 digits)
+- If no API number is present in the JOA, set to null
+
+SOURCE OF TRUTH:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says.
+- If Exhibit A conflicts with Article text, Exhibit A controls
+- Do NOT flag "discrepancies" between document content and filenames
+"""
+
 
 def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None) -> str:
     """
@@ -10038,6 +10248,9 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in CORRESPONDENCE_DOC_TYPES:
         logger.info(f"Using FOCUSED CORRESPONDENCE prompt for doc_type={doc_type}")
         prompt = CORRESPONDENCE_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in JOA_DOC_TYPES:
+        logger.info(f"Using FOCUSED JOA prompt for doc_type={doc_type}")
+        prompt = JOA_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     else:
         # Fall back to mega-prompt for unknown or other doc types
         if doc_type:
@@ -10263,6 +10476,9 @@ WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
 - multi_unit_horizontal_order: Look for "MULTIUNIT HORIZONTAL" or "MULTI-UNIT HORIZONTAL" or "MULTIUNIT WELL" in the title. Key indicators: horizontal well crossing multiple section boundaries, allocation percentages per section, completion interval lengths, production split between units. Contains tables showing section-by-section allocation factors. NOT horizontal_drilling_and_spacing_order (which establishes spacing rules, not production allocation).
 - occ_order: FALLBACK for any OCC order that doesn't fit the specific types above. Includes remand orders, plugging orders, administrative orders. If a document has OCC letterhead and a cause number but you cannot match it to a specific order type, use occ_order. Do NOT default to pooling_order when uncertain.
+
+JOA (JOINT OPERATING AGREEMENT) DETECTION:
+- joa: Look for "OPERATING AGREEMENT" (the formal title on AAPL standard forms), "A.A.P.L. FORM 610" or "AAPL FORM 610" (standard industry form number), "JOINT OPERATING AGREEMENT" (industry term), "MODEL FORM OPERATING AGREEMENT" (AAPL subtitle). Strong signals: "COPAS" (accounting procedure attachment), "non-operator", "operator duties", "AFE" (Authority for Expenditure), "non-consent penalty", "Exhibit A" with working interest percentages, "participation" percentages for multiple parties. KEY DISTINCTION FROM OIL_GAS_LEASE: JOAs allocate WORKING INTEREST between co-owners of the leasehold (operator + non-operators), they do NOT establish lessor/lessee royalty terms. A JOA typically references an underlying lease. If you see "OPERATING AGREEMENT" in the title with working interest allocation between multiple operators/parties, this is joa, NOT oil_gas_lease. If you see both "OPERATING AGREEMENT" and "AAPL" or "COPAS", this is DEFINITELY joa.
 
 FINANCIAL DOCUMENT TYPE DETECTION (check_stub vs joint_interest_billing vs division_order):
 

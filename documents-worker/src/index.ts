@@ -2629,6 +2629,125 @@ export default {
                     console.error('[Alloc Write-Back] Error:', allocError);
                   }
                 }
+
+                // Write-back working interest from JOA parties[] to client_wells.wi_nri
+                // Source priority: DO > JOA > manual > bulk. JOA won't overwrite DO-sourced values.
+                if (doc_type === 'joa' && linkResult.wellId) {
+                  try {
+                    const parties = extracted_data?.parties;
+                    if (Array.isArray(parties) && parties.length > 0) {
+                      const primaryWellId = linkResult.wellId.split(',')[0].trim();
+
+                      // Get document owner's entity names from properties table for party matching
+                      const docOwner = await env.WELLS_DB.prepare(
+                        `SELECT user_id, organization_id FROM documents WHERE id = ?`
+                      ).bind(docId).first() as any;
+
+                      let ownerEntityNames: string[] = [];
+                      if (docOwner) {
+                        const orgId = docOwner.organization_id;
+                        const userId = docOwner.user_id;
+                        // Normalize helper: strip non-alphanumeric, uppercase
+                        const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+                        if (orgId) {
+                          const propsResult = await env.WELLS_DB.prepare(
+                            `SELECT DISTINCT owner FROM properties
+                             WHERE (organization_id = ? OR user_id IN
+                               (SELECT airtable_record_id FROM users WHERE organization_id = ?))
+                             AND owner IS NOT NULL`
+                          ).bind(orgId, orgId).all();
+                          ownerEntityNames = (propsResult.results || []).map((p: any) =>
+                            normalize(String(p.owner || ''))
+                          ).filter(Boolean);
+                        } else if (userId) {
+                          const propsResult = await env.WELLS_DB.prepare(
+                            `SELECT DISTINCT owner FROM properties WHERE user_id = ? AND owner IS NOT NULL`
+                          ).bind(userId).all();
+                          ownerEntityNames = (propsResult.results || []).map((p: any) =>
+                            normalize(String(p.owner || ''))
+                          ).filter(Boolean);
+                        }
+                      }
+
+                      // Normalize helper (redeclare in scope for party matching)
+                      const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+                      // Find the party that matches the user's entity (bidirectional includes)
+                      let matchedParty: any = null;
+                      for (const party of parties) {
+                        const partyNorm = normalize(String(party.name || ''));
+                        if (!partyNorm) continue;
+                        if (ownerEntityNames.some(e => partyNorm.includes(e) || e.includes(partyNorm))) {
+                          matchedParty = party;
+                          break;
+                        }
+                      }
+
+                      if (matchedParty && matchedParty.working_interest_pct != null) {
+                        const wiPct = parseFloat(String(matchedParty.working_interest_pct));
+                        // Convert percentage to decimal (75% → 0.75)
+                        const wiDecimal = wiPct > 1 ? wiPct / 100 : wiPct;
+
+                        if (wiDecimal > 0 && wiDecimal <= 1) {
+                          // Ensure wi_nri source columns exist
+                          const wiSourceCols = [
+                            { name: 'wi_nri_source', type: 'TEXT' },
+                            { name: 'wi_nri_source_doc_id', type: 'TEXT' },
+                            { name: 'wi_nri_source_date', type: 'TEXT' },
+                          ];
+                          for (const col of wiSourceCols) {
+                            try {
+                              await env.WELLS_DB.prepare(`SELECT ${col.name} FROM client_wells LIMIT 1`).first();
+                            } catch {
+                              try {
+                                await env.WELLS_DB.prepare(`ALTER TABLE client_wells ADD COLUMN ${col.name} ${col.type}`).run();
+                              } catch { /* already exists */ }
+                            }
+                          }
+
+                          // Find client_well — direct airtable_id match first, then API fallback
+                          let clientWell = await env.WELLS_DB.prepare(
+                            `SELECT id, airtable_id, wi_nri, wi_nri_source FROM client_wells WHERE airtable_id = ? LIMIT 1`
+                          ).bind(primaryWellId).first() as any;
+
+                          if (!clientWell && extracted_data?.api_number) {
+                            const apiDigits = String(extracted_data.api_number).replace(/[^0-9]/g, '');
+                            if (apiDigits.length >= 8 && docOwner) {
+                              clientWell = await env.WELLS_DB.prepare(
+                                `SELECT id, airtable_id, wi_nri, wi_nri_source FROM client_wells
+                                 WHERE api_number = ? AND (user_id = ? OR organization_id = ?) LIMIT 1`
+                              ).bind(apiDigits, docOwner.user_id || '', docOwner.organization_id || '').first() as any;
+                            }
+                          }
+
+                          if (clientWell) {
+                            const existingSource = clientWell.wi_nri_source || '';
+                            if (existingSource === 'extracted_division_order') {
+                              console.log(`[JOA Write-Back] Skipping — well ${clientWell.airtable_id} already has DO-sourced wi_nri=${clientWell.wi_nri}`);
+                            } else {
+                              await env.WELLS_DB.prepare(
+                                `UPDATE client_wells
+                                 SET wi_nri = ?,
+                                     wi_nri_source = 'extracted_joa',
+                                     wi_nri_source_doc_id = ?,
+                                     wi_nri_source_date = datetime('now', '-6 hours')
+                                 WHERE id = ?`
+                              ).bind(wiDecimal, docId, clientWell.id).run();
+                              console.log(`[JOA Write-Back] Set wi_nri=${wiDecimal} on well ${clientWell.airtable_id} (party: ${matchedParty.name}) from doc ${docId}`);
+                            }
+                          } else {
+                            console.log(`[JOA Write-Back] No client_well found for well ID ${primaryWellId}`);
+                          }
+                        }
+                      } else {
+                        console.log(`[JOA Write-Back] No matching party found for user's entities among ${parties.length} parties`);
+                      }
+                    }
+                  } catch (joaWriteBackError) {
+                    console.error('[JOA Write-Back] Error:', joaWriteBackError);
+                  }
+                }
               } catch (linkError) {
                 console.error('[Documents] Error during auto-link:', linkError);
                 console.error('[Documents] Error stack:', linkError.stack);

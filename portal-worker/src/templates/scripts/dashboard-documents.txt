@@ -1105,6 +1105,12 @@
                 'Exhibits': ['exhibits'],
                 'Reference Well': ['reference_well'],
                 'Unit Parties': ['parties'],  // Unitization order parties (applicant + other_parties)
+                // JOA (Joint Operating Agreement) sections
+                'JOA Parties': ['parties'],  // operator + non-operators with WI%
+                'JOA Terms': ['model_form', 'contract_area_name', 'non_consent_penalty_pct',
+                              'consent_threshold_pct', 'subsequent_operations_notice_days',
+                              'preferential_right_to_purchase', 'take_in_kind_allowed', 'commingling_allowed'],
+                'Accounting Procedure': ['accounting_procedure'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
