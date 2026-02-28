@@ -340,7 +340,7 @@
 
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 20000);
+                setTimeout(() => controller.abort(), 45000);
 
                 // Fetch deduction report and operator comparison in parallel
                 const [deductionResponse, operatorResponse] = await Promise.all([
@@ -1605,7 +1605,7 @@
 
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 20000);
+                setTimeout(() => controller.abort(), 45000);
 
                 const url = forceRefresh ? '/api/intelligence/pooling-report?refresh=1' : '/api/intelligence/pooling-report';
                 const response = await fetch(url, {
@@ -5070,7 +5070,7 @@
 
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 20000);
+                setTimeout(() => controller.abort(), 45000);
 
                 const url = forceRefresh ? '/api/intelligence/occ-filing-activity?refresh=1' : '/api/intelligence/occ-filing-activity';
                 const response = await fetch(url, {
@@ -5770,7 +5770,7 @@
 
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 20000);
+                setTimeout(() => controller.abort(), 45000);
 
                 const url = forceRefresh ? '/api/intelligence/well-risk-profile?refresh=1' : '/api/intelligence/well-risk-profile';
                 const response = await fetch(url, {

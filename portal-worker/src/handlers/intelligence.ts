@@ -1111,12 +1111,39 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     const api10s = [...new Set(wells.map(w => w.api_number).filter(Boolean).map(a => a.replace(/-/g, '').substring(0, 10)))];
     const sixMonthsAgo = getMonthsAgo(6);
 
-    // GOR classification — must complete BEFORE flagging so we can use it for inclusion decisions
-    const gorMap = await classifyWellGor(env.WELLS_DB!, api10s);
-
-    // Query 1: Product-level breakdown for ALL wells with financial data
+    // Phase 1: Run GOR classification, product breakdown, and statewide avg in parallel
     type ProductRow = { api_number: string; product_code: string; gross_value: number; market_deduction: number; net_value: number };
-    const allProductRows = await parallelBatches(api10s, 50, async (batch) => {
+
+    const statewideAvgPromise = (async (): Promise<number | null> => {
+      // Check KV cache first (user-independent, 6h TTL)
+      const cacheKey = `deduction-statewide-avg:${sixMonthsAgo}`;
+      if (env.OCC_CACHE) {
+        try {
+          const cached = await env.OCC_CACHE.get(cacheKey, 'json') as number | null;
+          if (cached !== null) return cached;
+        } catch (_) {}
+      }
+      try {
+        const result = await env.WELLS_DB.prepare(`
+          SELECT SUM(market_deduction) as total_deductions, SUM(gross_value) as total_gross
+          FROM otc_production_financial WHERE gross_value > 0 AND year_month >= ?
+        `).bind(sixMonthsAgo).first() as { total_deductions: number; total_gross: number } | null;
+        const pct = result && result.total_gross > 0
+          ? Math.round((result.total_deductions / result.total_gross) * 1000) / 10
+          : null;
+        if (env.OCC_CACHE && pct !== null) {
+          try { await env.OCC_CACHE.put(cacheKey, JSON.stringify(pct), { expirationTtl: 21600 }); } catch (_) {}
+        }
+        return pct;
+      } catch (e) {
+        console.error('[Deduction Report] Statewide avg error:', e);
+        return null;
+      }
+    })();
+
+    const gorPromise = classifyWellGor(env.WELLS_DB!, api10s);
+
+    const productPromise = parallelBatches(api10s, 50, async (batch) => {
       const placeholders = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(`
         SELECT wpl.api_number, opf.product_code,
@@ -1132,6 +1159,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       `).bind(...batch, sixMonthsAgo).all();
       return (result.results || []) as ProductRow[];
     });
+
+    const [gorMap, allProductRows, statewideAvgPct] = await Promise.all([gorPromise, productPromise, statewideAvgPromise]);
 
     // Group by api_number and compute per-well aggregates
     const wellMap = new Map<string, { products: ProductRow[]; totalGross: number; totalDeductions: number; totalNet: number; productCount: number }>();
@@ -1293,10 +1322,12 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     // Sort flagged wells by deduction rate descending
     flaggedWellsData.sort((a, b) => b.agg_deduction_pct - a.agg_deduction_pct);
 
-    // Query 2: Monthly trends for flagged wells
+    // Phase 2: Run monthly trends, county benchmarks, and purchaser info in parallel
     if (flaggedApiNumbers.length > 0) {
       type MonthlyRow = { api_number: string; year_month: string; gross_value: number; market_deduction: number; net_value: number };
-      const monthlyRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
+      type PurchaserRow = { api_number: string; purchaser_id: string | null; purchaser_name: string | null; operator_number: string | null };
+
+      const monthlyPromise = parallelBatches(flaggedApiNumbers, 50, async (batch) => {
         const placeholders = batch.map(() => '?').join(',');
         const result = await env.WELLS_DB.prepare(`
           SELECT wpl.api_number, opf.year_month,
@@ -1314,44 +1345,23 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
         return (result.results || []) as MonthlyRow[];
       });
 
-      // Attach monthly data to each flagged well
-      for (const row of monthlyRows) {
-        const well = flaggedWellsData.find(w => w.api_number === row.api_number);
-        if (well) {
-          well.monthly.push({
-            year_month: row.year_month,
-            gross_value: Math.round(row.gross_value),
-            market_deduction: Math.round(row.market_deduction),
-            deduction_pct: row.gross_value > 0 ? Math.round((row.market_deduction / row.gross_value) * 1000) / 10 : 0,
-            net_value: Math.round(row.net_value)
+      const countyPromise = (async () => {
+        try {
+          const wellCountyCodes = new Map<string, string>();
+          const punRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
+            const placeholders = batch.map(() => '?').join(',');
+            const punResult = await env.WELLS_DB.prepare(
+              `SELECT api_number, base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
+            ).bind(...batch).all();
+            return (punResult.results || []) as Array<{ api_number: string; base_pun: string }>;
           });
-        }
-      }
-    }
+          for (const row of punRows) {
+            wellCountyCodes.set(row.api_number, row.base_pun.replace(/-/g, '').substring(0, 3));
+          }
+          const uniqueCountyCodes = [...new Set(wellCountyCodes.values())];
+          if (uniqueCountyCodes.length === 0) return { wellCountyCodes, countyAvgs: new Map<string, number>() };
 
-    // Query 3: County benchmarks
-    // Get county codes from PUN prefixes, then compute county-wide average deduction rates
-    if (flaggedApiNumbers.length > 0) {
-      try {
-        // Map flagged wells to county codes via their base_pun prefix
-        const wellCountyCodes = new Map<string, string>(); // api_number -> county_code (3-digit)
-        const punRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
-          const placeholders = batch.map(() => '?').join(',');
-          const punResult = await env.WELLS_DB.prepare(
-            `SELECT api_number, base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
-          ).bind(...batch).all();
-          return (punResult.results || []) as Array<{ api_number: string; base_pun: string }>;
-        });
-        for (const row of punRows) {
-          const countyCode = row.base_pun.replace(/-/g, '').substring(0, 3);
-          wellCountyCodes.set(row.api_number, countyCode);
-        }
-
-        const uniqueCountyCodes = [...new Set(wellCountyCodes.values())];
-
-        if (uniqueCountyCodes.length > 0) {
           const ccPlaceholders = uniqueCountyCodes.map(() => '?').join(',');
-          // County average: mean of per-PUN aggregate rates, same multi-product sanity filters
           const countyResult = await env.WELLS_DB.prepare(`
             SELECT county_code, ROUND(AVG(pun_rate), 1) as avg_pct, COUNT(*) as pun_count FROM (
               SELECT substr(pun, 1, 3) as county_code,
@@ -1371,84 +1381,90 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           for (const row of countyResult.results as Array<{ county_code: string; avg_pct: number }>) {
             countyAvgs.set(row.county_code, row.avg_pct);
           }
+          return { wellCountyCodes, countyAvgs };
+        } catch (countyError) {
+          console.error('[Deduction Report] County benchmark error:', countyError instanceof Error ? countyError.message : countyError);
+          return { wellCountyCodes: new Map<string, string>(), countyAvgs: new Map<string, number>() };
+        }
+      })();
 
-          // Attach to flagged wells
-          for (const well of flaggedWellsData) {
-            const cc = wellCountyCodes.get(well.api_number);
-            if (cc && countyAvgs.has(cc)) {
-              well.county_avg_pct = countyAvgs.get(cc)!;
-              well.variance_points = Math.round((well.agg_deduction_pct - well.county_avg_pct) * 10) / 10;
+      const purchaserPromise = (async () => {
+        try {
+          const purchaserRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
+            const placeholders = batch.map(() => '?').join(',');
+            const result = await env.WELLS_DB.prepare(`
+              SELECT
+                wpl.api_number,
+                MAX(opf.purchaser_id) as purchaser_id,
+                MAX(ol.operator_number) as operator_number
+              FROM well_pun_links wpl
+              JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+              LEFT JOIN otc_leases ol ON wpl.base_pun = ol.base_pun
+              WHERE wpl.api_number IN (${placeholders})
+                AND opf.product_code = '5'
+                AND opf.purchaser_id IS NOT NULL
+                AND opf.purchaser_id != ''
+                AND opf.year_month >= ?
+              GROUP BY wpl.api_number
+            `).bind(...batch, sixMonthsAgo).all();
+            return (result.results || []) as PurchaserRow[];
+          });
+
+          const purchaserIds = [...new Set(purchaserRows.map(r => r.purchaser_id).filter(Boolean))];
+          const purchaserNames = new Map<string, string>();
+          if (purchaserIds.length > 0) {
+            const nameResult = await env.WELLS_DB.prepare(`
+              SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${purchaserIds.map(() => '?').join(',')})
+            `).bind(...purchaserIds).all();
+            for (const row of nameResult.results as Array<{ company_id: string; company_name: string }>) {
+              purchaserNames.set(row.company_id, row.company_name);
             }
           }
+          return { purchaserRows, purchaserNames };
+        } catch (purchaserError) {
+          console.error('[Deduction Report] Purchaser info error:', purchaserError instanceof Error ? purchaserError.message : purchaserError);
+          return { purchaserRows: [] as PurchaserRow[], purchaserNames: new Map<string, string>() };
         }
-      } catch (countyError) {
-        console.error('[Deduction Report] County benchmark error:', countyError instanceof Error ? countyError.message : countyError);
-        // Non-fatal — report still works without county benchmarks
+      })();
+
+      const [monthlyRows, countyData, purchaserData] = await Promise.all([monthlyPromise, countyPromise, purchaserPromise]);
+
+      // Attach monthly data
+      for (const row of monthlyRows) {
+        const well = flaggedWellsData.find(w => w.api_number === row.api_number);
+        if (well) {
+          well.monthly.push({
+            year_month: row.year_month,
+            gross_value: Math.round(row.gross_value),
+            market_deduction: Math.round(row.market_deduction),
+            deduction_pct: row.gross_value > 0 ? Math.round((row.market_deduction / row.gross_value) * 1000) / 10 : 0,
+            net_value: Math.round(row.net_value)
+          });
+        }
       }
-    }
 
-    // Query 4: Purchaser info for flagged wells (vertical integration detection)
-    if (flaggedApiNumbers.length > 0) {
-      try {
-        type PurchaserRow = {
-          api_number: string;
-          purchaser_id: string | null;
-          purchaser_name: string | null;
-          operator_number: string | null;
-        };
-        const purchaserRows = await parallelBatches(flaggedApiNumbers, 50, async (batch) => {
-          const placeholders = batch.map(() => '?').join(',');
-          // Get purchaser_id for Product 5 (residue gas) for each well
-          // Use MAX to get a consistent purchaser when there are multiple
-          const result = await env.WELLS_DB.prepare(`
-            SELECT
-              wpl.api_number,
-              MAX(opf.purchaser_id) as purchaser_id,
-              MAX(ol.operator_number) as operator_number
-            FROM well_pun_links wpl
-            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
-            LEFT JOIN otc_leases ol ON wpl.base_pun = ol.base_pun
-            WHERE wpl.api_number IN (${placeholders})
-              AND opf.product_code = '5'
-              AND opf.purchaser_id IS NOT NULL
-              AND opf.purchaser_id != ''
-              AND opf.year_month >= ?
-            GROUP BY wpl.api_number
-          `).bind(...batch, sixMonthsAgo).all();
-          return (result.results || []) as PurchaserRow[];
-        });
-
-        // Look up purchaser names
-        const purchaserIds = [...new Set(purchaserRows.map(r => r.purchaser_id).filter(Boolean))];
-        const purchaserNames = new Map<string, string>();
-        if (purchaserIds.length > 0) {
-          const nameResult = await env.WELLS_DB.prepare(`
-            SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${purchaserIds.map(() => '?').join(',')})
-          `).bind(...purchaserIds).all();
-          for (const row of nameResult.results as Array<{ company_id: string; company_name: string }>) {
-            purchaserNames.set(row.company_id, row.company_name);
-          }
+      // Attach county benchmarks
+      for (const well of flaggedWellsData) {
+        const cc = countyData.wellCountyCodes.get(well.api_number);
+        if (cc && countyData.countyAvgs.has(cc)) {
+          well.county_avg_pct = countyData.countyAvgs.get(cc)!;
+          well.variance_points = Math.round((well.agg_deduction_pct - well.county_avg_pct) * 10) / 10;
         }
+      }
 
-        // Attach purchaser info to flagged wells
-        for (const row of purchaserRows) {
-          const well = flaggedWellsData.find(w => w.api_number === row.api_number);
-          if (well && row.purchaser_id) {
-            well.purchaser_id = row.purchaser_id;
-            well.operator_number = row.operator_number;
-            const purchaserName = purchaserNames.get(row.purchaser_id) || `Purchaser ${row.purchaser_id}`;
-            well.purchaser_name = purchaserName;
-            // Check if operator = purchaser (vertical integration)
-            // Compare by ID first, then by normalized name (handles transfers/outdated OTC data)
-            const operatorNameNorm = (well.operator || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const purchaserNameNorm = purchaserName.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            well.is_affiliated = row.operator_number === row.purchaser_id ||
-              (operatorNameNorm.length > 5 && purchaserNameNorm.includes(operatorNameNorm.substring(0, 10)));
-          }
+      // Attach purchaser info
+      for (const row of purchaserData.purchaserRows) {
+        const well = flaggedWellsData.find(w => w.api_number === row.api_number);
+        if (well && row.purchaser_id) {
+          well.purchaser_id = row.purchaser_id;
+          well.operator_number = row.operator_number;
+          const purchaserName = purchaserData.purchaserNames.get(row.purchaser_id) || `Purchaser ${row.purchaser_id}`;
+          well.purchaser_name = purchaserName;
+          const operatorNameNorm = (well.operator || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const purchaserNameNorm = purchaserName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          well.is_affiliated = row.operator_number === row.purchaser_id ||
+            (operatorNameNorm.length > 5 && purchaserNameNorm.includes(operatorNameNorm.substring(0, 10)));
         }
-      } catch (purchaserError) {
-        console.error('[Deduction Report] Purchaser info error:', purchaserError instanceof Error ? purchaserError.message : purchaserError);
-        // Non-fatal — report still works without purchaser info
       }
     }
 
@@ -1466,25 +1482,6 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           latestMonth = m.year_month;
         }
       }
-    }
-
-    // Get statewide average for context
-    let statewideAvgPct: number | null = null;
-    try {
-      const statewideResult = await env.WELLS_DB.prepare(`
-        SELECT
-          SUM(market_deduction) as total_deductions,
-          SUM(gross_value) as total_gross
-        FROM otc_production_financial
-        WHERE gross_value > 0
-          AND year_month >= ?
-      `).bind(sixMonthsAgo).first() as { total_deductions: number; total_gross: number } | null;
-
-      if (statewideResult && statewideResult.total_gross > 0) {
-        statewideAvgPct = Math.round((statewideResult.total_deductions / statewideResult.total_gross) * 1000) / 10;
-      }
-    } catch (e) {
-      console.error('[Deduction Report] Statewide avg error:', e);
     }
 
     const response = {
