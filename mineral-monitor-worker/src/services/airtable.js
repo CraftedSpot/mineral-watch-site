@@ -229,6 +229,8 @@ export function userWantsAlert(user, activityType) {
 
   switch (activityType) {
     case 'New Permit':
+    case 'Recompletion Permit':
+    case 'Re-entry Permit':
       return prefs.alertPermits;
     case 'Well Completed':
       return prefs.alertCompletions;

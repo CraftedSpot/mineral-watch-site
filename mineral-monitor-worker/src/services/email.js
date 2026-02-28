@@ -321,6 +321,16 @@ function getActivityStyle(activityType) {
       bgColor: '#E0F2FE',
       label: 'STATUS CHANGE'
     },
+    'Recompletion Permit': {
+      color: '#0E7490',
+      bgColor: '#CFFAFE',
+      label: 'RECOMPLETION PERMIT'
+    },
+    'Re-entry Permit': {
+      color: '#0E7490',
+      bgColor: '#CFFAFE',
+      label: 'RE-ENTRY PERMIT'
+    },
     'Permit Expiring': {
       color: '#B45309',
       bgColor: '#FEF3C7',
@@ -382,6 +392,20 @@ function getExplanation(activityType, alertLevel, isMultiSection = false, isDire
       meaning: statusChange ? getStatusChangeMeaning(statusChange) : 'The well status has been updated in OCC records.',
       tip: statusChange ? getStatusChangeTip(statusChange) : 'Review the filing for details on what changed.',
       tipType: statusChange ? getStatusChangeTipType(statusChange) : 'info'
+    },
+    'Recompletion Permit': {
+      meaning: alertLevel === 'YOUR PROPERTY'
+        ? 'An operator has filed a permit to recomplete an existing well on your property. Recompletion targets a new formation or zone in an already-drilled wellbore — no new surface disturbance.'
+        : 'An operator has filed a permit to recomplete an existing well near your property. Recompletion targets a new formation in an already-drilled wellbore.',
+      tip: 'A recompletion often means the operator sees additional pay zones. You may receive a new division order reflecting changed interests for the new formation.',
+      tipType: 'info'
+    },
+    'Re-entry Permit': {
+      meaning: alertLevel === 'YOUR PROPERTY'
+        ? 'An operator has filed a permit to re-enter a previously plugged or abandoned well on your property. Re-entry means an operator believes the well can still produce economically.'
+        : 'An operator has filed a permit to re-enter a previously plugged or abandoned well near your property.',
+      tip: 'Re-entry of an old well may resume royalty payments. Watch for a new division order and verify your interest is correctly reflected.',
+      tipType: 'info'
     },
     'Permit Expiring': {
       meaning: alertLevel === 'YOUR PROPERTY'
@@ -632,7 +656,7 @@ async function buildHtmlBody(data, env) {
               <!-- Greeting -->
               <p style="font-size: 12px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 6px;">Daily Alert</p>
               <h1 style="font-size: 20px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif; font-weight: 700;">
-                ${activityType === 'New Permit' ? 'New Drilling Permit Filed' : activityType}
+                ${activityType === 'New Permit' ? 'New Drilling Permit Filed' : activityType === 'Recompletion Permit' ? 'Recompletion Permit Filed' : activityType === 'Re-entry Permit' ? 'Re-entry Permit Filed' : activityType}
               </h1>
               <p style="font-size: 15px; color: #334E68; margin: 0 0 20px;">
                 Hi ${userName || 'there'}, we found activity that matches your monitored ${alertLevel === 'TRACKED WELL' ? 'well' : 'properties'}.

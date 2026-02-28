@@ -1684,11 +1684,11 @@ async function processCompletion(completion, env, results, dryRun = false, prope
  */
 function mapApplicationType(appType) {
   const mapping = {
-    'DR': 'New Permit',      // Drill
-    'RC': 'Status Change',   // Recomplete
-    'RE': 'Status Change',   // Re-enter
-    'DW': 'New Permit',      // Deepening
-    'SH': 'New Permit'       // Shallow
+    'DR': 'New Permit',              // Drill
+    'RC': 'Recompletion Permit',     // Recomplete
+    'RE': 'Re-entry Permit',         // Re-enter
+    'DW': 'New Permit',              // Deepening
+    'SH': 'New Permit'               // Shallow
   };
   return mapping[appType] || 'New Permit';
 }

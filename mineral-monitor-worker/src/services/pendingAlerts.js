@@ -248,6 +248,8 @@ export function groupAlertsForDigest(alerts) {
     // Group by type
     switch (alert.activity_type) {
       case 'New Permit':
+      case 'Recompletion Permit':
+      case 'Re-entry Permit':
         userData.alerts.permits.push(alert);
         break;
       case 'Well Completed':

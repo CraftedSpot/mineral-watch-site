@@ -178,7 +178,7 @@ export async function backfillPropertyHistory(env, property) {
         county: record['County'] || '',
         sectionTownshipRange: `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
         formation: record['Formation'] || null,
-        mapLink: `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
+        mapLink: `https://portal.mymineralwatch.com/portal/map?well=${apiNumber}`,
         emailSent: true, // Mark as "sent" so it doesn't get picked up for digest
         isHistorical: true,
         detectedAt: record['Permit Date'] || record['Completion Date'] || new Date().toISOString(),
@@ -424,7 +424,7 @@ export async function backfillUserProperties(env, userId) {
         county: record['County'] || '',
         sectionTownshipRange: `S${record['Surface Section']} T${record['Surface Township']} R${record['Surface Range']}`,
         formation: record['Formation'] || null,
-        mapLink: `https://portal.mymineralwatch.com/map?well=${apiNumber}`,
+        mapLink: `https://portal.mymineralwatch.com/portal/map?well=${apiNumber}`,
         emailSent: true, // Mark as "sent" so it doesn't get picked up for digest
         isHistorical: true,
         detectedAt: record['Permit Date'] || record['Completion Date'] || new Date().toISOString(),

@@ -299,7 +299,7 @@ export async function createActivityLog(env, data) {
     data.formation || null,
     data.occLink || null,
     data.mapLink || null,
-    data.apiNumber ? `https://portal.mymineralwatch.com/map?well=${data.apiNumber}` : null,
+    data.apiNumber ? `https://portal.mymineralwatch.com/portal/map?well=${data.apiNumber}` : null,
     data.emailSent ? 1 : 0,
     detectedAt,
     data.caseNumber || null,
@@ -342,7 +342,7 @@ export async function updateActivityLog(env, recordId, updates) {
 export async function atomicCreateAlertAndQueue(env, activityData, queueData) {
   const detectedAt = new Date().toISOString();
   const mapLink = activityData.apiNumber
-    ? `https://portal.mymineralwatch.com/map?well=${activityData.apiNumber}`
+    ? `https://portal.mymineralwatch.com/portal/map?well=${activityData.apiNumber}`
     : null;
 
   const stmt1 = env.WELLS_DB.prepare(`

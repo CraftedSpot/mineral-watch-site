@@ -1653,8 +1653,21 @@ export default {
               },
             });
           } catch (extractError) {
-            console.error('Error extracting pages:', extractError);
-            // Fall back to returning the full PDF if extraction fails
+            console.error(`Error extracting pages (likely OOM on large PDF): ${extractError}`);
+            // R2 body was consumed by arrayBuffer() — re-fetch for fallback
+            const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
+            if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
+            // Add page range to filename so user knows where to look
+            const baseName = downloadName.replace(/\.pdf$/i, '');
+            const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
+            return new Response(fallbackObject.body, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="${fallbackName}"`,
+                'Cache-Control': 'private, no-store',
+                ...corsHeaders(env),
+              },
+            });
           }
         }
 
@@ -1749,8 +1762,21 @@ export default {
               },
             });
           } catch (extractError) {
-            console.error('Error extracting pages for view:', extractError);
-            // Fall back to returning the full PDF if extraction fails
+            console.error(`Error extracting pages for view (likely OOM on large PDF): ${extractError}`);
+            // R2 body was consumed by arrayBuffer() — re-fetch for fallback
+            const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
+            if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
+            const baseName = (viewName as string).replace(/\.pdf$/i, '');
+            const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
+            return new Response(fallbackObject.body, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `inline; filename="${fallbackName}"`,
+                'X-Page-Range': `${pageStart}-${pageEnd}`,
+                'Cache-Control': 'private, no-store',
+                ...corsHeaders(env),
+              },
+            });
           }
         }
 
