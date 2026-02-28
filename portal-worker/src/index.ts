@@ -1421,7 +1421,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
             try {
               const sessionUser = await authenticateRequest(request, env);
               if (sessionUser && isSuperAdmin(sessionUser.email)) authed = true;
-            } catch (_) {}
+            } catch (e) { console.error('[OtcSync] Admin session auth fallback error:', e); }
           }
           if (!authed) {
             return jsonResponse({ error: 'Unauthorized' }, 401);

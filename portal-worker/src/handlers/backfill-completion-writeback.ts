@@ -264,7 +264,7 @@ export async function handleBackfillCompletionWriteback(request: Request, env: E
                 updated_at = CURRENT_TIMESTAMP
             WHERE api_number = ? OR api_number = ?
           `).bind(err.message || String(err), api10, api10).run();
-        } catch (_) {}
+        } catch (e) { console.error(`[BackfillWriteback] Failed to mark write_failed for ${api10}:`, e); }
       }
     }
   }

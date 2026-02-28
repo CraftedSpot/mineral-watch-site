@@ -784,7 +784,7 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
 
     // --- Commit mode: optionally filter to selected API numbers ---
     let body: any = {};
-    try { body = await request.json(); } catch (e) { /* no body = track all */ }
+    try { body = await request.json(); } catch (e) { /* no body = track all (GET requests or empty POST) */ }
     const selectedApis: string[] | null = Array.isArray(body?.apiNumbers) ? body.apiNumbers : null;
 
     let wellsToTrack = newWells;
