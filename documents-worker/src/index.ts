@@ -1871,13 +1871,30 @@ export default {
           WHERE parent_document_id = ? AND deleted_at IS NULL
         `).bind(docId).run();
 
-        // Delete from R2
+        // Collect all R2 keys to delete (parent + children with their own keys)
+        const r2KeysToDelete = new Set<string>();
+        r2KeysToDelete.add(doc.r2_key as string);
+
+        // Find children's R2 keys (they may have their own extracted PDFs)
         try {
-          await env.UPLOADS_BUCKET.delete(doc.r2_key);
-          console.log('Deleted from R2:', doc.r2_key);
-        } catch (r2Error) {
-          console.error('Failed to delete from R2:', r2Error);
-          // Continue anyway - the DB record is already soft deleted
+          const childKeys = await env.WELLS_DB.prepare(
+            `SELECT DISTINCT r2_key FROM documents WHERE parent_document_id = ? AND r2_key IS NOT NULL`
+          ).bind(docId).all();
+          for (const child of childKeys.results || []) {
+            if (child.r2_key) r2KeysToDelete.add(child.r2_key as string);
+          }
+        } catch (e) {
+          console.error('Failed to query child R2 keys:', e);
+        }
+
+        // Delete all R2 objects
+        for (const key of r2KeysToDelete) {
+          try {
+            await env.UPLOADS_BUCKET.delete(key);
+            console.log('Deleted from R2:', key);
+          } catch (r2Error) {
+            console.error('Failed to delete from R2:', key, r2Error);
+          }
         }
 
         return jsonResponse({ success: true }, 200, env);
