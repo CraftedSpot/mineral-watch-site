@@ -820,7 +820,7 @@
                     document.querySelector('.loading-text').textContent =
                         `Loading ${propertiesNeedingGeometry.length} property boundaries...`;
                     document.querySelector('.loading-subtext').textContent =
-                        'First-time setup - caching for instant future loads';
+                        'Fetching section geometries';
                     document.querySelector('.loading-subtext').style.display = 'block';
 
                     const geometryResults = await batchFetchGeometries(propertiesNeedingGeometry);

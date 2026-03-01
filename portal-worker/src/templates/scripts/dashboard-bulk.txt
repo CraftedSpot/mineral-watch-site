@@ -1920,42 +1920,85 @@ async function handleDocumentUpload(e) {
             }
 
             // Upload small files via existing batch endpoint
+            // Split into sub-batches of ≤90MB to stay under Cloudflare's 100MB request limit
+            const BATCH_SIZE_LIMIT = 90 * 1024 * 1024;
             let batchResult = null;
             if (smallFiles.length > 0) {
-                const batchFormData = new FormData();
-                if (enhanced) batchFormData.append('enhanced', '1');
-                for (const file of smallFiles) {
-                    batchFormData.append('files', file);
-                }
-
-                const prescanIndices = [];
+                const batches = [];
+                let currentBatch = [];
+                let currentBatchIndices = [];
+                let currentBatchSize = 0;
                 for (let i = 0; i < smallFiles.length; i++) {
-                    const origIndex = smallFileIndices[i];
-                    if (smallFiles[i].type === 'application/pdf' && (pageEstimates[origIndex] || 0) > PRESCAN_THRESHOLD) {
-                        prescanIndices.push(i);
+                    if (currentBatch.length > 0 && currentBatchSize + smallFiles[i].size > BATCH_SIZE_LIMIT) {
+                        batches.push({ files: currentBatch, indices: currentBatchIndices });
+                        currentBatch = [];
+                        currentBatchIndices = [];
+                        currentBatchSize = 0;
                     }
+                    currentBatch.push(smallFiles[i]);
+                    currentBatchIndices.push(smallFileIndices[i]);
+                    currentBatchSize += smallFiles[i].size;
                 }
-                if (prescanIndices.length > 0) {
-                    batchFormData.append('prescan_doc_ids', prescanIndices.join(','));
-                }
-
-                const response = await fetch('/api/documents/upload-multiple', {
-                    method: 'POST',
-                    body: batchFormData,
-                    credentials: 'include'
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || 'Upload failed');
+                if (currentBatch.length > 0) {
+                    batches.push({ files: currentBatch, indices: currentBatchIndices });
                 }
 
-                batchResult = await response.json();
+                const allBatchResults = [];
+                let totalFailed = 0;
+                const allErrors = [];
 
-                if (batchResult.failed > 0) {
-                    let message = `Uploaded: ${batchResult.uploaded} files\nFailed: ${batchResult.failed} files`;
-                    if (batchResult.errors && batchResult.errors.length > 0) {
-                        message += '\n\nErrors:\n' + batchResult.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
+                for (let b = 0; b < batches.length; b++) {
+                    const batch = batches[b];
+                    if (batches.length > 1) {
+                        const pDiv = document.getElementById('uploadProgress');
+                        if (pDiv) pDiv.innerHTML = '<div style="background:#E0F2FE;border-radius:6px;padding:16px;text-align:center;"><p style="margin:0;color:#1E40AF;font-weight:500;">Uploading batch ' + (b+1) + ' of ' + batches.length + '...</p></div>';
+                    }
+                    const batchFormData = new FormData();
+                    if (enhanced) batchFormData.append('enhanced', '1');
+                    for (const file of batch.files) {
+                        batchFormData.append('files', file);
+                    }
+
+                    const prescanIndices = [];
+                    for (let i = 0; i < batch.files.length; i++) {
+                        const origIndex = batch.indices[i];
+                        if (batch.files[i].type === 'application/pdf' && (pageEstimates[origIndex] || 0) > PRESCAN_THRESHOLD) {
+                            prescanIndices.push(i);
+                        }
+                    }
+                    if (prescanIndices.length > 0) {
+                        batchFormData.append('prescan_doc_ids', prescanIndices.join(','));
+                    }
+
+                    const response = await fetch('/api/documents/upload-multiple', {
+                        method: 'POST',
+                        body: batchFormData,
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        let errMsg = 'Upload failed';
+                        try { const e = await response.json(); errMsg = e.error || errMsg; } catch (_) {}
+                        throw new Error(errMsg);
+                    }
+
+                    const result = await response.json();
+                    if (result.results) allBatchResults.push(...result.results);
+                    if (result.failed) totalFailed += result.failed;
+                    if (result.errors) allErrors.push(...result.errors);
+                }
+
+                batchResult = {
+                    uploaded: allBatchResults.length,
+                    failed: totalFailed,
+                    errors: allErrors,
+                    results: allBatchResults
+                };
+
+                if (totalFailed > 0) {
+                    let message = 'Uploaded: ' + allBatchResults.length + ' files\nFailed: ' + totalFailed + ' files';
+                    if (allErrors.length > 0) {
+                        message += '\n\nErrors:\n' + allErrors.map(e => '- ' + e.filename + ': ' + e.error).join('\n');
                     }
                     alert(message);
                 }

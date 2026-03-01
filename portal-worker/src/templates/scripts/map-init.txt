@@ -60,7 +60,7 @@
                 // Only show loading screen if boundaries aren't cached
                 const hasCache = hasCachedBoundaries();
                 if (!hasCache) {
-                    showLoading('Loading map data...', 'First-time setup - this only happens once');
+                    showLoading('Loading map data...', 'Loading county and township boundaries');
                 }
 
                 // Load boundary data
