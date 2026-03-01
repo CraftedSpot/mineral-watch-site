@@ -215,6 +215,8 @@
                 let levelClass = 'property';
                 if (alertLevel.includes('ADJACENT')) levelClass = 'adjacent';
                 else if (alertLevel.includes('TRACKED')) levelClass = 'tracked';
+                else if (alertLevel === 'BOTTOM HOLE') levelClass = 'bottomhole';
+                else if (alertLevel === 'LATERAL PATH') levelClass = 'lateral';
 
                 // Format date
                 const date = new Date(f['Detected At']);

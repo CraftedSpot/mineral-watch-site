@@ -349,20 +349,20 @@ function getActivityStyle(activityType) {
  * Get contextual explanation based on activity type
  */
 function getExplanation(activityType, alertLevel, isMultiSection = false, isDirectional = false, statusChange = null) {
-  // Handle special horizontal path alert levels
-  if (alertLevel === 'HORIZONTAL PATH THROUGH PROPERTY') {
+  // Handle bottom hole and lateral path alert levels
+  if (alertLevel === 'BOTTOM HOLE') {
     return {
-      meaning: 'A horizontal well passes through your property section. While the surface location is elsewhere, the wellbore travels underground through your minerals.',
-      tip: 'You should be included in the drilling unit and receive royalties if you own minerals in this section.',
+      meaning: 'A horizontal well\'s bottom hole is in your property section. The surface pad is in another section, but the well terminates in your minerals.',
+      tip: 'You are almost certainly in the drilling unit and should receive royalties from this well.',
       tipType: 'warning'
     };
   }
-  
-  if (alertLevel === 'HORIZONTAL PATH ADJACENT') {
+
+  if (alertLevel === 'LATERAL PATH') {
     return {
-      meaning: 'A horizontal well passes near your property. The wellbore travels underground through a section adjacent to yours.',
-      tip: 'Your minerals may be included in the drilling unit depending on spacing rules and drainage patterns.',
-      tipType: 'info'
+      meaning: 'A horizontal well\'s lateral passes through your property section. The surface pad and bottom hole are elsewhere, but the wellbore crosses through your minerals.',
+      tip: 'You should be included in the drilling unit and receive royalties if you own minerals in this section.',
+      tipType: 'warning'
     };
   }
   

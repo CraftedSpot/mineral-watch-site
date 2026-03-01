@@ -260,10 +260,13 @@ function deduplicateAlertsByUser(alerts) {
   // Alert level priority (lower number = higher priority)
   const alertPriority = {
     'YOUR PROPERTY': 1,
+    'BOTTOM HOLE': 2,
+    'LATERAL PATH': 3,
+    'TRACKED WELL': 4,
+    'ADJACENT SECTION': 5,
+    'ADJACENT TO YOUR PROPERTY': 5,
+    // Legacy (shouldn't appear but safe):
     'HORIZONTAL PATH THROUGH PROPERTY': 2,
-    'TRACKED WELL': 3,
-    'ADJACENT SECTION': 4,
-    'ADJACENT TO YOUR PROPERTY': 4,
     'HORIZONTAL PATH ADJACENT': 5
   };
 
@@ -896,20 +899,29 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         for (const match of pathMatches) {
           // Avoid duplicate alerts to same user
           if (!alertsToSend.some(a => a.user.email === match.user.email)) {
-            const isInPath = pathSection.section === permit.Section && 
-                           pathSection.township === permit.Township && 
+            const isSurface = pathSection.section === permit.Section &&
+                           pathSection.township === permit.Township &&
                            pathSection.range === permit.Range;
-            const isBH = pathSection.section === permit.PBH_Section && 
-                        pathSection.township === permit.PBH_Township && 
+            const isBH = pathSection.section === permit.PBH_Section &&
+                        pathSection.township === permit.PBH_Township &&
                         pathSection.range === permit.PBH_Range;
-            
+
+            let alertLevel = match.alertLevel;
             let reason = 'horizontal_path';
-            if (isInPath) reason = 'surface_location';
-            else if (isBH) reason = 'bottom_hole_location';
-            
+            if (isSurface) {
+              reason = 'surface_location';
+              // alertLevel stays as match.alertLevel (YOUR PROPERTY or ADJACENT SECTION)
+            } else if (isBH) {
+              reason = 'bottom_hole_location';
+              alertLevel = match.alertLevel === 'YOUR PROPERTY' ? 'BOTTOM HOLE' : 'ADJACENT SECTION';
+            } else {
+              // Intermediate lateral path section
+              alertLevel = match.alertLevel === 'YOUR PROPERTY' ? 'LATERAL PATH' : 'ADJACENT SECTION';
+            }
+
             alertsToSend.push({
               user: match.user,
-              alertLevel: match.alertLevel,
+              alertLevel: alertLevel,
               matchedLocation: match.matchedSection,
               reason: reason
             });
@@ -1285,13 +1297,14 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     
     for (const match of bhMatches) {
       // Avoid duplicate alerts to same user with same alert level
-      if (!alertsToSend.some(a => 
-        a.user.email === match.user.email && 
-        a.alertLevel === match.alertLevel
+      const bhAlertLevel = match.alertLevel === 'YOUR PROPERTY' ? 'BOTTOM HOLE' : match.alertLevel;
+      if (!alertsToSend.some(a =>
+        a.user.email === match.user.email &&
+        a.alertLevel === bhAlertLevel
       )) {
         alertsToSend.push({
           user: match.user,
-          alertLevel: match.alertLevel,
+          alertLevel: bhAlertLevel,
           matchedLocation: match.matchedSection,
           reason: 'bottom_hole_location'
         });
@@ -1343,10 +1356,10 @@ async function processCompletion(completion, env, results, dryRun = false, prope
             }, env);
         
         for (const match of pathMatches) {
-          // Special alert level for horizontal path
-          const pathAlertLevel = match.alertLevel === 'YOUR PROPERTY' 
-            ? 'HORIZONTAL PATH THROUGH PROPERTY' 
-            : 'HORIZONTAL PATH ADJACENT';
+          // Lateral path — user's property is in an intermediate section the wellbore crosses
+          const pathAlertLevel = match.alertLevel === 'YOUR PROPERTY'
+            ? 'LATERAL PATH'
+            : 'ADJACENT SECTION';
           
           if (!alertsToSend.some(a => 
             a.user.email === match.user.email && 

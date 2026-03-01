@@ -296,6 +296,16 @@ function buildDocketAlertEmail(entry, match) {
     alertLevelDisplay = '🎯 YOUR PROPERTY';
     alertColor = '#dc2626'; // Red
     matchDescription = `Section ${entry.section}, T${entry.township}, R${entry.range}`;
+  } else if (alertLevel === 'BOTTOM HOLE') {
+    // Well's bottom hole is in user's section
+    alertLevelDisplay = '🎯 BOTTOM HOLE';
+    alertColor = '#c2410c'; // Orange
+    matchDescription = `Section ${entry.section}, T${entry.township}, R${entry.range}`;
+  } else if (alertLevel === 'LATERAL PATH') {
+    // Well's lateral passes through user's section
+    alertLevelDisplay = '↔️ LATERAL PATH';
+    alertColor = '#7c3aed'; // Purple
+    matchDescription = `Section ${entry.section}, T${entry.township}, R${entry.range}`;
   } else {
     // Adjacent property match
     alertLevelDisplay = '📍 ADJACENT TO YOUR PROPERTY';
@@ -441,9 +451,17 @@ function buildDocketAlertEmail(entry, match) {
 
 /**
  * Deduplicate matches by case_number + userId, keeping highest priority
- * Priority: YOUR PROPERTY > ADJACENT SECTION
+ * Priority: YOUR PROPERTY > BOTTOM HOLE > LATERAL PATH > TRACKED WELL > ADJACENT SECTION
  */
 function deduplicateMatches(entry, matches) {
+  const alertPriority = {
+    'YOUR PROPERTY': 1,
+    'BOTTOM HOLE': 2,
+    'LATERAL PATH': 3,
+    'TRACKED WELL': 4,
+    'ADJACENT SECTION': 5,
+    'ADJACENT TO YOUR PROPERTY': 5
+  };
   const matchesByUser = new Map();
 
   for (const match of matches) {
@@ -453,8 +471,10 @@ function deduplicateMatches(entry, matches) {
     if (!existing) {
       matchesByUser.set(key, match);
     } else {
-      // Keep higher priority match (YOUR PROPERTY > ADJACENT)
-      if (match.alertLevel === 'YOUR PROPERTY' && existing.alertLevel !== 'YOUR PROPERTY') {
+      // Keep higher priority match (lower number = higher priority)
+      const existingPri = alertPriority[existing.alertLevel] || 99;
+      const newPri = alertPriority[match.alertLevel] || 99;
+      if (newPri < existingPri) {
         matchesByUser.set(key, match);
       }
     }

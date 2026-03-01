@@ -63,6 +63,8 @@
         .activity-level.property { background: #FEE2E2; color: #991B1B; }
         .activity-level.adjacent { background: #FEF3C7; color: #92400E; }
         .activity-level.tracked { background: #CCFBF1; color: #115E59; }
+        .activity-level.bottomhole { background: #FFF7ED; color: #9A3412; }
+        .activity-level.lateral { background: #F5F3FF; color: #5B21B6; }
         .activity-well { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
         .activity-meta { font-size: 13px; color: var(--slate-blue); }
         .activity-change { background: var(--paper); padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-top: 8px; display: inline-block; }
