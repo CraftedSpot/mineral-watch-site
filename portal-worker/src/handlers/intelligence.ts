@@ -110,11 +110,22 @@ async function fetchAndCachePrices(env: Env): Promise<CachedPrices | null> {
   }
 }
 
-// Intelligence features available to Business plan and above
-const INTELLIGENCE_ALLOWED_PLANS = ['Business', 'Enterprise 1K'];
+// Tiered intelligence access
+const PORTFOLIO_PLANS = ['Standard', 'Professional', 'Business', 'Enterprise 1K'];
+const FULL_INTEL_PLANS = ['Business', 'Enterprise 1K'];
 
-function isIntelligenceAllowed(plan: string | undefined): boolean {
-  return plan ? INTELLIGENCE_ALLOWED_PLANS.includes(plan) : false;
+function isPortfolioAllowed(plan: string | undefined): boolean {
+  return plan ? PORTFOLIO_PLANS.includes(plan) : false;
+}
+
+function isFullIntelAllowed(plan: string | undefined): boolean {
+  return plan ? FULL_INTEL_PLANS.includes(plan) : false;
+}
+
+function getIntelligenceTier(plan: string | undefined): 'none' | 'portfolio' | 'full' {
+  if (isFullIntelAllowed(plan)) return 'full';
+  if (isPortfolioAllowed(plan)) return 'portfolio';
+  return 'none';
 }
 
 /**
@@ -136,13 +147,15 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    // Intelligence features — portfolio tier (Standard+)
+    const userPlan = (userRecord.fields as any).Plan;
+    if (!isPortfolioAllowed(userPlan)) {
       return jsonResponse({
         activeWells: 0, countyCount: 0, estimatedRevenue: null,
         revenueChange: null, deductionFlags: null, shutInWells: 0,
         actionItems: 0, nearestDeadline: null,
-        _beta_restricted: true
+        _beta_restricted: true,
+        _intelligence_tier: 'none'
       });
     }
 
@@ -329,7 +342,8 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       wellsAnalyzed,
       wellsWithLinks: basePuns.length,
       actionItems: 0,
-      nearestDeadline: null
+      nearestDeadline: null,
+      _intelligence_tier: getIntelligenceTier(userPlan)
     });
 
   } catch (error) {
@@ -357,8 +371,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    // Intelligence features — portfolio tier (Standard+)
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({
         insights: [{
           severity: 'info',
@@ -583,20 +597,23 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    // Intelligence features — portfolio tier (Standard+)
+    const userPlan = (userRecord.fields as any).Plan;
+    if (!isPortfolioAllowed(userPlan)) {
       return jsonResponse({
         summary: {
           activeWells: 0, countyCount: 0, estimatedRevenue: null,
           revenueChange: null, deductionFlags: null, shutInWells: 0,
           actionItems: 0, nearestDeadline: null, wellsAnalyzed: 0,
-          _beta_restricted: true
+          _beta_restricted: true,
+          _intelligence_tier: 'none'
         },
         insights: [{
           severity: 'info',
-          title: 'Intelligence features coming soon',
-          description: 'Advanced deduction analysis and operator comparisons will be available in an upcoming release.'
-        }]
+          title: 'Intelligence Reports',
+          description: 'Upgrade to Standard or above to unlock portfolio analytics — production decline tracking, shut-in detection, well risk profiles, and more.'
+        }],
+        _intelligence_tier: 'none'
       });
     }
 
@@ -1048,7 +1065,7 @@ export async function handleGetIntelligenceData(request: Request, env: Env): Pro
       nearestDeadline: poolingData.nearestDeadline
     };
 
-    return jsonResponse({ summary, insights });
+    return jsonResponse({ summary, insights, _intelligence_tier: getIntelligenceTier(userPlan) });
 
   } catch (error) {
     console.error('[Intelligence Data] Error:', error instanceof Error ? error.message : error);
@@ -1078,8 +1095,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    // Intelligence features — portfolio tier (Standard+)
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -1550,9 +1567,9 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
-      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    // Full intel tier (Business+) — operator research tool
+    if (!isFullIntelAllowed((userRecord.fields as any).Plan)) {
+      return jsonResponse({ error: 'This report requires a Business plan or above' }, 403);
     }
 
     const cacheId = userOrgId || authUser.id;
@@ -1953,9 +1970,9 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
-      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    // Full intel tier (Business+) — pooling benchmarks
+    if (!isFullIntelAllowed((userRecord.fields as any).Plan)) {
+      return jsonResponse({ error: 'This report requires a Business plan or above' }, 403);
     }
 
     const cacheId = userOrgId || authUser.id;
@@ -2549,7 +2566,7 @@ export async function handlePoolingPrint(request: Request, env: Env): Promise<Re
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isFullIntelAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -2875,8 +2892,8 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    // Intelligence features limited to Business plan and above
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    // Intelligence features — portfolio tier (Standard+)
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -3219,7 +3236,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -3751,7 +3768,7 @@ export async function handleDeductionAuditPrint(request: Request, env: Env): Pro
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -4108,7 +4125,7 @@ export async function handleProductionDeclinePrint(request: Request, env: Env): 
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -4681,7 +4698,7 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -5031,7 +5048,7 @@ export async function handleShutInDetectorPrint(request: Request, env: Env): Pro
     if (!userRecord) return new Response('User not found', { status: 404 });
 
     const userOrgId = userRecord.fields.Organization?.[0];
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return new Response('Intelligence features not available for your account', { status: 403 });
     }
 
@@ -5580,7 +5597,7 @@ export async function handleGetShutInDetectorMarkets(request: Request, env: Env)
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -6195,7 +6212,7 @@ export async function handleGetOccFilingActivity(request: Request, env: Env): Pr
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 
@@ -6691,7 +6708,7 @@ export async function handleGetWellRiskProfile(request: Request, env: Env, ctx?:
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
-    if (!isIntelligenceAllowed((userRecord.fields as any).Plan)) {
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
       return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
     }
 

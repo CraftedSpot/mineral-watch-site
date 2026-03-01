@@ -230,6 +230,10 @@ export default {
           await handleInvoicePaymentFailed(event.data.object, env);
           break;
 
+        case 'invoice.payment_action_required':
+          await handleInvoicePaymentActionRequired(event.data.object, env);
+          break;
+
         default:
           console.log(`Unhandled event type: ${event.type}`);
       }
@@ -768,7 +772,72 @@ async function handleInvoicePaymentFailed(invoice, env) {
     }
   }
 
-  console.log(`Payment status set to Failed for ${userEmail}`);
+  // Format amount and next retry date
+  const amount = invoice.amount_due
+    ? `$${(invoice.amount_due / 100).toFixed(2)}`
+    : 'your subscription';
+  const nextRetryDate = invoice.next_payment_attempt
+    ? new Date(invoice.next_payment_attempt * 1000).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    : null;
+  const invoiceUrl = invoice.hosted_invoice_url || null;
+  const userName = user.fields.Name || user.fields['First Name'] || null;
+
+  // Send payment failed email to user
+  await sendPaymentFailedEmail(env, userEmail, userName, amount, nextRetryDate, invoiceUrl);
+
+  // Admin alert
+  await sendAdminPaymentAlert(env, {
+    type: 'payment_failed',
+    email: userEmail,
+    name: userName,
+    amount,
+    invoiceNumber: invoice.number,
+    nextRetry: nextRetryDate
+  });
+
+  console.log(`Payment failed handled for ${userEmail} (final: ${!nextRetryDate})`);
+}
+
+/**
+ * Handle invoice requiring payment action (3D Secure verification)
+ * No status change — payment is pending, not failed
+ */
+async function handleInvoicePaymentActionRequired(invoice, env) {
+  const stripeCustomerId = invoice.customer;
+
+  console.log(`Payment action required for customer: ${stripeCustomerId}`);
+
+  const invoiceUrl = invoice.hosted_invoice_url;
+  if (!invoiceUrl) {
+    console.log('No hosted_invoice_url — skipping action required email');
+    return;
+  }
+
+  const user = await findUserByStripeCustomerId(env, stripeCustomerId);
+
+  if (!user) {
+    console.error(`No user found for Stripe customer: ${stripeCustomerId}`);
+    return;
+  }
+
+  const userEmail = user.fields.Email;
+  const userName = user.fields.Name || user.fields['First Name'] || null;
+  const amount = invoice.amount_due
+    ? `$${(invoice.amount_due / 100).toFixed(2)}`
+    : 'your subscription';
+
+  await sendPaymentActionRequiredEmail(env, userEmail, userName, amount, invoiceUrl);
+
+  await sendAdminPaymentAlert(env, {
+    type: 'payment_action_required',
+    email: userEmail,
+    name: userName,
+    amount,
+    invoiceNumber: invoice.number,
+    nextRetry: null
+  });
+
+  console.log(`Payment action required email sent to ${userEmail}`);
 }
 
 // ============================================
@@ -1250,6 +1319,187 @@ async function sendAdminNotification(env, { type, email, name, plan, isAnnual, a
     console.log(`[Admin] Notified: ${subject}`);
   } catch (err) {
     console.error('[Admin] Failed to send notification:', err.message);
+  }
+}
+
+/**
+ * Send payment failed email — tone varies by retry status
+ */
+async function sendPaymentFailedEmail(env, email, name, amount, nextRetryDate, invoiceUrl) {
+  const displayName = name || 'there';
+  const ctaUrl = invoiceUrl || `${BASE_URL}/portal/account`;
+  const isFinal = !nextRetryDate;
+
+  const retryLine = nextRetryDate
+    ? `<p style="font-size: 15px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">We'll automatically try again on <strong>${nextRetryDate}</strong>. You can also update your payment method now to avoid any interruption.</p>`
+    : '';
+
+  const boxStyle = isFinal
+    ? 'background: #FFF5F0; border-left: 4px solid #C05621;'
+    : 'background: #EBF8FF; border-left: 4px solid #3182CE;';
+
+  const boxContent = isFinal
+    ? `<strong>Your subscription will revert to Free.</strong><br>Your data is preserved — nothing has been deleted. You can resubscribe anytime from your dashboard.`
+    : `<strong>No action needed yet.</strong><br>We'll retry automatically. If you'd like to update your card now, click below.`;
+
+  const subject = isFinal
+    ? `Action needed: Your Mineral Watch payment failed`
+    : `Heads up: We had trouble charging your card`;
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: #1C2B36; padding: 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Mineral Watch</h1>
+      </div>
+      <div style="padding: 40px 30px;">
+        <p style="font-size: 18px; color: #1C2B36; margin: 0 0 20px;">Hi ${displayName},</p>
+        <p style="font-size: 16px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">
+          We had trouble processing your payment of <strong>${amount}</strong> for your Mineral Watch subscription.
+        </p>
+        ${retryLine}
+        <div style="${boxStyle} border-radius: 6px; padding: 20px; margin: 25px 0;">
+          <p style="margin: 0; color: #334E68; font-size: 15px;">
+            ${boxContent}
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${ctaUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Update Payment Method →</a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+        <p style="font-size: 14px; color: #718096; margin: 0;">
+          Questions? Just reply to this email.
+        </p>
+        <p style="font-size: 16px; color: #334E68; margin: 30px 0 0;">— Mineral Watch</p>
+      </div>
+      <div style="background: #F7FAFC; padding: 20px 30px; text-align: center; border-top: 1px solid #E2E8F0;">
+        <p style="font-size: 12px; color: #A0AEC0; margin: 0;">Mineral Watch · Oklahoma Mineral Rights Monitoring</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  const retryText = nextRetryDate
+    ? `We'll automatically try again on ${nextRetryDate}. You can also update your payment method now.\n\n`
+    : '';
+  const warningText = isFinal
+    ? `Your subscription will revert to Free. Your data is preserved — nothing has been deleted.\n\n`
+    : '';
+
+  const textBody = `Hi ${displayName},
+
+We had trouble processing your payment of ${amount} for your Mineral Watch subscription.
+
+${retryText}${warningText}Update your payment method: ${ctaUrl}
+
+Questions? Just reply to this email.
+
+— Mineral Watch`;
+
+  await sendEmail(env, email, subject, htmlBody, textBody);
+}
+
+/**
+ * Send 3D Secure / payment action required email — neutral informational tone
+ */
+async function sendPaymentActionRequiredEmail(env, email, name, amount, invoiceUrl) {
+  const displayName = name || 'there';
+
+  const subject = `Complete your Mineral Watch payment`;
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      <div style="background: #1C2B36; padding: 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Mineral Watch</h1>
+      </div>
+      <div style="padding: 40px 30px;">
+        <p style="font-size: 18px; color: #1C2B36; margin: 0 0 20px;">Hi ${displayName},</p>
+        <p style="font-size: 16px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">
+          Your bank requires additional verification to process your payment of <strong>${amount}</strong> for Mineral Watch.
+        </p>
+        <div style="background: #EBF8FF; border-left: 4px solid #3182CE; border-radius: 6px; padding: 20px; margin: 25px 0;">
+          <p style="margin: 0; color: #334E68; font-size: 15px;">
+            <strong>This is a standard security step.</strong><br>
+            Many banks require you to confirm payments through their app or website. Click below to complete the verification — it only takes a moment.
+          </p>
+        </div>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${invoiceUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Complete Payment →</a>
+        </div>
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+        <p style="font-size: 14px; color: #718096; margin: 0;">
+          Questions? Just reply to this email.
+        </p>
+        <p style="font-size: 16px; color: #334E68; margin: 30px 0 0;">— Mineral Watch</p>
+      </div>
+      <div style="background: #F7FAFC; padding: 20px 30px; text-align: center; border-top: 1px solid #E2E8F0;">
+        <p style="font-size: 12px; color: #A0AEC0; margin: 0;">Mineral Watch · Oklahoma Mineral Rights Monitoring</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+  `;
+
+  const textBody = `Hi ${displayName},
+
+Your bank requires additional verification to process your payment of ${amount} for Mineral Watch.
+
+This is a standard security step. Many banks require you to confirm payments through their app or website.
+
+Complete your payment: ${invoiceUrl}
+
+Questions? Just reply to this email.
+
+— Mineral Watch`;
+
+  await sendEmail(env, email, subject, htmlBody, textBody);
+}
+
+/**
+ * Send admin alert for payment issues
+ */
+async function sendAdminPaymentAlert(env, { type, email, name, amount, invoiceNumber, nextRetry }) {
+  const emoji = type === 'payment_failed' ? '🚨' : '🔐';
+  const label = type === 'payment_failed' ? 'Payment Failed' : '3D Secure Required';
+  const retryInfo = nextRetry ? `\nNext Retry: ${nextRetry}` : '\nFinal attempt — no more retries';
+  const subject = `${emoji} ${label}: ${name || email}`;
+  const textBody = `${label}\n\nName: ${name || 'N/A'}\nEmail: ${email}\nAmount: ${amount}\nInvoice: ${invoiceNumber || 'N/A'}${retryInfo}\nTime: ${new Date().toISOString()}`;
+
+  try {
+    await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`
+      },
+      body: JSON.stringify({
+        from: 'Mineral Watch <support@mymineralwatch.com>',
+        to: 'james@mymineralwatch.com',
+        subject: subject,
+        text: textBody
+      })
+    });
+    console.log(`[Admin] Payment alert: ${subject}`);
+  } catch (err) {
+    console.error('[Admin] Failed to send payment alert:', err.message);
   }
 }
 

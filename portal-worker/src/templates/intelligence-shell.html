@@ -95,8 +95,8 @@
                     <h2 class="section-title">Reports</h2>
                     <span class="section-meta">Analyze your mineral portfolio</span>
                 </div>
-                <div class="market-tools-grid">
-                    <div class="market-tool-card" onclick="loadDeductionReport()">
+                <div class="market-tools-grid" id="reportsGrid">
+                    <div class="market-tool-card" data-tier="portfolio" onclick="loadDeductionReport()">
                         <div class="tool-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
@@ -111,7 +111,7 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadProductionDeclineReport()">
+                    <div class="market-tool-card" data-tier="portfolio" onclick="loadProductionDeclineReport()">
                         <div class="tool-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <path d="M3 3v18h18"/>
