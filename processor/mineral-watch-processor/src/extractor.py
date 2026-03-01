@@ -10441,17 +10441,19 @@ CRITICAL: If you see DIFFERENT document types on different pages (Assignment, Qu
 If you see evidence of multiple documents, set is_multi_document: true and estimate the count.
 
 DOCUMENT TYPES (if not one of these, return "other"):
-- mineral_deed, royalty_deed, lease, division_order, assignment
+- mineral_deed, royalty_deed, warranty_deed, gift_deed, quit_claim_deed, lease, division_order, assignment
+- lease_amendment, lease_extension, lease_ratification, memorandum_of_lease, assignment_of_lease, rental_deposit_receipt
 - pooling_order, pooling_application, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer, title_opinion
 - lease_production (GIS NRIS production reports, well/lease production summaries with monthly/annual volumes)
 - check_stub, joint_interest_billing, occ_order, suspense_notice, joa
-- affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, ownership_entity, legal_document, correspondence, corporation_commission_notice
 - tax_record, map
 
 TRUST FUNDING DETECTION:
 - trust_funding: Look for "GENERAL ASSIGNMENT" or "ASSIGNMENT" that transfers property from an individual to a TRUST. Key indicators: same person appears as both assignor (individual) AND assignee (as trustee), trust name mentioned (e.g., "Virginia K. Price Trust"), language about transferring "all property" or specific categories to a trust. Often includes nominal consideration ($10.00 and other good and valuable consideration). This is an estate planning document, NOT a sale.
+  DEED TYPE OVERRIDE: If the document title says "MINERAL DEED", "ROYALTY DEED", or "WARRANTY DEED", classify by the deed type on the face of the instrument — NOT as trust_funding — even if the transfer is from an individual to their own trust. Only use trust_funding when the document is titled "ASSIGNMENT", "GENERAL ASSIGNMENT", or has no specific deed-type title.
 
 LIMITED PARTNERSHIP DETECTION:
 - limited_partnership: Look for "CERTIFICATE OF LIMITED PARTNERSHIP" or "LIMITED PARTNERSHIP AGREEMENT". Contains formation date, term/duration, general partners with management authority, limited partners with capital contributions, percentage interests. Key indicators: "General Partner", "Limited Partner", Article structures defining rights/duties, capital contribution amounts, profit/loss sharing percentages. May include succession provisions for what happens when GP dies (interest converts to LP interest).
@@ -11585,7 +11587,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         "affidavit_of_heirship", "death_certificate", "trust_funding", "limited_partnership",
         "ownership_entity", "legal_document", "correspondence",
         "tax_record", "map", "corporation_commission_notice",
-        "lease_amendment", "lease_extension", "lease_ratification",
+        "lease_amendment", "lease_extension", "lease_ratification", "memorandum_of_lease",
+        "rental_deposit_receipt", "pooling_application",
     }
 
     # Text-based GIS NRIS override + quick-classify for unrecognized types
