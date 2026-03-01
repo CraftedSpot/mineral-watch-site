@@ -238,6 +238,51 @@ export function extractParties(extractedData: any, docType: string): Party[] {
       addParty(extractedData.new_operator, 'operator');
       break;
 
+    // ===== AFFIDAVIT OF HEIRSHIP =====
+    case 'affidavit_of_heirship':
+      // Decedent is the "grantor" — ownership passes from them
+      addParty(extractedData.decedent?.full_name || extractedData.decedent?.name, 'grantor');
+      // Affiant
+      addParty(extractedData.affiant?.full_name || extractedData.affiant?.name, 'affiant');
+      // Heirs are the "grantees" — ownership passes to them
+      if (Array.isArray(extractedData.heirs)) {
+        for (const h of extractedData.heirs) {
+          addParty(h?.full_name || h?.name, 'grantee');
+        }
+      }
+      // Fallback: mega-prompt format used heirs_summary
+      if (Array.isArray(extractedData.heirs_summary)) {
+        for (const h of extractedData.heirs_summary) {
+          addParty(h?.name, 'grantee');
+        }
+      }
+      break;
+
+    // ===== TITLE OPINIONS =====
+    case 'title_opinion':
+      addParty(extractedData.examining_attorney?.name, 'examiner');
+      if (extractedData.examining_attorney?.firm &&
+          extractedData.examining_attorney.firm !== extractedData.examining_attorney?.name) {
+        addParty(extractedData.examining_attorney.firm, 'examiner');
+      }
+      addParty(extractedData.addressed_to?.name, 'client');
+      if (Array.isArray(extractedData.current_owners)) {
+        for (const o of extractedData.current_owners) {
+          addParty(o?.name, 'owner');
+        }
+      }
+      if (Array.isArray(extractedData.chain_of_instruments)) {
+        for (const inst of extractedData.chain_of_instruments) {
+          if (Array.isArray(inst?.grantors)) {
+            for (const g of inst.grantors) addParty(g, 'grantor');
+          }
+          if (Array.isArray(inst?.grantees)) {
+            for (const g of inst.grantees) addParty(g, 'grantee');
+          }
+        }
+      }
+      break;
+
     // ===== GENERIC / FALLBACK =====
     default:
       // Generic prompt: parties.from[] / parties.to[]

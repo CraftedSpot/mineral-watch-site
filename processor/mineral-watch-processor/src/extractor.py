@@ -9870,6 +9870,12 @@ LEASE_PRODUCTION_DOC_TYPES = ["lease_production", "production_record", "producti
 # Document types that should use the CORRESPONDENCE focused prompt
 CORRESPONDENCE_DOC_TYPES = ["correspondence", "letter", "email", "notice", "transmittal"]
 
+# Document types that should use the TITLE OPINION focused prompt
+TITLE_OPINION_DOC_TYPES = ["title_opinion"]
+
+# Document types that should use the HEIRSHIP focused prompt
+HEIRSHIP_DOC_TYPES = ["affidavit_of_heirship"]
+
 LEASE_PRODUCTION_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced petroleum landman and production analyst helping Oklahoma mineral owners understand their well and lease production history.
 Your task is to extract production summary data so owners can track cumulative output, identify decline trends, and cross-reference with royalty payments.
 
@@ -10211,6 +10217,639 @@ SOURCE OF TRUTH:
 """
 
 
+TITLE_OPINION_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced Oklahoma title attorney examining mineral property records.
+Your task is to extract key information from a title opinion. Return raw values directly - do NOT wrap values in confidence objects.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Only comment on dates if they conflict with OTHER dates in the SAME document
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Who prepared the opinion, for whom, what property
+   - Title status and number of requirements (critical/material/informational)
+   - ALWAYS identify the examining attorney and operator/client by name
+
+   DETAILED ANALYSIS:
+   - Write as an experienced title attorney reviewing a colleague's work
+   - Focus on critical requirements, chain gaps, and marketability concerns
+   - Note any missing instruments or gaps in the chain
+   - Comment on the adequacy of the title for drilling/division order purposes
+   - Only reference information explicitly stated in the document
+   - DO NOT list specific data already extracted - focus on insight
+
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- NEVER hallucinate plausible-sounding values for illegible text
+- It is BETTER to return null than to guess incorrectly
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPE FOR THIS PROMPT: title_opinion
+=============================================================================
+
+TITLE OPINION TYPES:
+- "drilling": Rendered before drilling a well to confirm the operator has good title to drill
+- "division_order": Rendered to establish ownership for revenue distribution (division of interest)
+- "preliminary": Initial title review, often before full opinion is prepared
+- "status": Update to a prior opinion reflecting changes since the effective date
+- "supplemental": Addresses a specific issue or requirement from a prior opinion
+- "other": If the type cannot be determined from the document
+
+HOW TO IDENTIFY:
+- Drilling opinions often reference "proposed well" or "well to be drilled"
+- Division order opinions reference "division of interest" or "distribution of proceeds"
+- Supplemental/status opinions reference a prior opinion date or requirement number
+- The document may explicitly state "DRILLING TITLE OPINION" or "DIVISION ORDER TITLE OPINION"
+
+CHAIN OF INSTRUMENTS:
+- Extract EVERY instrument examined by the title attorney, ordered chronologically
+- Each instrument is a link in the chain of title (patent, deed, lease, probate, etc.)
+- Recording references are CRITICAL: book/page or instrument number
+- For each instrument, capture the examiner's narrative about its effect on title
+- Include patents, deeds, mortgages, releases, probate proceedings, court orders, leases, assignments
+- If the opinion lists instruments in a numbered chain, preserve that ordering
+
+RECORDING REFERENCES:
+- Oklahoma counties have transitioned from Book/Page to instrument numbers at different times
+- Older instruments: Book (or Volume) and Page
+- Newer instruments: Instrument number (sometimes prefixed with county code)
+- Extract whichever format the document uses; include both if both are given
+
+REQUIREMENTS vs INFORMATIONAL NOTES:
+- "critical": Must be cured before drilling/operations can proceed (missing signatures, breaks in chain, unreleased mortgages)
+- "material": Should be cured but may not prevent operations (missing marital joinders, stale POAs, address updates needed)
+- "informational": No action needed, just noted for the record (pending probate already filed, HBP lease status)
+- If the opinion numbers its requirements, preserve the original numbering in the description
+
+CURRENT OWNERSHIP:
+- Extract each owner's interest as determined by the examining attorney
+- Interest fractions: preserve both the fraction text ("1/64") and compute the decimal (0.015625)
+- owner_type: individual, entity (LLC/Corp), trust, estate, unknown
+- interest_type: mineral, royalty, NPRI (non-participating royalty interest), WI (working interest), ORRI (overriding royalty)
+- source_note: the recording reference or instrument that establishes this ownership
+
+PARTIAL OPINION HANDLING:
+- Title opinions are often long (20-50+ pages). Pages may be missing from the scan.
+- If pages are missing, extract what's visible. Set fields to null when information is on missing pages.
+- If the chain of instruments appears truncated, note "chain appears incomplete - pages may be missing"
+- Still extract whatever owners, requirements, and instruments ARE visible
+
+TITLE STATUS:
+- "marketable": Title is clear and marketable with no outstanding requirements
+- "marketable_with_requirements": Title can be approved subject to curing the listed requirements
+- "unmarketable": Significant defects that prevent approval of title
+- "incomplete": Cannot determine marketability (missing pages, insufficient information)
+- Most drilling opinions will be "marketable_with_requirements" (common to have some curative needed)
+
+COMMON FRACTION CONVERSIONS:
+1/2 = 0.5, 1/4 = 0.25, 1/8 = 0.125, 1/16 = 0.0625, 1/32 = 0.03125, 1/64 = 0.015625, 1/128 = 0.0078125
+
+=============================================================================
+
+TITLE OPINION EXAMPLE:
+{{
+  "doc_type": "title_opinion",
+  "opinion_type": "drilling",
+
+  "effective_date": "2024-03-15",
+  "prepared_date": "2024-04-01",
+
+  "examining_attorney": {{
+    "name": "Robert L. Thompson",
+    "firm": "Thompson & Associates"
+  }},
+
+  "addressed_to": {{
+    "name": "Continental Resources Inc.",
+    "role": "operator"
+  }},
+
+  "well_name": "Price 1-18H",
+
+  "property_description": {{
+    "full_legal": "Section 18, Township 17 North, Range 13 West, Indian Meridian, Blaine County, Oklahoma",
+    "section": "18",
+    "township": "17N",
+    "range": "13W",
+    "meridian": "IM",
+    "county": "Blaine",
+    "state": "OK",
+    "gross_acres": 640,
+    "unit_description": "640-acre spacing unit covering the entire section"
+  }},
+
+  "current_owners": [
+    {{
+      "name": "Joel S. Price Trust",
+      "owner_type": "trust",
+      "interest_type": "mineral",
+      "interest_fraction": "1/64",
+      "interest_decimal": 0.015625,
+      "source_note": "Book 242, Page 232 (Mineral Deed dated 1/26/1975)"
+    }},
+    {{
+      "name": "Continental Resources Inc.",
+      "owner_type": "entity",
+      "interest_type": "WI",
+      "interest_fraction": "3/4",
+      "interest_decimal": 0.75,
+      "source_note": "Instrument #2020-005432 (Assignment dated 6/15/2020)"
+    }}
+  ],
+
+  "chain_of_instruments": [
+    {{
+      "instrument_type": "patent",
+      "instrument_title": "Original Land Patent",
+      "execution_date": "1893-04-22",
+      "recording_reference": {{
+        "book": "1",
+        "page": "15",
+        "instrument_number": null,
+        "recording_date": "1893-05-10"
+      }},
+      "grantors": ["United States of America"],
+      "grantees": ["William H. Roberts"],
+      "interest_conveyed": "All of Section 18, Township 17N, Range 13W, I.M.",
+      "narrative_effect": "Original patent from the United States conveying fee simple title to the entirety of Section 18."
+    }},
+    {{
+      "instrument_type": "mineral_deed",
+      "instrument_title": "Mineral Deed",
+      "execution_date": "1975-01-26",
+      "recording_reference": {{
+        "book": "242",
+        "page": "232",
+        "instrument_number": null,
+        "recording_date": "1975-01-28"
+      }},
+      "grantors": ["Joel S. Price", "Virginia K. Price"],
+      "grantees": ["Joel S. Price, as Trustee of the Joel S. Price Trust"],
+      "interest_conveyed": "1/64 mineral interest in the E/2 of Section 18",
+      "narrative_effect": "Transfer of mineral interest to grantor's own trust for estate planning purposes. No change in beneficial ownership."
+    }}
+  ],
+
+  "title_requirements": [
+    {{
+      "severity": "critical",
+      "description": "Requirement #1: Obtain affidavit of heirship or probate proceedings for Mary J. Roberts (deceased circa 1952). No instrument of record establishes disposition of her 1/8 mineral interest.",
+      "related_instruments": "Book 89, Page 412 (Warranty Deed to Mary J. Roberts, 1923)",
+      "recommended_action": "File Affidavit of Death and Heirship in Blaine County; alternatively, obtain certified copy of probate proceedings."
+    }},
+    {{
+      "severity": "material",
+      "description": "Requirement #2: Obtain release or subordination of mortgage recorded at Book 315, Page 101. Mortgage appears to encumber surface and minerals.",
+      "related_instruments": "Book 315, Page 101 (Mortgage dated 3/15/1985)",
+      "recommended_action": "Contact mortgagee for release of mineral interest from mortgage lien."
+    }},
+    {{
+      "severity": "informational",
+      "description": "Requirement #3: Federal tax lien filed against Harold Roberts at Book 290, Page 55 appears to have expired by operation of law (filed 1988, more than 30 years ago).",
+      "related_instruments": "Book 290, Page 55",
+      "recommended_action": "No action required. Lien has expired."
+    }}
+  ],
+
+  "title_status": "marketable_with_requirements",
+  "title_status_narrative": "Title to Section 18 is marketable subject to curing Requirement #1 (heirship of Mary J. Roberts) and Requirement #2 (mortgage release). The remaining requirement is informational only."
+}}
+
+FIELD REFERENCE:
+
+Layer 1 - Opinion Metadata:
+- doc_type: Always "title_opinion"
+- opinion_type: "drilling", "division_order", "preliminary", "status", "supplemental", "other"
+- effective_date: The date through which title was examined (YYYY-MM-DD)
+- prepared_date: The date the opinion was written/signed (YYYY-MM-DD)
+- examining_attorney.name: Name of the attorney who prepared the opinion
+- examining_attorney.firm: Law firm name (if stated)
+- addressed_to.name: Name of the party who commissioned the opinion (operator, client, etc.)
+- addressed_to.role: "operator", "client", "lender", "purchaser", "other"
+- well_name: Name of the well (if stated, common in drilling opinions)
+- property_description.full_legal: Complete legal description as written
+- property_description.section: Section number (1-36)
+- property_description.township: Township with direction (e.g., "17N")
+- property_description.range: Range with direction (e.g., "13W")
+- property_description.meridian: "IM" (Indian Meridian) for Oklahoma
+- property_description.county: County name
+- property_description.state: State abbreviation
+- property_description.gross_acres: Total acres covered
+- property_description.unit_description: Spacing unit description (if applicable)
+
+Layer 2 - Ownership Determination:
+- current_owners[].name: Owner name as stated in opinion
+- current_owners[].owner_type: "individual", "entity", "trust", "estate", "unknown"
+- current_owners[].interest_type: "mineral", "royalty", "NPRI", "WI", "ORRI"
+- current_owners[].interest_fraction: Fraction as written (e.g., "1/64")
+- current_owners[].interest_decimal: Decimal value (e.g., 0.015625)
+- current_owners[].source_note: Recording reference establishing this ownership
+
+Layer 3 - Chain + Requirements:
+- chain_of_instruments[].instrument_type: "patent", "mineral_deed", "warranty_deed", "quitclaim_deed", "oil_gas_lease", "assignment", "probate", "court_order", "mortgage", "release", "affidavit", "other"
+- chain_of_instruments[].instrument_title: Title as stated in opinion
+- chain_of_instruments[].execution_date: Date instrument was executed (YYYY-MM-DD)
+- chain_of_instruments[].recording_reference.book: Book or volume number
+- chain_of_instruments[].recording_reference.page: Page number
+- chain_of_instruments[].recording_reference.instrument_number: Instrument number (newer recordings)
+- chain_of_instruments[].recording_reference.recording_date: Date recorded (YYYY-MM-DD)
+- chain_of_instruments[].grantors[]: Array of grantor names (strings)
+- chain_of_instruments[].grantees[]: Array of grantee names (strings)
+- chain_of_instruments[].interest_conveyed: Description of what was conveyed
+- chain_of_instruments[].narrative_effect: Examiner's summary of the instrument's effect on title
+- title_requirements[].severity: "critical", "material", "informational"
+- title_requirements[].description: Full description of the requirement
+- title_requirements[].related_instruments: Recording references of related instruments
+- title_requirements[].recommended_action: What needs to be done to cure
+- title_status: "marketable", "marketable_with_requirements", "unmarketable", "incomplete"
+- title_status_narrative: Brief conclusion about title status
+
+OMIT fields that don't apply - do NOT include null values or empty objects.
+
+CRITICAL - POPULATE STRUCTURED FIELDS:
+You MUST populate the structured JSON fields (current_owners, chain_of_instruments, etc.) with actual values.
+If you mention "the examining attorney is Robert Thompson" in your analysis, there MUST be an examining_attorney object with {{"name": "Robert Thompson"}}.
+If you mention "Section 18, Township 17N, Range 13W", the property_description MUST have section, township, range populated.
+"""
+
+
+HEIRSHIP_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced Oklahoma title attorney examining mineral property records.
+Your task is to extract key information from an Affidavit of Death and Heirship. Return raw values directly - do NOT wrap values in confidence objects.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Only comment on dates if they conflict with OTHER dates in the SAME document
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Who died, when, who inherits, what property
+   - Note whether intestate or testate succession
+   - ALWAYS identify the decedent and heirs by name
+   - Mention county when relevant for geographic context
+
+   DETAILED ANALYSIS:
+   - Write as an experienced title attorney evaluating this document for chain of title
+   - Focus on: completeness of heir identification, potential missing heirs, gaps in family tree
+   - Note whether the affidavit covers all mineral interests or only specific tracts
+   - Comment on the 10-year recording period under 16 O.S. § 67 if relevant
+   - Note if probate was opened and whether this affidavit is sufficient standing alone
+   - Only reference information explicitly stated in the document
+   - DO NOT list specific data already extracted - focus on insight
+
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- NEVER hallucinate plausible-sounding values for illegible text
+- It is BETTER to return null than to guess incorrectly
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPE FOR THIS PROMPT: affidavit_of_heirship
+=============================================================================
+
+WHAT IS AN AFFIDAVIT OF HEIRSHIP:
+An Affidavit of Death and Heirship is a sworn statement filed in county records to establish
+who inherits property (especially severed mineral interests) when someone dies. It is a critical
+link in the chain of title — the decedent is the "grantor" (ownership passes FROM them) and
+the heirs are the "grantees" (ownership passes TO them).
+
+OKLAHOMA STATUTORY FRAMEWORK:
+- 16 O.S. § 67: After 10 years of recording, creates a rebuttable presumption that the
+  facts stated are true — the affidavit becomes equivalent to a court determination
+- 16 O.S. § 82-83: Recording requirements for mineral interest transfers
+- Oklahoma allows family members as affiants (they need personal knowledge)
+
+PURPOSE DETECTION:
+- "severed_minerals": References mineral interests, mineral deeds, royalties, or oil/gas leases
+- "surface": References surface estate, homestead, or real property without mineral language
+- "bank_assets": Filed for bank/financial account access (rare in your pipeline)
+- "other": Cannot determine purpose from document
+
+INTESTATE vs TESTATE:
+- If decedent had NO will → intestate succession. Oklahoma intestacy law (84 O.S. § 213) applies.
+  Surviving spouse typically gets undivided 1/3 to 1/2, children split remainder equally.
+- If decedent HAD a will → testate succession. Distribution per the will's terms.
+- The affidavit should state whether a will exists and whether it was probated.
+
+HEIR IDENTIFICATION - CRITICAL FOR CHAIN OF TITLE:
+- Extract EVERY heir named in the affidavit with their relationship to the decedent
+- Note predeceased children — their share passes to THEIR children (per stirpes)
+- Extract share fractions exactly as stated; compute decimals when possible
+- If the affidavit lists surviving spouse + children, they are typically the complete heir set
+- Watch for adopted children, stepchildren, and children from different marriages
+- If the affidavit says "the above-named are the ONLY heirs", note this — it's a completeness assertion
+
+LAND INTERESTS:
+- Many heirship affidavits cover multiple tracts or counties
+- Extract each tract separately with its own legal description
+- Note whether the interest is severed minerals, surface, or both
+- Capture any references to how the decedent acquired the property (prior deeds, inheritances)
+- Extract the decedent's fractional interest if stated
+
+DEBTS AND TAXES:
+- Oklahoma affidavits typically state whether all debts are paid or barred by the statute of limitations
+- Estate/inheritance tax status matters for marketability
+- Extract these assertions — title examiners rely on them
+
+PARTIAL DOCUMENT HANDLING:
+- Heirship affidavits can be lengthy (especially with large families or multiple tracts)
+- If pages are missing, extract what's visible. Set fields to null when information is on missing pages.
+- If the heir list appears truncated, note "heir list may be incomplete - pages may be missing"
+
+COMMON FRACTION CONVERSIONS:
+1/2 = 0.5, 1/4 = 0.25, 1/8 = 0.125, 1/16 = 0.0625, 1/32 = 0.03125, 1/64 = 0.015625, 1/128 = 0.0078125
+
+=============================================================================
+
+AFFIDAVIT OF HEIRSHIP EXAMPLE:
+{{
+  "doc_type": "affidavit_of_heirship",
+  "purpose": "severed_minerals",
+
+  "execution_date": "2023-08-01",
+
+  "notary": {{
+    "name": "Patricia L. Davis",
+    "commission_number": "04-123456",
+    "commission_expiration": "2025-06-30",
+    "county": "Oklahoma",
+    "state": "OK"
+  }},
+
+  "recording": {{
+    "county": "Grady",
+    "book": "1234",
+    "page": "567",
+    "instrument_number": "2023-045678",
+    "recording_date": "2023-08-05"
+  }},
+
+  "decedent": {{
+    "full_name": "John Henry Smith",
+    "aka_names": ["J.H. Smith", "Johnny Smith"],
+    "date_of_birth": "1941-03-22",
+    "date_of_death": "2023-05-15",
+    "place_of_death_city": "Oklahoma City",
+    "place_of_death_state": "OK",
+    "last_domicile_address": "456 Oak Street, Oklahoma City, OK 73102",
+    "marital_status_at_death": "widowed",
+    "had_will": false,
+    "will_probated": null,
+    "probate_case_number": null
+  }},
+
+  "affiant": {{
+    "full_name": "Mary Jane Smith",
+    "address": "123 Main Street, Oklahoma City, OK 73102",
+    "relationship_to_decedent": "daughter",
+    "basis_of_knowledge": "Known decedent her entire life as his daughter",
+    "years_known_decedent": 55,
+    "is_heir": true
+  }},
+
+  "heirs": [
+    {{
+      "full_name": "Mary Jane Smith",
+      "aka_names": [],
+      "relationship_to_decedent": "daughter",
+      "address": "123 Main Street, Oklahoma City, OK 73102",
+      "is_alive": true,
+      "date_of_death": null,
+      "marital_status": "married",
+      "spouse_name": "Robert Smith",
+      "share_description": "undivided one-half (1/2) interest",
+      "share_fraction": "1/2",
+      "share_decimal": 0.50,
+      "minor_or_incapacitated": false
+    }},
+    {{
+      "full_name": "James William Smith",
+      "aka_names": ["Jim Smith"],
+      "relationship_to_decedent": "son",
+      "address": "456 Oak Avenue, Tulsa, OK 74103",
+      "is_alive": true,
+      "date_of_death": null,
+      "marital_status": "married",
+      "spouse_name": "Linda Smith",
+      "share_description": "undivided one-half (1/2) interest",
+      "share_fraction": "1/2",
+      "share_decimal": 0.50,
+      "minor_or_incapacitated": false
+    }}
+  ],
+
+  "family_summary": {{
+    "surviving_spouse": null,
+    "predeceased_spouses": ["Sarah Mae Smith (d. 2020-03-10)"],
+    "children": ["Mary Jane Smith", "James William Smith"],
+    "predeceased_children": [],
+    "total_heirs_listed": 2,
+    "affidavit_states_complete": true
+  }},
+
+  "land_interests": [
+    {{
+      "ownership_type": "severed_minerals",
+      "county": "Grady",
+      "state": "OK",
+      "legal_description": {{
+        "full_legal": "The NW/4 of Section 16, Township 12 North, Range 7 West, Indian Meridian, Grady County, Oklahoma",
+        "section": "16",
+        "township": "12N",
+        "range": "7W",
+        "meridian": "IM",
+        "quarter_calls": ["NW/4"],
+        "gross_acres": 160
+      }},
+      "decedent_interest_description": "owned an undivided 1/2 mineral interest",
+      "decedent_interest_fraction": "1/2",
+      "decedent_interest_decimal": 0.50,
+      "severed_from_surface": true,
+      "source_instruments": [
+        "Book 198, Page 45 (Deed from Estate of William Smith, 1965)"
+      ]
+    }}
+  ],
+
+  "estate_status": {{
+    "probate_opened": false,
+    "probate_in_oklahoma": null,
+    "probate_case_number": null,
+    "small_estate_procedure": null
+  }},
+
+  "debts_and_taxes": {{
+    "all_debts_paid_or_barred": true,
+    "estate_tax_due": false,
+    "all_taxes_paid": true,
+    "unpaid_debts_description": null,
+    "unpaid_taxes_description": null
+  }},
+
+  "ten_year_status": {{
+    "recording_date": "2023-08-05",
+    "ten_year_anniversary": "2033-08-05",
+    "presumption_effective": false
+  }},
+
+  "attachments": {{
+    "death_certificate_attached": true,
+    "will_attached": false,
+    "other_exhibits": []
+  }}
+}}
+
+FIELD REFERENCE:
+
+Affidavit Metadata:
+- doc_type: Always "affidavit_of_heirship"
+- purpose: "severed_minerals", "surface", "bank_assets", "other"
+- execution_date: Date the affidavit was signed/notarized (YYYY-MM-DD)
+- notary.name: Notary public name
+- notary.commission_number: Notary commission number (if stated)
+- notary.commission_expiration: Notary commission expiration (YYYY-MM-DD, if stated)
+- notary.county: County where notarized
+- notary.state: State where notarized
+- recording.county: County where recorded
+- recording.book: Book/volume number
+- recording.page: Page number
+- recording.instrument_number: Instrument number (newer recordings)
+- recording.recording_date: Date recorded (YYYY-MM-DD)
+
+Decedent:
+- decedent.full_name: Full legal name of deceased
+- decedent.aka_names[]: Array of alternate names ("also known as")
+- decedent.date_of_birth: YYYY-MM-DD or null
+- decedent.date_of_death: YYYY-MM-DD
+- decedent.place_of_death_city: City of death
+- decedent.place_of_death_state: State of death
+- decedent.last_domicile_address: Last address
+- decedent.marital_status_at_death: "single", "married", "widowed", "divorced", "separated", "unknown"
+- decedent.had_will: boolean
+- decedent.will_probated: boolean or null
+- decedent.probate_case_number: Case number if probated
+
+Affiant:
+- affiant.full_name: Name of person making the affidavit
+- affiant.address: Full address
+- affiant.relationship_to_decedent: "daughter", "son", "friend", "niece", etc.
+- affiant.basis_of_knowledge: How they know the facts stated
+- affiant.years_known_decedent: Number of years (if stated)
+- affiant.is_heir: boolean — whether affiant is also an heir
+
+Heirs:
+- heirs[].full_name: Heir's full name
+- heirs[].aka_names[]: Alternate names
+- heirs[].relationship_to_decedent: "spouse", "daughter", "son", "grandchild", etc.
+- heirs[].address: Full address (if stated)
+- heirs[].is_alive: boolean
+- heirs[].date_of_death: YYYY-MM-DD if predeceased
+- heirs[].marital_status: Marital status (if stated)
+- heirs[].spouse_name: Name of heir's spouse (if stated)
+- heirs[].share_description: Share as written ("undivided one-half (1/2)")
+- heirs[].share_fraction: Fraction string ("1/2")
+- heirs[].share_decimal: Decimal value (0.50)
+- heirs[].minor_or_incapacitated: boolean or null
+
+Family Summary:
+- family_summary.surviving_spouse: Name or null
+- family_summary.predeceased_spouses[]: Array of "Name (d. YYYY-MM-DD)"
+- family_summary.children[]: All children names
+- family_summary.predeceased_children[]: Predeceased children names
+- family_summary.total_heirs_listed: Count of heirs in the affidavit
+- family_summary.affidavit_states_complete: boolean — whether affidavit asserts these are ALL heirs
+
+Land Interests:
+- land_interests[].ownership_type: "severed_minerals", "surface", "leasehold", "other"
+- land_interests[].county: County name
+- land_interests[].state: State abbreviation
+- land_interests[].legal_description.full_legal: Complete legal as written
+- land_interests[].legal_description.section: Section number
+- land_interests[].legal_description.township: Township with direction
+- land_interests[].legal_description.range: Range with direction
+- land_interests[].legal_description.meridian: "IM" for Oklahoma
+- land_interests[].legal_description.quarter_calls[]: Quarter section calls
+- land_interests[].legal_description.gross_acres: Total acres
+- land_interests[].decedent_interest_description: Description of what decedent owned
+- land_interests[].decedent_interest_fraction: Fraction string
+- land_interests[].decedent_interest_decimal: Decimal value
+- land_interests[].severed_from_surface: boolean
+- land_interests[].source_instruments[]: Array of prior instrument references
+
+Estate Status:
+- estate_status.probate_opened: boolean
+- estate_status.probate_in_oklahoma: boolean or null
+- estate_status.probate_case_number: Case number or null
+- estate_status.small_estate_procedure: boolean or null
+
+Debts and Taxes:
+- debts_and_taxes.all_debts_paid_or_barred: boolean or null
+- debts_and_taxes.estate_tax_due: boolean or null
+- debts_and_taxes.all_taxes_paid: boolean or null
+- debts_and_taxes.unpaid_debts_description: Text or null
+- debts_and_taxes.unpaid_taxes_description: Text or null
+
+10-Year Status (computed from recording date):
+- ten_year_status.recording_date: YYYY-MM-DD
+- ten_year_status.ten_year_anniversary: YYYY-MM-DD (recording_date + 10 years)
+- ten_year_status.presumption_effective: boolean (true if 10 years have passed as of CURRENT DATE)
+
+Attachments:
+- attachments.death_certificate_attached: boolean
+- attachments.will_attached: boolean
+- attachments.other_exhibits[]: Array of exhibit descriptions
+
+OMIT fields that don't apply - do NOT include null values or empty objects.
+
+CRITICAL - POPULATE STRUCTURED FIELDS:
+You MUST populate the structured JSON fields (decedent, heirs, land_interests, etc.) with actual values.
+If you mention "John Henry Smith died on May 15, 2023" in your analysis, there MUST be a decedent object with full_name and date_of_death.
+If you mention "Section 16, Township 12N, Range 7W", the land_interests MUST have a matching legal_description.
+"""
+
+
 def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None) -> str:
     """
     Get the extraction prompt with current date and optional OCR quality warning.
@@ -10264,6 +10903,12 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in JOA_DOC_TYPES:
         logger.info(f"Using FOCUSED JOA prompt for doc_type={doc_type}")
         prompt = JOA_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in TITLE_OPINION_DOC_TYPES:
+        logger.info(f"Using FOCUSED TITLE OPINION prompt for doc_type={doc_type}")
+        prompt = TITLE_OPINION_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in HEIRSHIP_DOC_TYPES:
+        logger.info(f"Using FOCUSED HEIRSHIP prompt for doc_type={doc_type}")
+        prompt = HEIRSHIP_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     else:
         # Fall back to mega-prompt for unknown or other doc types
         if doc_type:

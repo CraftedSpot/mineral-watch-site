@@ -92,18 +92,53 @@ def extract_last_name(full_name: str) -> str:
 
 
 def format_party_transfer(grantor: str, grantee: str, use_last_names: bool = True) -> Optional[str]:
-    """Format 'Grantor to Grantee' string, optionally using last names only."""
+    """Format 'Grantor to Grantee' string, optionally using last names only.
+
+    When both parties share the same last name, adds first initial to disambiguate
+    (e.g., 'J. Price to V. Price' instead of 'Price to Price').
+    """
     if not grantor and not grantee:
         return None
-    
+
     if use_last_names:
-        grantor_name = extract_last_name(grantor) if grantor else "Unknown"
-        grantee_name = extract_last_name(grantee) if grantee else "Unknown"
+        grantor_last = extract_last_name(grantor) if grantor else "Unknown"
+        grantee_last = extract_last_name(grantee) if grantee else "Unknown"
+
+        # When last names match, add first initial to disambiguate
+        if grantor_last == grantee_last and grantor_last != "Unknown":
+            grantor_name = _add_first_initial(grantor, grantor_last)
+            grantee_name = _add_first_initial(grantee, grantee_last)
+        else:
+            grantor_name = grantor_last
+            grantee_name = grantee_last
     else:
         grantor_name = grantor or "Unknown"
         grantee_name = grantee or "Unknown"
-    
+
     return f"{grantor_name} to {grantee_name}"
+
+
+def _add_first_initial(full_name: str, last_name: str) -> str:
+    """Add first initial to last name for disambiguation (e.g., 'J. Price').
+
+    For entities/trusts, returns the last_name unchanged.
+    """
+    if not full_name:
+        return last_name
+
+    name = str(full_name).strip()
+    parts = name.split()
+
+    if len(parts) < 2:
+        return last_name
+
+    first = parts[0]
+    # If first part is already an initial (single letter or letter+period), use it
+    if len(first) == 1 or (len(first) == 2 and first.endswith('.')):
+        return f"{first.rstrip('.')}. {last_name}"
+
+    # Use first letter of first name
+    return f"{first[0]}. {last_name}"
 
 
 def format_period(date_str: str = None, month: str = None, year: str = None) -> Optional[str]:
