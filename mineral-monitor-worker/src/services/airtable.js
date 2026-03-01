@@ -105,42 +105,6 @@ export function hasRecentAlertInSet(alertSet, apiNumber, activityType, userId) {
 }
 
 /**
- * Check if a user has been alerted about this API + activity type recently
- * DEPRECATED: Use preloadRecentAlerts() + hasRecentAlertInSet() for batch processing
- * Kept for backwards compatibility with weekly.js
- * @param {Object} env - Worker environment
- * @param {string} userEmail - User's email address
- * @param {string} apiNumber - Well API number
- * @param {string} activityType - Type of activity
- * @returns {boolean} - Whether a recent alert exists
- */
-export async function hasRecentAlert(env, userEmail, apiNumber, activityType) {
-  // First find the user by email to get their record ID
-  const user = await findUserByEmail(env, userEmail);
-  if (!user) return false;
-  
-  // Calculate 7 days ago
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const isoDate = sevenDaysAgo.toISOString().split('T')[0];
-  
-  // Query activity log for matching records
-  const formula = `AND(
-    {API Number} = "${apiNumber}",
-    {Activity Type} = "${activityType}",
-    IS_AFTER({Detected At}, "${isoDate}")
-  )`;
-  
-  const activities = await queryAirtable(env, env.AIRTABLE_ACTIVITY_TABLE, formula);
-  
-  // Check if any of these activities are linked to this user
-  return activities.some(activity => {
-    const linkedUsers = activity.fields.User || [];
-    return linkedUsers.includes(user.id);
-  });
-}
-
-/**
  * Create a new activity log entry
  * MIGRATED: Now writes to D1 instead of Airtable
  * @param {Object} env - Worker environment

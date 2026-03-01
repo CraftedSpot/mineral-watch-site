@@ -8,20 +8,17 @@
  */
 
 import { fetchOCCFile } from '../services/occ.js';
-import { fetchWellCoordinates } from '../services/occGis.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { findMatchingWells } from '../services/matching.js';
 import {
   preloadRecentAlerts,
   hasRecentAlertInSet,
-  createActivityLog,
-  updateActivityLog,
   userWantsAlert,
   getUserById
 } from '../services/airtable.js';
-import { batchGetPropertiesByLocations, isUserOverPlanLimit } from '../services/d1.js';
+import { isUserOverPlanLimit } from '../services/d1.js';
 import { getAdjacentSections } from '../utils/plss.js';
-import { sendAlertEmail } from '../services/email.js';
+import { sendBatchedEmails } from '../services/emailBatch.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { checkAllWellStatuses } from '../services/rbdmsStatus.js';
@@ -63,80 +60,6 @@ async function saveProcessedTransfers(env, processedSet) {
   } catch (err) {
     console.warn('[Weekly] Failed to save processed transfers cache:', err.message);
   }
-}
-
-/**
- * OPTIMIZATION: Batch load all properties for sections in transfers
- * MIGRATED: Now uses D1 instead of Airtable
- * Note: Currently unused - transfers match by API number via findMatchingWells
- * @param {Array} transfers - Array of transfer records
- * @param {Object} env - Worker environment
- * @returns {Map} - Map of section keys to property arrays
- */
-async function batchLoadPropertiesForTransfers(transfers, env) {
-  const sectionsToLoad = new Set();
-
-  for (const transfer of transfers) {
-    if (!transfer.Section || !transfer.Township || !transfer.Range) continue;
-
-    const normalizedSection = normalizeSection(transfer.Section);
-    const meridian = transfer.PM || 'IM';
-
-    // Add the transfer's section
-    sectionsToLoad.add(`${normalizedSection}|${transfer.Township}|${transfer.Range}|${meridian}`);
-
-    // Add adjacent sections
-    const adjacents = getAdjacentSections(parseInt(normalizedSection, 10), transfer.Township, transfer.Range);
-    for (const adj of adjacents) {
-      sectionsToLoad.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${meridian}`);
-    }
-  }
-
-  console.log(`[Weekly] Batch loading properties for ${sectionsToLoad.size} unique sections`);
-
-  if (sectionsToLoad.size === 0) {
-    return new Map();
-  }
-
-  // Convert section keys to location objects for D1 query
-  const locations = Array.from(sectionsToLoad).map(key => {
-    const [section, township, range, meridian] = key.split('|');
-    return { section, township, range, meridian };
-  });
-
-  // Query D1 for all properties in these locations
-  const properties = await batchGetPropertiesByLocations(env, locations);
-
-  // Index by section key
-  const propertyMap = new Map();
-  for (const prop of properties) {
-    const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
-    if (!propertyMap.has(key)) {
-      propertyMap.set(key, []);
-    }
-    propertyMap.get(key).push(prop);
-  }
-
-  console.log(`[Weekly] Loaded ${propertyMap.size} sections with properties from D1`);
-  return propertyMap;
-}
-
-/**
- * Collect all user IDs from properties for batch loading
- * @param {Map} propertyMap - Pre-loaded property map
- * @returns {string[]} - Array of unique user IDs
- */
-function collectUserIdsFromProperties(propertyMap) {
-  const userIds = new Set();
-  for (const properties of propertyMap.values()) {
-    for (const prop of properties) {
-      const propUserIds = prop.fields.User || [];
-      for (const id of propUserIds) {
-        userIds.add(id);
-      }
-    }
-  }
-  return Array.from(userIds);
 }
 
 /**
@@ -544,44 +467,24 @@ async function processTransfer(transfer, env, results, recentAlerts, planLimitCa
     }
   }
   
-  // Send alerts with dedup check
+  // Parse county - OCC format is "015-CADDO", we want just "CADDO"
+  const countyDisplay = transfer.County?.includes('-')
+    ? transfer.County.split('-')[1]
+    : transfer.County;
+
+  // Build userAlertMap for digest queue (same format as daily/docket)
+  const userAlertMap = new Map();
+
   for (const alert of alertsToSend) {
-    // OPTIMIZATION: Use preloaded alert set
+    // Dedup: skip if already alerted recently
     const alreadyAlerted = hasRecentAlertInSet(recentAlerts, api10, 'Operator Transfer', alert.user.id);
-    
     if (alreadyAlerted) {
       console.log(`[Weekly] Skipping duplicate alert for ${alert.user.email} on ${api10}`);
       results.alertsSkipped = (results.alertsSkipped || 0) + 1;
       continue;
     }
-    
-    // Only include map link for tracked well alerts
-    const includeMapLink = alert.reason === 'tracked_well';
-    
-    // Parse county - OCC format is "015-CADDO", we want just "CADDO"
-    const countyDisplay = transfer.County?.includes('-') 
-      ? transfer.County.split('-')[1] 
-      : transfer.County;
-    
-    const activityData = {
-      wellName: displayWellName,
-      apiNumber: api10,
-      activityType: 'Operator Transfer',
-      operator: newOperator,
-      operatorPhone: newOperatorPhone,
-      previousOperator: previousOperator,
-      alertLevel: alert.alertLevel,
-      sectionTownshipRange: `S${normalizeSection(transfer.Section)} T${transfer.Township} R${transfer.Range}`,
-      county: countyDisplay,
-      previousValue: previousOperator,
-      newValue: newOperator,
-      mapLink: includeMapLink ? mapLink : null,
-      userId: alert.user.id,
-      // Organization ID if alert is via organization
-      organizationId: alert.organizationId || null
-    };
-    
-    // Check user preferences before sending alert
+
+    // Check user preferences
     const fullUser = await getUserById(env, alert.user.id);
     if (fullUser && !userWantsAlert(fullUser, 'Operator Transfer')) {
       console.log(`[Weekly] Skipped alert for ${alert.user.email} - user disabled operator transfer alerts`);
@@ -589,7 +492,7 @@ async function processTransfer(transfer, env, results, recentAlerts, planLimitCa
       continue;
     }
 
-    // Check plan limits — skip alerts for users who exceed their plan
+    // Check plan limits
     const wkPlan = fullUser?.fields?.Plan || 'Free';
     if (!planLimitCache.has(alert.user.id)) {
       planLimitCache.set(alert.user.id, await isUserOverPlanLimit(env, alert.user.id, wkPlan));
@@ -600,39 +503,27 @@ async function processTransfer(transfer, env, results, recentAlerts, planLimitCa
       continue;
     }
 
-    const activityRecord = await createActivityLog(env, activityData);
+    const includeMapLink = alert.reason === 'tracked_well';
 
-    try {
-      await sendAlertEmail(env, {
-        to: alert.user.email,
-        userName: alert.user.name,
-        alertLevel: alert.alertLevel,
-        activityType: 'Operator Transfer',
-        wellName: displayWellName,
-        operator: newOperator,
-        operatorPhone: newOperatorPhone,
-        previousOperator: previousOperator,
-        location: activityData.sectionTownshipRange,
-        county: countyDisplay,
-        mapLink: includeMapLink ? mapLink : null,
-        apiNumber: api10,
-        wellType: wellData?.welltype || null,
-        userId: alert.user.id,
-        // Horizontal well data - transfers don't have this info
-        isMultiSection: false
-      });
-      
-      // Email sent successfully - update activity log
-      await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
-      console.log(`[Weekly] Email sent and activity updated for ${alert.user.email} on ${api10}`);
-    } catch (emailError) {
-      console.error(`[Weekly] Failed to send email to ${alert.user.email}: ${emailError.message}`);
-      // Activity log remains with Email Sent = false
+    const alertData = {
+      user: { id: alert.user.id, email: alert.user.email, name: alert.user.name },
+      wellName: displayWellName,
+      apiNumber: api10,
+      activityType: 'Operator Transfer',
+      operator: newOperator,
+      previousOperator: previousOperator,
+      alertLevel: alert.alertLevel,
+      location: `S${normalizeSection(transfer.Section)} T${transfer.Township} R${transfer.Range}`,
+      county: countyDisplay,
+      mapLink: includeMapLink ? mapLink : null,
+      organizationId: alert.organizationId || null
+    };
+
+    if (!userAlertMap.has(alert.user.id)) {
+      userAlertMap.set(alert.user.id, []);
     }
-    
-    results.alertsSent++;
-    
-    // Add test details if in test mode
+    userAlertMap.get(alert.user.id).push(alertData);
+
     if (testDetails) {
       testDetails.alertsSent.push({
         email: alert.user.email,
@@ -642,7 +533,14 @@ async function processTransfer(transfer, env, results, recentAlerts, planLimitCa
       });
     }
   }
-  
-  // Return test details if in test mode
+
+  // Queue all transfer alerts for digest delivery
+  if (userAlertMap.size > 0) {
+    const dryRun = results.testMode;
+    const batchResults = await sendBatchedEmails(env, userAlertMap, dryRun, { testMode: results.testMode });
+    results.alertsSent += batchResults.alertsQueued;
+    console.log(`[Weekly] Queued ${batchResults.alertsQueued} transfer alerts for digest delivery`);
+  }
+
   return testDetails;
 }

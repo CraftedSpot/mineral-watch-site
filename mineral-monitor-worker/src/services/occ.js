@@ -112,21 +112,6 @@ export async function fetchOCCFile(fileType, env, options = {}) {
 }
 
 /**
- * Convert Excel numeric date to JavaScript Date
- * @param {number|string} excelDate - Excel date number or string date
- * @returns {Date} - JavaScript Date object
- */
-function parseExcelDate(excelDate) {
-  if (typeof excelDate === 'number') {
-    // Excel dates are days since 1900-01-01 (with leap year bug)
-    // JavaScript dates are milliseconds since 1970-01-01
-    return new Date((excelDate - 25569) * 86400 * 1000);
-  }
-  // If it's already a string, parse it normally
-  return new Date(excelDate);
-}
-
-/**
  * Filter records to ensure we only process recent filings
  * @param {Array} records - Parsed records
  * @param {string} fileType - Type of file
