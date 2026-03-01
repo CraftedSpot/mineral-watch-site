@@ -357,7 +357,7 @@ export async function ensureUserInD1(env: Env, user: any): Promise<void> {
     fields.Plan || 'Free',
     fields.Status || 'Active',
     fields.Organization?.[0] || null,
-    fields.Role || 'Viewer',
+    fields.Role || null,
     fields['Stripe Customer ID'] || null
   ).run();
 }

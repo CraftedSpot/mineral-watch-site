@@ -68,8 +68,8 @@
                     }
                 }
                 
-                // Hide add/edit/delete buttons for Viewers
-                if (currentUser.role === 'Viewer') {
+                // Hide add/edit/delete buttons for Viewers (only org members can be Viewers)
+                if (currentUser.role === 'Viewer' && currentUser.organizationId) {
                     // Hide property add/import buttons
                     const addPropertyBtn = document.getElementById('addPropertyBtn');
                     const bulkUploadBtn = document.getElementById('bulkUploadBtn');
