@@ -12,6 +12,7 @@
 import { PDFDocument } from 'pdf-lib';
 import { UsageTrackingService } from './usage-tracking';
 import { getExtractionPrompt, preparePrompt } from './extraction-prompts';
+import { persistParties, extractSummary } from './party-extraction';
 
 interface Env {
   WELLS_DB: D1Database;
@@ -169,9 +170,9 @@ export class CountyRecordExtractionService {
           extracted_data, confidence, status, user_id, organization_id,
           upload_date, extraction_started_at, extraction_completed_at,
           page_count, display_name, category, source_metadata, content_type,
-          original_filename, file_size
+          original_filename, file_size, summary
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'),
-          datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?, ?, ?)
+          datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         documentId,
         r2Key,
@@ -192,7 +193,8 @@ export class CountyRecordExtractionService {
         sourceMetadata,
         'application/pdf',
         `${county}_${instrument_number}.pdf`,
-        mergedPdfBytes.length
+        mergedPdfBytes.length,
+        extractSummary(extraction)
       ).run();
 
       console.log(`[OKCR] Created document record: ${documentId} for user ${userId}`);
@@ -214,6 +216,15 @@ export class CountyRecordExtractionService {
         console.error(`[OKCR] Pooling post-processing failed for ${documentId}:`, err);
         // Non-fatal — document is already saved with full extracted_data JSON
       }
+    }
+
+    // 6c. Extract and persist document parties
+    try {
+      const partiesInserted = await persistParties(this.env.WELLS_DB, documentId, extraction, docType);
+      console.log(`[OKCR] Extracted ${partiesInserted} parties for ${documentId}`);
+    } catch (partyErr) {
+      console.error(`[OKCR] Party extraction failed for ${documentId}:`, partyErr);
+      // Non-fatal
     }
 
     // 7. Deduct credits
@@ -289,9 +300,9 @@ export class CountyRecordExtractionService {
           extracted_data, confidence, status, user_id, organization_id,
           upload_date, extraction_started_at, extraction_completed_at,
           page_count, display_name, category, source_metadata, content_type,
-          original_filename, file_size
+          original_filename, file_size, summary
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'),
-          datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?, ?, 0)
+          datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?, ?, 0, ?)
       `).bind(
         documentId,
         originalDoc.r2_key as string,
@@ -311,7 +322,8 @@ export class CountyRecordExtractionService {
         (originalDoc.doc_type as string) || 'county_record',
         originalDoc.source_metadata as string,
         'application/pdf',
-        `${cacheRow.county}_${cacheRow.instrument_number}.pdf`
+        `${cacheRow.county}_${cacheRow.instrument_number}.pdf`,
+        extractSummary(extraction)
       ).run();
 
       console.log(`[OKCR] Created cached document record: ${documentId} for user ${userId} (from cache ${cacheRow.document_id})`);
@@ -322,6 +334,14 @@ export class CountyRecordExtractionService {
         error: `Failed to save document: ${err.message}`,
         status: 500
       };
+    }
+
+    // Extract parties from cached document
+    try {
+      const partiesInserted = await persistParties(this.env.WELLS_DB, documentId, extraction, originalDoc.doc_type as string);
+      console.log(`[OKCR] Extracted ${partiesInserted} parties for cached ${documentId}`);
+    } catch (partyErr) {
+      console.error(`[OKCR] Party extraction failed for cached ${documentId}:`, partyErr);
     }
 
     // Deduct credits
@@ -603,7 +623,19 @@ export class CountyRecordExtractionService {
           opt.description || null,
           opt.bonus_per_nma || null,
           opt.royalty_rate || null,
-          opt.nri_delivered ? parseFloat(String(opt.nri_delivered).replace('%', '')) / 100 : null,
+          (() => {
+            // Compute royalty_decimal from fraction string first, fall back to NRI inversion
+            const fracStr = opt.royalty_rate || null;
+            if (fracStr) {
+              const m = String(fracStr).match(/(\d+)\/(\d+)/);
+              if (m) return parseFloat(m[1]) / parseFloat(m[2]);
+            }
+            if (opt.nri_delivered) {
+              const nri = parseFloat(String(opt.nri_delivered).replace('%', '')) / 100;
+              if (nri > 0 && nri < 1) return 1 - nri;
+            }
+            return null;
+          })(),
           opt.option_type === 'participate' ? 1 : 0,
           opt.cost_per_nma || null,
           opt.risk_penalty_percentage || null,

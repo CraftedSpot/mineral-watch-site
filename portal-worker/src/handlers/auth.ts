@@ -387,20 +387,31 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
 
     // Check if user already exists (D1-first)
     const existingUser = await findUserByEmailD1First(env, normalizedEmail);
-    if (existingUser) {
+    if (existingUser && existingUser.fields.Status !== 'Deleted') {
       return jsonResponse({ error: "An account with this email already exists" }, 409);
     }
 
-    // D1-first: Create user in D1 with generated record ID
-    const recordId = generateRecordId();
-    const userId = `user_${recordId}`;
+    let recordId: string;
 
-    await env.WELLS_DB.prepare(`
-      INSERT INTO users (id, airtable_record_id, email, name, plan, status)
-      VALUES (?, ?, ?, ?, 'Free', 'Active')
-    `).bind(userId, recordId, normalizedEmail, displayName).run();
+    if (existingUser && existingUser.fields.Status === 'Deleted') {
+      // Reactivate deleted account — reuse existing record ID, reset to Free/Active
+      recordId = existingUser.id;
+      await env.WELLS_DB.prepare(`
+        UPDATE users SET status = 'Active', plan = 'Free', name = ?
+        WHERE airtable_record_id = ?
+      `).bind(displayName, recordId).run();
+      console.log(`[Register] Reactivated deleted account: ${normalizedEmail} (${recordId})`);
+    } else {
+      // D1-first: Create user in D1 with generated record ID
+      recordId = generateRecordId();
+      const userId = `user_${recordId}`;
 
-    console.log(`[Register] User created in D1: ${normalizedEmail} (${recordId})`);
+      await env.WELLS_DB.prepare(`
+        INSERT INTO users (id, airtable_record_id, email, name, plan, status)
+        VALUES (?, ?, ?, ?, 'Free', 'Active')
+      `).bind(userId, recordId, normalizedEmail, displayName).run();
+      console.log(`[Register] User created in D1: ${normalizedEmail} (${recordId})`);
+    }
 
     // Generate magic link — D1 insert is confirmed, safe to send email
     const token = await signPayload(env, {

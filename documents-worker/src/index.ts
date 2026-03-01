@@ -3,6 +3,7 @@ import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
 import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
+import { persistParties, extractSummary } from './services/party-extraction';
 import { PDFDocument } from 'pdf-lib';
 import { AwsClient } from 'aws4fetch';
 
@@ -292,12 +293,21 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
     SET extracted_data = ?,
         confidence = 'high',
         status = 'complete',
+        summary = ?,
         extraction_completed_at = datetime('now'),
         notes = 'Opus v2 re-extraction ' || datetime('now')
     WHERE id = ?
-  `).bind(JSON.stringify(extractedData), documentId).run();
+  `).bind(JSON.stringify(extractedData), extractSummary(extractedData), documentId).run();
 
   console.log(`[Opus Reextract] Document updated with new extraction`);
+
+  // Extract and persist document parties
+  try {
+    const partiesInserted = await persistParties(env.WELLS_DB, documentId, extractedData, docResult.doc_type || 'pooling_order');
+    console.log(`[Opus Reextract] Inserted ${partiesInserted} parties for ${documentId}`);
+  } catch (partyErr) {
+    console.error(`[Opus Reextract] Party extraction error (non-fatal):`, partyErr);
+  }
 
   // 7. Update pooling_orders table
   const poolingId = docResult.pooling_order_id || 'po_' + documentId.replace(/^doc_/, '');
@@ -1988,7 +1998,9 @@ export default {
           // Also fetch and set well_name
           if (well_id) {
             const well = await env.WELLS_DB.prepare(`
-              SELECT well_name FROM wells WHERE api_number = ?
+              SELECT well_name FROM client_wells WHERE airtable_id = ?
+            `).bind(well_id).first() || await env.WELLS_DB.prepare(`
+              SELECT well_name FROM wells WHERE airtable_record_id = ?
             `).bind(well_id).first();
             if (well) {
               updates.push('well_name = ?');
@@ -2033,13 +2045,6 @@ export default {
       await ensureProcessingColumns(env);
       await ensureLinkColumns(env.WELLS_DB);
       
-      // Run migration on first processing call
-      try {
-        await migrateDocumentIds(env.WELLS_DB);
-      } catch (migrationError) {
-        console.error('Migration error (non-fatal):', migrationError);
-      }
-
       try {
         // Reset documents stuck in 'processing' for more than 10 minutes
         // This handles cases where the processor crashes mid-processing
@@ -2427,6 +2432,7 @@ export default {
                   fields_needing_review = ?,
                   rotation_applied = ?,
                   chain_of_title = ?,
+                  summary = ?,
                   extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
@@ -2447,9 +2453,20 @@ export default {
               fields_needing_review !== undefined ? JSON.stringify(fields_needing_review) : null,
               rotation_applied ?? 0,
               chainOfTitle,
+              extracted_data ? extractSummary(extracted_data) : null,
               docId
             ).run();
-            
+
+            // Extract and persist document parties
+            if (extracted_data && effectiveStatus !== 'failed' && effectiveStatus !== 'unprocessed' && !extracted_data?.skip_extraction) {
+              try {
+                const partiesInserted = await persistParties(env.WELLS_DB, docId, extracted_data, doc_type);
+                console.log(`[PartyExtraction] Inserted ${partiesInserted} parties for ${docId}`);
+              } catch (partyErr) {
+                console.error(`[PartyExtraction] Non-fatal error for ${docId}:`, partyErr);
+              }
+            }
+
             // After successful update, attempt to link document to properties/wells
             console.log('[DEBUG] Checking if should link - extracted_data exists:', !!extracted_data, 'effectiveStatus:', effectiveStatus, 'skip_extraction:', extracted_data?.skip_extraction);
             console.log('[DEBUG] extracted_data type:', typeof extracted_data);
@@ -2554,14 +2571,15 @@ export default {
                         const srcDocCol = targetColumn === 'ri_nri' ? 'interest_source_doc_id' : `${targetColumn}_source_doc_id`;
                         const srcDateCol = targetColumn === 'ri_nri' ? 'interest_source_date' : `${targetColumn}_source_date`;
 
+                        const effectiveDate = extracted_data.effective_date || null;
                         await env.WELLS_DB.prepare(
                           `UPDATE client_wells
                            SET ${targetColumn} = ?,
                                ${srcCol} = 'extracted_division_order',
                                ${srcDocCol} = ?,
-                               ${srcDateCol} = datetime('now', '-6 hours')
+                               ${srcDateCol} = COALESCE(?, datetime('now', '-6 hours'))
                            WHERE id = ?`
-                        ).bind(decimalInterest, docId, clientWell.id).run();
+                        ).bind(decimalInterest, docId, effectiveDate, clientWell.id).run();
 
                         console.log(`[DO Write-Back] Updated well ${clientWell.airtable_id} ${targetColumn}=${decimalInterest} (${interestLabel}) from document ${docId}`);
                       } else {
@@ -3327,7 +3345,19 @@ export default {
                       opt.description || null,
                       opt.bonus_per_nma || null,
                       opt.royalty_rate || null,
-                      opt.nri_delivered ? parseFloat(String(opt.nri_delivered).replace('%', '')) / 100 : null,
+                      (() => {
+                        // Compute royalty_decimal from fraction string first, fall back to NRI inversion
+                        const fracStr = opt.royalty_rate || null;
+                        if (fracStr) {
+                          const m = String(fracStr).match(/(\d+)\/(\d+)/);
+                          if (m) return parseFloat(m[1]) / parseFloat(m[2]);
+                        }
+                        if (opt.nri_delivered) {
+                          const nri = parseFloat(String(opt.nri_delivered).replace('%', '')) / 100;
+                          if (nri > 0 && nri < 1) return 1 - nri;
+                        }
+                        return null;
+                      })(),
                       opt.option_type === 'participate' ? 1 : 0,
                       opt.cost_per_nma || null,
                       opt.risk_penalty_percentage || null,
@@ -3630,9 +3660,10 @@ export default {
               status, doc_type, display_name, category, confidence,
               county, section, township, range, extracted_data,
               needs_review, field_scores, fields_needing_review,
+              summary,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -3659,9 +3690,20 @@ export default {
             child.extracted_data ? JSON.stringify(child.extracted_data) : null,
             child.needs_review ? 1 : 0,
             child.field_scores ? JSON.stringify(child.field_scores) : null,
-            child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null
+            child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null,
+            child.extracted_data ? extractSummary(child.extracted_data) : null
           ).run();
-          
+
+          // Extract and persist document parties for child
+          if (child.extracted_data && child.status !== 'failed') {
+            try {
+              const partiesInserted = await persistParties(env.WELLS_DB, childId, child.extracted_data, child.doc_type);
+              console.log(`[PartyExtraction] Inserted ${partiesInserted} parties for child ${childId}`);
+            } catch (partyErr) {
+              console.error(`[PartyExtraction] Non-fatal error for child ${childId}:`, partyErr);
+            }
+          }
+
           // Attempt to link child document to properties/wells
           if (child.extracted_data && child.status !== 'failed') {
             console.log('[Documents] Starting auto-link for child document:', childId);
@@ -3836,6 +3878,86 @@ export default {
             email_on_complete: false
           }
         }, 200, env);
+      }
+    }
+
+    // Route: POST /api/processing/backfill-parties - Backfill document_parties and summary for existing documents
+    if (path === '/api/processing/backfill-parties' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || (apiKey !== env.PROCESSING_API_KEY && apiKey !== env.SYNC_API_KEY)) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      console.log('[Backfill] Starting document parties and summary backfill');
+
+      try {
+        const batchSize = 100;
+        let offset = 0;
+        let totalProcessed = 0;
+        let totalParties = 0;
+        let totalSummaries = 0;
+        let errors = 0;
+
+        while (true) {
+          const docs = await env.WELLS_DB.prepare(`
+            SELECT id, extracted_data, doc_type
+            FROM documents
+            WHERE status = 'complete'
+              AND extracted_data IS NOT NULL
+              AND deleted_at IS NULL
+            ORDER BY id
+            LIMIT ? OFFSET ?
+          `).bind(batchSize, offset).all();
+
+          if (!docs.results || docs.results.length === 0) break;
+
+          for (const doc of docs.results) {
+            try {
+              const extractedData = typeof doc.extracted_data === 'string'
+                ? JSON.parse(doc.extracted_data as string)
+                : doc.extracted_data;
+
+              // Persist parties
+              const count = await persistParties(
+                env.WELLS_DB,
+                doc.id as string,
+                extractedData,
+                doc.doc_type as string
+              );
+              totalParties += count;
+
+              // Update summary column
+              const summary = extractSummary(extractedData);
+              if (summary) {
+                await env.WELLS_DB.prepare(
+                  'UPDATE documents SET summary = ? WHERE id = ?'
+                ).bind(summary, doc.id).run();
+                totalSummaries++;
+              }
+
+              totalProcessed++;
+            } catch (docErr) {
+              console.error(`[Backfill] Error processing ${doc.id}:`, docErr);
+              errors++;
+            }
+          }
+
+          offset += batchSize;
+          console.log(`[Backfill] Progress: ${totalProcessed} docs, ${totalParties} parties, ${totalSummaries} summaries, ${errors} errors`);
+        }
+
+        console.log(`[Backfill] Complete: ${totalProcessed} docs, ${totalParties} parties, ${totalSummaries} summaries, ${errors} errors`);
+
+        return jsonResponse({
+          success: true,
+          documents_processed: totalProcessed,
+          parties_inserted: totalParties,
+          summaries_updated: totalSummaries,
+          errors
+        }, 200, env);
+      } catch (error) {
+        console.error('[Backfill] Error:', error);
+        return errorResponse('Backfill failed', 500, env);
       }
     }
 
