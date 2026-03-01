@@ -387,13 +387,14 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
 
     // Check if user already exists (D1-first)
     const existingUser = await findUserByEmailD1First(env, normalizedEmail);
-    if (existingUser && existingUser.fields.Status !== 'Deleted') {
+    const isInactive = existingUser?.fields.Status === 'Deleted' || existingUser?.fields.Status === 'Cancelled';
+    if (existingUser && !isInactive) {
       return jsonResponse({ error: "An account with this email already exists" }, 409);
     }
 
     let recordId: string;
 
-    if (existingUser && existingUser.fields.Status === 'Deleted') {
+    if (existingUser && isInactive) {
       // Reactivate deleted account — reuse existing record ID, reset to Free/Active
       recordId = existingUser.id;
       await env.WELLS_DB.prepare(`
