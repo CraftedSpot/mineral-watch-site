@@ -398,7 +398,7 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
       // Reactivate deleted account — reuse existing record ID, reset to Free/Active
       recordId = existingUser.id;
       await env.WELLS_DB.prepare(`
-        UPDATE users SET status = 'Active', plan = 'Free', name = ?
+        UPDATE users SET status = 'Active', plan = 'Free', name = ?, role = NULL, organization_id = NULL
         WHERE airtable_record_id = ?
       `).bind(displayName, recordId).run();
       console.log(`[Register] Reactivated deleted account: ${normalizedEmail} (${recordId})`);
@@ -408,8 +408,8 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
       const userId = `user_${recordId}`;
 
       await env.WELLS_DB.prepare(`
-        INSERT INTO users (id, airtable_record_id, email, name, plan, status)
-        VALUES (?, ?, ?, ?, 'Free', 'Active')
+        INSERT INTO users (id, airtable_record_id, email, name, plan, status, role)
+        VALUES (?, ?, ?, ?, 'Free', 'Active', NULL)
       `).bind(userId, recordId, normalizedEmail, displayName).run();
       console.log(`[Register] User created in D1: ${normalizedEmail} (${recordId})`);
     }
