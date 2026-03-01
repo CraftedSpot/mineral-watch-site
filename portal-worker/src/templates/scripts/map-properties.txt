@@ -741,14 +741,6 @@
         // Load and display user properties with batch optimization
         async function loadUserProperties() {
             try {
-                // Check if this is first load
-                const hasCache = localStorage.getItem('propertyGeometryCache');
-                if (!hasCache) {
-                    showLoading('Loading your properties for the first time...',
-                        'This may take a moment. Future loads will be instant.');
-                } else {
-                    showLoading('Loading your properties...');
-                }
                 updateStatus('Loading properties...');
 
                 // Fetch properties from API
@@ -790,13 +782,15 @@
                     const county = fields.COUNTY || fields.County || '';
                     const cacheKey = `${section}-${township}-${range}`;
 
-                    // Check if already cached
-                    if (geometryCache[cacheKey] || localStorage.getItem(`mw_section_${cacheKey}`)) {
-                        // Load from cache immediately
+                    // Check if already cached (includes "not found" markers with d:null)
+                    const lsEntry = localStorage.getItem(`mw_section_${cacheKey}`);
+                    if (geometryCache[cacheKey] || lsEntry) {
                         let geometry = geometryCache[cacheKey];
-                        if (!geometry) { const _r = JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`)); geometry = _r && _r.d !== undefined ? _r.d : _r; }
-                        addPropertyToMap(property, geometry);
-                        console.log(`Loaded from cache: S${section} T${township} R${range}`);
+                        if (!geometry && lsEntry) {
+                            try { const _r = JSON.parse(lsEntry); geometry = _r && _r.d !== undefined ? _r.d : _r; } catch(e) {}
+                        }
+                        if (geometry) addPropertyToMap(property, geometry);
+                        // Either way, skip re-fetching (cached null = section not found)
                     } else {
                         // Add to batch fetch list
                         const plssData = getPlssId(township, range, county);
@@ -815,22 +809,35 @@
 
                 updateStatus(`${propertiesNeedingGeometry.length} properties need geometry fetch`);
 
-                // Batch fetch remaining geometries
+                // Batch fetch remaining geometries (only show loading if needed)
                 if (propertiesNeedingGeometry.length > 0) {
-                    document.querySelector('.loading-text').textContent =
-                        `Loading ${propertiesNeedingGeometry.length} property boundaries...`;
-                    document.querySelector('.loading-subtext').textContent =
-                        'Fetching section geometries';
-                    document.querySelector('.loading-subtext').style.display = 'block';
+                    showLoading(`Loading ${propertiesNeedingGeometry.length} property boundaries...`,
+                        'Fetching section geometries');
 
                     const geometryResults = await batchFetchGeometries(propertiesNeedingGeometry);
+
+                    // Cache "not found" for properties that got no result — prevents retrying every load
+                    const foundKeys = new Set(geometryResults.map(r => {
+                        const f = r.property.fields || r.property;
+                        let s = (f.SEC || f.Section || '').toString().trim().replace(/^(S|SEC|SECTION)\s*/i, '').trim();
+                        let t = (f.TWN || f.Township || '').toString().trim().replace(/^(T|TOWN|TOWNSHIP)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+                        let rr = (f.RNG || f.Range || '').toString().trim().replace(/^(R|RANGE)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+                        return `${s}-${t}-${rr}`;
+                    }));
+                    for (const prop of propertiesNeedingGeometry) {
+                        const ck = `${prop.section}-${prop.township}-${prop.range}`;
+                        if (!foundKeys.has(ck) && !localStorage.getItem(`mw_section_${ck}`)) {
+                            localStorage.setItem(`mw_section_${ck}`, JSON.stringify({t:Date.now(),d:null}));
+                        }
+                    }
 
                     // Add batch results to map
                     geometryResults.forEach(({ property, geometry }) => {
                         addPropertyToMap(property, geometry);
                     });
 
-                    console.log(`✅ Batch loaded ${geometryResults.length} geometries`);
+                    console.log(`Batch loaded ${geometryResults.length} geometries, ${propertiesNeedingGeometry.length - geometryResults.length} not found (cached)`);
+                    hideLoading();
                 }
 
                 // Add properties layer to map
