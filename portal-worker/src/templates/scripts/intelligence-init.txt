@@ -44,6 +44,7 @@
                 }
 
                 const data = await response.json();
+                applyIntelligenceTier(data._intelligence_tier || data.summary?._intelligence_tier || 'full');
                 renderSummaryCards(data.summary);
                 renderInsights(data.insights || []);
             } catch (error) {
@@ -55,6 +56,31 @@
                 setSummaryError();
                 renderInsightsFallback();
             }
+        }
+
+        function applyIntelligenceTier(tier) {
+            if (tier === 'none') {
+                // Hide everything, show upgrade banner
+                const hero = document.querySelector('.intel-hero');
+                if (hero) hero.style.display = 'none';
+                const main = document.querySelector('main');
+                if (main) main.style.display = 'none';
+                const banner = document.getElementById('intelligenceUpgradeBanner');
+                if (banner) banner.style.display = 'block';
+                return;
+            }
+            if (tier === 'portfolio') {
+                // Lock full-intel cards
+                document.querySelectorAll('.market-tool-card[data-tier="full"]').forEach(card => {
+                    card.classList.add('locked');
+                    card.setAttribute('onclick', '');
+                    const badge = document.createElement('div');
+                    badge.className = 'locked-badge';
+                    badge.textContent = 'Business';
+                    card.appendChild(badge);
+                });
+            }
+            // 'full' — show everything (default state)
         }
 
         function renderSummaryCards(data) {

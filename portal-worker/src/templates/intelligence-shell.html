@@ -38,6 +38,43 @@
     </header>
     <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
 
+    <!-- Upgrade Banner (shown for Free/Starter users) -->
+    <div id="intelligenceUpgradeBanner" style="display: none;">
+        <div class="container" style="max-width: 600px; margin: 80px auto; text-align: center; padding: 60px 24px;">
+            <div style="width: 64px; height: 64px; background: #EBF8FF; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5" style="width: 32px; height: 32px;">
+                    <path d="M12 15V3m0 0l-4 4m4-4l4 4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/>
+                </svg>
+            </div>
+            <h2 style="color: #1C2B36; font-size: 24px; font-weight: 700; margin: 0 0 12px;">Intelligence Reports</h2>
+            <p style="color: #334E68; font-size: 16px; line-height: 1.6; margin: 0 0 32px;">Upgrade to Standard or above to unlock portfolio analytics — production decline tracking, shut-in detection, deduction audits, well risk profiles, and more.</p>
+            <a href="/pricing" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">View Plans →</a>
+        </div>
+    </div>
+
+    <style>
+        .market-tool-card.locked {
+            opacity: 0.45;
+            pointer-events: none;
+            position: relative;
+        }
+        .market-tool-card.locked .tool-arrow {
+            display: none;
+        }
+        .locked-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: #1C2B36;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.3px;
+        }
+    </style>
+
     <!-- Summary Cards in Navy Zone -->
     <div class="intel-hero">
         <div class="container">
@@ -127,7 +164,7 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadPoolingReport()">
+                    <div class="market-tool-card" data-tier="full" onclick="loadPoolingReport()">
                         <div class="tool-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -143,7 +180,7 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadShutInDetectorReport()">
+                    <div class="market-tool-card" data-tier="portfolio" onclick="loadShutInDetectorReport()">
                         <div class="tool-icon" style="background: #fef2f2;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5">
                                 <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
@@ -160,7 +197,7 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadOccFilingReport()">
+                    <div class="market-tool-card" data-tier="portfolio" onclick="loadOccFilingReport()">
                         <div class="tool-icon" style="background: #eff6ff;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="1.5">
                                 <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
@@ -177,7 +214,7 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadWellRiskProfileReport()">
+                    <div class="market-tool-card" data-tier="portfolio" onclick="loadWellRiskProfileReport()">
                         <div class="tool-icon" style="background: #fef3c7;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5">
                                 <path d="M12 9v2m0 4h.01M5.07 19h13.86c1.63 0 2.44-1.97 1.29-3.14L13.29 3.86c-.56-.56-1.47-.56-2.03 0L4.34 15.86C3.19 17.03 4 19 5.63 19z"/>
@@ -201,7 +238,7 @@
                     <span class="section-meta">Statewide operator data and benchmarking</span>
                 </div>
                 <div class="market-tools-grid">
-                    <div class="market-tool-card" onclick="loadDeductionReport('research')">
+                    <div class="market-tool-card" data-tier="full" onclick="loadDeductionReport('research')">
                         <div class="tool-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <path d="M3 3v18h18"/>
