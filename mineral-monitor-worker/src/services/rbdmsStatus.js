@@ -353,7 +353,7 @@ export async function checkAllWellStatuses(env, options = {}) {
                 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ fields: { 'Status': rbdmsStatus } })
+              body: JSON.stringify({ fields: { 'Well Status': rbdmsStatus } })
             });
             // D1 dual-write (non-fatal)
             try {

@@ -260,6 +260,19 @@ export default {
       });
     }
 
+    // ── All /test/* and /backfill/property|user endpoints require auth ──
+    const isTestOrUnprotectedBackfill =
+      url.pathname.startsWith('/test/') ||
+      url.pathname.startsWith('/backfill/property/') ||
+      url.pathname.startsWith('/backfill/user/');
+
+    if (isTestOrUnprotectedBackfill) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+    }
+
     // Test specific well
     if (url.pathname === '/test/check-well') {
       const targetAPI = url.searchParams.get('api') || '3508700028';

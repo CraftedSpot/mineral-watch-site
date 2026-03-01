@@ -596,9 +596,9 @@ export async function getNearbyActivity(env, townships, days = 7) {
              created_at
       FROM statewide_activity
       WHERE (${conditions})
-      AND created_at > datetime('now', '-${days} days')
+      AND created_at > datetime('now', '-' || ? || ' days')
       ORDER BY created_at DESC
-    `).bind(...bindings).all();
+    `).bind(...bindings, String(days)).all();
 
     allResults.push(...(results.results || []));
   }
@@ -670,9 +670,9 @@ export async function getCountyActivityStats(env, counties, days = 7) {
         SUM(CASE WHEN has_completion = 1 THEN 1 ELSE 0 END) as completion_count
       FROM statewide_activity
       WHERE UPPER(county) IN (${placeholders})
-      AND created_at > datetime('now', '-${days} days')
+      AND created_at > datetime('now', '-' || ? || ' days')
       GROUP BY county
-    `).bind(...chunk.map(c => c.toUpperCase())).all();
+    `).bind(...chunk.map(c => c.toUpperCase()), String(days)).all();
 
     for (const row of (results.results || [])) {
       statsMap.set(row.county.toUpperCase(), {
@@ -707,9 +707,9 @@ export async function getDocketCountByCounty(env, counties, days = 7) {
         SELECT county, COUNT(*) as docket_count
         FROM occ_docket_entries
         WHERE UPPER(county) IN (${placeholders})
-        AND docket_date > datetime('now', '-${days} days')
+        AND docket_date > datetime('now', '-' || ? || ' days')
         GROUP BY county
-      `).bind(...chunk.map(c => c.toUpperCase())).all();
+      `).bind(...chunk.map(c => c.toUpperCase()), String(days)).all();
 
       for (const row of (results.results || [])) {
         docketMap.set(row.county.toUpperCase(), row.docket_count || 0);

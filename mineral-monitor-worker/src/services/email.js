@@ -282,6 +282,16 @@ function getAlertLevelStyle(alertLevel) {
       bgColor: '#FEF2F2',
       borderColor: '#DC2626'
     },
+    'BOTTOM HOLE': {
+      color: '#C2410C',
+      bgColor: '#FFF7ED',
+      borderColor: '#C2410C'
+    },
+    'LATERAL PATH': {
+      color: '#7C3AED',
+      bgColor: '#F5F3FF',
+      borderColor: '#7C3AED'
+    },
     'ADJACENT SECTION': {
       color: '#D97706',
       bgColor: '#FFFBEB',
