@@ -1596,6 +1596,7 @@ INITIAL_RETRY_DELAY = 60
 COARSE_TYPES = [
     "deed",           # mineral deed, quit claim, warranty deed, correction deed
     "lease",          # oil & gas lease, assignment of lease, ratification
+    "joa",            # joint operating agreements (AAPL 610, model form operating agreements)
     "order",          # OCC orders (pooling, spacing, density, location exception)
     "permit",         # drilling permits, completion reports
     "check",          # check stubs, royalty statements, JIBs, operating expense invoices
@@ -1620,6 +1621,13 @@ TITLE_PATTERNS = [
     (r"ROYALTY\s+DEED", "deed"),
     (r"GENERAL\s+WARRANTY\s+DEED", "deed"),
     (r"SPECIAL\s+WARRANTY\s+DEED", "deed"),
+    # JOA / Operating Agreements (MUST come before Leases — JOAs contain "OIL AND GAS LEASE" boilerplate)
+    (r"OPERATING\s+AGREEMENT", "joa"),
+    (r"JOINT\s+OPERATING\s+AGREEMENT", "joa"),
+    (r"MODEL\s+FORM\s+OPERATING\s+AGREEMENT", "joa"),
+    (r"A\.?A\.?P\.?L\.?\s+FORM\s+610", "joa"),
+    (r"AAPL\s+FORM\s+610", "joa"),
+    (r"FORM\s+610", "joa"),
     # Leases
     (r"OIL\s+AND\s+GAS\s+LEASE", "lease"),
     (r"ASSIGNMENT\s+OF.*LEASE", "lease"),
@@ -1984,6 +1992,7 @@ For this SINGLE PAGE, determine:
 COARSE DOCUMENT TYPES (pick exactly one):
 - deed: Mineral deeds, quit claim deeds, warranty deeds, correction deeds, conveyances
 - lease: Oil & gas leases, assignments of lease, lease ratifications, memoranda of lease
+- joa: Joint Operating Agreements, AAPL Form 610, Model Form Operating Agreements (NOT oil & gas leases — JOAs govern working interest relationships between co-owners)
 - order: OCC/Commission orders (pooling, spacing, density, location exception)
 - permit: Drilling permits, completion reports, well permits (Form 1000, 1002)
 - check: Check stubs, royalty statements, payment statements, division orders, JIBs, joint owner invoices, operating expense invoices
