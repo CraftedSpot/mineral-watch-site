@@ -255,19 +255,36 @@
         }
 
         // Load recent activity data (permits and completions)
+        const ACTIVITY_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
+
         async function loadActivityData() {
             try {
                 updateStatus('Loading recent activity...');
 
-                // Fetch recent activity from the API (last 90 days)
-                // Use statewide endpoint to get ALL activity from both tables
-                const response = await fetch('/api/activity/statewide?days=90');
-                if (!response.ok) {
-                    throw new Error('Failed to load activity data');
+                // Check localStorage cache first (30-min TTL)
+                let activities;
+                const cached = localStorage.getItem('mw_activity_cache');
+                if (cached) {
+                    try {
+                        const parsed = JSON.parse(cached);
+                        if (parsed.t && (Date.now() - parsed.t) < ACTIVITY_CACHE_TTL && parsed.data) {
+                            activities = parsed.data;
+                            console.log(`Loaded ${activities.length} activities from cache`);
+                        }
+                    } catch (e) { localStorage.removeItem('mw_activity_cache'); }
                 }
 
-                const activities = await response.json();
-                console.log(`Loaded ${activities.length} recent activities`);
+                // Fetch from API if no cache hit
+                if (!activities) {
+                    const response = await fetch('/api/activity/statewide?days=90');
+                    if (!response.ok) {
+                        throw new Error('Failed to load activity data');
+                    }
+                    activities = await response.json();
+                    console.log(`Loaded ${activities.length} activities from API`);
+                    // Cache for next visit
+                    try { localStorage.setItem('mw_activity_cache', JSON.stringify({ t: Date.now(), data: activities })); } catch (e) {}
+                }
 
                 // Clear existing layers
                 permitsLayer.clearLayers();
@@ -289,7 +306,6 @@
                     if (fields.Latitude && fields.Longitude) {
                         lat = parseFloat(fields.Latitude);
                         lng = parseFloat(fields.Longitude);
-                        console.log(`Using stored coords for ${fields['API Number']}: ${lat}, ${lng}`);
                     } else {
                         // Fallback: Try to parse TRS and use section geometry
                         const trs = parseTRSFromActivity(fields['Section-Township-Range']);
@@ -386,53 +402,39 @@
 
                         permitsLayer.addLayer(marker);
 
-                        // Check if this is a horizontal/directional well permit and create lateral path
-                        // Log permit fields to see what data we have
-                        if (fields['API Number']?.includes('35')) { // Oklahoma API numbers start with 35
-                            console.log(`Permit ${fields['API Number']} fields:`, Object.keys(fields).filter(key => key.toLowerCase().includes('drill') || key.toLowerCase().includes('pbh') || key.toLowerCase().includes('section')));
-                        }
-
                         if ((fields['Drill Type'] === 'HH' || fields['Drill Type'] === 'DH') &&
-                            fields['PBH Section'] && fields['PBH Township'] && fields['PBH Range']) {
+                            (fields['BH Latitude'] && fields['BH Longitude'] || fields['PBH Section'])) {
 
-                            // Get bottom hole TRS
-                            const bhTRS = {
-                                section: fields['PBH Section'],
-                                township: fields['PBH Township'],
-                                range: fields['PBH Range']
-                            };
+                            // Use BH coords from API when available (no geometry fetch needed)
+                            let bhLat = parseFloat(fields['BH Latitude']);
+                            let bhLng = parseFloat(fields['BH Longitude']);
 
-                            // Try to get bottom hole geometry
-                            const bhCacheKey = `${bhTRS.section}-${bhTRS.township}-${bhTRS.range}`;
-                            let bhGeometry = geometryCache[bhCacheKey];
-
-                            if (!bhGeometry && fields.County) {
-                                try {
-                                    bhGeometry = await fetchSectionGeometry(bhTRS.section, bhTRS.township, bhTRS.range, fields.County);
-                                    if (bhGeometry) {
-                                        geometryCache[bhCacheKey] = bhGeometry;
-                                    }
-                                } catch (err) {
-                                    console.warn(`Failed to fetch BH geometry for permit ${fields['API Number']}:`, err);
+                            // Fallback: fetch section geometry if no BH coords
+                            if (!bhLat || !bhLng) {
+                                const bhCacheKey = `${fields['PBH Section']}-${fields['PBH Township']}-${fields['PBH Range']}`;
+                                let bhGeometry = geometryCache[bhCacheKey];
+                                if (!bhGeometry && fields.County && fields['PBH Section'] && fields['PBH Township'] && fields['PBH Range']) {
+                                    try {
+                                        bhGeometry = await fetchSectionGeometry(fields['PBH Section'], fields['PBH Township'], fields['PBH Range'], fields.County);
+                                        if (bhGeometry) geometryCache[bhCacheKey] = bhGeometry;
+                                    } catch (err) {}
+                                }
+                                if (bhGeometry && bhGeometry.geometry) {
+                                    const c = L.geoJSON(bhGeometry).getBounds().getCenter();
+                                    bhLat = c.lat;
+                                    bhLng = c.lng;
                                 }
                             }
 
-                            if (bhGeometry && bhGeometry.geometry) {
-                                const bhBounds = L.geoJSON(bhGeometry).getBounds();
-                                const bhCenter = bhBounds.getCenter();
-
-                                // Create lateral path
+                            if (bhLat && bhLng) {
                                 const path = drawLateralPath(
-                                    { lat, lng }, // Surface location
-                                    { lat: bhCenter.lat, lng: bhCenter.lng }, // BH location
-                                    { fields }, // Well data
-                                    'permit' // Path type
+                                    { lat, lng },
+                                    { lat: bhLat, lng: bhLng },
+                                    { fields },
+                                    'permit'
                                 );
-
                                 if (path) {
-                                    // Add lateral path to permits layer
                                     permitsLayer.addLayer(path);
-                                    console.log(`Created lateral path for permit ${fields['API Number']}`);
                                 }
                             }
                         }
@@ -469,64 +471,47 @@
 
                         completionsLayer.addLayer(marker);
 
-                        // Check if this is a horizontal well completion and create lateral path
-                        // Log completion fields to see what data we have
-                        if (fields['API Number']?.includes('35')) { // Oklahoma API numbers start with 35
-                            console.log(`Completion ${fields['API Number']} fields:`, Object.keys(fields).filter(key => key.toLowerCase().includes('drill') || key.toLowerCase().includes('bh') || key.toLowerCase().includes('section') || key.toLowerCase().includes('location')));
-                        }
-
                         const isHorizontal = fields['Drill Type'] === 'HORIZONTAL HOLE' ||
                                            fields['Drill Type'] === 'HH' ||
                                            fields['Location Type Sub'] === 'HH';
 
-                        if (isHorizontal && fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
-                            // Get bottom hole TRS
-                            const bhTRS = {
-                                section: fields['BH Section'],
-                                township: fields['BH Township'],
-                                range: fields['BH Range']
-                            };
+                        if (isHorizontal && (fields['BH Latitude'] && fields['BH Longitude'] || fields['BH Section'])) {
+                            // Use BH coords from API when available (no geometry fetch needed)
+                            let bhLat = parseFloat(fields['BH Latitude']);
+                            let bhLng = parseFloat(fields['BH Longitude']);
 
-                            // Try to get bottom hole geometry
-                            const bhCacheKey = `${bhTRS.section}-${bhTRS.township}-${bhTRS.range}`;
-                            let bhGeometry = geometryCache[bhCacheKey];
-
-                            if (!bhGeometry && fields.County) {
-                                try {
-                                    bhGeometry = await fetchSectionGeometry(bhTRS.section, bhTRS.township, bhTRS.range, fields.County);
-                                    if (bhGeometry) {
-                                        geometryCache[bhCacheKey] = bhGeometry;
-                                    }
-                                } catch (err) {
-                                    console.warn(`Failed to fetch BH geometry for completion ${fields['API Number']}:`, err);
+                            // Fallback: fetch section geometry if no BH coords
+                            if (!bhLat || !bhLng) {
+                                const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
+                                let bhGeometry = geometryCache[bhCacheKey];
+                                if (!bhGeometry && fields.County && fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
+                                    try {
+                                        bhGeometry = await fetchSectionGeometry(fields['BH Section'], fields['BH Township'], fields['BH Range'], fields.County);
+                                        if (bhGeometry) geometryCache[bhCacheKey] = bhGeometry;
+                                    } catch (err) {}
+                                }
+                                if (bhGeometry && bhGeometry.geometry) {
+                                    const c = L.geoJSON(bhGeometry).getBounds().getCenter();
+                                    bhLat = c.lat;
+                                    bhLng = c.lng;
                                 }
                             }
 
-                            if (bhGeometry && bhGeometry.geometry) {
-                                const bhBounds = L.geoJSON(bhGeometry).getBounds();
-                                const bhCenter = bhBounds.getCenter();
-
-                                // Create lateral path
+                            if (bhLat && bhLng) {
                                 const path = drawLateralPath(
-                                    { lat, lng }, // Surface location
-                                    { lat: bhCenter.lat, lng: bhCenter.lng }, // BH location
-                                    { fields }, // Well data
-                                    'completion' // Path type
+                                    { lat, lng },
+                                    { lat: bhLat, lng: bhLng },
+                                    { fields },
+                                    'completion'
                                 );
-
                                 if (path) {
-                                    // Add lateral path to completions layer
                                     completionsLayer.addLayer(path);
-                                    console.log(`Created lateral path for completion ${fields['API Number']}`);
                                 }
                             }
                         }
                     }
 
                     processedCount++;
-                    if (processedCount % 5 === 0 || processedCount === totalActivities) {
-                        updateStatus(`Loading activity ${processedCount} of ${totalActivities}...`);
-                    }
                 }
 
                 // Create heat layers with collected points BEFORE checking toggles
@@ -720,14 +705,30 @@
         // Load OCC docket entries for heatmap (runs independently, non-blocking)
         async function loadOccDocketHeatmap() {
             try {
-                console.log('📋 Loading OCC docket heatmap data...');
-                const docketResponse = await fetch('/api/docket-heatmap?days=90');
-                if (!docketResponse.ok) {
-                    console.warn('Failed to fetch OCC docket data:', docketResponse.status);
-                    return;
+                console.log('Loading OCC docket heatmap data...');
+
+                // Check localStorage cache first (30-min TTL)
+                let docketData;
+                const cached = localStorage.getItem('mw_docket_cache');
+                if (cached) {
+                    try {
+                        const parsed = JSON.parse(cached);
+                        if (parsed.t && (Date.now() - parsed.t) < ACTIVITY_CACHE_TTL && parsed.data) {
+                            docketData = parsed.data;
+                            console.log(`Loaded ${docketData.count} docket entries from cache`);
+                        }
+                    } catch (e) { localStorage.removeItem('mw_docket_cache'); }
                 }
 
-                const docketData = await docketResponse.json();
+                if (!docketData) {
+                    const docketResponse = await fetch('/api/docket-heatmap?days=90');
+                    if (!docketResponse.ok) {
+                        console.warn('Failed to fetch OCC docket data:', docketResponse.status);
+                        return;
+                    }
+                    docketData = await docketResponse.json();
+                    try { localStorage.setItem('mw_docket_cache', JSON.stringify({ t: Date.now(), data: docketData })); } catch (e) {}
+                }
                 console.log(`📋 Loaded ${docketData.count} OCC docket entries for heatmap`);
 
                 if (!docketData.entries || docketData.entries.length === 0) {
@@ -740,36 +741,11 @@
                 const spacingPoints = [];
                 const horizontalPoints = [];
 
+                // Server now returns lat/lng centroids — no per-entry geometry fetches needed
                 for (const entry of docketData.entries) {
-                    if (!entry.section || !entry.township || !entry.range) continue;
+                    if (!entry.latitude || !entry.longitude) continue;
 
-                    // Get coordinates for this TRS location
-                    const cacheKey = `${entry.section}-${entry.township}-${entry.range}`;
-                    let lat, lng;
-
-                    if (geometryCache[cacheKey]) {
-                        const bounds = L.geoJSON(geometryCache[cacheKey]).getBounds();
-                        const center = bounds.getCenter();
-                        lat = center.lat;
-                        lng = center.lng;
-                    } else {
-                        // Try to fetch geometry
-                        try {
-                            const geom = await fetchSectionGeometry(entry.section, entry.township, entry.range, entry.county);
-                            if (geom && geom.geometry) {
-                                const bounds = L.geoJSON(geom).getBounds();
-                                const center = bounds.getCenter();
-                                lat = center.lat;
-                                lng = center.lng;
-                            }
-                        } catch (err) {
-                            continue;
-                        }
-                    }
-
-                    if (!lat || !lng) continue;
-
-                    const point = [lat, lng, 1];
+                    const point = [entry.latitude, entry.longitude, 1];
                     switch (entry.relief_type) {
                         case 'POOLING': poolingPoints.push(point); break;
                         case 'INCREASED_DENSITY': densityPoints.push(point); break;
