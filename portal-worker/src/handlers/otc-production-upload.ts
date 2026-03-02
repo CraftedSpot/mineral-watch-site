@@ -247,7 +247,8 @@ export async function handleGetProductionStats(
  */
 export async function handleUploadPunProductionData(
   request: Request,
-  env: Env
+  env: Env,
+  ctx?: ExecutionContext
 ): Promise<Response> {
   try {
     const body = (await request.json()) as PunUploadRequest;
@@ -339,6 +340,13 @@ export async function handleUploadPunProductionData(
           totalInserted += result.meta.changes;
         }
       }
+    }
+
+    // Purge stale production caches in the background
+    if (ctx) {
+      ctx.waitUntil(purgeProductionCaches(env));
+    } else {
+      await purgeProductionCaches(env);
     }
 
     return jsonResponse({

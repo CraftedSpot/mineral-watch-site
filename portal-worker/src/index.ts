@@ -1464,7 +1464,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           return handleGetProductionStats(request, env);
         }
         if (path === "/api/otc-sync/upload-pun-production" && request.method === "POST") {
-          return handleUploadPunProductionData(request, env);
+          return handleUploadPunProductionData(request, env, ctx);
         }
         if (path === "/api/otc-sync/truncate-pun-production" && request.method === "POST") {
           return handleTruncatePunProduction(request, env);
