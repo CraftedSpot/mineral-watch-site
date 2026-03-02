@@ -16,6 +16,8 @@ const BATCH_SIZE = 500; // Max statements per batch to stay within limits
 
 // Chunked sync configuration
 const CURSOR_KEY = 'sync:cursor';
+const LOCK_KEY = 'sync:lock';
+const LOCK_TTL_SECONDS = 1200; // 20 minutes — buffer above 15-min cron interval
 const TIME_BUDGET_MS = 600_000; // 10 minutes — cron handlers have 15min timeout
 const MAX_OCC_LOOKUPS_PER_TICK = 20; // Limit OCC API calls for new wells per tick
 const CURSOR_STALE_MS = 2 * 60 * 60 * 1000; // Restart if cursor >2 hours old
@@ -159,6 +161,35 @@ async function saveCursor(env: any, cursor: SyncCursor): Promise<void> {
 
 async function clearCursor(env: any): Promise<void> {
   await env.OCC_CACHE.delete(CURSOR_KEY);
+}
+
+// ============================================================================
+// Sync Locking — prevents concurrent cron runs from overlapping
+// ============================================================================
+
+async function acquireLock(env: any): Promise<boolean> {
+  try {
+    const existing = await env.OCC_CACHE.get(LOCK_KEY);
+    if (existing) {
+      console.log(`[Sync] Lock already held (acquired at ${existing}), skipping this run`);
+      return false;
+    }
+    await env.OCC_CACHE.put(LOCK_KEY, new Date().toISOString(), { expirationTtl: LOCK_TTL_SECONDS });
+    console.log('[Sync] Lock acquired');
+    return true;
+  } catch (e) {
+    console.error('[Sync] Error acquiring lock:', e);
+    return false; // Fail-safe: don't run if we can't check
+  }
+}
+
+async function releaseLock(env: any): Promise<void> {
+  try {
+    await env.OCC_CACHE.delete(LOCK_KEY);
+    console.log('[Sync] Lock released');
+  } catch (e) {
+    console.error('[Sync] Error releasing lock (will auto-expire):', e);
+  }
 }
 
 function isTimeBudgetExceeded(tickStart: number): boolean {
@@ -1271,6 +1302,18 @@ export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<
     throw new Error('MINERAL_AIRTABLE_API_KEY not configured');
   }
 
+  // Acquire lock to prevent concurrent cron runs
+  const locked = await acquireLock(env);
+  if (!locked) {
+    // Another sync is already running — return empty result
+    return {
+      properties: { synced: 0, created: 0, updated: 0, errors: ['Skipped: another sync is already running'] },
+      wells: { synced: 0, created: 0, updated: 0, errors: [] },
+      duration: Date.now() - tickStart
+    };
+  }
+
+  try {
   // Load or create cursor
   let cursor = await loadCursor(env);
   const isResume = !!cursor;
@@ -1392,5 +1435,9 @@ export async function syncAirtableData(env: any, ctx?: { waitUntil: (p: Promise<
 
     await clearCursor(env);
     throw error;
+  }
+
+  } finally {
+    await releaseLock(env);
   }
 }
