@@ -1,53 +1,45 @@
+        // Versioned localStorage cache helper — checks /api/map-data/version, returns cached data or fetches fresh
+        async function fetchWithVersionCache(cacheKey, versionField, fetchUrl, label) {
+            const cached = localStorage.getItem(cacheKey);
+            if (cached) {
+                try {
+                    const { version, data } = JSON.parse(cached);
+                    const vRes = await fetch('/api/map-data/version');
+                    if (vRes.ok) {
+                        const current = await vRes.json();
+                        if (version === current[versionField]) {
+                            console.log(`${label} loaded from cache`);
+                            return data;
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`${label} cache read error:`, e);
+                }
+            }
+            // Cache miss or version mismatch — fetch fresh
+            const response = await fetch(fetchUrl, { credentials: 'include' });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+            try {
+                const vRes = await fetch('/api/map-data/version');
+                if (vRes.ok) {
+                    const ver = await vRes.json();
+                    localStorage.setItem(cacheKey, JSON.stringify({ version: ver[versionField], data }));
+                    console.log(`${label} cached`);
+                }
+            } catch (e) {
+                console.warn(`${label} cache write error:`, e);
+            }
+            return data;
+        }
+
         // Function to load county data with caching
         async function loadCountyData() {
             try {
                 console.log('Loading county boundaries...');
                 updateStatus('Loading counties...');
 
-                // Check cache first
-                const cached = localStorage.getItem('counties_cache');
-                let countyData;
-
-                if (cached) {
-                    try {
-                        const { version, data } = JSON.parse(cached);
-                        const versionResponse = await fetch('/api/map-data/version');
-                        if (versionResponse.ok) {
-                            const current = await versionResponse.json();
-                            if (version === current.counties_version) {
-                                console.log('Counties loaded from cache');
-                                countyData = data;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('Cache read error:', e);
-                    }
-                }
-
-                // If not cached or version mismatch, fetch fresh
-                if (!countyData) {
-                    const response = await fetch('/api/map/counties', { credentials: 'include' });
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    countyData = await response.json();
-
-                    // Cache with version
-                    try {
-                        const versionResponse = await fetch('/api/map-data/version');
-                        if (versionResponse.ok) {
-                            const version = await versionResponse.json();
-                            localStorage.setItem('counties_cache', JSON.stringify({
-                                version: version.counties_version,
-                                data: countyData
-                            }));
-                            console.log('Counties cached');
-                        }
-                    } catch (e) {
-                        console.warn('Cache write error:', e);
-                    }
-                }
+                let countyData = await fetchWithVersionCache('counties_cache', 'counties_version', '/api/map/counties', 'Counties');
 
                 // Check if we have data
                 if (!countyData.features || countyData.features.length === 0) {
@@ -131,50 +123,7 @@
                 console.log('Loading PLSS township boundaries...');
                 updateStatus('Loading townships...');
 
-                // Check cache first
-                const cached = localStorage.getItem('townships_cache');
-                let townshipData;
-
-                if (cached) {
-                    try {
-                        const { version, data } = JSON.parse(cached);
-                        const versionResponse = await fetch('/api/map-data/version');
-                        if (versionResponse.ok) {
-                            const current = await versionResponse.json();
-                            if (version === current.townships_version) {
-                                console.log('Townships loaded from cache');
-                                townshipData = data;
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('Township cache read error:', e);
-                    }
-                }
-
-                // If not cached or version mismatch, fetch fresh
-                if (!townshipData) {
-                    const response = await fetch('/api/map/townships', { credentials: 'include' });
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-
-                    townshipData = await response.json();
-
-                    // Cache with version
-                    try {
-                        const versionResponse = await fetch('/api/map-data/version');
-                        if (versionResponse.ok) {
-                            const version = await versionResponse.json();
-                            localStorage.setItem('townships_cache', JSON.stringify({
-                                version: version.townships_version,
-                                data: townshipData
-                            }));
-                            console.log('Townships cached');
-                        }
-                    } catch (e) {
-                        console.warn('Township cache write error:', e);
-                    }
-                }
+                let townshipData = await fetchWithVersionCache('townships_cache', 'townships_version', '/api/map/townships', 'Townships');
 
                 // Check if we have data
                 if (!townshipData.features || townshipData.features.length === 0) {
@@ -658,45 +607,22 @@
         }
 
         // Helper function to ensure proper layer ordering (properties should be clickable)
+        // Layer z-order: bottom → top. 'back' = remove+re-add (for LayerGroups), 'front' = bringToFront
+        const LAYER_ORDER = [
+            { get: () => activityHeatmapLayer, action: 'back' },   // background heatmap
+            { get: () => poolingRateLayer,     action: 'front' },  // choropleth
+            { get: () => wellsLayer,           action: 'front' },  // tracked wells
+            { get: () => nearbyWellsLayer,     action: 'front' },  // nearby wells
+            { get: () => propertiesLayer,      action: 'front' },  // user properties (most clickable)
+            { get: () => sectionLayer,         action: 'front' },  // section lines on top
+        ];
+
         function ensureLayerOrder() {
-            // Order from bottom to top:
-            // 1. Land grid (counties, townships) - bottom
-            // 2. Activity heatmap layer - low priority background
-            // 3. Lateral paths layer
-            // 4. Wells layer
-            // 5. Permits/Completions layers
-            // 6. Properties layer - top (most clickable)
-
-            // Bring activity heatmap to back if visible
-            if (activityHeatmapLayer && map.hasLayer(activityHeatmapLayer)) {
-                // Layer groups don't have bringToBack, so remove and re-add at bottom
-                map.removeLayer(activityHeatmapLayer);
-                map.addLayer(activityHeatmapLayer);
-            }
-
-            // Pooling rate choropleth above heatmap but below wells
-            if (poolingRateLayer && map.hasLayer(poolingRateLayer)) {
-                poolingRateLayer.bringToFront();
-            }
-
-            // Bring wells layer to appropriate position
-            if (wellsLayer && map.hasLayer(wellsLayer)) {
-                wellsLayer.bringToFront();
-            }
-
-            // Bring nearby wells layer above heatmap but below tracked wells
-            if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
-                nearbyWellsLayer.bringToFront();
-            }
-
-            // Bring properties to front if visible
-            if (propertiesLayer && map.hasLayer(propertiesLayer)) {
-                propertiesLayer.bringToFront();
-            }
-
-            // Section lines should be on top of everything
-            if (sectionLayer && map.hasLayer(sectionLayer)) {
-                sectionLayer.bringToFront();
+            for (const { get, action } of LAYER_ORDER) {
+                const layer = get();
+                if (!layer || !map.hasLayer(layer)) continue;
+                if (action === 'back') { map.removeLayer(layer); map.addLayer(layer); }
+                else { layer.bringToFront(); }
             }
         }
 
