@@ -3,7 +3,7 @@
  * Detects and alerts on well status changes during daily monitoring
  */
 
-import { createActivityLog } from './airtable.js';
+import { createActivityLog, updateActivityLog } from './airtable.js';
 import { sendAlertEmail } from './email.js';
 import { normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
@@ -171,6 +171,9 @@ export async function checkWellStatusChange(api10, currentData, env) {
               });
               
               result.alertsSent++;
+              if (activityResult?.id) {
+                await updateActivityLog(env, activityResult.id, { 'Email Sent': true });
+              }
               console.log(`[Status Change] Alert sent to ${user.email} for well ${api10}${match.viaOrganization ? ` (via ${match.viaOrganization})` : ''}`);
             } catch (emailErr) {
               console.error(`[Status Change] Failed to send email: ${emailErr.message}`);
