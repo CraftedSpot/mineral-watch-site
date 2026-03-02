@@ -1116,13 +1116,25 @@ export async function runFullPropertyWellMatching(
   const propertyIds = properties.map((p: any) => p.id);
   let existingLinks: any[] = [];
   const LINK_BATCH = 99; // D1 limit is 100 bind params per query
+  const CONCURRENCY = 5;
+  const linkBatches: string[][] = [];
   for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
-    const batch = propertyIds.slice(i, i + LINK_BATCH);
-    const placeholders = batch.map(() => '?').join(',');
-    const result = await env.WELLS_DB.prepare(
-      `SELECT property_airtable_id, well_airtable_id FROM property_well_links WHERE property_airtable_id IN (${placeholders})`
-    ).bind(...batch).all();
-    existingLinks.push(...((result.results || []) as any[]));
+    linkBatches.push(propertyIds.slice(i, i + LINK_BATCH));
+  }
+  for (let i = 0; i < linkBatches.length; i += CONCURRENCY) {
+    const group = linkBatches.slice(i, i + CONCURRENCY);
+    const groupResults = await Promise.allSettled(
+      group.map(batch => {
+        const placeholders = batch.map(() => '?').join(',');
+        return env.WELLS_DB.prepare(
+          `SELECT property_airtable_id, well_airtable_id FROM property_well_links WHERE property_airtable_id IN (${placeholders})`
+        ).bind(...batch).all();
+      })
+    );
+    for (const r of groupResults) {
+      if (r.status === 'fulfilled') existingLinks.push(...((r.value.results || []) as any[]));
+      else console.error('[PropertyWellMatch] Batch link query failed:', r.reason);
+    }
   }
 
   console.log(`[PropertyWellMatch] Found ${existingLinks.length} existing links in D1 for ${propertyIds.length} properties`);

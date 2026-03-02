@@ -1034,51 +1034,58 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       const allHorizResults: any[] = [];
       const seenApis = new Set<string>();
 
-      // 1.7a: Try TRS match with each alternative section
-      if (normalizedTownship && normalizedRange) {
-        for (const altSec of uniqueAltSections) {
-          const q17a = `
-            SELECT w.*, 75 as match_score
-            FROM wells w
-            WHERE (
-              UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
-              OR UPPER(well_name) LIKE UPPER(?2)
-            )
-            AND section = ?3 AND township = ?4 AND range = ?5 AND meridian = ?6
-            ORDER BY well_status = 'AC' DESC
-            LIMIT 10
-          `;
-          const r17a = await env.WELLS_DB.prepare(q17a)
-            .bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, altSec, normalizedTownship, normalizedRange, meridian).all();
-          for (const row of r17a.results as any[]) {
-            if (!seenApis.has(row.api_number)) {
-              seenApis.add(row.api_number);
-              allHorizResults.push(row);
-            }
+      // 1.7a + 1.7b: Run TRS surface match + BH match in parallel
+      {
+        const spatialQueries: Promise<any>[] = [];
+
+        // 1.7a: TRS match with each alternative section
+        if (normalizedTownship && normalizedRange) {
+          for (const altSec of uniqueAltSections) {
+            spatialQueries.push(
+              env.WELLS_DB.prepare(`
+                SELECT w.*, 75 as match_score
+                FROM wells w
+                WHERE (
+                  UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+                  OR UPPER(well_name) LIKE UPPER(?2)
+                )
+                AND section = ?3 AND township = ?4 AND range = ?5 AND meridian = ?6
+                ORDER BY well_status = 'AC' DESC
+                LIMIT 10
+              `).bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, altSec, normalizedTownship, normalizedRange, meridian).all()
+            );
           }
         }
-      }
 
-      // 1.7b: Search by bottom-hole location matching CSV's TRS
-      if (normalizedTownship && normalizedRange && sectionNum !== null) {
-        const q17b = `
-          SELECT w.*, 70 as match_score
-          FROM wells w
-          WHERE (
-            UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
-            OR UPPER(well_name) LIKE UPPER(?2)
-          )
-          AND bh_section = ?3 AND bh_township = ?4 AND bh_range = ?5
-          AND is_horizontal = 1
-          ORDER BY well_status = 'AC' DESC
-          LIMIT 10
-        `;
-        const r17b = await env.WELLS_DB.prepare(q17b)
-          .bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, sectionNum, normalizedTownship, normalizedRange).all();
-        for (const row of r17b.results as any[]) {
-          if (!seenApis.has(row.api_number)) {
-            seenApis.add(row.api_number);
-            allHorizResults.push(row);
+        // 1.7b: Search by bottom-hole location matching CSV's TRS
+        if (normalizedTownship && normalizedRange && sectionNum !== null) {
+          spatialQueries.push(
+            env.WELLS_DB.prepare(`
+              SELECT w.*, 70 as match_score
+              FROM wells w
+              WHERE (
+                UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+                OR UPPER(well_name) LIKE UPPER(?2)
+              )
+              AND bh_section = ?3 AND bh_township = ?4 AND bh_range = ?5
+              AND is_horizontal = 1
+              ORDER BY well_status = 'AC' DESC
+              LIMIT 10
+            `).bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, sectionNum, normalizedTownship, normalizedRange).all()
+          );
+        }
+
+        const spatialResults = await Promise.allSettled(spatialQueries);
+        for (const r of spatialResults) {
+          if (r.status === 'fulfilled') {
+            for (const row of r.value.results as any[]) {
+              if (!seenApis.has(row.api_number)) {
+                seenApis.add(row.api_number);
+                allHorizResults.push(row);
+              }
+            }
+          } else {
+            console.error('[BulkWellMatch] Spatial fallback query failed:', r.reason);
           }
         }
       }

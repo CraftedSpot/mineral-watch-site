@@ -139,12 +139,22 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   const api10s = Array.from(wellApi10Map.keys());
   const punLinks: PunLink[] = [];
 
-  for (const batch of chunk(api10s, API_BATCH)) {
-    const ph = batch.map(() => '?').join(',');
-    const result = await env.WELLS_DB!.prepare(
-      `SELECT DISTINCT api_number, base_pun FROM well_pun_links WHERE api_number IN (${ph}) AND base_pun IS NOT NULL`
-    ).bind(...batch).all();
-    punLinks.push(...(result.results as unknown as PunLink[]));
+  const CONCURRENCY = 5;
+  const punBatches = chunk(api10s, API_BATCH);
+  for (let i = 0; i < punBatches.length; i += CONCURRENCY) {
+    const group = punBatches.slice(i, i + CONCURRENCY);
+    const groupResults = await Promise.allSettled(
+      group.map(batch => {
+        const ph = batch.map(() => '?').join(',');
+        return env.WELLS_DB!.prepare(
+          `SELECT DISTINCT api_number, base_pun FROM well_pun_links WHERE api_number IN (${ph}) AND base_pun IS NOT NULL`
+        ).bind(...batch).all();
+      })
+    );
+    for (const r of groupResults) {
+      if (r.status === 'fulfilled') punLinks.push(...(r.value.results as unknown as PunLink[]));
+      else console.error('[RevenueEstimator] PUN batch query failed:', r.reason);
+    }
   }
 
   // Build maps: api10 → basePuns, basePun → api10s
@@ -173,17 +183,26 @@ export async function handlePropertyProduction(request: Request, env: Env): Prom
   const sixMonthsAgo = getMonthsAgo(6);
   const prodRows: ProdRow[] = [];
 
-  for (const batch of chunk(allBasePuns, PUN_BATCH)) {
-    const ph = batch.map(() => '?').join(',');
-    const result = await env.WELLS_DB!.prepare(`
-      SELECT base_pun, year_month,
-        SUM(CASE WHEN product_code IN ('1','3') THEN gross_volume ELSE 0 END) as oil_bbl,
-        SUM(CASE WHEN product_code IN ('5','6') THEN gross_volume ELSE 0 END) as gas_mcf
-      FROM otc_production
-      WHERE base_pun IN (${ph}) AND year_month >= ?
-      GROUP BY base_pun, year_month ORDER BY year_month DESC
-    `).bind(...batch, sixMonthsAgo).all();
-    prodRows.push(...(result.results as unknown as ProdRow[]));
+  const prodBatches = chunk(allBasePuns, PUN_BATCH);
+  for (let i = 0; i < prodBatches.length; i += CONCURRENCY) {
+    const group = prodBatches.slice(i, i + CONCURRENCY);
+    const groupResults = await Promise.allSettled(
+      group.map(batch => {
+        const ph = batch.map(() => '?').join(',');
+        return env.WELLS_DB!.prepare(`
+          SELECT base_pun, year_month,
+            SUM(CASE WHEN product_code IN ('1','3') THEN gross_volume ELSE 0 END) as oil_bbl,
+            SUM(CASE WHEN product_code IN ('5','6') THEN gross_volume ELSE 0 END) as gas_mcf
+          FROM otc_production
+          WHERE base_pun IN (${ph}) AND year_month >= ?
+          GROUP BY base_pun, year_month ORDER BY year_month DESC
+        `).bind(...batch, sixMonthsAgo).all();
+      })
+    );
+    for (const r of groupResults) {
+      if (r.status === 'fulfilled') prodRows.push(...(r.value.results as unknown as ProdRow[]));
+      else console.error('[RevenueEstimator] Production batch query failed:', r.reason);
+    }
   }
 
   // Build production lookup: basePun → [{yearMonth, oilBbl, gasMcf}]
