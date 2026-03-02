@@ -26,3 +26,13 @@ service = "portal-worker"
 [[services]]
 binding = "OCC_FETCHER"
 service = "occ-fetcher"
+
+[[kv_namespaces]]
+binding = "MINERAL_CACHE"
+id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+# Secrets (wrangler secret put):
+# RESEND_API_KEY

@@ -20,6 +20,8 @@ interface Env {
   OKCR_API_KEY?: string;
   OKCR_API_BASE?: string;
   ANTHROPIC_API_KEY?: string;
+  RESEND_API_KEY?: string;
+  MINERAL_CACHE?: KVNamespace;
   R2_ACCESS_KEY_ID?: string;
   R2_SECRET_ACCESS_KEY?: string;
   R2_ACCOUNT_ID?: string;
@@ -912,6 +914,7 @@ export default {
               extraction_started_at = NULL,
               extraction_completed_at = NULL,
               extraction_error = NULL,
+              is_retryable = NULL,
               queued_at = datetime('now', '-6 hours')
           WHERE id IN (${updatePlaceholders})
         `).bind(enhanced ? 1 : 0, ...eligibleIds).run();
@@ -2372,17 +2375,30 @@ export default {
         // Update the document with extraction results
         // Handle both success and failure cases
         if (status === 'failed') {
-          // For failed documents, only update status and error
+          // Classify error as retryable (transient API issue) or permanent (bad document)
+          const errStr = (extraction_error || 'Unknown error').toLowerCase();
+          const isRetryable = (
+            errStr.includes('429') || errStr.includes('rate limit') || errStr.includes('rate_limit') ||
+            errStr.includes('overload') || errStr.includes('529') ||
+            errStr.includes('500') || errStr.includes('502') || errStr.includes('503') || errStr.includes('504') ||
+            errStr.includes('timeout') || errStr.includes('timed out') || errStr.includes('aborted') ||
+            errStr.includes('connection') || errStr.includes('unavailable') || errStr.includes('server error')
+          ) ? 1 : 0;
+
           await env.WELLS_DB.prepare(`
             UPDATE documents
             SET status = 'failed',
                 extraction_completed_at = datetime('now', '-6 hours'),
-                extraction_error = ?
+                extraction_error = ?,
+                is_retryable = ?
             WHERE id = ?
           `).bind(
             extraction_error || 'Unknown error',
+            isRetryable,
             docId
           ).run();
+
+          console.log(`[Completion] Document ${docId} failed (retryable: ${isRetryable}): ${(extraction_error || '').substring(0, 100)}`);
 
           // Also update well_1002a_tracking if this was a completion report
           try {
@@ -3434,17 +3450,21 @@ export default {
                 // Get user info and plan from the document
                 // Use organization_id if available (for org-level credit tracking)
                 const docInfo = await env.WELLS_DB.prepare(`
-                  SELECT user_id, organization_id, user_plan, enhanced_extraction FROM documents WHERE id = ?
+                  SELECT user_id, organization_id, user_plan, enhanced_extraction, auto_retry_count FROM documents WHERE id = ?
                 `).bind(docId).first();
 
                 if (docInfo?.user_id) {
                   const userId = docInfo.user_id as string;
                   const userPlan = (docInfo.user_plan as string) || 'Free';
                   const isEnhanced = (docInfo as any).enhanced_extraction === 1;
+                  const autoRetryCount = ((docInfo as any).auto_retry_count as number) || 0;
 
                   // Skip credit tracking for system-triggered documents
                   if (userId === 'system_harvester' || userPlan === 'system') {
                     console.log('[Usage] Skipping credit tracking for system document:', docId);
+                  } else if (autoRetryCount > 0) {
+                    // Auto-retry succeeded — don't charge credit (user already paid by uploading)
+                    console.log('[Usage] Skipping credit for auto-retried document:', docId, '(retry count:', autoRetryCount, ')');
                   } else {
                     const usageService = new UsageTrackingService(env.WELLS_DB);
                     // Use organization_id for credit tracking if available, otherwise user_id
@@ -5055,4 +5075,152 @@ export default {
 
     return errorResponse('Not found', 404, env);
   },
+
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log('[AutoRetry] Cron triggered:', event.cron);
+    ctx.waitUntil(runAutoRetry(env));
+  },
 };
+
+// --- Auto-retry logic for transient extraction failures ---
+
+const MAX_AUTO_RETRIES = 3;
+
+async function runAutoRetry(env: Env): Promise<void> {
+  console.log('[AutoRetry] Starting auto-retry sweep');
+
+  try {
+    const retryable = await env.WELLS_DB.prepare(`
+      SELECT id, user_id, user_email, user_name, organization_id, filename, display_name,
+             auto_retry_count
+      FROM documents
+      WHERE status = 'failed'
+        AND is_retryable = 1
+        AND (auto_retry_count IS NULL OR auto_retry_count < ?)
+        AND deleted_at IS NULL
+        AND user_id != 'system_harvester'
+      ORDER BY created_at ASC
+      LIMIT 5
+    `).bind(MAX_AUTO_RETRIES).all();
+
+    const docs = retryable.results as any[];
+    if (docs.length === 0) {
+      console.log('[AutoRetry] No retryable documents found');
+      await writeHealthSignal(env, 'healthy', 0);
+      return;
+    }
+
+    console.log(`[AutoRetry] Found ${docs.length} documents to retry`);
+
+    for (const doc of docs) {
+      const newCount = ((doc.auto_retry_count as number) || 0) + 1;
+      const newIsRetryable = newCount >= MAX_AUTO_RETRIES ? 0 : 1;
+
+      await env.WELLS_DB.prepare(`
+        UPDATE documents
+        SET status = 'pending',
+            auto_retry_count = ?,
+            is_retryable = ?,
+            extraction_error = NULL,
+            processing_attempts = 0,
+            extraction_started_at = NULL,
+            extraction_completed_at = NULL,
+            queued_at = datetime('now', '-6 hours')
+        WHERE id = ?
+      `).bind(newCount, newIsRetryable, doc.id).run();
+
+      if (newCount >= MAX_AUTO_RETRIES) {
+        console.log(`[AutoRetry] Document ${doc.id} reached max retries (${MAX_AUTO_RETRIES}), marked permanent`);
+      }
+    }
+
+    console.log(`[AutoRetry] Queued ${docs.length} documents for retry`);
+
+    await writeHealthSignal(env, 'degraded', docs.length);
+    await sendRetryNotifications(env, docs);
+  } catch (err) {
+    console.error('[AutoRetry] Cron failed:', err);
+  }
+}
+
+async function writeHealthSignal(env: Env, status: string, count: number): Promise<void> {
+  if (!env.MINERAL_CACHE) return;
+  try {
+    await env.MINERAL_CACHE.put(
+      'service:anthropic:status',
+      JSON.stringify({ status, retryable_count: count, timestamp: new Date().toISOString() }),
+      { expirationTtl: 3600 }
+    );
+  } catch (e) {
+    console.error('[AutoRetry] Failed to write health signal:', e);
+  }
+}
+
+async function sendRetryNotifications(env: Env, docs: any[]): Promise<void> {
+  if (!env.RESEND_API_KEY) {
+    console.log('[AutoRetry] No RESEND_API_KEY — skipping notification emails');
+    return;
+  }
+
+  // Group by user email
+  const byEmail = new Map<string, { name: string; docNames: string[] }>();
+  for (const doc of docs) {
+    const email = doc.user_email as string | null;
+    if (!email) continue;
+    if (!byEmail.has(email)) {
+      byEmail.set(email, { name: (doc.user_name as string) || email.split('@')[0], docNames: [] });
+    }
+    byEmail.get(email)!.docNames.push((doc.display_name || doc.filename) as string);
+  }
+
+  for (const [email, { name, docNames }] of byEmail) {
+    try {
+      const htmlList = docNames.map(n => `<li>${escapeHtmlStr(n)}</li>`).join('');
+      const textList = docNames.map(n => `  - ${n}`).join('\n');
+
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto;">
+          <h2 style="color: #1C2B36; margin-bottom: 16px;">Documents Re-Queued for Processing</h2>
+          <p style="color: #334E68;">Hi ${escapeHtmlStr(name)},</p>
+          <p style="color: #334E68;">
+            The following document(s) previously failed due to a temporary service issue.
+            We've automatically re-queued them for processing — no additional credits will be charged.
+          </p>
+          <ul style="color: #334E68;">${htmlList}</ul>
+          <p style="color: #334E68;">
+            If extraction fails again, you can retry manually from your Documents tab.
+          </p>
+          <p style="color: #718096; font-size: 13px;">— Mineral Watch</p>
+        </div>
+      `;
+
+      const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        },
+        body: JSON.stringify({
+          from: 'Mineral Watch <support@mymineralwatch.com>',
+          to: email,
+          subject: `${docNames.length} document(s) re-queued for extraction`,
+          html,
+          text: `Hi ${name},\n\nThe following documents were re-queued for processing:\n${textList}\n\nNo additional credits will be charged.\n\n— Mineral Watch`,
+        }),
+        signal: AbortSignal.timeout(10_000),
+      });
+
+      if (!res.ok) {
+        console.error('[AutoRetry] Email failed for', email, ':', await res.text());
+      } else {
+        console.log('[AutoRetry] Sent retry notification to', email);
+      }
+    } catch (emailErr) {
+      console.error('[AutoRetry] Email error for', email, ':', emailErr);
+    }
+  }
+}
+
+function escapeHtmlStr(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
