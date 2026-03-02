@@ -816,6 +816,24 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
 }
 
 /**
+ * Get a single well by ID (notes for map modal)
+ */
+export async function handleGetWell(wellId: string, request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const userRecord = await getUserFromSession(env, user);
+  const organizationId = userRecord?.fields.Organization?.[0];
+
+  const well = await findClientWellD1(wellId, user.id, organizationId, env);
+  if (!well) {
+    return jsonResponse({ error: "Well not found" }, 404);
+  }
+
+  return jsonResponse({ notes: well.notes || '' });
+}
+
+/**
  * Delete a well for the authenticated user
  * @param wellId The well ID to delete
  * @param request The incoming request

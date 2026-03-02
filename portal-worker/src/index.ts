@@ -89,6 +89,7 @@ import {
   handleWellProduction,
   // Wells handlers
   handleListWellsV2,
+  handleGetWell,
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
@@ -1108,9 +1109,12 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/wells/track" && request.method === "POST") {
         return handleAddWell(request, env, ctx);
       }
-      const deleteWellMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9_-]+)$/);
-      if (deleteWellMatch && request.method === "DELETE") {
-        return handleDeleteWell(deleteWellMatch[1], request, env);
+      const wellIdMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9_-]+)$/);
+      if (wellIdMatch && request.method === "GET") {
+        return handleGetWell(wellIdMatch[1], request, env);
+      }
+      if (wellIdMatch && request.method === "DELETE") {
+        return handleDeleteWell(wellIdMatch[1], request, env);
       }
       const wellNotesMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9_-]+)\/notes$/);
       if (wellNotesMatch && request.method === "PATCH") {

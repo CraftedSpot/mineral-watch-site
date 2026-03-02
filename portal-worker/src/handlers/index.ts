@@ -27,6 +27,7 @@ export {
 // Wells handlers
 export {
   handleListWellsV2,
+  handleGetWell,
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
