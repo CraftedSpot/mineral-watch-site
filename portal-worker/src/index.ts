@@ -270,6 +270,22 @@ var index_default = {
       } catch (error) {
         console.error('Risk profile compute failed:', error);
       }
+      // Retain activity_log for 90 days — delete in small batches to avoid SQLITE_NOMEM
+      try {
+        const result = await env.WELLS_DB.prepare(`
+          DELETE FROM activity_log
+          WHERE rowid IN (
+            SELECT rowid FROM activity_log
+            WHERE created_at < datetime('now', '-90 days')
+            LIMIT 5000
+          )
+        `).run();
+        if (result.meta.changes > 0) {
+          console.log(`[Retention] Deleted ${result.meta.changes} activity_log entries older than 90 days`);
+        }
+      } catch (error) {
+        console.error('[Retention] activity_log cleanup failed:', error);
+      }
       return;
     }
 
