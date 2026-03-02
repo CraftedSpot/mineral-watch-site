@@ -228,7 +228,7 @@ export default {
           headers: { 'Content-Type': 'application/json' }
         });
       }
-      await env.WEBHOOK_KV.put(dedupKey, new Date().toISOString(), { expirationTtl: 300 });
+      await env.WEBHOOK_KV.put(dedupKey, new Date().toISOString(), { expirationTtl: 259200 });
     }
 
     // Handle the event
