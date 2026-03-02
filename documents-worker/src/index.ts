@@ -218,6 +218,7 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',
     },
+    signal: AbortSignal.timeout(120_000),
     body: JSON.stringify({
       model: 'claude-opus-4-20250514',
       max_tokens: 8192,
@@ -4175,6 +4176,7 @@ export default {
             'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
+          signal: AbortSignal.timeout(10_000),
           body: new URLSearchParams({
             'mode': 'payment',
             'customer_email': userEmail,
