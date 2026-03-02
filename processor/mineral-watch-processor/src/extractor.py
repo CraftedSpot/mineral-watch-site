@@ -2274,11 +2274,13 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
                 current_chunk["page_end"] = page_idx
                 continue
 
-        # Rule 4 (REMOVED/TIGHTENED): Only split on same type if VERY high confidence + title
-        # Previously was >= 0.5, now requires >= 0.9 AND has_title_phrase
-        elif is_start and start_conf >= 0.9:
+        # Rule 4: Split on same type if high confidence + title
+        # Deeds/leases are 1-2 page instruments with clear titles → 0.8 threshold
+        # Other types (orders/permits) have repeating headers → 0.9 threshold
+        elif is_start:
             has_title = page.get("features", {}).get("has_title_phrase", False)
-            if has_title:
+            split_threshold = 0.8 if coarse_type in ("deed", "lease") else 0.9
+            if start_conf >= split_threshold and has_title:
                 should_start_new = True
                 split_reason = "new_document_same_type"
             # else: don't split, will fall through to default
@@ -12155,6 +12157,23 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             # Single document or detection failed - use default classification
             logger.info(f"Visual detection says single document or no boundaries found")
             page_classifications = await classify_pages(image_paths, page_texts)
+
+            # HEURISTIC OVERRIDE: Even when visual says single document, text heuristics
+            # can find deed/lease boundaries. Deeds are 1-2 page instruments that visual
+            # detection often lumps together (no obvious visual break between similar deeds).
+            if page_texts:
+                deed_starts = 0
+                for page_idx, page_text in enumerate(page_texts):
+                    if not page_text or page_idx == 0:
+                        continue
+                    pc = page_classifications[page_idx]
+                    if pc.get("is_document_start") and pc.get("start_confidence", 0) >= 0.8:
+                        # classify_single_page already detected this — count it
+                        if pc.get("coarse_type") in ("deed", "lease") and pc.get("features", {}).get("has_title_phrase"):
+                            deed_starts += 1
+                if deed_starts > 0:
+                    logger.info(f"HEURISTIC OVERRIDE: Visual said single document, but text heuristics "
+                               f"found {deed_starts} additional deed/lease start(s) — splitting will apply")
     else:
         # Has usable text - use text-based heuristics
         page_classifications = await classify_pages(image_paths, page_texts)
