@@ -10,6 +10,27 @@ import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { findMatchingWells } from './matching.js';
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 /**
  * Check if a well's status has changed and alert users
  * @param {string} api10 - 10-digit API number
@@ -163,25 +184,29 @@ export async function checkWellStatusChange(api10, currentData, env) {
       }
       
       // Update well record with new status (only once, after all users notified)
-      const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-      const updateResponse = await fetch(updateUrl, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fields: {
-            'Well Status': currentStatus,
-            'Last Status Check': new Date().toISOString(),
-            'Status Last Changed': new Date().toISOString()
-          }
-        })
-      });
+      if (await isAirtableKilled(env.MINERAL_CACHE)) {
+        console.log(`[AirtableKillSwitch] Airtable write skipped: status change ${well.id} → ${currentStatus}`);
+      } else {
+        const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+        const updateResponse = await fetch(updateUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              'Well Status': currentStatus,
+              'Last Status Check': new Date().toISOString(),
+              'Status Last Changed': new Date().toISOString()
+            }
+          })
+        });
 
-      if (!updateResponse.ok) {
-        console.error(`[Status Change] Failed to update well status in Airtable`);
-        result.errors.push('Failed to update well record');
+        if (!updateResponse.ok) {
+          console.error(`[Status Change] Failed to update well status in Airtable`);
+          result.errors.push('Failed to update well record');
+        }
       }
 
       // D1 dual-write (non-fatal)

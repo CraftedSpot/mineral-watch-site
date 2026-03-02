@@ -10,6 +10,27 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
+// --- Airtable Kill Switch ---
+let _airtableKilled: boolean | null = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60_000;
+
+async function isAirtableKilled(kv: KVNamespace): Promise<boolean> {
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 /**
  * Get linked wells for a property
  * Uses D1 database for fast queries instead of Airtable API
@@ -332,32 +353,34 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     }
 
     // Also update Airtable for consistency (using extracted Airtable ID)
-    try {
-      const updateResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fields: {
-              Status: 'Unlinked',
-              'Rejected Date': new Date().toISOString()
-            }
-          }),
-          signal: AbortSignal.timeout(10_000)
-        }
-      );
+    if (await isAirtableKilled(env.MINERAL_CACHE)) {
+      console.log(`[AirtableKillSwitch] Airtable write skipped: unlink ${airtableRecordId}`);
+    } else {
+      try {
+        const updateResponse = await fetch(
+          `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: {
+                Status: 'Unlinked',
+                'Rejected Date': new Date().toISOString()
+              }
+            }),
+            signal: AbortSignal.timeout(10_000)
+          }
+        );
 
-      if (!updateResponse.ok) {
-        console.error(`[UnlinkWell] Airtable update failed: ${updateResponse.status}`);
-        // Don't fail if Airtable update fails - D1 is primary
+        if (!updateResponse.ok) {
+          console.error(`[UnlinkWell] Airtable update failed: ${updateResponse.status}`);
+        }
+      } catch (airtableError) {
+        console.error('[UnlinkWell] Airtable update error:', airtableError);
       }
-    } catch (airtableError) {
-      console.error('[UnlinkWell] Airtable update error:', airtableError);
-      // Don't fail if Airtable update fails - D1 is primary
     }
 
     return jsonResponse({
@@ -424,30 +447,34 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
     }
 
     // Update Airtable for consistency
-    try {
-      const updateResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fields: {
-              Status: 'Linked',
-              'Rejected Date': null
-            }
-          }),
-          signal: AbortSignal.timeout(10_000)
-        }
-      );
+    if (await isAirtableKilled(env.MINERAL_CACHE)) {
+      console.log(`[AirtableKillSwitch] Airtable write skipped: relink ${airtableRecordId}`);
+    } else {
+      try {
+        const updateResponse = await fetch(
+          `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: {
+                Status: 'Linked',
+                'Rejected Date': null
+              }
+            }),
+            signal: AbortSignal.timeout(10_000)
+          }
+        );
 
-      if (!updateResponse.ok) {
-        console.error(`[RelinkWell] Airtable update failed: ${updateResponse.status}`);
+        if (!updateResponse.ok) {
+          console.error(`[RelinkWell] Airtable update failed: ${updateResponse.status}`);
+        }
+      } catch (airtableError) {
+        console.error('[RelinkWell] Airtable update error:', airtableError);
       }
-    } catch (airtableError) {
-      console.error('[RelinkWell] Airtable update error:', airtableError);
     }
 
     return jsonResponse({

@@ -1259,6 +1259,38 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return jsonResponse({ success: true, user_id: targetId });
       }
 
+      // Airtable kill switch — read state
+      if (path === "/api/admin/airtable-kill-switch" && request.method === "GET") {
+        const user = await authenticateRequest(request, env);
+        if (!user || !isSuperAdmin(user.email)) {
+          return jsonResponse({ error: 'Admin required' }, 403);
+        }
+        const val = await env.MINERAL_CACHE.get('airtable:kill-switch');
+        return jsonResponse({ killed: val === 'true', value: val, key: 'airtable:kill-switch' });
+      }
+
+      // Airtable kill switch — toggle
+      if (path === "/api/admin/airtable-kill-switch" && request.method === "POST") {
+        const user = await authenticateRequest(request, env);
+        if (!user || !isSuperAdmin(user.email)) {
+          return jsonResponse({ error: 'Admin required' }, 403);
+        }
+        const body: any = await request.json();
+        const killed = body.killed === true;
+        if (killed) {
+          await env.MINERAL_CACHE.put('airtable:kill-switch', 'true');
+        } else {
+          await env.MINERAL_CACHE.delete('airtable:kill-switch');
+        }
+        console.log(`[AirtableKillSwitch] Set to ${killed} by ${user.email}`);
+        return jsonResponse({
+          killed,
+          message: killed
+            ? 'Airtable writes disabled across all workers (up to 60s to propagate)'
+            : 'Airtable writes re-enabled (up to 60s to propagate)'
+        });
+      }
+
       // Organization endpoints
       if (path === "/api/organization" && request.method === "GET") {
         const { handleGetOrganization } = await import('./handlers/organization.js');

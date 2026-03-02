@@ -8,6 +8,27 @@ import { fetchAllAirtableRecords } from '../services/airtable.js';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 // Simple normalization functions
 function normalizeAPI(apiNumber) {
   if (!apiNumber) return null;
@@ -41,8 +62,13 @@ function parseTRS(trsString) {
  * Create or update a well location record
  */
 async function upsertWellLocation(env, wellData) {
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: upsert well location ${wellData.apiNumber}`);
+    return { action: 'skipped', apiNumber: wellData.apiNumber };
+  }
+
   const { apiNumber, ...locationData } = wellData;
-  
+
   // First check if record exists
   const existingUrl = new URL(`${AIRTABLE_API_BASE}/${BASE_ID}/${WELL_LOCATIONS_TABLE}`);
   existingUrl.searchParams.set('filterByFormula', `{API Number} = "${apiNumber}"`);
@@ -279,6 +305,7 @@ export default async function handleBackfillWellLocations(request, env) {
     const results = {
       created: 0,
       updated: 0,
+      skipped: 0,
       errors: 0,
       startedAt: new Date().toISOString()
     };

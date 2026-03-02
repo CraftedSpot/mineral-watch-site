@@ -12,6 +12,27 @@
  * - AIRTABLE_DEMO_TABLE_ID: Demo Bookings table ID (tblDqFremDUvpOW7l)
  */
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  if (!kv) return false;
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
 export default {
   async fetch(request, env, ctx) {
     // Handle CORS preflight
@@ -48,37 +69,40 @@ export default {
       console.log('Processing contact form submission from:', email);
       
       // Save to Airtable
-      const airtableData = {
-        fields: {
-          Name: name,
-          Email: email,
-          Topic: topic,
-          Message: message,
-          'Submitted At': new Date().toISOString(),
-          Status: 'New'
-        }
-      };
+      if (await isAirtableKilled(env.MINERAL_CACHE)) {
+        console.log(`[AirtableKillSwitch] Airtable write skipped: contact form from ${email}`);
+      } else {
+        const airtableData = {
+          fields: {
+            Name: name,
+            Email: email,
+            Topic: topic,
+            Message: message,
+            'Submitted At': new Date().toISOString(),
+            Status: 'New'
+          }
+        };
 
-      const airtableResponse = await fetch(
-        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(airtableData)
-        }
-      );
+        const airtableResponse = await fetch(
+          `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(airtableData)
+          }
+        );
 
-      if (!airtableResponse.ok) {
-        const airtableError = await airtableResponse.json();
-        console.error('Airtable error:', JSON.stringify(airtableError));
-        console.error('Airtable request data:', JSON.stringify(airtableData));
-        // Continue with email even if Airtable fails
+        if (!airtableResponse.ok) {
+          const airtableError = await airtableResponse.json();
+          console.error('Airtable error:', JSON.stringify(airtableError));
+          console.error('Airtable request data:', JSON.stringify(airtableData));
+        }
       }
 
-      console.log('Airtable submission completed, sending email...');
+      console.log('Contact form processed, sending email...');
       
       // Send email via Resend
       const resendResponse = await fetch('https://api.resend.com/emails', {
@@ -316,37 +340,41 @@ async function handleDemoBooking(request, env) {
     console.log('Processing demo booking from:', email);
 
     // Save to Airtable
-    const airtableFields = {
-      Name: name,
-      Company: company,
-      Email: email,
-      'Property Count': propertyCount,
-      'Meeting Type': meetingType,
-      'Preferred Date': preferredDate,
-      'Preferred Time': preferredTime,
-      'Submitted At': new Date().toISOString(),
-      Status: 'New'
-    };
-    if (data.phone) airtableFields.Phone = data.phone;
-    if (data.city) airtableFields.City = data.city;
+    if (await isAirtableKilled(env.MINERAL_CACHE)) {
+      console.log(`[AirtableKillSwitch] Airtable write skipped: demo booking from ${email}`);
+    } else {
+      const airtableFields = {
+        Name: name,
+        Company: company,
+        Email: email,
+        'Property Count': propertyCount,
+        'Meeting Type': meetingType,
+        'Preferred Date': preferredDate,
+        'Preferred Time': preferredTime,
+        'Submitted At': new Date().toISOString(),
+        Status: 'New'
+      };
+      if (data.phone) airtableFields.Phone = data.phone;
+      if (data.city) airtableFields.City = data.city;
 
-    const demoTableId = env.AIRTABLE_DEMO_TABLE_ID || 'tblDqFremDUvpOW7l';
+      const demoTableId = env.AIRTABLE_DEMO_TABLE_ID || 'tblDqFremDUvpOW7l';
 
-    const airtableResponse = await fetch(
-      `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${demoTableId}`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ fields: airtableFields })
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${demoTableId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ fields: airtableFields })
+        }
+      );
+
+      if (!airtableResponse.ok) {
+        const airtableError = await airtableResponse.json();
+        console.error('Airtable error:', JSON.stringify(airtableError));
       }
-    );
-
-    if (!airtableResponse.ok) {
-      const airtableError = await airtableResponse.json();
-      console.error('Airtable error:', JSON.stringify(airtableError));
     }
 
     // Format date for display

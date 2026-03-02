@@ -23,6 +23,28 @@ const BASE_URL = 'https://portal.mymineralwatch.com';
 // Plans that get an Organization
 const ORG_ELIGIBLE_PLANS = ['Business', 'Enterprise'];
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  if (!kv) return false;
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 /**
  * Normalize plan names for D1 consistency.
  * PRICE_TO_PLAN uses "Enterprise" but PLAN_LIMITS keys on "Enterprise 1K".
@@ -1737,8 +1759,17 @@ async function findUserByStripeCustomerId(env, customerId) {
  * Create new user in Airtable
  */
 async function createUser(env, fields) {
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    // Generate synthetic ID so D1 dual-write path still works
+    const bytes = new Uint8Array(10);
+    crypto.getRandomValues(bytes);
+    const syntheticId = 'synth_' + Array.from(bytes).map(b => b.toString(36).padStart(2, '0')).join('').substring(0, 14);
+    console.log(`[AirtableKillSwitch] Airtable write skipped: createUser ${fields.Email}, synthetic ID: ${syntheticId}`);
+    return { id: syntheticId, fields };
+  }
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
-  
+
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -1747,12 +1778,12 @@ async function createUser(env, fields) {
     },
     body: JSON.stringify({ fields })
   });
-  
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Airtable create failed: ${err}`);
   }
-  
+
   return await response.json();
 }
 
@@ -1760,6 +1791,11 @@ async function createUser(env, fields) {
  * Update existing user in Airtable
  */
 async function updateUser(env, recordId, fields) {
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: updateUser ${recordId}`);
+    return { id: recordId, fields };
+  }
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`;
 
   const response = await fetch(url, {
@@ -1784,6 +1820,11 @@ async function updateUser(env, recordId, fields) {
  * Links the user as Owner and Admin
  */
 async function createOrganizationForUser(env, userId, userName, userEmail, plan) {
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: createOrganizationForUser ${userEmail}`);
+    return;
+  }
+
   // Determine max users based on plan
   const maxUsers = {
     'Professional': 1,

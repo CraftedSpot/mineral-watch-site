@@ -13,6 +13,27 @@ import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { getOCCWellRecordsLink } from '../utils/occLink.js';
 import { findMatchingWells } from './matching.js';
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 const RBDMS_CSV_URL = 'https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv';
 const CACHE_KEY = 'rbdms-last-modified';
 
@@ -346,15 +367,19 @@ export async function checkAllWellStatuses(env, options = {}) {
           if (!userWantsAlert(user, 'Status Change')) {
             console.log(`[RBDMS] Skipped status change alert for ${user.fields.Email} - user disabled status change alerts`);
             // Still update the Airtable record but don't create activity or send email
-            const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-            await fetch(updateUrl, {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ fields: { 'Well Status': rbdmsStatus } })
-            });
+            if (await isAirtableKilled(env.MINERAL_CACHE)) {
+              console.log(`[AirtableKillSwitch] Airtable write skipped: silent RBDMS status ${well.id}`);
+            } else {
+              const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+              await fetch(updateUrl, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ fields: { 'Well Status': rbdmsStatus } })
+              });
+            }
             // D1 dual-write (non-fatal)
             try {
               if (env.WELLS_DB) {
@@ -435,29 +460,33 @@ export async function checkAllWellStatuses(env, options = {}) {
           }
           
           // Update well record with RBDMS status (source of truth)
-          const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-          const updateResponse = await fetch(updateUrl, {
-            method: 'PATCH',
-            headers: {
-              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              fields: {
-                'Well Status': rbdmsStatus,
-                'Last Status Check': new Date().toISOString(),
-                'Status Last Changed': new Date().toISOString(),
-                'Last RBDMS Sync': new Date().toISOString()
-              }
-            })
-          });
-
-          if (!updateResponse.ok) {
-            const errorText = await updateResponse.text();
-            console.error(`[RBDMS] Failed to update well status in Airtable: ${errorText}`);
-            results.errors.push('Failed to update well record');
+          if (await isAirtableKilled(env.MINERAL_CACHE)) {
+            console.log(`[AirtableKillSwitch] Airtable write skipped: RBDMS status ${well.id} ${airtableStatus} → ${rbdmsStatus}`);
           } else {
-            console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
+            const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+            const updateResponse = await fetch(updateUrl, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                fields: {
+                  'Well Status': rbdmsStatus,
+                  'Last Status Check': new Date().toISOString(),
+                  'Status Last Changed': new Date().toISOString(),
+                  'Last RBDMS Sync': new Date().toISOString()
+                }
+              })
+            });
+
+            if (!updateResponse.ok) {
+              const errorText = await updateResponse.text();
+              console.error(`[RBDMS] Failed to update well status in Airtable: ${errorText}`);
+              results.errors.push('Failed to update well record');
+            } else {
+              console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
+            }
           }
 
           // D1 dual-write (non-fatal)

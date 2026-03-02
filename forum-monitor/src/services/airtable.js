@@ -8,6 +8,28 @@ const TABLE_NAME = 'MKT: Forum Monitor';
 const BATCH_SIZE = 10;
 const BATCH_DELAY = 500;
 
+// --- Airtable Kill Switch ---
+let _airtableKilled = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60000;
+
+async function isAirtableKilled(kv) {
+  if (!kv) return false;
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 /**
  * Write a batch of forum post records to Airtable
  * @param {Object} env - Worker environment
@@ -16,6 +38,11 @@ const BATCH_DELAY = 500;
  */
 export async function writeForumPosts(env, posts) {
   if (!posts || posts.length === 0) return [];
+
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: writeForumPosts (${posts.length} posts)`);
+    return [];
+  }
 
   const createdIds = [];
 

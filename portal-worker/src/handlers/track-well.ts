@@ -30,6 +30,27 @@ import { generateRecordId } from '../utils/id-gen.js';
 
 import type { Env } from '../types/env.js';
 
+// --- Airtable Kill Switch ---
+let _airtableKilled: boolean | null = null;
+let _airtableKillCheckedAt = 0;
+const KILL_SWITCH_CACHE_TTL = 60_000;
+
+async function isAirtableKilled(kv: KVNamespace): Promise<boolean> {
+  const now = Date.now();
+  if (_airtableKilled !== null && now - _airtableKillCheckedAt < KILL_SWITCH_CACHE_TTL) {
+    return _airtableKilled;
+  }
+  try {
+    const val = await kv.get('airtable:kill-switch');
+    _airtableKilled = val === 'true';
+  } catch {
+    _airtableKilled = false;
+  }
+  _airtableKillCheckedAt = now;
+  return _airtableKilled;
+}
+
+
 /**
  * Escape HTML special characters to prevent XSS
  */
@@ -447,6 +468,9 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       console.log(`[Track Well] D1 created: API ${cleanApi} for ${userEmail} (${recordId})`);
 
       // Fire-and-forget Airtable mirror (transition period — remove in Phase 4)
+      if (await isAirtableKilled(env.MINERAL_CACHE)) {
+        console.log(`[AirtableKillSwitch] Airtable write skipped: mirror tracked well ${cleanApi}`);
+      } else {
       (async () => {
         try {
           const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
@@ -497,6 +521,7 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
           console.error('[Track Well] Airtable mirror error:', e);
         }
       })();
+      }
 
       return new Response(generateTrackWellSuccessPage(cleanApi, false, wellName), {
         headers: { 'Content-Type': 'text/html' }

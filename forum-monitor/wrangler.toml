@@ -16,6 +16,10 @@ crons = ["0 12,15,18,21 * * *"]  # 4x daily: 7am, 10am, 1pm, 4pm CDT (UTC-5)
 binding = "FORUM_CACHE"
 id = "7e28242832504e8f8e5f86ee02259b79"
 
+[[kv_namespaces]]
+binding = "MINERAL_CACHE"
+id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
 [[d1_databases]]
 binding = "WELLS_DB"
 database_name = "oklahoma-wells"

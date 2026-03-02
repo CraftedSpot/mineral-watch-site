@@ -6,6 +6,10 @@ compatibility_date = "2024-01-01"
 binding = "WEBHOOK_KV"
 id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
 
+[[kv_namespaces]]
+binding = "MINERAL_CACHE"
+id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
 [[d1_databases]]
 binding = "WELLS_DB"
 database_name = "oklahoma-wells"
