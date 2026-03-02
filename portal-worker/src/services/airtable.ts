@@ -251,7 +251,8 @@ export async function fetchAllAirtableRecords(env: Env, table: string, formula: 
     }
     
     const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+      signal: AbortSignal.timeout(10_000)
     });
     
     if (!response.ok) {

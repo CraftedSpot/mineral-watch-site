@@ -236,7 +236,8 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
           console.log(`[GetLinkedProperties-D1] Fetching NMA for ${propertyIds.length} properties: ${propertyIds.join(', ')}`);
 
           const airtableResponse = await fetch(airtableUrl, {
-            headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+            headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+            signal: AbortSignal.timeout(10_000)
           });
 
           if (airtableResponse.ok) {

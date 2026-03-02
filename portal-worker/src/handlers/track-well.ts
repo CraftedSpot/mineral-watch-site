@@ -489,7 +489,8 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
                 ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
                 ...(userOrganization && { Organization: [userOrganization] })
               }
-            })
+            }),
+            signal: AbortSignal.timeout(10_000)
           });
           if (!resp.ok) console.error('[Track Well] Airtable mirror failed:', resp.status);
         } catch (e) {

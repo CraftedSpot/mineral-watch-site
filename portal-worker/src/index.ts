@@ -235,7 +235,8 @@ async function triggerOTCSync(env: Env): Promise<void> {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${env.OTC_SYNC_AUTH_TOKEN || ''}`
-      }
+      },
+      signal: AbortSignal.timeout(10_000)
     });
 
     const result = await response.json() as Record<string, unknown>;
@@ -1507,7 +1508,8 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
                 to: 'james@mymineralwatch.com',
                 subject: `${emoji} OTC Sync: ${subject}`,
                 text: `${textBody}\n\n---\nSent: ${new Date().toISOString()}`
-              })
+              }),
+              signal: AbortSignal.timeout(10_000)
             });
 
             if (!response.ok) {

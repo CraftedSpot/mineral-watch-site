@@ -153,7 +153,8 @@ export async function handleListProperties(request: Request, env: Env) {
       const orgResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+          signal: AbortSignal.timeout(10_000)
         }
       );
 

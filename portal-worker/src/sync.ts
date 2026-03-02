@@ -124,7 +124,8 @@ async function fetchAirtableRecords(
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json'
-    }
+    },
+    signal: AbortSignal.timeout(10_000)
   });
 
   if (!response.ok) {
@@ -961,7 +962,8 @@ async function syncOrganizations(env: any): Promise<void> {
         headers: {
           Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (!resp.ok) {
@@ -1032,7 +1034,8 @@ async function syncUsers(env: any): Promise<void> {
         headers: {
           Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json'
-        }
+        },
+        signal: AbortSignal.timeout(10_000)
       });
 
       if (!resp.ok) {

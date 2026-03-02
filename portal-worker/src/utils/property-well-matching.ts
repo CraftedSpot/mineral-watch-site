@@ -838,7 +838,8 @@ export async function matchSingleProperty(
   const propertyResponse = await fetch(
     `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`,
     {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+      signal: AbortSignal.timeout(10_000)
     }
   );
   
@@ -866,10 +867,11 @@ export async function matchSingleProperty(
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
-    
+
     const orgData: any = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
     wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
@@ -878,7 +880,8 @@ export async function matchSingleProperty(
     const userResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🙋 Users')}/${userId}`,
       {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
     const userData: any = await userResponse.json();
@@ -954,38 +957,40 @@ export async function matchSingleWell(
   const wellResponse = await fetch(
     `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`,
     {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+      signal: AbortSignal.timeout(10_000)
     }
   );
-  
+
   if (!wellResponse.ok) {
     throw new Error(`Failed to fetch well: ${wellResponse.status}`);
   }
-  
+
   const wellData: any = await wellResponse.json();
-  
+
   // Verify ownership
   const wellUserId = wellData.fields.User?.[0];
   const wellOrgId = wellData.fields.Organization?.[0];
-  
+
   if (wellUserId !== userId && (!organizationId || wellOrgId !== organizationId)) {
     throw new Error('Unauthorized');
   }
-  
+
   // Get existing links
   const { active: linkedPropertyIds, rejected: rejectedPropertyIds } = await getLinksForWell(env, wellId);
-  
+
   // Build property filter
   let propertiesFilter: string;
-  
+
   if (organizationId) {
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
-    
+
     const orgData: any = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
     propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
@@ -994,7 +999,8 @@ export async function matchSingleWell(
     const userResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🙋 Users')}/${userId}`,
       {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
     const userData: any = await userResponse.json();
@@ -1088,7 +1094,8 @@ export async function runFullPropertyWellMatching(
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
 

@@ -135,7 +135,8 @@ export async function handleSendMagicLink(request: Request, env: Env) {
             <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
           </div>
         `
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!emailResponse.ok) {
@@ -448,7 +449,8 @@ export async function handleRegister(request: Request, env: Env, ctx?: Execution
             <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
           </div>
         `
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!emailResponse.ok) {
@@ -573,7 +575,8 @@ export async function handleChangeEmail(request: Request, env: Env) {
             <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
           </div>
         `
-      })
+      }),
+      signal: AbortSignal.timeout(10_000)
     });
     
     if (!emailResponse.ok) {
@@ -641,30 +644,36 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
     console.log(`Email successfully changed for user ${payload.userId}: ${payload.currentEmail} -> ${payload.newEmail}`);
     
     // Send confirmation email to the OLD email address
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.RESEND_API_KEY}`
-      },
-      body: JSON.stringify({
-        from: "Mineral Watch <support@mymineralwatch.com>",
-        to: payload.currentEmail,
-        subject: "Your Email Address Has Been Changed - Mineral Watch",
-        html: `
-          <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
-            <h2 style="color: #1C2B36;">Email Address Changed</h2>
-            <p style="color: #334E68; font-size: 16px;">Hi,</p>
-            <p style="color: #334E68; font-size: 16px;">This is to confirm that your Mineral Watch email address has been successfully changed to <strong>${payload.newEmail}</strong>.</p>
-            <p style="color: #334E68; font-size: 16px;">You will now need to use your new email address to log in to Mineral Watch.</p>
-            <p style="color: #E53E3E; font-size: 16px;"><strong>If you did not make this change, please contact us immediately at support@mymineralwatch.com</strong></p>
-            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
-            <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
-          </div>
-        `
-      })
-    });
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${env.RESEND_API_KEY}`
+        },
+        body: JSON.stringify({
+          from: "Mineral Watch <support@mymineralwatch.com>",
+          to: payload.currentEmail,
+          subject: "Your Email Address Has Been Changed - Mineral Watch",
+          html: `
+            <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
+              <h2 style="color: #1C2B36;">Email Address Changed</h2>
+              <p style="color: #334E68; font-size: 16px;">Hi,</p>
+              <p style="color: #334E68; font-size: 16px;">This is to confirm that your Mineral Watch email address has been successfully changed to <strong>${payload.newEmail}</strong>.</p>
+              <p style="color: #334E68; font-size: 16px;">You will now need to use your new email address to log in to Mineral Watch.</p>
+              <p style="color: #E53E3E; font-size: 16px;"><strong>If you did not make this change, please contact us immediately at support@mymineralwatch.com</strong></p>
+              <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+              <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
+            </div>
+          `
+        }),
+        signal: AbortSignal.timeout(10_000)
+      });
+    } catch (e) {
+      // Non-critical: email change already committed, confirmation is best-effort
+      console.error('[EmailChange] Failed to send confirmation to old email:', e);
+    }
     
     // Return a success page that redirects to login
     const html = `

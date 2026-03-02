@@ -203,7 +203,8 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
 
   try {
     const response = await fetch(`${baseUrl}?${params.toString()}`, {
-      headers: { "User-Agent": "MineralWatch-Portal/1.0" }
+      headers: { "User-Agent": "MineralWatch-Portal/1.0" },
+      signal: AbortSignal.timeout(10_000)
     });
 
     if (!response.ok) {
@@ -327,7 +328,8 @@ export async function handleListWells(request: Request, env: Env) {
       const orgResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
         {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+          signal: AbortSignal.timeout(10_000)
         }
       );
 

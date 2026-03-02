@@ -54,7 +54,8 @@ async function upsertWellLocation(env, wellData) {
     headers: {
       'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
       'Content-Type': 'application/json'
-    }
+    },
+    signal: AbortSignal.timeout(10_000)
   });
   
   const existingData = await existingResponse.json();
@@ -78,7 +79,8 @@ async function upsertWellLocation(env, wellData) {
         'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ fields: updateFields })
+      body: JSON.stringify({ fields: updateFields }),
+      signal: AbortSignal.timeout(10_000)
     });
     
     return { action: 'updated', apiNumber };
@@ -100,7 +102,8 @@ async function upsertWellLocation(env, wellData) {
         'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ fields: createFields })
+      body: JSON.stringify({ fields: createFields }),
+      signal: AbortSignal.timeout(10_000)
     });
     
     if (!createResponse.ok) {

@@ -90,7 +90,7 @@ async function fetchAndCachePrices(env: Env): Promise<CachedPrices | null> {
   try {
     const priceResp = env.TOOLS_WORKER
       ? await env.TOOLS_WORKER.fetch(new Request('https://dummy/api/prices'))
-      : await fetch('https://mymineralwatch.com/api/prices');
+      : await fetch('https://mymineralwatch.com/api/prices', { signal: AbortSignal.timeout(10_000) });
     const prices = await priceResp.json() as Record<string, any>;
     const result: CachedPrices = {
       wti: prices.wti?.price || null,

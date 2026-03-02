@@ -67,7 +67,8 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
       'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
       'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body: params.toString()
+    body: params.toString(),
+    signal: AbortSignal.timeout(10_000)
   });
   
   if (!response.ok) {
@@ -93,7 +94,8 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
 async function updateSubscription(env: Env, user: any, subscriptionId: string, newPriceId: string, targetPlan: string) {
   // First, get the current subscription to find the item ID
   const getSubResponse = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
-    headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` }
+    headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` },
+    signal: AbortSignal.timeout(10_000)
   });
   
   if (!getSubResponse.ok) {
@@ -119,7 +121,8 @@ async function updateSubscription(env: Env, user: any, subscriptionId: string, n
       'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
       'Content-Type': 'application/x-www-form-urlencoded'
     },
-    body: params.toString()
+    body: params.toString(),
+    signal: AbortSignal.timeout(10_000)
   });
   
   if (!updateResponse.ok) {
@@ -171,7 +174,8 @@ export async function handleBillingPortal(request: Request, env: Env) {
       "Authorization": `Bearer ${env.STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded"
     },
-    body: `customer=${customerId}&return_url=${encodeURIComponent(BASE_URL + "/portal/account")}`
+    body: `customer=${customerId}&return_url=${encodeURIComponent(BASE_URL + "/portal/account")}`,
+    signal: AbortSignal.timeout(10_000)
   });
   if (!response.ok) {
     console.error("Stripe error:", await response.text());
@@ -242,7 +246,8 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
     const sessionResponse = await fetch(
       `https://api.stripe.com/v1/checkout/sessions/${sessionId}`,
       {
-        headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` }
+        headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` },
+        signal: AbortSignal.timeout(10_000)
       }
     );
     
@@ -267,7 +272,7 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
     if (subscriptionId) {
       const subResponse = await fetch(
         `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,
-        { headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` } }
+        { headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` }, signal: AbortSignal.timeout(10_000) }
       );
       if (subResponse.ok) {
         const sub: any = await subResponse.json();

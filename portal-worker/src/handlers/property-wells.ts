@@ -169,7 +169,8 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       const wellResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`,
         {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
+          signal: AbortSignal.timeout(10_000)
         }
       );
 
@@ -345,7 +346,8 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
               Status: 'Unlinked',
               'Rejected Date': new Date().toISOString()
             }
-          })
+          }),
+          signal: AbortSignal.timeout(10_000)
         }
       );
 
@@ -436,7 +438,8 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
               Status: 'Linked',
               'Rejected Date': null
             }
-          })
+          }),
+          signal: AbortSignal.timeout(10_000)
         }
       );
 

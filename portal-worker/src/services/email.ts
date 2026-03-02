@@ -49,7 +49,8 @@ This link expires in 15 minutes.
 If you didn't request this, you can ignore this email.
 
 — Mineral Watch - Oklahoma Mineral Rights Monitoring`
-    })
+    }),
+    signal: AbortSignal.timeout(10_000)
   });
 
   if (!response.ok) {
@@ -82,7 +83,8 @@ export async function sendWelcomeEmail(env: Env, email: string, name: string, ma
       subject: "Welcome to Mineral Watch - Verify Your Account",
       html: htmlBody,
       text: textBody
-    })
+    }),
+    signal: AbortSignal.timeout(10_000)
   });
 
   if (!response.ok) {
@@ -292,7 +294,8 @@ export async function sendInviteEmail(
       "Content-Type": "application/json",
       "Authorization": `Bearer ${env.RESEND_API_KEY}`
     },
-    body: JSON.stringify(emailPayload)
+    body: JSON.stringify(emailPayload),
+    signal: AbortSignal.timeout(10_000)
   });
 
   console.log(`📮 Resend response status: ${response.status} ${response.statusText}`);

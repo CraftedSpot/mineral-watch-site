@@ -57,7 +57,8 @@ export async function handleOccProxy(request: Request, env: Env) {
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'MineralWatch/1.0'
-      }
+      },
+      signal: AbortSignal.timeout(10_000)
     });
     
     if (!response.ok) {
