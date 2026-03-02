@@ -8323,37 +8323,9 @@
                 });
             }
 
-            // Handle group checkbox clicks (select/deselect all children in group + parent)
+            // Set indeterminate state on group checkboxes (visual only — change handling is via event delegation in dashboard-init)
             document.querySelectorAll('.group-checkbox').forEach(cb => {
-                // Set indeterminate state
                 if (cb.dataset.indeterminate === 'true') cb.indeterminate = true;
-                cb.addEventListener('change', (e) => {
-                    const parentId = cb.dataset.parentId;
-                    const groupItem = displayDocuments.find(d => d._isGroupRow && d.id === parentId);
-                    if (groupItem) {
-                        // Include the parent document itself in the selection
-                        if (e.target.checked) {
-                            selectedDocuments.add(parentId);
-                        } else {
-                            selectedDocuments.delete(parentId);
-                        }
-                        groupItem._children.forEach(child => {
-                            if (e.target.checked) {
-                                selectedDocuments.add(child.id);
-                            } else {
-                                selectedDocuments.delete(child.id);
-                            }
-                        });
-                        // Update visible child checkboxes if expanded
-                        document.querySelectorAll(`.document-checkbox`).forEach(childCb => {
-                            if (groupItem._children.some(c => c.id === childCb.dataset.id)) {
-                                childCb.checked = e.target.checked;
-                            }
-                        });
-                    }
-                    updateSelectAllState('documents');
-                    updateBulkActionVisibility();
-                });
             });
 
             updateSelectAllState('documents');
