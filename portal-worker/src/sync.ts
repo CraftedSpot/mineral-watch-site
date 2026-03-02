@@ -214,10 +214,10 @@ async function cleanupOrphans(
 
   for (let i = 0; i < orphanIds.length; i += 100) {
     const chunk = orphanIds.slice(i, i + 100);
-    const stmts = chunk.map(id =>
-      env.WELLS_DB.prepare(`DELETE FROM ${tableName} WHERE ${airtableIdColumn} = ?`).bind(id)
-    );
-    await env.WELLS_DB.batch(stmts);
+    const placeholders = chunk.map(() => '?').join(',');
+    await env.WELLS_DB.prepare(
+      `DELETE FROM ${tableName} WHERE ${airtableIdColumn} IN (${placeholders})`
+    ).bind(...chunk).run();
   }
 
   console.log(`[Sync] Removed ${orphanIds.length} orphaned records from ${tableName}`);
