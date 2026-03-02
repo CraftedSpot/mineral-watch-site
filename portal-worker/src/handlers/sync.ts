@@ -2,7 +2,7 @@ import { jsonResponse, errorResponse } from '../utils/responses.js';
 import { syncAirtableData } from '../sync.js';
 import type { Env } from '../types/env.js';
 
-export async function handleAirtableSync(request: Request, env: Env): Promise<Response> {
+export async function handleAirtableSync(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   try {
     // Check authentication - require auth token in header or cookie
     const authHeader = request.headers.get('Authorization');
@@ -47,8 +47,8 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
     
     console.log('Starting Airtable sync...');
     
-    // Run the sync
-    const result = await syncAirtableData(env);
+    // Run the sync (pass ctx so post-sync tasks use waitUntil)
+    const result = await syncAirtableData(env, ctx);
     
     console.log('Sync completed:', {
       properties: result.properties.synced,

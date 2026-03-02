@@ -328,7 +328,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return jsonResponse({ error: "Unauthorized" }, 401);
       }
       try {
-        const result = await syncAirtableData(env);
+        const result = await syncAirtableData(env, ctx);
         return jsonResponse({ success: true, result });
       } catch (error: any) {
         return jsonResponse({ error: error.message }, 500);
@@ -1620,7 +1620,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       
       // Admin sync endpoint
       if (path === "/api/admin/sync" && request.method === "POST") {
-        return handleAirtableSync(request, env);
+        return handleAirtableSync(request, env, ctx);
       }
 
       // Completions-to-wells sync endpoints
