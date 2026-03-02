@@ -88,7 +88,6 @@ import {
   handlePropertyProduction,
   handleWellProduction,
   // Wells handlers
-  handleListWells,
   handleListWellsV2,
   handleAddWell,
   handleDeleteWell,
@@ -1060,7 +1059,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/properties/v2" && request.method === "GET") {
         return handleListPropertiesV2(request, env);
       }
-      // V1 GET /api/properties removed — Airtable-based, deprecated. Use /api/v2/properties.
       if (path === "/api/properties/link-counts" && request.method === "GET") {
         return handleGetPropertyLinkCounts(request, env);
       }
@@ -1076,13 +1074,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       
       // Wells endpoints
-      // GET /api/wells - Legacy endpoint (returns raw Airtable data)
-      // Still used by: oklahoma_map.html, account.html
-      // TODO: Migrate these pages to v2, then remove this endpoint
-      if (path === "/api/wells" && request.method === "GET") {
-        return handleListWells(request, env);
-      }
-      // GET /api/wells/v2 - Primary endpoint (D1 metadata + Airtable tracking)
+      // GET /api/wells/v2 - Primary endpoint (D1-first)
       if (path === "/api/wells/v2" && request.method === "GET") {
         return handleListWellsV2(request, env);
       }

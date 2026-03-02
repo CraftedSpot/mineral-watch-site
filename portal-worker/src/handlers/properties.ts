@@ -129,60 +129,6 @@ export async function handleListPropertiesV2(request: Request, env: Env) {
 }
 
 /**
- * List all properties for the authenticated user
- * @param request The incoming request
- * @param env Worker environment
- * @returns JSON response with user properties
- */
-export async function handleListProperties(request: Request, env: Env) {
-  try {
-    const user = await authenticateRequest(request, env);
-    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-
-    // Get full user record to check for organization
-    const userRecord = await getUserFromSession(env, user);
-    if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
-
-    let formula: string;
-    const organizationId = userRecord.fields.Organization?.[0];
-
-    const safeEmail = escapeAirtableValue(user.email);
-
-    if (organizationId) {
-      // User has organization - need to get org name for the filter
-      const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-          signal: AbortSignal.timeout(10_000)
-        }
-      );
-
-      if (orgResponse.ok) {
-        const org = await orgResponse.json() as any;
-        const orgName = escapeAirtableValue(org.fields.Name || '');
-        // Filter by org name OR user email — properties uploaded via Airtable
-        // may have User field set but Organization field empty
-        const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-        const userFind = `FIND('${safeEmail}', ARRAYJOIN({User}))`;
-        formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
-      } else {
-        formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
-      }
-    } else {
-      formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
-    }
-
-    const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);
-
-    return jsonResponse(records);
-  } catch (error) {
-    console.error('[Properties] Legacy list failed:', error);
-    return jsonResponse({ error: 'Properties temporarily unavailable. Please refresh.' }, 503);
-  }
-}
-
-/**
  * Add a new property for the authenticated user
  * @param request The incoming request with property data
  * @param env Worker environment
