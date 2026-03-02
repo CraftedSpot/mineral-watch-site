@@ -7,6 +7,10 @@
 import { jsonResponse } from '../utils/responses.js';
 import type { Env } from '../types/env.js';
 
+// Cache version — increment to bust KV cache after data updates
+const MAP_DATA_VERSION = 'v1';
+const MAP_CACHE_TTL = 86400; // 24 hours
+
 // Escapes HTML entities in tooltip strings
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -18,43 +22,44 @@ function escapeHtml(str: string): string {
  */
 export async function handleGetCounties(request: Request, env: Env): Promise<Response> {
   try {
-    // Check if WELLS_DB is configured
     if (!env.WELLS_DB) {
-      console.error('[MapData] WELLS_DB not configured');
-      return jsonResponse({ 
-        error: 'Database not configured',
-        message: 'The map data feature is not available at this time'
-      }, 503);
+      return jsonResponse({ error: 'Database not configured' }, 503);
     }
 
-    console.log('[MapData] Fetching all counties');
+    const url = new URL(request.url);
+    const refresh = url.searchParams.get('refresh') === '1';
 
-    // Query all counties
-    const query = `
-      SELECT 
-        id,
-        name,
-        fips_code,
-        geometry,
-        center_lat,
-        center_lng,
-        area_sq_miles
-      FROM counties
-      ORDER BY name
-    `;
+    // Check KV cache
+    const cacheKey = `map-data:counties:${MAP_DATA_VERSION}`;
+    if (!refresh && env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey);
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=86400',
+              'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
+              'X-Cache': 'HIT'
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[MapData] KV cache read error:', e);
+      }
+    }
 
-    const result = await env.WELLS_DB.prepare(query).all();
-    
+    console.log('[MapData] Fetching all counties from D1');
+
+    const result = await env.WELLS_DB.prepare(`
+      SELECT id, name, fips_code, geometry, center_lat, center_lng, area_sq_miles
+      FROM counties ORDER BY name
+    `).all();
+
     if (!result.results || result.results.length === 0) {
-      console.warn('[MapData] No counties found in database');
-      // Return empty GeoJSON FeatureCollection
-      return jsonResponse({
-        type: "FeatureCollection",
-        features: []
-      });
+      return jsonResponse({ type: "FeatureCollection", features: [] });
     }
 
-    // Convert to GeoJSON FeatureCollection
     const featureCollection = {
       type: "FeatureCollection",
       features: result.results.map(county => ({
@@ -62,9 +67,9 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
         properties: {
           id: county.id,
           name: county.name,
-          COUNTY_NAME: county.name, // Map expects COUNTY_NAME
+          COUNTY_NAME: county.name,
           fips_code: county.fips_code,
-          COUNTY_FIPS_NO: county.fips_code, // Also add original format
+          COUNTY_FIPS_NO: county.fips_code,
           center_lat: county.center_lat,
           center_lng: county.center_lng,
           area_sq_miles: county.area_sq_miles
@@ -75,18 +80,29 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
 
     console.log(`[MapData] Returning ${result.results.length} counties`);
 
-    // Add cache headers for client-side caching (1 day)
-    return new Response(JSON.stringify(featureCollection), {
+    const body = JSON.stringify(featureCollection);
+
+    // Cache in KV (24 hours)
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, body, { expirationTtl: MAP_CACHE_TTL });
+      } catch (e) {
+        console.error('[MapData] KV cache write error:', e);
+      }
+    }
+
+    return new Response(body, {
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
+        'X-Cache': 'MISS'
       }
     });
 
   } catch (error) {
     console.error('[MapData] Error fetching counties:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       error: 'Failed to fetch counties',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     }, 500);
@@ -99,46 +115,45 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
  */
 export async function handleGetTownships(request: Request, env: Env): Promise<Response> {
   try {
-    // Check if WELLS_DB is configured
     if (!env.WELLS_DB) {
-      console.error('[MapData] WELLS_DB not configured');
-      return jsonResponse({ 
-        error: 'Database not configured',
-        message: 'The map data feature is not available at this time'
-      }, 503);
+      return jsonResponse({ error: 'Database not configured' }, 503);
     }
 
-    console.log('[MapData] Fetching all townships');
+    const url = new URL(request.url);
+    const refresh = url.searchParams.get('refresh') === '1';
 
-    // Query all townships
-    const query = `
-      SELECT 
-        id,
-        plss_id,
-        township,
-        range,
-        meridian,
-        county_name,
-        geometry,
-        center_lat,
-        center_lng,
-        area_sq_miles
-      FROM townships
-      ORDER BY township, range
-    `;
+    // Check KV cache
+    const cacheKey = `map-data:townships:${MAP_DATA_VERSION}`;
+    if (!refresh && env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey);
+        if (cached) {
+          return new Response(cached, {
+            headers: {
+              'Content-Type': 'application/json',
+              'Cache-Control': 'public, max-age=86400',
+              'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
+              'X-Cache': 'HIT'
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[MapData] KV cache read error:', e);
+      }
+    }
 
-    const result = await env.WELLS_DB.prepare(query).all();
-    
+    console.log('[MapData] Fetching all townships from D1');
+
+    const result = await env.WELLS_DB.prepare(`
+      SELECT id, plss_id, township, range, meridian, county_name,
+             geometry, center_lat, center_lng, area_sq_miles
+      FROM townships ORDER BY township, range
+    `).all();
+
     if (!result.results || result.results.length === 0) {
-      console.warn('[MapData] No townships found in database');
-      // Return empty GeoJSON FeatureCollection
-      return jsonResponse({
-        type: "FeatureCollection",
-        features: []
-      });
+      return jsonResponse({ type: "FeatureCollection", features: [] });
     }
 
-    // Convert to GeoJSON FeatureCollection
     const featureCollection = {
       type: "FeatureCollection",
       features: result.results.map(township => ({
@@ -149,9 +164,7 @@ export async function handleGetTownships(request: Request, env: Env): Promise<Re
           township: township.township,
           range: township.range,
           meridian: township.meridian,
-          // Map expects TWNSHPLAB format like "26N 20W"
           TWNSHPLAB: `${township.township} ${township.range}`,
-          // Map expects PRINMER for meridian display
           PRINMER: township.meridian === 'CM' ? 'Cimarron Meridian' : 'Indian Meridian',
           county_name: township.county_name,
           center_lat: township.center_lat,
@@ -164,18 +177,29 @@ export async function handleGetTownships(request: Request, env: Env): Promise<Re
 
     console.log(`[MapData] Returning ${result.results.length} townships`);
 
-    // Add cache headers for client-side caching (1 day)
-    return new Response(JSON.stringify(featureCollection), {
+    const body = JSON.stringify(featureCollection);
+
+    // Cache in KV (24 hours)
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, body, { expirationTtl: MAP_CACHE_TTL });
+      } catch (e) {
+        console.error('[MapData] KV cache write error:', e);
+      }
+    }
+
+    return new Response(body, {
       headers: {
         'Content-Type': 'application/json',
         'Cache-Control': 'public, max-age=86400',
-        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com'
+        'Access-Control-Allow-Origin': 'https://portal.mymineralwatch.com',
+        'X-Cache': 'MISS'
       }
     });
 
   } catch (error) {
     console.error('[MapData] Error fetching townships:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       error: 'Failed to fetch townships',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     }, 500);
