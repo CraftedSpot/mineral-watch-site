@@ -56,10 +56,25 @@
             showSuperAdminNav();
             if (actAs) await loadImpersonationBanner(actAs);
 
+            // Deep-link params (read early for immediate loading feedback)
+            const urlParams = new URLSearchParams(window.location.search);
+            const propertyId = urlParams.get('property');
+            const wellId = urlParams.get('well');
+            const sectionParam = urlParams.get('section');
+            const townshipParam = urlParams.get('township');
+            const rangeParam = urlParams.get('range');
+            const isDeepLink = propertyId || wellId || (sectionParam && townshipParam && rangeParam);
+
+            // Show feedback immediately so user knows map is navigating
+            if (isDeepLink) {
+                const target = propertyId ? 'property' : wellId ? 'well' : `${townshipParam}-${rangeParam}-${sectionParam}`;
+                showLoading(`Navigating to ${target}...`);
+            }
+
             try {
-                // Only show loading screen if boundaries aren't cached
+                // Only show loading screen if boundaries aren't cached (and not already showing deep-link message)
                 const hasCache = hasCachedBoundaries();
-                if (!hasCache) {
+                if (!hasCache && !isDeepLink) {
                     showLoading('Loading map data...', 'Loading county and township boundaries');
                 }
 
@@ -69,8 +84,8 @@
                     loadTownshipData()
                 ]);
 
-                // Hide loading if we showed it
-                if (!hasCache) {
+                // Hide loading if we showed it (but not if deep-link is still pending)
+                if (!hasCache && !isDeepLink) {
                     hideLoading();
                 }
 
@@ -94,23 +109,9 @@
                 // Load user data (no artificial delay — deep-link zoom runs as soon as data is ready)
                 try {
                     // Start PLSS section fetch early if we have STR params (don't wait for user data)
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const sectionParam = urlParams.get('section');
-                    const townshipParam = urlParams.get('township');
-                    const rangeParam = urlParams.get('range');
                     const plssFetch = (sectionParam && townshipParam && rangeParam)
                         ? fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`)
                         : null;
-
-                    // Deep-link params (read early for loading feedback)
-                    const propertyId = urlParams.get('property');
-                    const wellId = urlParams.get('well');
-
-                    // Show feedback when deep-linking so user knows map is navigating
-                    if (propertyId || wellId || plssFetch) {
-                        const target = propertyId ? 'property' : wellId ? 'well' : `${townshipParam}-${rangeParam}-${sectionParam}`;
-                        showLoading(`Navigating to ${target}...`);
-                    }
 
                     // Load all data in parallel
                     const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
@@ -145,10 +146,10 @@
                         let retryCount = 0;
                         const tryZoomToWell = () => {
                             const well = trackedWells.find(w => w.id === wellId);
-                            if (well && wellMarkers[wellId] && wellsLayer) {
-                                wellsLayer.zoomToShowLayer(wellMarkers[wellId], () => {
-                                    setTimeout(() => wellMarkers[wellId].openPopup(), 100);
-                                });
+                            if (well && wellMarkers[wellId]) {
+                                const latlng = wellMarkers[wellId].getLatLng();
+                                map.setView(latlng, 15);
+                                setTimeout(() => wellMarkers[wellId].openPopup(), 300);
                                 hideLoading();
                             } else if (retryCount++ < 10) {
                                 setTimeout(tryZoomToWell, 100);
