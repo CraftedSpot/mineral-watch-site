@@ -1885,12 +1885,12 @@ async function createOrganizationForUser(env, userId, userName, userEmail, plan)
 }
 
 /**
- * Generate a magic link token for auto-login (compatible with auth-worker)
+ * Generate a magic link token for auto-login (compatible with portal-worker)
  */
 async function generateMagicLinkToken(email, secret) {
   const encoder = new TextEncoder();
   
-  // Create payload matching auth-worker format
+  // Create payload matching portal-worker HMAC token format
   const payload = {
     email: email,
     exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours in milliseconds

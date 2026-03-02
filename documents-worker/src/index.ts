@@ -460,11 +460,10 @@ function getFileExtension(mimeType: string): string {
   return ALLOWED_FILE_TYPES[mimeType]?.extension || 'bin';
 }
 
-// Authenticate user via auth-worker
+// Authenticate user via portal-worker (AUTH_WORKER service binding)
 async function authenticateUser(request: Request, env: Env) {
   try {
-    // Forward the request to auth-worker
-    const authRequest = new Request('https://auth-worker.photog12.workers.dev/api/auth/me', {
+    const authRequest = new Request('https://dummy/api/auth/me', {
       headers: {
         'Authorization': request.headers.get('Authorization') || '',
         'Cookie': request.headers.get('Cookie') || '',

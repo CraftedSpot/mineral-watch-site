@@ -76,7 +76,7 @@ async function generateTrackToken(userId, apiNumber, expiration, secret) {
 }
 
 /**
- * Generate an HMAC-SHA256 signed auth token (same format as auth-worker)
+ * Generate an HMAC-SHA256 signed auth token (same format as portal-worker)
  * @param {Object} env - Worker environment (needs AUTH_SECRET)
  * @param {Object} payload - Token payload { email, id, exp, iat }
  * @returns {Promise<string>} - URL-safe base64 token: "payload.signature"
