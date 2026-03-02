@@ -227,6 +227,34 @@
                 } else if (e.target.classList.contains('document-checkbox')) {
                     toggleDocumentSelection(e.target.dataset.id, e.target.checked);
                 }
+                // Handle group (parent directory) checkboxes — must be delegated for virtual scroll
+                else if (e.target.classList.contains('group-checkbox')) {
+                    const parentId = e.target.dataset.parentId;
+                    const displayData = documentsVS.getData();
+                    const groupItem = displayData.find(d => d._isGroupRow && d.id === parentId);
+                    if (groupItem) {
+                        if (e.target.checked) {
+                            selectedDocuments.add(parentId);
+                        } else {
+                            selectedDocuments.delete(parentId);
+                        }
+                        groupItem._children.forEach(child => {
+                            if (e.target.checked) {
+                                selectedDocuments.add(child.id);
+                            } else {
+                                selectedDocuments.delete(child.id);
+                            }
+                        });
+                        // Update visible child checkboxes if expanded
+                        document.querySelectorAll('.document-checkbox').forEach(childCb => {
+                            if (groupItem._children.some(c => c.id === childCb.dataset.id)) {
+                                childCb.checked = e.target.checked;
+                            }
+                        });
+                    }
+                    updateSelectAllState('documents');
+                    updateBulkActionVisibility();
+                }
             });
 
             // Shift+click range selection for all bulk checkbox lists
