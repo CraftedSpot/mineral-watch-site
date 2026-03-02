@@ -5,18 +5,12 @@
         //  are provided by shared-occ-filings.txt)
         // ============================================
 
-        // Toggle OCC filings accordion
-        function toggleMapOccFilings() {
-            const content = document.getElementById('map-occ-content');
-            const arrow = document.getElementById('map-occ-arrow');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                arrow.style.transform = 'rotate(90deg)';
-            } else {
-                content.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            }
-        }
+        // Accordion toggles (uses shared toggleAccordion from shared-utils.txt)
+        function toggleMapOccFilings() { toggleAccordion('map-occ-content', 'map-occ-arrow'); }
+        function toggleMapLinkedProperties() { toggleAccordion('map-linked-props-content', 'map-linked-props-arrow'); }
+        function toggleMapLinkedDocs() { toggleAccordion('map-linked-docs-content', 'map-linked-docs-arrow'); }
+        function toggleMapWellRecords() { toggleAccordion('map-well-records-content', 'map-well-records-arrow'); }
+        function toggleMapDrillingPermits() { toggleAccordion('map-drilling-permits-content', 'map-drilling-permits-arrow'); }
 
         // getMatchReasonStyle() and getMatchReasonLabel() are now defined in shared utilities at top of script
 
@@ -34,58 +28,6 @@
                 if (res.ok) expandWellCard(wellId, true);
                 else showMapToast('Failed to relink', 'error');
             } catch (e) { showMapToast('Error: ' + e.message, 'error'); }
-        }
-
-        // Toggle linked properties accordion
-        function toggleMapLinkedProperties() {
-            const content = document.getElementById('map-linked-props-content');
-            const arrow = document.getElementById('map-linked-props-arrow');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                arrow.style.transform = 'rotate(90deg)';
-            } else {
-                content.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Toggle linked documents accordion
-        function toggleMapLinkedDocs() {
-            const content = document.getElementById('map-linked-docs-content');
-            const arrow = document.getElementById('map-linked-docs-arrow');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                arrow.style.transform = 'rotate(90deg)';
-            } else {
-                content.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Toggle Well Records accordion
-        function toggleMapWellRecords() {
-            const content = document.getElementById('map-well-records-content');
-            const arrow = document.getElementById('map-well-records-arrow');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                arrow.style.transform = 'rotate(90deg)';
-            } else {
-                content.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Toggle Drilling Permits accordion
-        function toggleMapDrillingPermits() {
-            const content = document.getElementById('map-drilling-permits-content');
-            const arrow = document.getElementById('map-drilling-permits-arrow');
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                arrow.style.transform = 'rotate(90deg)';
-            } else {
-                content.style.display = 'none';
-                arrow.style.transform = 'rotate(0deg)';
-            }
         }
 
         // ============================================

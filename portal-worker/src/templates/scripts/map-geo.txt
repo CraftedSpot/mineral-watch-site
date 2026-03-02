@@ -274,11 +274,7 @@
                                 }
                             }
                             
-                            // Format: "S12 • 21N 18W • IM"
-                            const padTwn = township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                            const padRng = range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                            const padSec = sectionNum.toString().padStart(2, '0');
-                            const sectionInfo = `${padTwn}-${padRng}-${padSec} • ${meridian}`;
+                            const sectionInfo = `${formatTRS(township, range, sectionNum)} • ${meridian}`;
                             layer.bindTooltip(sectionInfo, {
                                 sticky: true,
                                 opacity: 0.9
@@ -814,7 +810,7 @@
                 <div class="popup-well-name">${wellName}</div>
                 <div class="popup-details">
                     ${operator}<br>
-                    ${well.section ? `${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${well.section.toString().padStart(2, '0')} • ` : ''}${well.county || 'Unknown'}<br>
+                    ${well.section ? `${formatTRS(well.township, well.range, well.section)} • ` : ''}${well.county || 'Unknown'}<br>
                     Status: ${wellStatusLabel}${formation ? ` • ${formation}` : ''}
                 </div>
                 <div class="popup-actions">
@@ -902,7 +898,7 @@
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
                         ${operator}<br>
-                        ${well.section ? `${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${well.section.toString().padStart(2, '0')} • ` : ''}${well.county || 'Unknown'}<br>
+                        ${well.section ? `${formatTRS(well.township, well.range, well.section)} • ` : ''}${well.county || 'Unknown'}<br>
                         Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                     </div>
                     <div class="popup-actions">
@@ -912,7 +908,7 @@
             } else {
                 // Multiple wells popup - show location context
                 const locationStr = firstWell.section
-                    ? `${(firstWell.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(firstWell.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${firstWell.section.toString().padStart(2, '0')}`
+                    ? formatTRS(firstWell.township, firstWell.range, firstWell.section)
                     : (firstWell.county || 'this location');
                 
                 popupContent = `

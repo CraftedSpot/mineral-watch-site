@@ -174,7 +174,7 @@
 
                                 const countyParam = urlParams.get('county');
                                 highlightLayer.bindPopup(
-                                    `<b>${townshipParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${rangeParam.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${sectionParam.padStart(2, '0')}</b>` +
+                                    `<b>${formatTRS(townshipParam, rangeParam, sectionParam)}</b>` +
                                     (countyParam ? `<br>${countyParam} County` : '')
                                 ).openPopup();
                             }
@@ -207,12 +207,13 @@
             // Add properties
             if (userProperties) {
                 userProperties.forEach(prop => {
+                    const trs = formatTRS(prop.fields.TWN, prop.fields.RNG, prop.fields.SEC);
                     allSearchableItems.push({
                         type: 'property',
-                        name: `${(prop.fields.TWN||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.RNG||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.SEC||'').toString().padStart(2, '0')}`,
+                        name: trs,
                         details: `${prop.fields.COUNTY || ''} County${prop.fields.Notes ? ' • ' + prop.fields.Notes : ''}`,
                         data: prop,
-                        searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${(prop.fields.TWN||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.RNG||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(prop.fields.SEC||'').toString().padStart(2, '0')} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
+                        searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${trs} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
                     });
                 });
             }
@@ -235,12 +236,13 @@
                 allNearbyWells.forEach(well => {
                     if (!well.latitude || !well.longitude) return;
                     const wellName = well.well_name ? (well.well_number ? `${well.well_name} ${well.well_number}` : well.well_name) : '';
+                    const nearbyTrs = formatTRS(well.township || '?', well.range || '?', well.section || '?');
                     allSearchableItems.push({
                         type: 'nearby',
                         name: wellName || `API ${well.api_number || 'Unknown'}`,
-                        details: `${well.operator || 'Unknown'} • ${(well.township||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'?').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'?').toString().padStart(2, '0')}`,
+                        details: `${well.operator || 'Unknown'} • ${nearbyTrs}`,
                         data: { id: well.api_number, lat: well.latitude, lng: well.longitude },
-                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''} ${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'').toString().padStart(2, '0')}`.toLowerCase()
+                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''} ${nearbyTrs}`.toLowerCase()
                     });
                 });
             }

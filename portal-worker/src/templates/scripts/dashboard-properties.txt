@@ -276,7 +276,7 @@
         function renderPropertyRow(p) {
             const isViewer = currentUser?.role === 'Viewer';
             const f = p.fields;
-            const str = `${f.TWN}-${f.RNG}-${f.SEC}`;
+            const str = formatTRS(f.TWN, f.RNG, f.SEC);
             const riAcres = parseFloat(f['RI Acres'] || 0);
             const wiAcres = parseFloat(f['WI Acres'] || 0);
             const totalAcres = riAcres + wiAcres;
@@ -682,7 +682,7 @@
             
             // Set location info (county + legal)
             const county = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
-            const legal = `${f.TWN}-${f.RNG}-${f.SEC}`;
+            const legal = formatTRS(f.TWN, f.RNG, f.SEC);
             document.getElementById('propertyDetailsLocation').textContent = `${county} • ${legal}`;
             
             // Set form fields

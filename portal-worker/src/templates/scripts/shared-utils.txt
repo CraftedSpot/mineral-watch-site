@@ -1,5 +1,21 @@
         // === Shared Utilities (used by both dashboard and map) ===
 
+        // Format Township-Range-Section to consistent padded format: "06N-24W-30"
+        function formatTRS(twn, rng, sec) {
+            const padDir = (val) => String(val || '').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
+            return `${padDir(twn)}-${padDir(rng)}-${String(sec || '').toString().padStart(2, '0')}`;
+        }
+
+        // Generic accordion toggle (content show/hide + arrow rotation)
+        function toggleAccordion(contentId, arrowId) {
+            const content = document.getElementById(contentId);
+            const arrow = document.getElementById(arrowId);
+            if (!content) return;
+            const isOpen = content.style.display !== 'none';
+            content.style.display = isOpen ? 'none' : 'block';
+            if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+        }
+
         function escapeHtml(text) {
             if (!text) return '';
             const str = String(text);

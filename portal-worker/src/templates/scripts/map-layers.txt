@@ -339,9 +339,7 @@
             if (!modal) return;
 
             titleEl.textContent = 'Pooling Orders';
-            const padT = township.replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
-            const padR = range.replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
-            subtitleEl.textContent = padT + '-' + padR;
+            subtitleEl.textContent = formatTRS(township, range, '').replace(/-$/, '');
             bodyEl.innerHTML = '<div style="text-align:center;padding:40px;color:#94A3B8;">Loading pooling orders...</div>';
             modal.classList.add('active');
 
@@ -398,10 +396,7 @@
                 const date = order.orderDate || '—';
                 const operatorCell = order.operator || order.applicant || '—';
                 const wellLine = order.wellName ? '<div style="font-size:11px;color:#78716C;margin-top:2px;">' + order.wellName + '</div>' : '';
-                const oTwn = (order.township || '').replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
-                const oRng = (order.range || '').replace(/^(\d+)/, function(_, n) { return n.padStart(2, '0'); });
-                const oSec = (order.section || '').toString().replace(/^(\d+)$/, function(_, n) { return n.padStart(2, '0'); });
-                const trsStr = oSec ? oTwn + '-' + oRng + '-' + oSec : '—';
+                const trsStr = order.section ? formatTRS(order.township, order.range, order.section) : '—';
 
                 html += '<tr class="pm-order-row" id="pm-hdr-' + idx + '" onclick="togglePmRow(\'' + rowId + '\',' + idx + ')">'
                     + '<td><span class="pm-chevron">&#9654;</span></td>'

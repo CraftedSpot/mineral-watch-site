@@ -802,7 +802,7 @@
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
                         ${operator}<br>
-                        ${(well.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(well.section||'').toString().padStart(2, '0')} • ${toTitleCase(well.county || 'Unknown')}<br>
+                        ${formatTRS(well.township, well.range, well.section)} • ${toTitleCase(well.county || 'Unknown')}<br>
                         Status: ${wellStatus}${formation ? ' \u2022 ' + formation : ''}
                         ${isExtendedLateral && well.lateral_length ? '<br>Lateral: ' + (well.lateral_length / 5280).toFixed(1) + ' miles' : ''}
                     </div>
@@ -1154,7 +1154,7 @@
                 const fullName = num ? `${name} ${num}` : name;
                 const status = getStatusLabel(w.well_status);
                 const formation = w.formation_name ? toTitleCase(w.formation_name) : '';
-                const trs = `${(w.township||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.range||'').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(w.section||'').toString().padStart(2, '0')}`;
+                const trs = formatTRS(w.township, w.range, w.section);
                 body += `<tr>
                     <td class="clickable" onclick="if(nearbyWellsData['${w.api_number}']){expandNearbyWellCard(nearbyWellsData['${w.api_number}']);}">${fullName}</td>
                     <td>${status}</td>
@@ -1282,7 +1282,7 @@
                         const label = RELIEF_LABELS[f.reliefType] || f.reliefType;
                         const color = RELIEF_COLORS[f.reliefType] || '#6B7280';
                         const trs = f.township && f.range && f.section
-                            ? `${(f.township||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${(f.range||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${String(f.section).padStart(2, '0')}`
+                            ? formatTRS(f.township, f.range, f.section)
                             : '';
                         const date = f.docketDate || f.hearingDate || '';
                         const shortDate = date ? date.substring(0, 10) : '';
@@ -1310,7 +1310,7 @@
                             <tbody>`;
                     data.poolingOrders.slice(0, 15).forEach(po => {
                         const trs = po.township && po.range && po.section
-                            ? `${(po.township||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${(po.range||'').replace(/^(\\d+)/, (_, n) => n.padStart(2, '0'))}-${String(po.section).padStart(2, '0')}`
+                            ? formatTRS(po.township, po.range, po.section)
                             : '';
                         const bonus = po.maxBonus ? `$${Math.round(po.maxBonus).toLocaleString()}` : '';
                         html += `<tr>

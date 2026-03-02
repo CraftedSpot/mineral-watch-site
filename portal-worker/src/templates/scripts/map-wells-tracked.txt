@@ -527,7 +527,7 @@
 
             // Format location string (22N-13W-07 dashed format)
             const locationStr = section && township && range
-                ? `${township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${section.toString().padStart(2, '0')}`
+                ? formatTRS(township, range, section)
                 : 'Location not available';
 
             // Store state in hidden fields

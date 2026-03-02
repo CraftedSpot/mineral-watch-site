@@ -117,11 +117,7 @@
             }
 
             if (sec && twn && rng) {
-                // Pad to 2-digit numbers: 15N-21W-32
-                const padTwn = twn.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                const padRng = rng.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                const padSec = sec.padStart(2, '0');
-                return `${padTwn}-${padRng}-${padSec}`;
+                return formatTRS(twn, rng, sec);
             }
 
             return escapeHtml(location);

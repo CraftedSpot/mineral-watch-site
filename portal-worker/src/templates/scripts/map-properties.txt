@@ -2,14 +2,8 @@
         // Format location for modal display (10N-07W-06 dashed format)
         function formatLocationForModal(location) {
             if (!location) return '';
-            // Extract parts from location string like "S06 T10N R07W"
             const match = location.match(/S?(\d+)\s+T?(\d+[NS])\s+R?(\d+[EW])/i);
-            if (match) {
-                const sec = match[1].padStart(2, '0');
-                const twn = match[2].replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                const rng = match[3].replace(/^(\d+)/, (_, n) => n.padStart(2, '0'));
-                return `${twn}-${rng}-${sec}`;
-            }
+            if (match) return formatTRS(match[2], match[3], match[1]);
             return location;
         }
 
@@ -309,7 +303,7 @@
 
             // Format location string (22N-13W-07 dashed format)
             const locationStr = section && township && range
-                ? `${township.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${range.replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${section.toString().padStart(2, '0')}`
+                ? formatTRS(township, range, section)
                 : 'Location not available';
 
             // Status badge color
@@ -618,7 +612,7 @@
                 </div>
                 <div class="popup-well-name">${toTitleCase(fields.COUNTY || fields.County || 'Unknown')} County</div>
                 <div class="popup-details">
-                    <strong>${(twp || '').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(rng || '').replace(/^(\d+)/, (_, n) => n.padStart(2, '0'))}-${(fields.SEC || fields.Section || '').toString().padStart(2, '0')}</strong><br>
+                    <strong>${formatTRS(twp, rng, fields.SEC || fields.Section)}</strong><br>
                     ${ownershipText}<br>
                     ${(riAcres > 0 || wiAcres > 0) ? `<em>Your ownership: ${riAcres > 0 ? riAcres + ' RI' : ''}${(riAcres > 0 && wiAcres > 0) ? ' + ' : ''}${wiAcres > 0 ? wiAcres + ' WI' : ''} acres</em><br>` : ''}
                     ${fields.Notes ? `<em>"${fields.Notes}"</em><br>` : ''}
