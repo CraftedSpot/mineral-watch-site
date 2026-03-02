@@ -443,7 +443,8 @@
                                        type === 'documents' ? `/api/documents/${id}` : `/api/activity/${id}`;
                         try {
                             const res = await fetch(endpoint, { method: 'DELETE' });
-                            if (res.ok) {
+                            if (res.ok || res.status === 404) {
+                                // 404 = already deleted (e.g. cascade from parent document delete)
                                 successCount++;
                             } else {
                                 const error = await res.text();
