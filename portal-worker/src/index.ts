@@ -1812,11 +1812,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleTestWells(request, env);
       }
       
-      // TEMPORARY: Domain bridge for testing
-      if (path === "/test-upgrade" && request.method === "GET") {
-        return Response.redirect(`https://portal-worker.photog12.workers.dev/portal/upgrade`, 302);
-      }
-
       // Unit Print Report - printable production report by PUN
       if (path === "/print/unit" && request.method === "GET") {
         return handleUnitPrint(request, env);
