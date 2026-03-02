@@ -68,7 +68,7 @@ export async function handleBulkWellEnrichment(request: Request, env: Env): Prom
     const chunkResults = await Promise.all(
       chunks.map(async (chunk, index) => {
         // Build the IN clause with placeholders
-        const placeholders = chunk.map((_, idx) => `?${idx + 1}`).join(', ');
+        const placeholders = chunk.map(() => '?').join(', ');
         
         const query = `
           SELECT 
