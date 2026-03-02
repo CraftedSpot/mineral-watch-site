@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [[kv_namespaces]]
 binding = "WEBHOOK_KV"
-id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
+id = "95d0724478f8407f959cf5f18801e12d"
 
 [[kv_namespaces]]
 binding = "MINERAL_CACHE"
