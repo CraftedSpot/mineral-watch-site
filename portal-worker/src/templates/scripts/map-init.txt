@@ -102,6 +102,16 @@
                         ? fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`)
                         : null;
 
+                    // Deep-link params (read early for loading feedback)
+                    const propertyId = urlParams.get('property');
+                    const wellId = urlParams.get('well');
+
+                    // Show feedback when deep-linking so user knows map is navigating
+                    if (propertyId || wellId || plssFetch) {
+                        const target = propertyId ? 'property' : wellId ? 'well' : `${townshipParam}-${rangeParam}-${sectionParam}`;
+                        showLoading(`Navigating to ${target}...`);
+                    }
+
                     // Load all data in parallel
                     const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
                         loadUserProperties(),
@@ -120,10 +130,6 @@
                         console.error('Failed to load activity data:', activityResult.reason);
                     }
 
-                    // Deep-link: center on a specific property
-                    const propertyId = urlParams.get('property');
-                    const wellId = urlParams.get('well');
-
                     if (propertyId && propertiesResult.status === 'fulfilled') {
                         const property = userProperties.find(p => p.id === propertyId);
                         if (property && propertyMarkers[propertyId]) {
@@ -131,6 +137,7 @@
                             map.fitBounds(marker.getBounds(), { maxZoom: 15, padding: [50, 50] });
                             setTimeout(() => marker.openPopup(), 300);
                         }
+                        hideLoading();
                     }
 
                     // Deep-link: center on a specific tracked well
@@ -142,8 +149,11 @@
                                 wellsLayer.zoomToShowLayer(wellMarkers[wellId], () => {
                                     setTimeout(() => wellMarkers[wellId].openPopup(), 100);
                                 });
+                                hideLoading();
                             } else if (retryCount++ < 10) {
                                 setTimeout(tryZoomToWell, 100);
+                            } else {
+                                hideLoading(); // Give up retrying
                             }
                         };
                         tryZoomToWell();
@@ -170,10 +180,12 @@
                         } catch (err) {
                             console.error('Error loading section for deep link:', err);
                         }
+                        hideLoading();
                     }
 
                 } catch (error) {
                     console.error('Error loading map data:', error);
+                    hideLoading();
                 }
 
             } catch (error) {
