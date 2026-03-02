@@ -1152,15 +1152,15 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleSurroundingWells(request, env);
       }
       
-      // Well enrichment endpoint
+      // Bulk well enrichment endpoint (exact match before wildcard)
+      if (path === "/api/well-enrichment/bulk" && request.method === "POST") {
+        return handleBulkWellEnrichment(request, env);
+      }
+
+      // Single well enrichment endpoint
       if (path.startsWith("/api/well-enrichment/") && request.method === "GET") {
         const apiNumber = path.split('/').pop() || '';
         return handleWellEnrichment(request, env, apiNumber);
-      }
-      
-      // Bulk well enrichment endpoint
-      if (path === "/api/well-enrichment/bulk" && request.method === "POST") {
-        return handleBulkWellEnrichment(request, env);
       }
       
       // Activity endpoint
