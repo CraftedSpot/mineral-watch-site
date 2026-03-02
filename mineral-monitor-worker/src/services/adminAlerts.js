@@ -38,7 +38,8 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
         to: env.ADMIN_EMAIL || ADMIN_EMAIL,
         subject: fullSubject,
         text: `${body}\n\n---\nTimestamp: ${new Date().toISOString()}`
-      })
+      }),
+      signal: AbortSignal.timeout(10_000),
     });
     
     if (!response.ok) {

@@ -44,7 +44,8 @@ export async function sendEmail(env, { to, subject, html }) {
       subject,
       html,
       text: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
-    })
+    }),
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {

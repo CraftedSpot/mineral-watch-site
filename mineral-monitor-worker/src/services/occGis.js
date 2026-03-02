@@ -71,7 +71,8 @@ export async function fetchWellCoordinates(api10, env, forceRefresh = false) {
       const response = await fetch(url.toString(), {
         headers: {
           'User-Agent': 'MineralWatch/2.0 (mineral rights monitoring service)'
-        }
+        },
+        signal: AbortSignal.timeout(10_000),
       });
 
       if (!response.ok) {
