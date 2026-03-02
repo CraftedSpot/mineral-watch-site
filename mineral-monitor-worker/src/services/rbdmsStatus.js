@@ -57,7 +57,7 @@ async function downloadRBDMSData(env) {
     };
     console.log(`[RBDMS] Fetching from ${RBDMS_CSV_URL}`);
     
-    const response = await fetch(RBDMS_CSV_URL, { headers });
+    const response = await fetch(RBDMS_CSV_URL, { headers, signal: AbortSignal.timeout(30_000) });
     console.log(`[RBDMS] Response status: ${response.status}`);
     
     // If not modified, return null to skip processing
