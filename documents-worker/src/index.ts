@@ -4428,6 +4428,23 @@ export default {
 
         console.log(`[External Register] Document ${docId} registered successfully. Will be processed by queue.`);
 
+        // Pre-link to property/well if metadata includes IDs (bulk ingestion)
+        if (metadata?.property_id || metadata?.well_id) {
+          try {
+            const setClauses: string[] = [];
+            const setParams: any[] = [];
+            if (metadata.property_id) { setClauses.push('property_id = ?'); setParams.push(metadata.property_id); }
+            if (metadata.well_id) { setClauses.push('well_id = ?'); setParams.push(metadata.well_id); }
+            setParams.push(docId);
+            await env.WELLS_DB.prepare(
+              `UPDATE documents SET ${setClauses.join(', ')} WHERE id = ?`
+            ).bind(...setParams).run();
+            console.log(`[External Register] Pre-linked doc ${docId}: property=${metadata.property_id || 'none'}, well=${metadata.well_id || 'none'}`);
+          } catch (linkErr) {
+            console.error(`[External Register] Pre-link failed (non-fatal):`, linkErr);
+          }
+        }
+
         return jsonResponse({
           success: true,
           document: {
@@ -4443,6 +4460,412 @@ export default {
       } catch (error) {
         console.error('[External Register] Error:', error);
         return errorResponse('Registration failed', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/ingest-dedup - Batch dedup check for bulk ingestion
+    // Returns which files already exist (by original_filename + file_size) for a user/org
+    if (path === '/api/documents/ingest-dedup' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const body = await request.json() as {
+          userId: string;
+          organizationId?: string;
+          files: Array<{ filename: string; fileSize: number }>;
+        };
+
+        const { userId, organizationId, files } = body;
+        if (!userId || !files?.length) {
+          return errorResponse('userId and files[] required', 400, env);
+        }
+
+        const duplicates: Array<{ filename: string; fileSize: number; existingDocId: string }> = [];
+
+        // Batch by 25 files per query (50 bind params + 2 owner params = 52, under D1's 100 limit)
+        const BATCH = 25;
+        for (let i = 0; i < files.length; i += BATCH) {
+          const batch = files.slice(i, i + BATCH);
+
+          // Build (original_filename = ? AND file_size = ?) OR ... clauses
+          const clauses = batch.map(() => '(original_filename = ? AND file_size = ?)').join(' OR ');
+          const params: any[] = [];
+          for (const f of batch) {
+            params.push(f.filename, f.fileSize);
+          }
+
+          const sql = `
+            SELECT id, original_filename, file_size FROM documents
+            WHERE (user_id = ? OR organization_id = ?)
+              AND deleted_at IS NULL
+              AND (${clauses})
+          `;
+          params.unshift(userId, organizationId || userId);
+
+          const results = await env.WELLS_DB.prepare(sql).bind(...params).all();
+          for (const row of results.results || []) {
+            duplicates.push({
+              filename: row.original_filename as string,
+              fileSize: row.file_size as number,
+              existingDocId: row.id as string,
+            });
+          }
+        }
+
+        return jsonResponse({ duplicates }, 200, env);
+      } catch (error) {
+        console.error('[Ingest Dedup] Error:', error);
+        return errorResponse('Dedup check failed', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/ingest-match - Match TRS/API/well names to properties and wells
+    // Used by bulk ingestion CLI for pre-linking documents before upload
+    if (path === '/api/documents/ingest-match' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const body = await request.json() as {
+          userId: string;
+          organizationId?: string;
+          items: Array<{
+            section?: string;
+            township?: string;
+            range?: string;
+            county?: string;
+            apiNumber?: string;
+            wellName?: string;
+          }>;
+        };
+
+        const { userId, organizationId, items } = body;
+        if (!userId || !items?.length) {
+          return errorResponse('userId and items[] required', 400, env);
+        }
+
+        const db = env.WELLS_DB;
+        const matches: Array<{
+          index: number;
+          propertyId?: string;
+          wellId?: string;
+          wellApiNumber?: string;
+          matchType: string;
+        }> = [];
+
+        // Well name normalization helpers (same patterns as link-documents.ts)
+        const normWellName = (n: string | undefined): string | null => {
+          if (!n) return null;
+          return n.replace(/["""'']/g, '').trim();
+        };
+        const nameVariations = (n: string): string[] => {
+          const v = [n];
+          const numMatch = n.match(/^(.*?)(\d+)(.*)$/);
+          if (numMatch && !n.includes('#')) v.push(`${numMatch[1]}#${numMatch[2]}${numMatch[3]}`);
+          const hashMatch = n.match(/^(.*?)#(\d+)(.*)$/);
+          if (hashMatch) v.push(`${hashMatch[1]}${hashMatch[2]}${hashMatch[3]}`);
+          return v;
+        };
+        const alphaOnly = (s: string): string => s.replace(/[^A-Z0-9]/g, '').toUpperCase();
+
+        for (let idx = 0; idx < items.length; idx++) {
+          const item = items[idx];
+          let matched = false;
+
+          // Priority 1: API number exact match
+          if (item.apiNumber && !matched) {
+            const apiNorm = item.apiNumber.replace(/[\s\-\.]/g, '').replace(/[^0-9]/g, '');
+            // Try client_wells first (user's wells)
+            const cw = await db.prepare(`
+              SELECT airtable_id as id, api_number FROM client_wells
+              WHERE (user_id = ? OR organization_id = ?) AND api_number = ?
+              LIMIT 1
+            `).bind(userId, organizationId || userId, apiNorm).first();
+            if (cw?.id) {
+              matches.push({ index: idx, wellId: cw.id as string, wellApiNumber: cw.api_number as string, matchType: 'api_exact' });
+              matched = true;
+            }
+            if (!matched) {
+              // Try statewide wells
+              const w = await db.prepare(`
+                SELECT airtable_record_id as id, api_number FROM wells WHERE api_number = ? LIMIT 1
+              `).bind(apiNorm).first();
+              if (w?.id) {
+                matches.push({ index: idx, wellId: w.id as string, wellApiNumber: w.api_number as string, matchType: 'api_exact' });
+                matched = true;
+              }
+            }
+          }
+
+          // Priority 2: Well name + TRS
+          if (item.wellName && item.section && item.township && item.range && !matched) {
+            const normalized = normWellName(item.wellName);
+            if (normalized) {
+              const variations = nameVariations(normalized);
+              const alphaName = alphaOnly(normalized);
+              // Build LIKE clauses for name variations
+              const likeClauses = variations.map(() => 'UPPER(well_name) = UPPER(?)').join(' OR ');
+              const w = await db.prepare(`
+                SELECT airtable_record_id as id, api_number, well_name FROM wells
+                WHERE (${likeClauses} OR UPPER(REPLACE(REPLACE(REPLACE(well_name, ' ', ''), '#', ''), '-', '')) = ?)
+                  AND CAST(section AS INTEGER) = CAST(? AS INTEGER)
+                  AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+                  AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+                  AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+                  AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
+                  AND well_type NOT IN ('DRY', 'INJ', 'SWD', 'WD', 'TW', 'OBS', 'WS')
+                ORDER BY well_status = 'AC' DESC
+                LIMIT 1
+              `).bind(
+                ...variations, alphaName,
+                item.section,
+                item.township, item.township,
+                item.range, item.range
+              ).first();
+              if (w?.id) {
+                matches.push({ index: idx, wellId: w.id as string, wellApiNumber: (w.api_number as string) || undefined, matchType: 'name_trs' });
+                matched = true;
+              }
+            }
+          }
+
+          // Priority 3: Well name only (no TRS constraint)
+          if (item.wellName && !matched) {
+            const normalized = normWellName(item.wellName);
+            if (normalized) {
+              const variations = nameVariations(normalized);
+              const alphaName = alphaOnly(normalized);
+              const likeClauses = variations.map(() => 'UPPER(well_name) = UPPER(?)').join(' OR ');
+              const w = await db.prepare(`
+                SELECT airtable_record_id as id, api_number, well_name FROM wells
+                WHERE (${likeClauses} OR UPPER(REPLACE(REPLACE(REPLACE(well_name, ' ', ''), '#', ''), '-', '')) = ?)
+                  AND well_type NOT IN ('DRY', 'INJ', 'SWD', 'WD', 'TW', 'OBS', 'WS')
+                ORDER BY well_status = 'AC' DESC
+                LIMIT 1
+              `).bind(...variations, alphaName).first();
+              if (w?.id) {
+                matches.push({ index: idx, wellId: w.id as string, wellApiNumber: (w.api_number as string) || undefined, matchType: 'name_only' });
+                matched = true;
+              }
+            }
+          }
+
+          // Priority 4: TRS only → property match
+          if (item.section && item.township && item.range && !matched) {
+            const propQuery = `
+              SELECT airtable_record_id as id FROM properties
+              WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
+                AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+                AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+                AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+                AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
+                AND (user_id IN (?, ?) OR organization_id IN (?, ?))
+              LIMIT 1
+            `;
+            const prop = await db.prepare(propQuery).bind(
+              item.section,
+              item.township, item.township,
+              item.range, item.range,
+              userId, organizationId || userId,
+              userId, organizationId || userId
+            ).first();
+            if (prop?.id) {
+              matches.push({ index: idx, propertyId: prop.id as string, matchType: 'trs' });
+              matched = true;
+            }
+          }
+
+          // No match — still report the index
+          if (!matched) {
+            matches.push({ index: idx, matchType: 'none' });
+          }
+        }
+
+        return jsonResponse({ matches }, 200, env);
+      } catch (error) {
+        console.error('[Ingest Match] Error:', error);
+        return errorResponse('Matching failed', 500, env);
+      }
+    }
+
+    // Route: POST /api/documents/ingest-parse - Parse filenames into structured TRS/county/API/well data
+    // Single source of truth for all normalization — CLI sends raw filenames, server parses
+    if (path === '/api/documents/ingest-parse' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const body = await request.json() as {
+          items: Array<{ filename: string; folders: string[] }>;
+        };
+
+        if (!body.items?.length) {
+          return errorResponse('items[] required', 400, env);
+        }
+
+        // County abbreviation map (canonical source — ported from portal-worker/bulk.ts)
+        const COUNTY_ABBREVS: Record<string, string> = {
+          'ALFA': 'Alfalfa', 'ATOKA': 'Atoka', 'BEAV': 'Beaver', 'BECK': 'Beckham',
+          'BLAI': 'Blaine', 'BRYA': 'Bryan', 'CADD': 'Caddo', 'CANA': 'Canadian',
+          'CART': 'Carter', 'CHER': 'Cherokee', 'CHOC': 'Choctaw', 'CIMA': 'Cimarron',
+          'CLEV': 'Cleveland', 'COAL': 'Coal', 'COMA': 'Comanche', 'COTT': 'Cotton',
+          'CRAI': 'Craig', 'CREE': 'Creek', 'CUST': 'Custer', 'DELA': 'Delaware',
+          'DEWE': 'Dewey', 'ELLI': 'Ellis', 'GARF': 'Garfield', 'GARV': 'Garvin',
+          'GRAD': 'Grady', 'GRAN': 'Grant', 'GREE': 'Greer', 'HARM': 'Harmon',
+          'HARP': 'Harper', 'HASK': 'Haskell', 'HUGH': 'Hughes', 'JACK': 'Jackson',
+          'JEFF': 'Jefferson', 'JOHN': 'Johnston', 'KAY': 'Kay', 'KING': 'Kingfisher',
+          'KIOW': 'Kiowa', 'LATI': 'Latimer', 'LEFL': 'LeFlore', 'LINC': 'Lincoln',
+          'LOGA': 'Logan', 'LOVE': 'Love', 'MAJO': 'Major', 'MARS': 'Marshall',
+          'MAYES': 'Mayes', 'MCCL': 'McClain', 'MCCU': 'McCurtain', 'MCIN': 'McIntosh',
+          'MURR': 'Murray', 'MUSK': 'Muskogee', 'NOBL': 'Noble', 'NOWA': 'Nowata',
+          'OKFU': 'Okfuskee', 'OKLA': 'Oklahoma', 'OKMU': 'Okmulgee', 'OSAG': 'Osage',
+          'OTTA': 'Ottawa', 'PAWN': 'Pawnee', 'PAYN': 'Payne', 'PITT': 'Pittsburg',
+          'PONT': 'Pontotoc', 'POTT': 'Pottawatomie', 'PUSH': 'Pushmataha',
+          'ROGM': 'Roger Mills', 'ROGE': 'Rogers', 'SEMI': 'Seminole', 'SEQU': 'Sequoyah',
+          'STEP': 'Stephens', 'TEXA': 'Texas', 'TILL': 'Tillman', 'TULS': 'Tulsa',
+          'WAGO': 'Wagoner', 'WASH': 'Washita', 'WASHI': 'Washington',
+          'WOOD': 'Woodward', 'WOODS': 'Woods', 'WODW': 'Woodward',
+          'ATOK': 'Atoka', 'WAST': 'Washita', 'WOOW': 'Woodward',
+        };
+
+        const OK_COUNTIES = new Set([
+          'Adair', 'Alfalfa', 'Atoka', 'Beaver', 'Beckham', 'Blaine', 'Bryan',
+          'Caddo', 'Canadian', 'Carter', 'Cherokee', 'Choctaw', 'Cimarron',
+          'Cleveland', 'Coal', 'Comanche', 'Cotton', 'Craig', 'Creek', 'Custer',
+          'Delaware', 'Dewey', 'Ellis', 'Garfield', 'Garvin', 'Grady', 'Grant',
+          'Greer', 'Harmon', 'Harper', 'Haskell', 'Hughes', 'Jackson', 'Jefferson',
+          'Johnston', 'Kay', 'Kingfisher', 'Kiowa', 'Latimer', 'LeFlore', 'Lincoln',
+          'Logan', 'Love', 'Major', 'Marshall', 'Mayes', 'McClain', 'McCurtain',
+          'McIntosh', 'Murray', 'Muskogee', 'Noble', 'Nowata', 'Okfuskee',
+          'Oklahoma', 'Okmulgee', 'Osage', 'Ottawa', 'Pawnee', 'Payne', 'Pittsburg',
+          'Pontotoc', 'Pottawatomie', 'Pushmataha', 'Roger Mills', 'Rogers',
+          'Seminole', 'Sequoyah', 'Stephens', 'Texas', 'Tillman', 'Tulsa',
+          'Wagoner', 'Washington', 'Washita', 'Woodward', 'Woods',
+        ]);
+
+        const CM_COUNTIES = new Set(['Cimarron', 'Texas', 'Beaver']);
+
+        // Resolve folder name to county
+        const resolveCounty = (folderName: string): string | null => {
+          if (!folderName) return null;
+          const cleaned = folderName.replace(/[_\d]+$/, '').trim(); // strip trailing _01 suffixes
+          const upper = cleaned.toUpperCase();
+          if (COUNTY_ABBREVS[upper]) return COUNTY_ABBREVS[upper];
+          // Title-case match
+          const titled = cleaned.replace(/[_]/g, ' ').split(' ')
+            .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+          if (OK_COUNTIES.has(titled)) return titled;
+          // Case-insensitive full name match
+          for (const c of OK_COUNTIES) {
+            if (c.toUpperCase() === upper) return c;
+          }
+          return null;
+        };
+
+        // Parse TRS from filename stem
+        const parseTRS = (stem: string, county: string | null): {
+          section: string | null; township: string | null; range: string | null;
+        } => {
+          // Pattern 1: "DD-DD SECdd" (most common folder convention)
+          const m1 = stem.match(/(\d{1,2})-(\d{1,2})\s*SEC\s*(\d{1,2})/i);
+          if (m1) {
+            const twn = parseInt(m1[1]), rng = parseInt(m1[2]), sec = parseInt(m1[3]);
+            if (sec >= 1 && sec <= 36 && twn >= 1 && twn <= 35 && rng >= 1 && rng <= 28) {
+              return {
+                section: String(sec),
+                township: `${twn}N`,
+                range: `${rng}W`,
+              };
+            }
+          }
+          // Pattern 2: Explicit "TWNddD-RNGddD-SECdd"
+          const m2 = stem.match(/TWN\s*(\d{1,2})\s*([NS])\s*[-_]\s*RNG\s*(\d{1,2})\s*([EW])\s*[-_]\s*SEC\s*(\d{1,2})/i);
+          if (m2) {
+            return {
+              section: String(parseInt(m2[5])),
+              township: `${parseInt(m2[1])}${m2[2].toUpperCase()}`,
+              range: `${parseInt(m2[3])}${m2[4].toUpperCase()}`,
+            };
+          }
+          // Pattern 3: Just "DD-DD" (township-range without section)
+          const m3 = stem.match(/(\d{1,2})-(\d{1,2})/);
+          if (m3) {
+            const twn = parseInt(m3[1]), rng = parseInt(m3[2]);
+            if (twn >= 1 && twn <= 35 && rng >= 1 && rng <= 28) {
+              return { section: null, township: `${twn}N`, range: `${rng}W` };
+            }
+          }
+          return { section: null, township: null, range: null };
+        };
+
+        // Extract API number from text (reuses normalizeApiNumber pattern)
+        const extractApi = (text: string): string | null => {
+          if (!text) return null;
+          // Try "35-XXX-XXXXX" or "35XXXXXXXXX" format
+          const m1 = text.match(/(?:35[-\s]?)(\d{3})[-\s]?(\d{5,})/);
+          if (m1) return '35' + m1[1] + m1[2];
+          // 8-10 digit number
+          const m2 = text.match(/\b(\d{8,10})\b/);
+          if (m2) {
+            const d = m2[1];
+            if (d.length === 8) return '35' + d;
+            if (d.length >= 10 && d.startsWith('35')) return d;
+          }
+          return null;
+        };
+
+        // Extract well name from filename after removing TRS pattern
+        const extractWellName = (stem: string, county: string | null): string | null => {
+          let cleaned = stem;
+          // Remove TRS pattern
+          cleaned = cleaned.replace(/\d{1,2}-\d{1,2}\s*SEC\s*\d{1,2}\d*/i, '');
+          // Remove common suffixes
+          cleaned = cleaned.replace(/[_\s]*(?:_V\d+|_copy|_Copy|\(\d+\)|COPY)$/i, '');
+          // Remove county name prefix
+          if (county) {
+            cleaned = cleaned.replace(new RegExp('^' + county.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[\\s_\\-]*', 'i'), '');
+          }
+          cleaned = cleaned.replace(/^[\s_\-]+|[\s_\-]+$/g, '');
+          // Must have at least 2 chars and contain alpha
+          if (cleaned.length < 2 || !/[A-Za-z]/.test(cleaned)) return null;
+          return cleaned;
+        };
+
+        const parsed = body.items.map(item => {
+          const stem = item.filename.replace(/\.[^.]+$/, ''); // strip extension
+
+          // Resolve county from folder names (check each ancestor)
+          let county: string | null = null;
+          for (const folder of item.folders) {
+            county = resolveCounty(folder);
+            if (county) break;
+          }
+
+          const trs = parseTRS(stem, county);
+          const apiNumber = extractApi(stem);
+          const wellName = extractWellName(stem, county);
+
+          return {
+            county,
+            section: trs.section,
+            township: trs.township,
+            range: trs.range,
+            apiNumber,
+            wellName,
+          };
+        });
+
+        return jsonResponse({ parsed }, 200, env);
+      } catch (error) {
+        console.error('[Ingest Parse] Error:', error);
+        return errorResponse('Parsing failed', 500, env);
       }
     }
 
