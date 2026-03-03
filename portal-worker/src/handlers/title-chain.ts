@@ -47,6 +47,21 @@ function extractDate(data: any): { date: string | null; source: string | null } 
 }
 
 /**
+ * Safely coerce a value to string — handles objects from newer extraction schemas.
+ * e.g. interest_conveyed may be { fraction_text: "1/2", type: "mineral" }
+ */
+function asString(val: any): string | null {
+  if (!val) return null;
+  if (typeof val === 'string') return val;
+  if (typeof val === 'number') return String(val);
+  if (typeof val === 'object') {
+    // Common object shapes from extraction
+    return val.fraction_text || val.description || val.text || val.value || val.name || null;
+  }
+  return null;
+}
+
+/**
  * Extract interest conveyed from extracted_data based on doc type
  */
 function extractInterest(data: any, docType: string): string | null {
@@ -54,18 +69,19 @@ function extractInterest(data: any, docType: string): string | null {
 
   // Deeds: interest_conveyed or fraction
   if (docType.includes('deed') || docType === 'conveyance') {
-    return data.interest_conveyed || data.fraction || data.interest_description || null;
+    return asString(data.interest_conveyed) || asString(data.fraction) || asString(data.interest_description) || null;
   }
   // Leases: royalty fraction + primary term
   if (docType.includes('lease') || docType === 'oil_gas_lease' || docType === 'oil_and_gas_lease') {
     const parts = [];
-    if (data.royalty_fraction) parts.push(data.royalty_fraction + ' royalty');
+    const rf = asString(data.royalty_fraction);
+    if (rf) parts.push(rf + ' royalty');
     if (data.primary_term_years) parts.push(data.primary_term_years + '-year primary');
     return parts.length > 0 ? parts.join(', ') : null;
   }
   // Assignments: assigned interest
   if (docType.includes('assignment')) {
-    return data.interest_assigned || data.assigned_interest || null;
+    return asString(data.interest_assigned) || asString(data.assigned_interest) || null;
   }
   return null;
 }
@@ -100,8 +116,10 @@ function extractPartiesFromJson(data: any, docType: string): Array<{ name: strin
   if (docType.includes('deed') || docType === 'conveyance' || docType === 'trust_funding') {
     addArray(data.grantors, 'grantor');
     addArray(data.grantees, 'grantee');
-    add(data.grantor?.name || data.grantor, 'grantor');
-    add(data.grantee?.name || data.grantee, 'grantee');
+    addArray(data.grantor_names, 'grantor');
+    addArray(data.grantee_names, 'grantee');
+    add(data.grantor?.name || data.grantor_name || data.grantor, 'grantor');
+    add(data.grantee?.name || data.grantee_name || data.grantee, 'grantee');
   }
   // Leases
   else if (docType.includes('lease') || docType === 'oil_gas_lease' || docType === 'oil_and_gas_lease') {
@@ -356,7 +374,7 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         dateSource: date ? dateSource : (partyDate ? 'document_parties' : null),
         parties: parties.map(p => ({ name: p.name, role: p.role })),
         interestConveyed: interest,
-        summary: row.summary || (extractedData?.key_takeaway) || null,
+        summary: row.summary || asString(extractedData?.key_takeaway) || null,
         r2Key: row.r2_key,
       };
     });

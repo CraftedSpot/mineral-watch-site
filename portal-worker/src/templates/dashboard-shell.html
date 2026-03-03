@@ -26,6 +26,7 @@
                 </button>
                 <nav class="nav-links">
                     <a href="/portal" class="active">Dashboard</a>
+                    <a href="/portal/title" id="titleNavLink" style="display:none">Title</a>
                     <a href="/portal/map">Map</a>
                     <a href="/portal/intelligence">Intelligence</a>
                     <a href="/portal/account">Account</a>
@@ -144,12 +145,6 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                     </svg>
                     Documents
-                </button>
-                <button class="tab" data-tab="title" id="titleTab" style="display: none;">
-                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Title
                 </button>
                 <button class="tab" data-tab="activity">
                     <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -297,12 +292,6 @@
                 <div id="tools-tab" class="tab-content">
                     <div id="toolsContent">
                         <div class="tools-loading">Loading...</div>
-                    </div>
-                </div>
-
-                <div id="title-tab" class="tab-content">
-                    <div id="titleContent">
-                        <div class="title-loading"><div class="spinner"></div>Loading chain of title...</div>
                     </div>
                 </div>
 
@@ -467,7 +456,6 @@
 
 /* __TOOLS_JS__ */
 
-/* __TITLE_JS__ */
 
 /* __PROPS_B__ */
 
@@ -526,7 +514,6 @@
 <style>
 /* __DOCUMENTS_CSS_B__ */
 /* __TOOLS_CSS__ */
-/* __TITLE_CSS__ */
 </style>
 
 <script>

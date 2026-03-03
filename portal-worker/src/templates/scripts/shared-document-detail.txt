@@ -542,8 +542,80 @@
                         content += '</div></div>';
                     }
 
+                    // Recording Info (book, page, date, county — rendered as explicit labeled fields)
+                    const rec = extractedData.recording || {};
+                    const recBook = rec.book || extractedData.recording_book;
+                    const recPage = rec.page || extractedData.recording_page;
+                    const recDate = rec.recording_date || extractedData.recording_date;
+                    const recCounty = rec.county || extractedData.recording_county;
+                    if (recBook || recPage || recDate) {
+                        content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">';
+                        content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Recording Information</h4>';
+                        content += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">';
+                        if (recBook) {
+                            content += `<div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">Book</div>
+                                <div style="font-size: 14px; color: var(--oil-navy);">${escapeHtml(String(recBook))}</div>
+                            </div>`;
+                        }
+                        if (recPage) {
+                            content += `<div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">Page</div>
+                                <div style="font-size: 14px; color: var(--oil-navy);">${escapeHtml(String(recPage))}</div>
+                            </div>`;
+                        }
+                        if (recDate) {
+                            content += `<div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">Recording Date</div>
+                                <div style="font-size: 14px; color: var(--oil-navy);">${escapeHtml(String(recDate))}</div>
+                            </div>`;
+                        }
+                        if (recCounty) {
+                            content += `<div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">Recording County</div>
+                                <div style="font-size: 14px; color: var(--oil-navy);">${escapeHtml(String(recCounty))}</div>
+                            </div>`;
+                        }
+                        content += '</div></div>';
+                    }
+
+                    // Parties (grantors/grantees — rendered as labeled lists)
+                    const partyKeys = ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names', 'lessors', 'lessees', 'assignors', 'assignees'];
+                    const partyLabels = { grantors: 'Grantors', grantees: 'Grantees', grantor: 'Grantor', grantee: 'Grantee', grantor_name: 'Grantor', grantee_name: 'Grantee', grantor_names: 'Grantors', grantee_names: 'Grantees', lessors: 'Lessors', lessees: 'Lessees', assignors: 'Assignors', assignees: 'Assignees' };
+                    let hasParties = false;
+                    let partiesHtml = '';
+                    partyKeys.forEach(key => {
+                        const val = extractedData[key];
+                        if (!val) return;
+                        const label = partyLabels[key] || formatFieldName(key);
+                        let names = [];
+                        if (Array.isArray(val)) {
+                            names = val.map(p => typeof p === 'object' ? (p.name || p.full_name || JSON.stringify(p)) : String(p)).filter(Boolean);
+                        } else if (typeof val === 'object') {
+                            names = [val.name || val.full_name || JSON.stringify(val)].filter(Boolean);
+                        } else if (typeof val === 'string' && val.trim()) {
+                            names = [val];
+                        }
+                        if (names.length === 0) return;
+                        hasParties = true;
+                        partiesHtml += `<div style="margin-bottom: 10px;">
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; margin-bottom: 4px;">${escapeHtml(label)}</div>`;
+                        names.forEach(n => {
+                            partiesHtml += `<div style="font-size: 14px; color: var(--oil-navy); padding: 2px 0;">${escapeHtml(n)}</div>`;
+                        });
+                        partiesHtml += '</div>';
+                    });
+                    if (hasParties) {
+                        content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">';
+                        content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Parties</h4>';
+                        content += partiesHtml;
+                        content += '</div>';
+                    }
+
                     // Extracted Fields Grid (simple 2-column layout using shared display config)
+                    const skipInGrid = new Set(['recording', 'recording_book', 'recording_page', 'recording_date', 'recording_county', ...partyKeys]);
                     const displayFields = Object.entries(extractedData).filter(([key, val]) => {
+                        if (skipInGrid.has(key)) return false;
                         if (!shouldDisplayField(key, docType)) return false;
                         if (val === null || val === undefined || val === '') return false;
                         if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && key !== 'formations') return false;

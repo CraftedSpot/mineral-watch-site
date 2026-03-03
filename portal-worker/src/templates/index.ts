@@ -16,5 +16,6 @@ import intelligenceHtml from './intelligence-builder.js';
 import operatorsHtml from './operators-builder.js';
 import marketingHtml from './marketing-builder.js';
 import adminHtml from './admin-builder.js';
+import titleHtml from './title-builder.js';
 
-export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml, operatorsHtml, marketingHtml, adminHtml };
+export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml, operatorsHtml, marketingHtml, adminHtml, titleHtml };

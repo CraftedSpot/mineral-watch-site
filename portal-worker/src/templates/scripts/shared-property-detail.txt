@@ -1,0 +1,653 @@
+        // ============================================
+        // Shared Property Detail Modal
+        // Lazily creates modal DOM + CSS on first use.
+        // Opens a full property detail view by property ID.
+        // Only defined if openPropertyDetails doesn't already exist (dashboard has its own).
+        // ============================================
+
+        if (typeof openPropertyDetails !== 'function') {
+
+        // ── Helpers ──
+
+        function _pdToast(msg, type) {
+            if (typeof showToast === 'function') return showToast(msg, type);
+            if (typeof showMapToast === 'function') return showMapToast(msg, type);
+            console.log('[PropertyDetail]', type, msg);
+        }
+
+        function _pdCleanCounty(county) {
+            if (typeof cleanCountyDisplay === 'function') return cleanCountyDisplay(county);
+            if (!county) return '';
+            return county.replace(/^\d+-/, '');
+        }
+
+        function _pdOpenWell(wellId) {
+            if (!wellId) return;
+            if (typeof openWellDetailsModal === 'function') {
+                openWellDetailsModal(wellId);
+            } else if (typeof openWellDetailByApi === 'function') {
+                openWellDetailByApi(wellId);
+            } else {
+                window.location.href = '/portal?well=' + encodeURIComponent(wellId);
+            }
+        }
+
+        // ── State ──
+
+        var _pdState = {
+            propId: null,
+            originalNotes: '',
+            originalRIAcres: 0,
+            originalWIAcres: 0,
+            originalEnterprise: {}
+        };
+
+        // ── Lazy DOM ──
+
+        function _ensurePropDetailModal() {
+            if (document.getElementById('sharedPropDetail')) return;
+
+            var style = document.createElement('style');
+            style.textContent = [
+                '#sharedPropDetail {',
+                '  position: fixed; top: 0; left: 0; right: 0; bottom: 0;',
+                '  background: rgba(0,0,0,0.5); z-index: 1000006;',
+                '  display: none; align-items: center; justify-content: center;',
+                '  padding: 16px;',
+                '}',
+                '#sharedPropDetail .pd-card {',
+                '  background: #fff; border-radius: 16px; width: 100%; max-width: 700px;',
+                '  max-height: calc(100vh - 20px); overflow: hidden;',
+                '  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);',
+                '  display: flex; flex-direction: column;',
+                '}',
+                '#sharedPropDetail .pd-header {',
+                '  background: linear-gradient(135deg, #c4553a 0%, #a0402d 100%);',
+                '  color: white; padding: 20px 24px; position: relative; flex-shrink: 0;',
+                '}',
+                '#sharedPropDetail .pd-close {',
+                '  position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1);',
+                '  border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px;',
+                '  border-radius: 6px; font-size: 20px; cursor: pointer; display: flex;',
+                '  align-items: center; justify-content: center;',
+                '}',
+                '#sharedPropDetail .pd-close:hover { background: rgba(255,255,255,0.2); }',
+                '#sharedPropDetail .pd-title {',
+                '  margin: 0; font-family: "Merriweather", serif; font-size: 22px; font-weight: 700;',
+                '}',
+                '#sharedPropDetail .pd-subtitle {',
+                '  display: flex; justify-content: space-between; align-items: center; margin-top: 2px;',
+                '}',
+                '#sharedPropDetail .pd-location { font-size: 15px; opacity: 0.9; }',
+                '#sharedPropDetail .pd-acreage {',
+                '  background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px;',
+                '  font-size: 12px; font-weight: 600;',
+                '}',
+                '#sharedPropDetail .pd-code {',
+                '  font-family: "SF Mono", "Monaco", monospace; font-size: 12px;',
+                '  background: rgba(255,255,255,0.15); padding: 2px 8px; border-radius: 4px;',
+                '  opacity: 0.85; margin-top: 6px; display: inline-block;',
+                '}',
+                '#sharedPropDetail .pd-body {',
+                '  padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;',
+                '  min-height: 0; background: #f1f5f9;',
+                '}',
+                '#sharedPropDetail .pd-info-card {',
+                '  background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0;',
+                '}',
+                '#sharedPropDetail .pd-row {',
+                '  display: flex; justify-content: space-between; align-items: center;',
+                '  padding: 10px 16px; border-bottom: 1px solid #f3f4f6;',
+                '}',
+                '#sharedPropDetail .pd-row:last-child { border-bottom: none; }',
+                '#sharedPropDetail .pd-label {',
+                '  font-size: 13px; color: #6b7280; font-weight: 500;',
+                '}',
+                '#sharedPropDetail .pd-value {',
+                '  font-size: 14px; color: #1e293b; font-weight: 500;',
+                '}',
+                '#sharedPropDetail .pd-input {',
+                '  padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 4px;',
+                '  font-size: 14px; font-family: inherit; background: white; width: 120px;',
+                '}',
+                '/* Accordion sections */',
+                '#sharedPropDetail .pd-section {',
+                '  margin-top: 16px; border: 1px solid #e2e8f0; border-radius: 8px; background: white;',
+                '}',
+                '#sharedPropDetail .pd-section-header {',
+                '  display: flex; justify-content: space-between; align-items: center;',
+                '  padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;',
+                '}',
+                '#sharedPropDetail .pd-section-header:hover { background: #f9fafb; }',
+                '#sharedPropDetail .pd-section-left {',
+                '  display: flex; align-items: center; gap: 8px;',
+                '}',
+                '#sharedPropDetail .pd-section-arrow {',
+                '  transition: transform 0.2s; font-size: 12px; color: #6b7280;',
+                '}',
+                '#sharedPropDetail .pd-section-title { font-weight: 500; font-size: 14px; }',
+                '#sharedPropDetail .pd-section-count {',
+                '  background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #374151;',
+                '}',
+                '#sharedPropDetail .pd-section-body {',
+                '  display: none; padding: 0 16px 16px;',
+                '}',
+                '#sharedPropDetail .pd-section-scroll { max-height: 300px; overflow-y: auto; }',
+                '#sharedPropDetail .pd-well-row, #sharedPropDetail .pd-doc-row {',
+                '  display: flex; justify-content: space-between; align-items: center;',
+                '  padding: 10px 0; border-bottom: 1px solid #f3f4f6;',
+                '}',
+                '#sharedPropDetail .pd-well-row:last-child, #sharedPropDetail .pd-doc-row:last-child { border-bottom: none; }',
+                '/* Notes */',
+                '#sharedPropDetail .pd-notes-section {',
+                '  margin-top: 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;',
+                '}',
+                '#sharedPropDetail .pd-notes-label { font-size: 13px; color: #6b7280; font-weight: 500; margin-bottom: 8px; }',
+                '#sharedPropDetail .pd-notes {',
+                '  width: 100%; min-height: 80px; padding: 10px; border: 1px solid #e2e8f0;',
+                '  border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; background: white;',
+                '}',
+                '/* Footer */',
+                '#sharedPropDetail .pd-footer {',
+                '  padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px;',
+                '  flex-shrink: 0; background: white; flex-wrap: wrap;',
+                '}',
+                '#sharedPropDetail .pd-footer-btn {',
+                '  display: inline-flex; align-items: center; justify-content: center; gap: 4px;',
+                '  padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;',
+                '  border: none; cursor: pointer; flex: 1; transition: background 0.15s;',
+                '}',
+                '#sharedPropDetail .pd-btn-title {',
+                '  background: linear-gradient(135deg, #1e3a5f, #0f172a); color: white;',
+                '}',
+                '#sharedPropDetail .pd-btn-title:hover { background: #0f172a; }',
+                '#sharedPropDetail .pd-btn-map {',
+                '  background: #c4553a; color: white;',
+                '}',
+                '#sharedPropDetail .pd-btn-map:hover { background: #a0402d; }',
+                '#sharedPropDetail .pd-btn-save {',
+                '  background: #c4553a; color: white; display: none;',
+                '}',
+                '#sharedPropDetail .pd-btn-save:hover { background: #a0402d; }',
+                '/* Loading */',
+                '#sharedPropDetail .pd-loading {',
+                '  text-align: center; padding: 2rem; color: #6b7280; font-size: 14px;',
+                '}',
+                '#sharedPropDetail .pd-pulse {',
+                '  width: 12px; height: 12px; border-radius: 50%; background: #6b7280;',
+                '  animation: pdPulse 1.5s infinite; margin: 0 auto 12px;',
+                '}',
+                '@keyframes pdPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }'
+            ].join('\n');
+            document.head.appendChild(style);
+
+            var modal = document.createElement('div');
+            modal.id = 'sharedPropDetail';
+            modal.onclick = function(e) { if (e.target === modal) closePropertyDetailModal(); };
+            modal.innerHTML = '<div class="pd-card">'
+                + '<div class="pd-header">'
+                + '  <button class="pd-close" onclick="closePropertyDetailModal()">×</button>'
+                + '  <h2 class="pd-title" id="pdTitle">Property Details</h2>'
+                + '  <div class="pd-subtitle">'
+                + '    <span class="pd-location" id="pdLocation"></span>'
+                + '    <span class="pd-acreage" id="pdAcreage"></span>'
+                + '  </div>'
+                + '  <div id="pdCodeRow" style="display:none;"><span class="pd-code" id="pdCode"></span></div>'
+                + '</div>'
+                + '<div class="pd-body" id="pdBody">'
+                + '  <div class="pd-loading"><div class="pd-pulse"></div>Loading property...</div>'
+                + '</div>'
+                + '<div class="pd-footer" id="pdFooter"></div>'
+                + '</div>';
+            document.body.appendChild(modal);
+        }
+
+        // ── Toggle section ──
+
+        function _pdToggle(sectionId) {
+            var body = document.getElementById('pd-section-body-' + sectionId);
+            var arrow = document.getElementById('pd-section-arrow-' + sectionId);
+            if (!body) return;
+            if (body.style.display === 'none') {
+                body.style.display = 'block';
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+            } else {
+                body.style.display = 'none';
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        window._pdToggle = _pdToggle;
+
+        // ── Change detection ──
+
+        function _pdCheckChanges() {
+            var st = _pdState;
+            var notes = document.getElementById('pdNotes');
+            var ri = document.getElementById('pdRIAcres');
+            var wi = document.getElementById('pdWIAcres');
+            if (!notes || !ri || !wi) return;
+
+            var changed = false;
+            if ((notes.value || '') !== st.originalNotes) changed = true;
+            if ((parseFloat(ri.value) || 0) !== st.originalRIAcres) changed = true;
+            if ((parseFloat(wi.value) || 0) !== st.originalWIAcres) changed = true;
+
+            // Check enterprise fields
+            var eFields = ['riDecimal', 'wiDecimal', 'orriAcres', 'orriDecimal', 'miAcres', 'miDecimal'];
+            for (var i = 0; i < eFields.length; i++) {
+                var el = document.getElementById('pd_' + eFields[i]);
+                if (el) {
+                    var orig = st.originalEnterprise[eFields[i]];
+                    var cur = el.value !== '' ? el.value : null;
+                    if (String(cur) !== String(orig)) changed = true;
+                }
+            }
+
+            var saveBtn = document.getElementById('pdSaveBtn');
+            if (saveBtn) saveBtn.style.display = changed ? 'inline-flex' : 'none';
+        }
+        window._pdCheckChanges = _pdCheckChanges;
+
+        // ── Update total acres ──
+
+        function _pdUpdateTotalAcres() {
+            var ri = parseFloat(document.getElementById('pdRIAcres').value) || 0;
+            var wi = parseFloat(document.getElementById('pdWIAcres').value) || 0;
+            var total = ri + wi;
+            var totalEl = document.getElementById('pdTotalAcres');
+            if (totalEl) totalEl.textContent = total > 0 ? total.toFixed(2) : '\u2014';
+            var badge = document.getElementById('pdAcreage');
+            if (badge) {
+                if (total > 0) {
+                    badge.textContent = total.toFixed(2) + ' acres';
+                    badge.style.display = 'inline-block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        }
+
+        // ── Open ──
+
+        async function openPropertyDetails(propId) {
+            if (!propId) return;
+            _ensurePropDetailModal();
+
+            var modal = document.getElementById('sharedPropDetail');
+
+            // Z-index stacking
+            if (typeof modalStack !== 'undefined') {
+                var z = 999999 + (modalStack.length * 10);
+                modal.style.zIndex = z;
+                if (!modalStack.find(function(m) { return m.element === modal; })) {
+                    modalStack.push({ type: 'property-detail', id: propId, element: modal });
+                }
+            }
+            modal.style.display = 'flex';
+
+            // Show loading
+            document.getElementById('pdTitle').textContent = 'Property Details';
+            document.getElementById('pdLocation').textContent = '';
+            document.getElementById('pdAcreage').textContent = '';
+            document.getElementById('pdBody').innerHTML = '<div class="pd-loading"><div class="pd-pulse"></div>Loading property...</div>';
+            document.getElementById('pdFooter').innerHTML = '';
+
+            // Fetch property
+            var prop = null;
+            try {
+                var res = await fetch('/api/properties/v2');
+                if (!res.ok) throw new Error('Failed to fetch');
+                var data = await res.json();
+                var records = data.records || [];
+                prop = records.find(function(p) { return p.id === propId; });
+            } catch (err) {
+                console.error('[PropertyDetail] Fetch error:', err);
+                document.getElementById('pdBody').innerHTML = '<div class="pd-loading" style="color:#ef4444;">Failed to load property details</div>';
+                return;
+            }
+
+            if (!prop) {
+                document.getElementById('pdBody').innerHTML = '<div class="pd-loading" style="color:#ef4444;">Property not found</div>';
+                return;
+            }
+
+            _pdState.propId = propId;
+            var f = prop.fields;
+
+            // Header
+            var propertyName = f['Name'] || f['Property Name'] || 'Mineral Property';
+            document.getElementById('pdTitle').textContent = propertyName;
+
+            var county = _pdCleanCounty(f['COUNTY']) || 'Unknown County';
+            var legal = formatTRS(f.TWN, f.RNG, f.SEC);
+            document.getElementById('pdLocation').textContent = county + ' \u2022 ' + legal;
+
+            var riAcres = parseFloat(f['RI Acres'] || 0);
+            var wiAcres = parseFloat(f['WI Acres'] || 0);
+            var totalAcres = riAcres + wiAcres;
+            var badge = document.getElementById('pdAcreage');
+            if (totalAcres > 0) {
+                badge.textContent = totalAcres.toFixed(2) + ' acres';
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+
+            // Property code
+            var codeRow = document.getElementById('pdCodeRow');
+            if (f.property_code) {
+                document.getElementById('pdCode').textContent = 'Ref: ' + f.property_code;
+                codeRow.style.display = 'block';
+            } else {
+                codeRow.style.display = 'none';
+            }
+
+            // Store originals
+            _pdState.originalNotes = f['Notes'] || '';
+            _pdState.originalRIAcres = riAcres;
+            _pdState.originalWIAcres = wiAcres;
+            _pdState.originalEnterprise = {
+                riDecimal: f.ri_decimal != null ? String(f.ri_decimal) : null,
+                wiDecimal: f.wi_decimal != null ? String(f.wi_decimal) : null,
+                orriAcres: f.orri_acres != null ? String(f.orri_acres) : null,
+                orriDecimal: f.orri_decimal != null ? String(f.orri_decimal) : null,
+                miAcres: f.mi_acres != null ? String(f.mi_acres) : null,
+                miDecimal: f.mi_decimal != null ? String(f.mi_decimal) : null
+            };
+
+            // ── Build body ──
+            var html = '';
+
+            // Property info card
+            html += '<div class="pd-info-card">';
+            html += '<div class="pd-row"><span class="pd-label">Legal</span><span class="pd-value" style="font-family:monospace;">' + escapeHtml(legal) + '</span></div>';
+            if (f['Group']) {
+                html += '<div class="pd-row"><span class="pd-label">Group</span><span class="pd-value">' + escapeHtml(f['Group']) + '</span></div>';
+            }
+            html += '<div class="pd-row"><span class="pd-label">Total Acres</span><span class="pd-value" id="pdTotalAcres">' + (totalAcres > 0 ? totalAcres.toFixed(2) : '\u2014') + '</span></div>';
+            html += '<div class="pd-row"><span class="pd-label">RI Acres</span><input type="number" id="pdRIAcres" class="pd-input" step="0.01" min="0" value="' + riAcres + '" oninput="_pdUpdateTotalAcres(); _pdCheckChanges();"></div>';
+            html += '<div class="pd-row"><span class="pd-label">WI Acres</span><input type="number" id="pdWIAcres" class="pd-input" step="0.01" min="0" value="' + wiAcres + '" oninput="_pdUpdateTotalAcres(); _pdCheckChanges();"></div>';
+            html += '</div>';
+
+            // Ownership interests section
+            var interestFields = [
+                { id: 'riDecimal', label: 'RI Decimal', value: f.ri_decimal },
+                { id: 'wiDecimal', label: 'WI Decimal', value: f.wi_decimal },
+                { id: 'orriDecimal', label: 'ORRI Decimal', value: f.orri_decimal },
+                { id: 'miDecimal', label: 'MI Decimal', value: f.mi_decimal },
+                { id: 'orriAcres', label: 'ORRI Acres', value: f.orri_acres },
+                { id: 'miAcres', label: 'MI Acres', value: f.mi_acres }
+            ];
+            var populatedCount = interestFields.filter(function(ff) { return ff.value != null; }).length;
+            var ownershipOpen = populatedCount > 0;
+
+            html += '<div class="pd-section">';
+            html += '<div class="pd-section-header" onclick="_pdToggle(\'ownership\')">';
+            html += '<div class="pd-section-left">';
+            html += '<span class="pd-section-arrow" id="pd-section-arrow-ownership" style="' + (ownershipOpen ? 'transform:rotate(90deg)' : '') + '">&#9654;</span>';
+            html += '<span class="pd-section-title">Ownership Interests</span>';
+            html += '<span class="pd-section-count">' + (populatedCount || '\u2014') + '</span>';
+            html += '</div></div>';
+            html += '<div class="pd-section-body" id="pd-section-body-ownership" style="display:' + (ownershipOpen ? 'block' : 'none') + ';">';
+            for (var i = 0; i < interestFields.length; i++) {
+                var ff = interestFields[i];
+                var val = ff.value != null ? ff.value : '';
+                html += '<div style="display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #f3f4f6;">';
+                html += '<span style="font-size:13px; color:#374151; font-weight:500;">' + ff.label + '</span>';
+                html += '<input type="number" id="pd_' + ff.id + '" step="any" min="0" value="' + val + '" '
+                    + 'style="padding:4px 8px; border:1px solid #e2e8f0; border-radius:4px; font-family:\'SF Mono\',\'Monaco\',monospace; font-size:13px; width:140px; text-align:right; background:white;" '
+                    + 'oninput="_pdCheckChanges()" placeholder="\u2014">';
+                html += '</div>';
+            }
+            html += '</div></div>';
+
+            // Linked Wells section
+            html += '<div class="pd-section">';
+            html += '<div class="pd-section-header" onclick="_pdToggle(\'wells\')">';
+            html += '<div class="pd-section-left">';
+            html += '<span class="pd-section-arrow" id="pd-section-arrow-wells">&#9654;</span>';
+            html += '<span class="pd-section-title">Linked Wells</span>';
+            html += '<span class="pd-section-count" id="pdWellsCount">\u2014</span>';
+            html += '</div></div>';
+            html += '<div class="pd-section-body" id="pd-section-body-wells" style="display:none;">';
+            html += '<div class="pd-section-scroll" id="pdWellsList"><div style="padding:12px;color:#6b7280;">Loading wells...</div></div>';
+            html += '<div id="pdWellsEmpty" style="display:none;color:#6b7280;font-size:14px;padding:12px 0;">No wells linked to this property</div>';
+            html += '</div></div>';
+
+            // Linked Documents section
+            html += '<div class="pd-section">';
+            html += '<div class="pd-section-header" onclick="_pdToggle(\'docs\')">';
+            html += '<div class="pd-section-left">';
+            html += '<span class="pd-section-arrow" id="pd-section-arrow-docs">&#9654;</span>';
+            html += '<span class="pd-section-title">Linked Documents</span>';
+            html += '<span class="pd-section-count" id="pdDocsCount">\u2014</span>';
+            html += '</div></div>';
+            html += '<div class="pd-section-body" id="pd-section-body-docs" style="display:none;">';
+            html += '<div class="pd-section-scroll" id="pdDocsList"><div style="padding:12px;color:#6b7280;">Loading documents...</div></div>';
+            html += '<div id="pdDocsEmpty" style="display:none;color:#6b7280;font-size:14px;padding:12px 0;">No documents linked to this property</div>';
+            html += '</div></div>';
+
+            // Notes section
+            html += '<div class="pd-notes-section">';
+            html += '<div class="pd-notes-label">Notes</div>';
+            html += '<textarea id="pdNotes" class="pd-notes" placeholder="Add notes about this property..." oninput="_pdCheckChanges()">' + escapeHtml(f['Notes'] || '') + '</textarea>';
+            html += '</div>';
+
+            document.getElementById('pdBody').innerHTML = html;
+
+            // Footer
+            var footerHtml = '';
+            // Title Chain — hide if already on the title page
+            if (window.location.pathname !== '/portal/title') {
+                footerHtml += '<button class="pd-footer-btn pd-btn-title" onclick="window.location.href=\'/portal/title?property=' + escapeHtml(propId) + '\'">Title Chain</button>';
+            }
+            // Estimate Revenue — duck-type
+            if (typeof openRevenueModal === 'function') {
+                footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="openRevenueModal(\'property\')">Estimate Revenue</button>';
+            }
+            // MW Map — always show, navigate if viewOnMap not available
+            if (typeof viewOnMap === 'function') {
+                footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="viewOnMap(\'' + escapeHtml(propId) + '\')">MW Map &#8599;</button>';
+            } else {
+                footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="window.open(\'/portal/map\', \'_blank\')">MW Map &#8599;</button>';
+            }
+            footerHtml += '<button class="pd-footer-btn pd-btn-save" id="pdSaveBtn" onclick="_pdSaveAndClose()">Save &amp; Close</button>';
+            document.getElementById('pdFooter').innerHTML = footerHtml;
+
+            // Async-load linked wells
+            _pdLoadLinkedWells(propId);
+            // Async-load linked documents
+            _pdLoadLinkedDocuments(propId);
+        }
+        window.openPropertyDetails = openPropertyDetails;
+
+        // ── Load linked wells ──
+
+        async function _pdLoadLinkedWells(propId) {
+            var countEl = document.getElementById('pdWellsCount');
+            var listEl = document.getElementById('pdWellsList');
+            var emptyEl = document.getElementById('pdWellsEmpty');
+            if (!countEl || !listEl) return;
+
+            try {
+                var res = await fetch('/api/property/' + encodeURIComponent(propId) + '/linked-wells', { credentials: 'include' });
+                var data = await res.json();
+                var wells = data.wells ? data.wells.filter(function(w) { return w.linkStatus !== 'Unlinked'; }) : [];
+                countEl.textContent = String(wells.length);
+
+                if (!data.wells || data.wells.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                    return;
+                }
+
+                listEl.innerHTML = data.wells.map(function(w) {
+                    var isUnlinked = w.linkStatus === 'Unlinked';
+                    var interestParts = [];
+                    if (w.wiNri) interestParts.push('WI: ' + parseFloat(w.wiNri).toFixed(8));
+                    if (w.riNri) interestParts.push('RI: ' + parseFloat(w.riNri).toFixed(8));
+                    if (w.orriNri) interestParts.push('ORRI: ' + parseFloat(w.orriNri).toFixed(8));
+                    var interestLine = interestParts.length > 0
+                        ? '<div style="font-size:11px;color:#4b5563;font-family:\'SF Mono\',\'Monaco\',monospace;margin-top:2px;">' + interestParts.join(' &middot; ') + '</div>'
+                        : '';
+                    var matchStyle = typeof getMatchReasonStyle === 'function' ? getMatchReasonStyle(w.matchReason) : 'background:#e5e7eb;color:#374151;';
+                    var matchLabel = typeof getMatchReasonLabel === 'function' ? getMatchReasonLabel(w.matchReason) : (w.matchReason || '');
+                    var statusStyle = typeof getStatusStyle === 'function' ? getStatusStyle(w.wellStatus) : 'background:#e5e7eb;color:#374151;';
+
+                    var row = '<div class="pd-well-row" style="' + (isUnlinked ? 'opacity:0.5;' : '') + '">';
+                    row += '<div style="flex:1;cursor:pointer;" onclick="_pdOpenWell(\'' + escapeHtml(w.wellId) + '\')">';
+                    row += '<div style="font-weight:500;color:' + (isUnlinked ? '#9ca3af' : '#2563eb') + ';">' + escapeHtml(w.wellName) + '</div>';
+                    row += '<div style="font-size:12px;color:#6b7280;">' + escapeHtml(w.operator) + ' \u2022 ' + escapeHtml(w.county) + '</div>';
+                    row += interestLine;
+                    row += '</div>';
+                    row += '<div style="display:flex;align-items:center;gap:8px;">';
+                    row += '<span style="font-size:11px;padding:2px 6px;border-radius:4px;' + matchStyle + '">' + escapeHtml(matchLabel) + '</span>';
+                    row += '<span style="font-size:11px;padding:2px 6px;border-radius:4px;' + statusStyle + '">' + (w.wellStatus || 'AC') + '</span>';
+                    if (isUnlinked) {
+                        row += '<span style="font-size:11px;padding:2px 6px;border-radius:4px;background:#fef2f2;color:#991b1b;">Unlinked</span>';
+                        row += '<button onclick="event.stopPropagation();_pdRelinkWell(\'' + escapeHtml(w.linkId) + '\')" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #2563eb;background:#eff6ff;color:#2563eb;cursor:pointer;">Relink</button>';
+                    } else {
+                        row += '<button onclick="event.stopPropagation();_pdUnlinkWell(\'' + escapeHtml(w.linkId) + '\')" style="font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #d1d5db;background:#f9fafb;color:#6b7280;cursor:pointer;">Unlink</button>';
+                    }
+                    row += '</div></div>';
+                    return row;
+                }).join('');
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            } catch (err) {
+                console.error('[PropertyDetail] Failed to load linked wells:', err);
+                countEl.textContent = '0';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+        }
+
+        // ── Load linked documents ──
+
+        async function _pdLoadLinkedDocuments(propId) {
+            var countEl = document.getElementById('pdDocsCount');
+            var listEl = document.getElementById('pdDocsList');
+            var emptyEl = document.getElementById('pdDocsEmpty');
+            if (!countEl || !listEl) return;
+
+            try {
+                var res = await fetch('/api/property/' + encodeURIComponent(propId) + '/linked-documents', { credentials: 'include' });
+                var data = await res.json();
+                var docCount = data.documents ? data.documents.length : 0;
+                countEl.textContent = String(docCount);
+
+                if (!data.documents || data.documents.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                    return;
+                }
+
+                listEl.innerHTML = data.documents.map(function(doc) {
+                    var uploadDate = doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) : 'Unknown';
+                    var row = '<div class="pd-doc-row">';
+                    row += '<div style="flex:1;cursor:pointer;" onclick="openDocumentDetail(\'' + escapeHtml(doc.id) + '\')">';
+                    row += '<div style="font-weight:500;color:#2563eb;">' + escapeHtml(doc.displayName) + '</div>';
+                    row += '<div style="font-size:12px;color:#6b7280;">' + escapeHtml(doc.docType) + ' \u2022 ' + uploadDate + '</div>';
+                    row += '</div></div>';
+                    return row;
+                }).join('');
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            } catch (err) {
+                console.error('[PropertyDetail] Failed to load linked documents:', err);
+                countEl.textContent = '0';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+        }
+
+        // ── Unlink / Relink ──
+
+        async function _pdUnlinkWell(linkId) {
+            if (!confirm('Remove this well link?')) return;
+            try {
+                var res = await fetch('/api/property-well-link/' + encodeURIComponent(linkId), { method: 'DELETE' });
+                if (res.ok) _pdLoadLinkedWells(_pdState.propId);
+            } catch (err) {
+                console.error('[PropertyDetail] Unlink error:', err);
+            }
+        }
+        window._pdUnlinkWell = _pdUnlinkWell;
+
+        async function _pdRelinkWell(linkId) {
+            try {
+                var res = await fetch('/api/property-well-link/' + encodeURIComponent(linkId), { method: 'PATCH' });
+                if (res.ok) _pdLoadLinkedWells(_pdState.propId);
+            } catch (err) {
+                console.error('[PropertyDetail] Relink error:', err);
+            }
+        }
+        window._pdRelinkWell = _pdRelinkWell;
+
+        // ── Save & Close ──
+
+        async function _pdSaveAndClose() {
+            var propId = _pdState.propId;
+            if (!propId) return;
+
+            var notes = (document.getElementById('pdNotes').value || '').trim();
+            var riAcres = parseFloat(document.getElementById('pdRIAcres').value) || 0;
+            var wiAcres = parseFloat(document.getElementById('pdWIAcres').value) || 0;
+
+            var body = { notes: notes, riAcres: riAcres, wiAcres: wiAcres };
+
+            // Enterprise fields
+            var eFields = ['riDecimal', 'wiDecimal', 'orriAcres', 'orriDecimal', 'miAcres', 'miDecimal'];
+            var eKeys = { riDecimal: 'riDecimal', wiDecimal: 'wiDecimal', orriAcres: 'orriAcres', orriDecimal: 'orriDecimal', miAcres: 'miAcres', miDecimal: 'miDecimal' };
+            for (var i = 0; i < eFields.length; i++) {
+                var el = document.getElementById('pd_' + eFields[i]);
+                if (el) {
+                    body[eKeys[eFields[i]]] = el.value !== '' ? el.value : null;
+                }
+            }
+
+            // Validate decimals 0-1
+            var decChecks = ['riDecimal', 'wiDecimal', 'orriDecimal', 'miDecimal'];
+            for (var j = 0; j < decChecks.length; j++) {
+                var v = body[decChecks[j]];
+                if (v !== null && v !== undefined) {
+                    var num = parseFloat(v);
+                    if (isNaN(num) || num < 0 || num > 1) {
+                        _pdToast(decChecks[j].replace(/([A-Z])/g, ' $1').trim() + ' must be between 0 and 1', 'error');
+                        return;
+                    }
+                }
+            }
+
+            try {
+                var res = await fetch('/api/properties/' + encodeURIComponent(propId), {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (!res.ok) throw new Error('Failed to save');
+                closePropertyDetailModal();
+                _pdToast('Changes saved!', 'success');
+            } catch (err) {
+                console.error('[PropertyDetail] Save error:', err);
+                _pdToast('Error saving changes', 'error');
+            }
+        }
+        window._pdSaveAndClose = _pdSaveAndClose;
+
+        // ── Close ──
+
+        function closePropertyDetailModal() {
+            var modal = document.getElementById('sharedPropDetail');
+            if (modal) {
+                modal.style.display = 'none';
+                modal.style.zIndex = '';
+                if (typeof modalStack !== 'undefined') {
+                    var idx = modalStack.findIndex(function(m) { return m.element === modal; });
+                    if (idx > -1) modalStack.splice(idx, 1);
+                }
+            }
+        }
+        window.closePropertyDetailModal = closePropertyDetailModal;
+
+        } // end if (typeof openPropertyDetails !== 'function')

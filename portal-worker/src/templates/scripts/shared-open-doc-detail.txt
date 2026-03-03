@@ -1,0 +1,399 @@
+// ─── Shared Document Detail Modal ───
+// Reusable open/close/save logic for the document detail modal.
+// Uses renderDocDetailContent() from shared-document-detail.txt for body content.
+// Used by: title page, map page (future), any page with document references.
+
+var _docDetailState = {
+    docId: null,
+    contentType: null,
+    rotation: 0,
+    filename: null,
+    originalNotes: '',
+    hasNotesChanged: false
+};
+
+async function openDocumentDetail(docId) {
+    try {
+        var response = await fetch('/api/documents/' + encodeURIComponent(docId));
+        if (!response.ok) throw new Error('Failed to fetch document details');
+
+        var data = await response.json();
+        var doc = data.document || data;
+
+        if (!doc) return;
+
+        _docDetailState.docId = docId;
+        _docDetailState.contentType = doc.content_type || 'application/pdf';
+        _docDetailState.rotation = doc.rotation_applied || 0;
+        _docDetailState.filename = doc.display_name || doc.filename;
+
+        // Modal header
+        document.getElementById('documentModalTitle').textContent = formatDocType(doc.category || doc.doc_type) || 'Document Details';
+        document.getElementById('documentModalSubtitle').textContent = doc.display_name || doc.filename || '';
+
+        var content = '';
+
+        // ── Parent document with children ──
+        if (doc.children && doc.children.length > 0) {
+            content += _renderParentDoc(doc);
+        }
+        // ── Normal document with extracted data ──
+        else if (doc.extracted_data) {
+            try {
+                var extractedData = typeof doc.extracted_data === 'string' ? JSON.parse(doc.extracted_data) : doc.extracted_data;
+
+                if (extractedData.error) {
+                    content += _renderErrorDoc(doc, extractedData);
+                } else if (extractedData.skip_extraction) {
+                    content += _renderSkippedDoc(doc, extractedData);
+                } else {
+                    // Linked sections
+                    content += _renderLinkedSections(doc);
+                    // Main extracted data content
+                    content += renderDocDetailContent(doc);
+                    // Notes
+                    content += _renderNotesSection(doc);
+                }
+            } catch (e) {
+                console.error('Error parsing extracted data:', e);
+                content += '<div style="padding: 16px; color: #DC2626;">Error displaying extracted data</div>';
+            }
+        }
+        // ── No extracted data ──
+        else {
+            content += renderDocDetailContent(doc);
+            content += _renderLinkedSections(doc);
+            content += _renderNotesSection(doc);
+        }
+
+        // Inject styles once
+        _injectDetailStyles();
+
+        // Update modal content and show
+        document.getElementById('documentDetailContent').innerHTML = content;
+        var modal = document.getElementById('documentDetailModal');
+        modal.style.display = 'flex';
+        modal.style.zIndex = '1000000';
+
+        // Scroll to top
+        var body = document.getElementById('documentDetailContent');
+        if (body) body.scrollTop = 0;
+
+        // Notes tracking
+        _docDetailState.originalNotes = doc.user_notes || '';
+        _docDetailState.hasNotesChanged = false;
+        var saveBtn = document.getElementById('saveDocNotesBtn');
+        if (saveBtn) saveBtn.style.display = 'none';
+
+        // Print button visibility
+        var printBtn = document.getElementById('printDocBtn');
+        if (printBtn) {
+            var isParent = doc.children && doc.children.length > 0;
+            var hasData = doc.extracted_data && (doc.status === 'complete' || doc.status === 'processed');
+            printBtn.style.display = (hasData && !isParent) ? 'flex' : 'none';
+        }
+
+    } catch (error) {
+        console.error('Error loading document details:', error);
+        alert('Failed to load document details');
+    }
+}
+
+function closeDocumentDetailModal() {
+    var modal = document.getElementById('documentDetailModal');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.style.zIndex = '';
+    }
+    _docDetailState.docId = null;
+}
+
+function viewDocumentPDF() {
+    if (!_docDetailState.docId) return;
+    openDocumentViewer(
+        _docDetailState.docId,
+        _docDetailState.filename || 'Document',
+        _docDetailState.contentType || 'application/pdf',
+        {
+            container: document.getElementById('pdfViewerContainer'),
+            titleEl: document.getElementById('documentViewTitle'),
+            modal: document.getElementById('documentViewModal')
+        }
+    );
+}
+
+function printDocumentSummary() {
+    if (_docDetailState.docId) {
+        window.open('/print/document?id=' + _docDetailState.docId, '_blank');
+    }
+}
+
+function enableSaveButton() {
+    var textarea = document.getElementById('userNotesTextarea');
+    var saveBtn = document.getElementById('saveDocNotesBtn');
+    if (textarea && saveBtn) {
+        _docDetailState.hasNotesChanged = textarea.value !== _docDetailState.originalNotes;
+        saveBtn.style.display = _docDetailState.hasNotesChanged ? 'block' : 'none';
+    }
+}
+
+async function saveAndCloseDocumentNotes() {
+    if (!_docDetailState.docId || !_docDetailState.hasNotesChanged) {
+        closeDocumentDetailModal();
+        return;
+    }
+
+    var textarea = document.getElementById('userNotesTextarea');
+    var notes = textarea.value;
+
+    try {
+        var response = await fetch('/api/documents/' + _docDetailState.docId + '/notes', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ notes: notes }),
+            credentials: 'include'
+        });
+
+        if (response.ok) {
+            closeDocumentDetailModal();
+        } else {
+            var err = await response.json();
+            alert('Failed to save notes: ' + (err.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving notes:', error);
+        alert('Failed to save notes. Please try again.');
+    }
+}
+
+function toggleDocLinkedSection(header) {
+    header.classList.toggle('expanded');
+    var content = header.nextElementSibling;
+    if (content) content.classList.toggle('expanded');
+}
+
+// Navigate to property — opens modal if on dashboard, navigates otherwise
+function _docDetailOpenProperty(propertyId) {
+    if (!propertyId) return;
+    if (typeof openPropertyDetails === 'function') {
+        openPropertyDetails(propertyId);
+    } else {
+        window.location.href = '/portal?property=' + encodeURIComponent(propertyId);
+    }
+}
+
+// Navigate to well — opens modal if on dashboard, navigates otherwise
+function _docDetailOpenWell(wellIdOrApi) {
+    if (!wellIdOrApi) return;
+    if (typeof openWellDetailsModal === 'function') {
+        openWellDetailsModal(wellIdOrApi);
+    } else {
+        window.location.href = '/portal?well=' + encodeURIComponent(wellIdOrApi);
+    }
+}
+
+// ── Internal renderers ──
+
+function _renderParentDoc(doc) {
+    var content = '';
+    content += '<div style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 16px; margin: 0 0 20px 0;">';
+    content += '<h4 style="margin: 0 0 12px 0; color: #1E40AF; font-size: 16px; font-weight: 600;">This PDF contained multiple documents</h4>';
+    content += '<p style="margin: 0; color: #1E40AF; font-size: 14px;">The uploaded PDF has been split into ' + doc.children.length + ' separate documents.</p>';
+    content += '</div>';
+
+    content += '<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px;">';
+    for (var i = 0; i < doc.children.length; i++) {
+        var child = doc.children[i];
+        var childDocType = formatDocType(child.doc_type) || 'Document';
+        var pageInfo = child.page_range_start && child.page_range_end ? ' (Pages ' + child.page_range_start + '-' + child.page_range_end + ')' : '';
+        var safeId = escapeHtml(child.id);
+
+        content += '<div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; display: flex; align-items: center; cursor: pointer; transition: all 0.2s;" onmouseover="this.style.backgroundColor=\'#F3F4F6\'" onmouseout="this.style.backgroundColor=\'#F9FAFB\'" onclick="openDocumentDetail(\'' + safeId + '\')">';
+        content += '<div style="flex: 1;">';
+        content += '<div style="font-weight: 600; color: var(--oil-navy, #1C2B36); margin-bottom: 4px;">' + (i + 1) + '. ' + escapeHtml(child.display_name || child.filename) + '</div>';
+        content += '<div style="font-size: 13px; color: #6B7280;">' + childDocType + pageInfo;
+        if (child.county) content += ' &bull; ' + escapeHtml(child.county) + ' County';
+        content += '</div></div>';
+        content += '<div style="color: #1D6F5C; font-weight: 500; font-size: 14px; margin-left: 16px;">View &rarr;</div>';
+        content += '</div>';
+    }
+    content += '</div>';
+    content += _renderNotesSection(doc);
+    return content;
+}
+
+function _renderErrorDoc(doc, extractedData) {
+    var content = '';
+    content += '<div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 0 0 20px 0;">';
+    content += '<h4 style="margin: 0 0 8px 0; color: #B91C1C; font-size: 14px; font-weight: 600;">Error: ' + escapeHtml(extractedData.error) + '</h4>';
+    content += '<p style="margin: 0; color: #7F1D1D; font-size: 13px;">The document processor encountered an error. Please try re-analyzing the document.</p>';
+    if (extractedData.raw_response) {
+        var preview = extractedData.raw_response.substring(0, 500) + (extractedData.raw_response.length > 500 ? '...' : '');
+        content += '<details style="margin-top: 12px;"><summary style="cursor: pointer; color: #B91C1C; font-size: 12px;">Show Raw Response</summary>';
+        content += '<pre style="margin-top: 8px; padding: 12px; background: #FFF; border: 1px solid #FECACA; border-radius: 4px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;">' + escapeHtml(preview) + '</pre>';
+        content += '</details>';
+    }
+    content += '</div>';
+    content += _renderNotesSection(doc);
+    return content;
+}
+
+function _renderSkippedDoc(doc, extractedData) {
+    var content = '';
+
+    // Key Takeaway if available
+    if (extractedData.key_takeaway) {
+        var cleaned = String(extractedData.key_takeaway).trim().replace(/^#{1,6}\s*/gm, '').replace(/^---+$/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
+        content += '<div style="margin-bottom: 16px;">';
+        content += '<details open style="border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden;">';
+        content += '<summary style="padding: 12px 16px; background: #ecfdf5; cursor: pointer; font-weight: 600; font-size: 14px; color: #065f46; display: flex; align-items: center; gap: 8px;">';
+        content += '<span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span> Key Takeaway</summary>';
+        content += '<div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #1a1a2e; white-space: pre-wrap;">' + escapeHtml(cleaned) + '</div>';
+        content += '</details></div>';
+    }
+
+    // AI Observations
+    if (extractedData.ai_observations) {
+        var cleanedObs = String(extractedData.ai_observations).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
+        content += '<div style="margin-bottom: 16px;">';
+        content += '<details style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">';
+        content += '<summary style="padding: 12px 16px; background: #f9fafb; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--oil-navy, #1C2B36); display: flex; align-items: center; gap: 8px;">';
+        content += '<span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span> View Detailed Analysis';
+        content += '<span style="font-size: 12px; color: #9ca3af; font-weight: 400; margin-left: auto;">Click to expand</span></summary>';
+        content += '<div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #4b5563;">' + (typeof formatAnalysisText === 'function' ? formatAnalysisText(cleanedObs) : escapeHtml(cleanedObs)) + '</div>';
+        content += '</details></div>';
+    }
+
+    content += '<div style="background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-bottom: 20px;">';
+    content += '<p style="margin: 0; color: #4B5563; font-size: 14px; line-height: 1.5;">This document was classified as &ldquo;Other&rdquo; and detailed field extraction was skipped. You can view the original PDF using the button below.</p>';
+    content += '</div>';
+    content += _renderNotesSection(doc);
+    return content;
+}
+
+function _renderLinkedSections(doc) {
+    var hasLinkedProperties = doc.linked_properties && doc.linked_properties.length > 0;
+    var hasLinkedWells = doc.linked_wells && doc.linked_wells.length > 0;
+    var hasLinkedWell = !hasLinkedWells && doc.well_id && doc.well_name;
+
+    if (!hasLinkedProperties && !hasLinkedWells && !hasLinkedWell) return '';
+
+    var html = '';
+
+    if (hasLinkedProperties) {
+        var propCount = doc.linked_properties.length;
+        html += '<div class="doc-linked-section">';
+        html += '<div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">';
+        html += '<span class="doc-linked-arrow">&#9654;</span>';
+        html += '<span class="doc-linked-title">Linked Properties</span>';
+        html += '<span class="doc-linked-count">' + propCount + '</span>';
+        html += '</div><div class="doc-linked-content expanded">';
+
+        for (var i = 0; i < doc.linked_properties.length; i++) {
+            var prop = doc.linked_properties[i];
+            var meridianSuffix = prop.meridian ? '-' + prop.meridian : '';
+            var locationStr = 'S' + prop.section + '-T' + prop.township + '-R' + prop.range + meridianSuffix;
+            var countyStr = prop.county || '';
+
+            html += '<div class="doc-linked-row" onclick="_docDetailOpenProperty(\'' + escapeHtml(prop.id) + '\')">';
+            html += '<div><div class="link-name">' + escapeHtml(locationStr) + ' (' + escapeHtml(countyStr) + ')</div></div>';
+            html += '<div class="link-badges">';
+            if (prop.group_name) html += '<span class="group-badge">' + escapeHtml(prop.group_name) + '</span>';
+            html += '</div></div>';
+        }
+        html += '</div></div>';
+    }
+
+    if (hasLinkedWells) {
+        var wellCount = doc.linked_wells.length;
+        html += '<div class="doc-linked-section">';
+        html += '<div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">';
+        html += '<span class="doc-linked-arrow">&#9654;</span>';
+        html += '<span class="doc-linked-title">Linked Wells</span>';
+        html += '<span class="doc-linked-count">' + wellCount + '</span>';
+        html += '</div><div class="doc-linked-content expanded">';
+
+        for (var j = 0; j < doc.linked_wells.length; j++) {
+            var well = doc.linked_wells[j];
+            var ws = well.well_status || 'AC';
+            var statusStyle = ws === 'AC' ? 'background: #dcfce7; color: #166534;' :
+                             ws === 'TA' ? 'background: #fef9c3; color: #854d0e;' :
+                             ws === 'PA' ? 'background: #f3f4f6; color: #6b7280;' :
+                             'background: #e5e7eb; color: #374151;';
+
+            var wellClickId = escapeHtml(well.api_number || well.id || '');
+            html += '<div class="doc-linked-row" onclick="_docDetailOpenWell(\'' + wellClickId + '\')">';
+            html += '<div><div class="link-name">' + escapeHtml(well.well_name || 'Unknown Well') + '</div>';
+            html += '<div class="link-meta">';
+            if (well.api_number) html += escapeHtml(well.api_number) + ' &bull; ';
+            if (well.operator) html += escapeHtml(well.operator) + ' &bull; ';
+            if (well.county) html += escapeHtml(well.county);
+            html += '</div></div>';
+            html += '<div class="link-badges"><span class="status-badge" style="' + statusStyle + '">' + ws + '</span></div>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+    } else if (hasLinkedWell) {
+        var wellStatus = doc.well_status || 'AC';
+        var sStyle = wellStatus === 'AC' ? 'background: #dcfce7; color: #166534;' :
+                    wellStatus === 'TA' ? 'background: #fef9c3; color: #854d0e;' :
+                    wellStatus === 'PA' ? 'background: #f3f4f6; color: #6b7280;' :
+                    'background: #e5e7eb; color: #374151;';
+
+        html += '<div class="doc-linked-section">';
+        html += '<div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">';
+        html += '<span class="doc-linked-arrow">&#9654;</span>';
+        html += '<span class="doc-linked-title">Linked Wells</span>';
+        html += '<span class="doc-linked-count">1</span>';
+        var singleWellClickId = escapeHtml(doc.well_api_number || doc.well_id || '');
+        html += '</div><div class="doc-linked-content expanded">';
+        html += '<div class="doc-linked-row" onclick="_docDetailOpenWell(\'' + singleWellClickId + '\')">';
+        html += '<div><div class="link-name">' + escapeHtml(doc.well_name) + '</div>';
+        html += '<div class="link-meta">';
+        if (doc.well_api_number) html += escapeHtml(doc.well_api_number) + ' &bull; ';
+        if (doc.well_operator) html += escapeHtml(doc.well_operator) + ' &bull; ';
+        if (doc.well_county) html += escapeHtml(doc.well_county);
+        html += '</div></div>';
+        html += '<div class="link-badges"><span class="status-badge" style="' + sStyle + '">' + wellStatus + '</span></div>';
+        html += '</div></div></div>';
+    }
+
+    return html;
+}
+
+function _renderNotesSection(doc) {
+    var content = '<div style="margin-top: 20px;">';
+    content += '<h4 style="margin: 0 0 12px; font-size: 16px; font-weight: 600; color: #111827;">Notes</h4>';
+    content += '<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit; box-sizing: border-box;" placeholder="Add your notes here...">' + escapeHtml(doc.user_notes || '') + '</textarea>';
+    content += '</div>';
+    return content;
+}
+
+function _injectDetailStyles() {
+    if (document.getElementById('sharedDocDetailStyles')) return;
+    var style = document.createElement('style');
+    style.id = 'sharedDocDetailStyles';
+    style.textContent = '\
+        .doc-linked-section { margin: 12px 0; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }\
+        .doc-linked-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f9fafb; cursor: pointer; user-select: none; }\
+        .doc-linked-header:hover { background: #f3f4f6; }\
+        .doc-linked-arrow { font-size: 10px; color: #6b7280; transition: transform 0.2s; }\
+        .doc-linked-header.expanded .doc-linked-arrow { transform: rotate(90deg); }\
+        .doc-linked-title { font-weight: 500; font-size: 14px; color: var(--oil-navy, #1C2B36); }\
+        .doc-linked-count { background: #e5e7eb; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; color: #374151; }\
+        .doc-linked-content { display: none; padding: 0 14px 10px; }\
+        .doc-linked-content.expanded { display: block; }\
+        .doc-linked-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6; cursor: pointer; }\
+        .doc-linked-row:last-child { border-bottom: none; }\
+        .doc-linked-row:hover { background: #f9fafb; margin: 0 -14px; padding: 8px 14px; }\
+        .doc-linked-row .link-name { font-weight: 500; color: #2563eb; font-size: 14px; }\
+        .doc-linked-row .link-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }\
+        .doc-linked-row .link-badges { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }\
+        .doc-linked-row .group-badge { background: #dbeafe; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; }\
+        .doc-linked-row .status-badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }\
+        summary::-webkit-details-marker { display: none; }\
+        summary::marker { display: none; content: ""; }\
+        details summary { list-style: none; }\
+    ';
+    document.head.appendChild(style);
+}

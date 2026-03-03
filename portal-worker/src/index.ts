@@ -43,7 +43,8 @@ import {
   intelligenceHtml,
   operatorsHtml,
   marketingHtml,
-  adminHtml
+  adminHtml,
+  titleHtml
 } from './templates/index.js';
 
 import {
@@ -411,6 +412,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       if (path === "/portal/operators" || path === "/portal/operators/") {
         return servePage(operatorsHtml, request, env);
+      }
+      if (path === "/portal/title" || path === "/portal/title/") {
+        return servePage(titleHtml, request, env);
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
         return servePage(learnHtml, request, env);

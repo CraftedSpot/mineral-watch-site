@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chain of Title - Mineral Watch</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+/* __TITLE_PAGE_CSS__ */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <button class="menu-toggle" aria-label="Menu">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+                </button>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/title" id="titleNavLink" class="active">Title</a>
+                    <a href="/portal/map">Map</a>
+                    <a href="/portal/intelligence">Intelligence</a>
+                    <a href="/portal/account">Account</a>
+                    <a href="/portal/learn">Learn</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
+
+    <main>
+        <div class="title-toolbar" id="titleToolbar">
+            <div class="title-toolbar-inner">
+                <div class="title-property-selector" id="titleSelectorArea">
+                    <!-- Property dropdown rendered by JS -->
+                </div>
+                <div class="title-stats" id="titleStats"></div>
+            </div>
+        </div>
+
+        <div class="title-disclaimer">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            AI-interpreted chain of title — not a legal opinion. Documents shown are those uploaded to your account.
+        </div>
+
+        <div id="titleTimeline" class="title-canvas">
+            <div class="title-loading"><div class="spinner"></div>Loading chain of title...</div>
+        </div>
+    </main>
+
+    <!-- Document Detail Modal -->
+    <div class="modal-overlay" id="documentDetailModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); overflow-y: auto; z-index: 1000000;" role="dialog" aria-modal="true" aria-labelledby="documentModalTitle">
+        <div style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+            <div style="background: #1D6F5C; color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button onclick="closeDocumentDetailModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer; color: white; opacity: 0.9;">&times;</button>
+                <h2 id="documentModalTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Document Details</h2>
+                <div id="documentModalSubtitle" style="margin-top: 2px; font-size: 15px; opacity: 0.9;"></div>
+            </div>
+            <div id="documentDetailContent" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;"></div>
+            <div style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="viewDocumentPDF()" id="viewOriginalBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        <span>View Original</span>
+                    </button>
+                    <button onclick="printDocumentSummary()" id="printDocBtn" style="background: white; color: #1D6F5C; border: 1px solid #1D6F5C; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                        <span>Print Summary</span>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="closeDocumentDetailModal()" style="background: transparent; color: #1C2B36; border: 1px solid #E2E8F0; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
+                    <button onclick="saveAndCloseDocumentNotes()" id="saveDocNotesBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: none;">Save &amp; Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Document Viewer Modal -->
+    <div class="modal-overlay" id="documentViewModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000001; display: none; align-items: center; justify-content: center;" role="dialog" aria-modal="true" aria-labelledby="documentViewTitle">
+        <div style="max-width: 900px; width: 95%; height: 90vh; display: flex; flex-direction: column; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #e5e7eb;">
+                <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button onclick="downloadCurrentDocument()" style="padding: 8px 16px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        Download
+                    </button>
+                    <button onclick="closeDocumentViewer()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 4px;">&times;</button>
+                </div>
+            </div>
+            <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659; position: relative;">
+                <object id="pdfViewer" type="application/pdf" style="width: 100%; height: 100%; border: none;">
+                    <p style="color: white; text-align: center; padding: 20px;">PDF cannot be displayed. <button type="button" onclick="downloadCurrentDocument()" style="background: none; border: none; color: #60A5FA; cursor: pointer; text-decoration: underline;">Download instead</button></p>
+                </object>
+            </div>
+        </div>
+    </div>
+
+    <script>
+/* __SHARED_AUTH__ */
+/* __SHARED_UTILS__ */
+/* __SHARED_DISPLAY_CONFIG__ */
+/* __SHARED_DOC_HELPERS__ */
+/* __SHARED_DOCUMENT_DETAIL__ */
+/* __SHARED_OPEN_DOC_DETAIL__ */
+/* __SHARED_PROPERTY_DETAIL__ */
+/* __TITLE_PAGE_JS__ */
+    </script>
+</body>
+</html>

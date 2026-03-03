@@ -58,11 +58,6 @@
                     document.getElementById('docCountDisplay').style.display = 'flex';
                 }
 
-                // Show Title tab for specific organizations (chain of title beta)
-                if (isTitleChainEnabled()) {
-                    document.getElementById('titleTab').style.display = 'flex';
-                }
-
                 // Show mobile photo upload section only on mobile devices
                 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 if (isMobile) {
@@ -141,6 +136,22 @@
                 initPropertiesControls();
                 initDocumentsControls();
 
+                // Deep-link: auto-open property or well modal from URL params
+                var deepProperty = urlParams.get('property');
+                var deepWell = urlParams.get('well');
+                if (deepProperty && typeof openPropertyDetails === 'function') {
+                    window.history.replaceState({}, '', window.location.pathname);
+                    setTimeout(function() { openPropertyDetails(deepProperty); }, 200);
+                } else if (deepWell && typeof openWellDetailsModal === 'function') {
+                    // Ensure wells tab data is loaded
+                    if (!wellsInitialized) {
+                        wellsInitialized = true;
+                        await loadWells().catch(function() { wellsInitialized = false; });
+                    }
+                    window.history.replaceState({}, '', window.location.pathname);
+                    setTimeout(function() { openWellDetailsModal(deepWell); }, 200);
+                }
+
                 // Tab strip scroll fade hint — hide when scrolled to end
                 const tabsEl = document.querySelector('.tabs');
                 if (tabsEl) {
@@ -199,10 +210,6 @@
                         loadTools();
                     }
 
-                    if (currentTab === 'title' && !titleInitialized) {
-                        titleInitialized = true;
-                        loadTitleTab().catch(() => { titleInitialized = false; });
-                    }
                 });
             });
             

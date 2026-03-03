@@ -804,7 +804,7 @@
             // Show/hide title chain button based on org
             const tcBtn = document.getElementById('titleChainBtn');
             if (tcBtn) {
-                tcBtn.style.display = isTitleChainEnabled() ? 'block' : 'none';
+                tcBtn.style.display = (currentUser && currentUser.organizationId === 'rec9fYy8Xwl3jNAbf') ? 'block' : 'none';
             }
 
             // Load linked wells and OCC filings after modal is shown to avoid race condition

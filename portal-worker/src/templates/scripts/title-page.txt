@@ -1,15 +1,32 @@
-// ─── Title Chain Tab ───
-var titleInitialized = false;
+// ─── Chain of Title Standalone Page ───
 var titleProperties = [];
 var titleSelectedPropertyId = null;
 var titleChainData = null;
 var titleDropdownOpen = false;
 
-const TITLE_CHAIN_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf'];
+var TITLE_CHAIN_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf'];
 
 function isTitleChainEnabled() {
-  return currentUser && currentUser.organizationId && TITLE_CHAIN_ALLOWED_ORGS.includes(currentUser.organizationId);
+  return currentUser && currentUser.organizationId && TITLE_CHAIN_ALLOWED_ORGS.indexOf(currentUser.organizationId) >= 0;
 }
+
+// View original document — opens in viewer modal
+function viewTitleDocument(docId, filename) {
+  openDocumentViewer(docId, filename || 'Document', 'application/pdf', {
+    container: document.getElementById('pdfViewerContainer'),
+    titleEl: document.getElementById('documentViewTitle'),
+    modal: document.getElementById('documentViewModal')
+  });
+}
+
+// Wrappers for viewer modal buttons
+function closeDocumentViewer() {
+  closeDocumentViewerShared({
+    modal: document.getElementById('documentViewModal'),
+    container: document.getElementById('pdfViewerContainer')
+  });
+}
+function downloadCurrentDocument() { downloadViewerDocument(); }
 
 // Color map for doc type badges
 var TITLE_TYPE_COLORS = {
@@ -89,9 +106,35 @@ var TITLE_ARROW_TYPES = {
   trust_funding: ['grantor', 'grantee']
 };
 
-async function loadTitleTab() {
-  var content = document.getElementById('titleContent');
-  content.innerHTML = '<div class="title-loading"><div class="spinner"></div>Loading title chain data...</div>';
+// Format property label in TRS format: County — Township-Range-Section
+function formatPropertyLabel(p) {
+  var sec = (p.section || '?').replace(/^0+/, '') || '0';
+  if (sec.length === 1) sec = '0' + sec;
+  return (p.county || '?') + ' — ' + (p.township || '?') + '-' + (p.range || '?') + '-' + sec;
+}
+
+// ─── Page Init ───
+document.addEventListener('DOMContentLoaded', async function() {
+  var actAs = setupImpersonation();
+  var user = await checkAuth();
+  if (!user) return;
+
+  showSuperAdminNav();
+  if (actAs) await loadImpersonationBanner(actAs);
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+
+  // Org gate — redirect non-allowed orgs
+  if (!isTitleChainEnabled()) {
+    window.location.href = '/portal';
+    return;
+  }
+
+  await loadTitlePage();
+});
+
+async function loadTitlePage() {
+  var timeline = document.getElementById('titleTimeline');
+  timeline.innerHTML = '<div class="title-loading"><div class="spinner"></div>Loading title chain data...</div>';
 
   try {
     var resp = await fetch('/api/title-chain/properties');
@@ -101,65 +144,65 @@ async function loadTitleTab() {
     titleProperties = data.properties || [];
 
     if (titleProperties.length === 0 && (data.unlinkedCount || 0) === 0) {
-      content.innerHTML = '<div class="title-empty">' +
+      timeline.innerHTML = '<div class="title-empty">' +
         '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
         '<p>No chain-of-title documents found. Upload mineral deeds, leases, assignments, and other title documents to build your chain of title.</p></div>';
       return;
     }
 
-    renderTitleTabUI(data.unlinkedCount || 0);
+    renderPropertySelector(data.unlinkedCount || 0);
 
-    // Auto-select first property if available
+    // Check for ?property= query param
+    var params = new URLSearchParams(window.location.search);
+    var propertyParam = params.get('property');
+    if (propertyParam) {
+      var bareId = propertyParam.startsWith('prop_') ? propertyParam.slice(5) : propertyParam;
+      var match = titleProperties.find(function(p) { return p.airtableRecordId === bareId; });
+      if (match) {
+        selectTitleProperty(match.airtableRecordId);
+        return;
+      }
+    }
+
+    // Default: select first property
     if (titleProperties.length > 0) {
       selectTitleProperty(titleProperties[0].airtableRecordId);
     }
   } catch (err) {
     console.error('[Title] Load error:', err);
-    content.innerHTML = '<div class="title-empty"><p>Failed to load title chain data. Please try again.</p></div>';
-    titleInitialized = false;
+    timeline.innerHTML = '<div class="title-empty"><p>Failed to load title chain data. Please try again.</p></div>';
   }
 }
 
-function renderTitleTabUI(unlinkedCount) {
-  var content = document.getElementById('titleContent');
+function renderPropertySelector(unlinkedCount) {
+  var area = document.getElementById('titleSelectorArea');
 
-  var html = '<div class="title-disclaimer">' +
-    '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>' +
-    'AI-interpreted chain of title — not a legal opinion. Documents shown are those uploaded to your account.' +
-    '</div>';
-
-  // Property selector
-  html += '<div class="title-header">';
-  html += '<div class="title-property-selector">' +
-    '<button class="title-property-btn" onclick="toggleTitleDropdown()" id="titlePropertyBtn">' +
+  var html = '<button class="title-property-btn" onclick="toggleTitleDropdown()" id="titlePropertyBtn">' +
     '<span id="titlePropertyLabel">Select a property...</span>' +
     '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
     '</button>' +
     '<div class="title-property-dropdown" id="titleDropdown">' +
     '<input type="text" class="title-property-search" id="titlePropertySearch" placeholder="Filter by county or legal..." oninput="filterTitleProperties()">' +
     '<div class="title-property-list" id="titlePropertyList"></div>' +
-    '</div></div>';
-  html += '</div>';
+    '</div>';
 
-  // Stats line (populated after loading chain)
-  html += '<div class="title-stats" id="titleStats" style="display:none;"></div>';
+  area.innerHTML = html;
+  renderTitlePropertyList('');
 
-  // Timeline container
-  html += '<div id="titleTimeline"></div>';
-
-  // Unlinked section
+  // Unlinked section in timeline area
   if (unlinkedCount > 0) {
-    html += '<div class="title-unlinked">' +
+    var timeline = document.getElementById('titleTimeline');
+    var unlinkedHtml = '<div class="title-unlinked" id="titleUnlinkedSection">' +
       '<button class="title-unlinked-toggle" onclick="toggleTitleUnlinked()">' +
       '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="titleUnlinkedArrow" style="transition:transform 0.15s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>' +
       unlinkedCount + ' unlinked chain document' + (unlinkedCount !== 1 ? 's' : '') +
       '</button>' +
       '<div class="title-unlinked-list" id="titleUnlinkedList"></div>' +
       '</div>';
+    // We'll append it after timeline renders
+    window._titleUnlinkedHtml = unlinkedHtml;
+    window._titleUnlinkedCount = unlinkedCount;
   }
-
-  content.innerHTML = html;
-  renderTitlePropertyList('');
 }
 
 function renderTitlePropertyList(filter) {
@@ -173,7 +216,7 @@ function renderTitlePropertyList(filter) {
   });
 
   list.innerHTML = filtered.map(function(p) {
-    var label = (p.county || '?') + ' — S' + (p.section || '?') + '-' + (p.township || '?') + '-' + (p.range || '?');
+    var label = formatPropertyLabel(p);
     var sel = titleSelectedPropertyId === p.airtableRecordId ? ' selected' : '';
     return '<div class="title-property-option' + sel + '" onclick="selectTitleProperty(\'' + p.airtableRecordId + '\')">' +
       '<span>' + escapeHtml(label) + '</span>' +
@@ -226,8 +269,7 @@ async function selectTitleProperty(airtableRecordId) {
   // Update button label
   var prop = titleProperties.find(function(p) { return p.airtableRecordId === airtableRecordId; });
   if (prop) {
-    var label = (prop.county || '?') + ' — S' + (prop.section || '?') + '-' + (prop.township || '?') + '-' + (prop.range || '?');
-    document.getElementById('titlePropertyLabel').textContent = label;
+    document.getElementById('titlePropertyLabel').textContent = formatPropertyLabel(prop);
   }
   renderTitlePropertyList('');
 
@@ -235,7 +277,7 @@ async function selectTitleProperty(airtableRecordId) {
   var timeline = document.getElementById('titleTimeline');
   var stats = document.getElementById('titleStats');
   timeline.innerHTML = '<div class="title-loading"><div class="spinner"></div>Loading chain of title...</div>';
-  if (stats) stats.style.display = 'none';
+  stats.innerHTML = '';
 
   try {
     var resp = await fetch('/api/property/' + encodeURIComponent(airtableRecordId) + '/title-chain?include_unlinked=1');
@@ -244,7 +286,15 @@ async function selectTitleProperty(airtableRecordId) {
 
     renderTitleTimeline(titleChainData);
     renderTitleStats(titleChainData);
-    renderTitleUnlinkedDocs(titleChainData.unlinkedDocuments || []);
+
+    // Append unlinked section if exists
+    if (window._titleUnlinkedCount > 0) {
+      var existing = document.getElementById('titleUnlinkedSection');
+      if (!existing) {
+        timeline.insertAdjacentHTML('beforeend', window._titleUnlinkedHtml);
+      }
+      renderTitleUnlinkedDocs(titleChainData.unlinkedDocuments || []);
+    }
   } catch (err) {
     console.error('[Title] Chain load error:', err);
     timeline.innerHTML = '<div class="title-empty"><p>Failed to load chain of title for this property.</p></div>';
@@ -256,7 +306,7 @@ function renderTitleStats(data) {
   if (!statsEl) return;
 
   var docs = data.documents || [];
-  if (docs.length === 0) { statsEl.style.display = 'none'; return; }
+  if (docs.length === 0) { statsEl.innerHTML = ''; return; }
 
   var count = docs.length;
   var dates = docs.map(function(d) { return d.date; }).filter(Boolean).sort();
@@ -275,8 +325,7 @@ function renderTitleStats(data) {
   if (dateRange) parts.push(dateRange);
   if (partyCount > 0) parts.push(partyCount + ' part' + (partyCount !== 1 ? 'ies' : 'y'));
 
-  statsEl.innerHTML = parts.join('<span>&middot;</span>');
-  statsEl.style.display = 'block';
+  statsEl.innerHTML = parts.join('<span class="stats-dot">&middot;</span>');
 }
 
 function renderTitleTimeline(data) {
@@ -328,10 +377,15 @@ function renderTitleTimeline(data) {
       html += '<div class="title-detail-summary">' + escapeHtml(doc.summary) + '</div>';
     }
     html += '<div class="title-detail-actions">';
-    html += '<button class="title-view-doc-btn" onclick="event.stopPropagation(); openDocumentDetail(\'' + doc.id + '\')">' +
-      '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' +
+    var safeDisplayName = (doc.displayName || 'Document').replace(/'/g, "\\'");
+    html += '<button class="title-view-doc-btn" onclick="event.stopPropagation(); viewTitleDocument(\'' + doc.id + '\', \'' + safeDisplayName + '\')">' +
+      '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>' +
       'View Document</button>';
-    html += '</div></div>';
+    html += '<button class="title-view-doc-btn title-analysis-btn" onclick="event.stopPropagation(); openDocumentDetail(\'' + doc.id + '\')">' +
+      '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>' +
+      'View Analysis</button>';
+    html += '</div>';
+    html += '</div>';
 
     html += '</div>'; // .title-card
   });
@@ -348,7 +402,6 @@ function renderTitleParties(doc) {
   var arrowRoles = TITLE_ARROW_TYPES[doc.docType];
 
   if (arrowRoles) {
-    // Arrow display: from → to
     var fromRole = arrowRoles[0];
     var toRole = arrowRoles[1];
     var froms = parties.filter(function(p) { return p.role === fromRole; });
@@ -359,11 +412,9 @@ function renderTitleParties(doc) {
       html += '<span class="arrow">&rarr;</span>';
       html += escapeHtml(tos.map(function(p) { return p.name; }).join(', '));
     } else {
-      // Fallback: list all
       html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
     }
   } else if (doc.docType === 'affidavit_of_heirship' || doc.docType === 'probate') {
-    // Estate display
     var decedent = parties.find(function(p) { return p.role === 'grantor' || p.role === 'decedent'; });
     var heirs = parties.filter(function(p) { return p.role === 'grantee'; });
     if (decedent) {
@@ -398,7 +449,6 @@ function renderTitleParties(doc) {
     var dec = parties.find(function(p) { return p.role === 'decedent'; }) || parties[0];
     if (dec) html += escapeHtml(dec.name);
   } else {
-    // Generic: list all parties
     html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
   }
 
@@ -447,32 +497,4 @@ function renderTitleUnlinkedDocs(docs) {
       (dateStr ? ' &middot; ' + dateStr : '') +
       '</div>';
   }).join('');
-}
-
-// Deep-link from property details modal
-function openTitleChainForProperty(propertyId) {
-  // Close any open modals
-  if (typeof closePropertyDetailsModal === 'function') closePropertyDetailsModal();
-
-  // Switch to title tab
-  var titleBtn = document.querySelector('.tab[data-tab="title"]');
-  if (titleBtn) {
-    titleBtn.click();
-    // Wait for tab to initialize, then select property
-    var attempts = 0;
-    var trySelect = function() {
-      if (titleInitialized && titleProperties.length > 0) {
-        // Find property by airtable record ID (strip prop_ prefix if present)
-        var bareId = propertyId.startsWith('prop_') ? propertyId.slice(5) : propertyId;
-        var match = titleProperties.find(function(p) { return p.airtableRecordId === bareId; });
-        if (match) {
-          selectTitleProperty(match.airtableRecordId);
-        }
-      } else if (attempts < 20) {
-        attempts++;
-        setTimeout(trySelect, 200);
-      }
-    };
-    setTimeout(trySelect, 100);
-  }
 }

@@ -31,6 +31,9 @@
                     window.currentUser = user;
                     const nameEl = document.getElementById('userName');
                     if (nameEl) nameEl.textContent = user.name || user.email;
+                    // Show gated nav links
+                    var _titleNav = document.getElementById('titleNavLink');
+                    if (_titleNav && user.organizationId === 'rec9fYy8Xwl3jNAbf') _titleNav.style.display = '';
                     return user;
                 } else {
                     window.location.href = '/portal/login';

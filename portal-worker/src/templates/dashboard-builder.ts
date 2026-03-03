@@ -40,8 +40,6 @@ import virtualTableJs from './scripts/virtual-table.txt';
 import initJs from './scripts/dashboard-init.txt';
 import toolsJs from './scripts/dashboard-tools.txt';
 import toolsCss from './styles/dashboard-tools.txt';
-import titleJs from './scripts/dashboard-title.txt';
-import titleCss from './styles/dashboard-title.txt';
 import bulkJsRaw from './scripts/dashboard-bulk.txt';
 
 // HTML partials
@@ -128,8 +126,6 @@ html = html.replace('/* __DOCS_C__ */\n', () => docsC);
 html = html.replace('/* __INIT_JS__ */\n', () => initJs);
 html = html.replace('/* __ACTIVITY_JS__ */\n', () => activityJs);
 html = html.replace('/* __TOOLS_JS__ */\n', () => toolsJs);
-html = html.replace('/* __TITLE_JS__ */\n', () => titleJs);
-html = html.replace('/* __TITLE_CSS__ */\n', () => titleCss);
 html = html.replace('/* __SHARED_OTC_PRODUCTION__ */\n', () => sharedOtcProduction);
 html = html.replace('/* __SHARED_OTC_CSS__ */\n', () => sharedOtcCss);
 html = html.replace('/* __SHARED_OCC_FILINGS__ */\n', () => sharedOccFilings);
