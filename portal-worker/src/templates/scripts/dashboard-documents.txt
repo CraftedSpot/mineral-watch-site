@@ -7646,7 +7646,8 @@
                 // Also detect multi-document splits: parent went from processing to multi_document
                 const nowSplit = data.documents.filter(doc => {
                     const wasProcessing = prevProcessing.find(p => p.id === doc.id);
-                    return wasProcessing && (doc.doc_type === 'multi_document' || doc.category === 'multi_document');
+                    return wasProcessing && doc.status !== 'processing' && doc.status !== 'pending'
+                        && (doc.doc_type === 'multi_document' || doc.category === 'multi_document');
                 });
 
                 // Count new child documents from splits
@@ -7670,8 +7671,11 @@
                     loadUsageStats();
                 }
 
+                // Preserve scroll position during polling re-renders
+                const scrollY = window.scrollY;
                 renderDocumentsList(data.documents);
-                
+                window.scrollTo(0, scrollY);
+
                 // Start or stop polling based on document status
                 updateDocumentPolling();
                 
@@ -8144,7 +8148,7 @@
             const checkState = allSelected ? ' checked' : '';
             const indeterminate = someSelected ? ' data-indeterminate="true"' : '';
 
-            let row = `<tr class="doc-group-row" onclick="toggleParentGroup('${parent.id}')">`;
+            let row = `<tr class="doc-group-row${expanded ? ' expanded' : ''}" onclick="toggleParentGroup('${parent.id}')">`;
             row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="group-checkbox" data-parent-id="${parent.id}"${checkState}${indeterminate} aria-label="Select all documents in group"></td>`;
             row += `<td><span class="${chevronClass}">${chevron}</span><strong>${filename}</strong></td>`;
             row += `<td><span style="color: var(--slate-blue); font-size: 13px;">${children.length} document${children.length !== 1 ? 's' : ''}</span></td>`;
