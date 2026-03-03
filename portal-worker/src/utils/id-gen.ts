@@ -1,7 +1,8 @@
 /**
- * Generate Airtable-compatible record IDs for D1-first writes.
+ * Generate random record IDs with 'rec' prefix.
+ * Legacy format from Airtable era, kept for consistency across all tables.
+ * Not tied to Airtable — just a random string convention.
  * Format: 'rec' + 17 cryptographically random alphanumeric chars.
- * Uses crypto.getRandomValues() for collision safety at scale.
  */
 
 const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';

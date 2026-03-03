@@ -271,8 +271,7 @@ export async function sendInviteEmail(
   role: string,
   magicLink: string
 ): Promise<void> {
-  console.log(`📮 Resend: Preparing invite email for ${email}`);
-  console.log(`📮 Resend API Key length: ${env.RESEND_API_KEY ? env.RESEND_API_KEY.length : 'undefined'}`);
+  console.log(`📮 Resend: Preparing invite email`);
 
   const subject = `${inviterName} invited you to join ${organizationName} on Mineral Watch`;
 

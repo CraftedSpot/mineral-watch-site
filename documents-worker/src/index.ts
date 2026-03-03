@@ -4148,7 +4148,7 @@ export default {
     if (path === '/api/documents/checkout/credit-pack' && request.method === 'POST') {
       // Verify authentication - call /api/auth/me endpoint
       const authResponse = await env.AUTH_WORKER.fetch(
-        new Request('https://auth-worker/api/auth/me', {
+        new Request('https://dummy/api/auth/me', {
           method: 'GET',
           headers: request.headers,
         })
@@ -5078,6 +5078,24 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log('[AutoRetry] Cron triggered:', event.cron);
     ctx.waitUntil(runAutoRetry(env));
+    // Retain document_processing_log for 1 year
+    ctx.waitUntil((async () => {
+      try {
+        const result = await env.WELLS_DB.prepare(`
+          DELETE FROM document_processing_log
+          WHERE rowid IN (
+            SELECT rowid FROM document_processing_log
+            WHERE processed_at < datetime('now', '-365 days')
+            LIMIT 5000
+          )
+        `).run();
+        if (result.meta.changes > 0) {
+          console.log(`[Retention] Deleted ${result.meta.changes} document_processing_log entries older than 1 year`);
+        }
+      } catch (error) {
+        console.error('[Retention] document_processing_log cleanup failed:', error);
+      }
+    })());
   },
 };
 

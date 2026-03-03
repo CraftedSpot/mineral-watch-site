@@ -287,6 +287,22 @@ var index_default = {
       } catch (error) {
         console.error('[Retention] activity_log cleanup failed:', error);
       }
+      // Retain auth_events for 90 days
+      try {
+        const result = await env.WELLS_DB.prepare(`
+          DELETE FROM auth_events
+          WHERE rowid IN (
+            SELECT rowid FROM auth_events
+            WHERE created_at < datetime('now', '-90 days')
+            LIMIT 5000
+          )
+        `).run();
+        if (result.meta.changes > 0) {
+          console.log(`[Retention] Deleted ${result.meta.changes} auth_events older than 90 days`);
+        }
+      } catch (error) {
+        console.error('[Retention] auth_events cleanup failed:', error);
+      }
       return;
     }
 
@@ -981,7 +997,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
               if (targetOrg) headers.set('X-Impersonate-Org-Id', targetOrg);
               const targetPlan = realUser.airtableUser?.fields?.Plan || '';
               if (targetPlan) headers.set('X-Impersonate-Plan', targetPlan);
-              console.log(`[Portal] Impersonation headers injected for documents proxy: ${realUser.email}`);
+              console.log(`[Portal] Impersonation headers injected for documents proxy: ${realUser.id}`);
             }
           }
 

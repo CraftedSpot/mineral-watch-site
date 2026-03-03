@@ -382,7 +382,7 @@ export async function handleAdminActivity(request: Request, env: Env): Promise<R
 
     // Get distinct activity types for filter dropdown
     const types = await env.WELLS_DB.prepare(`
-      SELECT DISTINCT activity_type FROM activity_log WHERE activity_type IS NOT NULL ORDER BY activity_type
+      SELECT DISTINCT activity_type FROM activity_log WHERE activity_type IS NOT NULL ORDER BY activity_type LIMIT 100
     `).all();
 
     return jsonResponse({
@@ -516,7 +516,7 @@ export async function handleAdminNotesList(request: Request, env: Env): Promise<
       binds.push(tag);
     }
 
-    query += ` ORDER BY an.created_at DESC`;
+    query += ` ORDER BY an.created_at DESC LIMIT 500`;
 
     const result = await env.WELLS_DB.prepare(query).bind(...binds).all();
     return jsonResponse({ notes: result.results });

@@ -112,13 +112,6 @@ export async function validateTrackToken(
   const hashArray = new Uint8Array(hashBuffer);
   const expectedToken = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
   
-  // Debug logging
-  console.log(`[ValidateToken] Payload: ${userId}:${apiNumber}:${expiration}:***`);
-  console.log(`[ValidateToken] Expected token first 8 chars: ${expectedToken.substring(0, 8)}`);
-  console.log(`[ValidateToken] Received token first 8 chars: ${token.substring(0, 8)}`);
-  console.log(`[ValidateToken] API type: ${typeof apiNumber}, value: '${apiNumber}'`);
-  console.log(`[ValidateToken] Secret length: ${secret?.length || 0}`);
-  
   // Compare tokens
   if (token !== expectedToken) {
     return { valid: false, error: 'Invalid token' };

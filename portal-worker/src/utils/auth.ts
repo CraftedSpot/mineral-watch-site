@@ -151,7 +151,7 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
         return sessionPayload;
       }
 
-      console.log(`[Impersonate] ${sessionPayload.email} acting as ${targetUser.fields.Email} (${actAs})`);
+      console.log(`[Impersonate] ${sessionPayload.id} acting as ${actAs}`);
 
       if (env.OCC_CACHE) {
         const auditKey = `impersonate:${Date.now()}:${sessionPayload.id}`;

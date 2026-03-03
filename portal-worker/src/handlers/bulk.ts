@@ -73,7 +73,7 @@ async function resolveUploadContext(
   if (sessionUser.impersonating) {
     const userRecord = await getUserByIdD1First(env, sessionUser.id);
     const plan = userRecord?.fields.Plan || 'Free';
-    console.log(`[AdminOverride] Impersonation mode: ${sessionUser.impersonating.adminEmail} acting as ${sessionUser.email} (${sessionUser.id})`);
+    console.log(`[AdminOverride] Impersonation mode: admin acting as ${sessionUser.id}`);
     return {
       targetUserId: sessionUser.id,
       targetOrgId: userRecord?.fields.Organization?.[0],
@@ -110,7 +110,7 @@ async function resolveUploadContext(
   }
 
   const plan = targetRecord.fields.Plan || 'Free';
-  console.log(`[AdminOverride] ${sessionUser.email} acting as user ${targetRecord.fields.Email} (${targetUserId}), org: ${targetRecord.fields.Organization?.[0] || 'none'}`);
+  console.log(`[AdminOverride] admin acting as ${targetUserId}, org: ${targetRecord.fields.Organization?.[0] || 'none'}`);
 
   return {
     targetUserId,

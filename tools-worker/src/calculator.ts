@@ -657,6 +657,84 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 }
 .skip-nav { position: absolute; top: -100%; left: 16px; z-index: 10000; padding: 8px 16px; background: #1C2B36; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; border-radius: 0 0 4px 4px; }
 .skip-nav:focus { top: 0; }
+
+/* ── Fraction Chain Steps ── */
+.frac-step {
+    display: grid; grid-template-columns: 32px 1fr 32px; gap: 10px; align-items: start;
+    padding: 14px 16px; background: #fff; border: 1px solid var(--border);
+    border-radius: 8px; margin-bottom: 8px; transition: border-color 0.15s;
+}
+.frac-step:hover { border-color: var(--slate-blue-mid); }
+.frac-step-num {
+    width: 28px; height: 28px; border-radius: 50%; background: var(--oil-navy); color: #fff;
+    font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+    font-family: 'DM Mono', monospace; flex-shrink: 0; margin-top: 2px;
+}
+.frac-step-body { min-width: 0; }
+.frac-step-type {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--text-muted); margin-bottom: 4px;
+}
+.frac-step-inputs { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.frac-step-inputs input, .frac-step-inputs select {
+    padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: 'DM Mono', monospace; max-width: 140px; background: #fff;
+}
+.frac-step-inputs input:focus { border-color: var(--red-dirt); outline: none; }
+.frac-step-inputs label { font-size: 12px; color: var(--text-secondary); font-weight: 500; }
+.frac-step-result {
+    margin-top: 8px; padding: 8px 12px; background: var(--cream); border-radius: 6px;
+    font-size: 13px; font-family: 'DM Mono', monospace; color: var(--text-secondary);
+    display: flex; gap: 16px; flex-wrap: wrap;
+}
+.frac-step-result .frac-val { color: var(--oil-navy); font-weight: 600; }
+.frac-step .remove-btn {
+    background: none; border: none; cursor: pointer; font-size: 16px;
+    color: var(--text-muted); opacity: 0.4; margin-top: 2px;
+}
+.frac-step .remove-btn:hover { opacity: 1; color: var(--danger); }
+.frac-arrow { text-align: center; color: var(--text-muted); font-size: 16px; margin: -2px 0; line-height: 1; }
+.frac-add-wrap { position: relative; margin-top: 4px; }
+.frac-step-menu {
+    position: absolute; bottom: 100%; left: 0; right: 0; background: #fff;
+    border: 1px solid var(--border); border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12); z-index: 50; padding: 6px; margin-bottom: 6px;
+}
+.frac-menu-item {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px;
+    border: none; background: none; cursor: pointer; text-align: left; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 13px; color: var(--text-primary);
+    transition: background 0.1s; line-height: 1.4;
+}
+.frac-menu-item:hover { background: var(--cream); }
+.frac-menu-item small { color: var(--text-muted); font-size: 12px; }
+.frac-menu-icon { width: 24px; text-align: center; display: flex; align-items: center; justify-content: center; }
+.frac-menu-icon svg { width: 20px; height: 20px; stroke: var(--slate-blue-mid); fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.frac-summary {
+    margin-top: 24px; padding: 20px 24px; background: var(--oil-navy); border-radius: 12px; color: #fff;
+}
+.frac-summary-title {
+    font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.6); margin-bottom: 12px;
+}
+.frac-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; }
+.frac-summary-item { text-align: center; }
+.frac-summary-item .frac-sum-label { font-size: 11px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.frac-summary-item .frac-sum-value { font-size: 22px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.frac-summary-item .frac-sum-sub { font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 2px; }
+.frac-npri-line {
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15);
+    font-size: 13px; color: rgba(255,255,255,0.7);
+}
+.frac-npri-line strong { color: #fff; }
+@media (max-width: 768px) {
+    .frac-step { grid-template-columns: 28px 1fr 28px; gap: 8px; padding: 12px; }
+    .frac-step-inputs { flex-direction: column; gap: 6px; }
+    .frac-step-inputs input { max-width: 100%; }
+    .frac-step-result { flex-direction: column; gap: 4px; }
+    .frac-step-menu { position: fixed; bottom: 0; left: 0; right: 0; border-radius: 16px 16px 0 0; margin-bottom: 0; max-height: 60vh; overflow-y: auto; }
+    .frac-summary-item .frac-sum-value { font-size: 18px; }
+}
     </style>
 </head>
 <body>
@@ -689,7 +767,7 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
 <div class="calc-hero" id="main-content">
     <div class="eyebrow">Mineral Watch Tools</div>
     <h1>Oklahoma Mineral Calculator</h1>
-    <p class="subtitle">Five tools in one. Calculate your decimal, verify division orders, estimate royalties, compare pooling elections, and value your minerals.</p>
+    <p class="subtitle">Six tools in one. Calculate your decimal, verify division orders, estimate royalties, compare pooling elections, value your minerals, and trace your interest chain.</p>
 
     <div class="price-ticker" id="hero-ticker">
         <div class="ticker-item">
@@ -727,6 +805,10 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
         <button class="calc-tab" data-tab="value" onclick="switchTab('value')">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
             <span class="tab-label">Valuation</span>
+        </button>
+        <button class="calc-tab" data-tab="fraction" onclick="switchTab('fraction')">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            <span class="tab-label">Interest Chain</span>
         </button>
     </div>
 </div>
@@ -989,6 +1071,50 @@ header { background: #fff; padding: 20px 0; border-bottom: 1px solid var(--borde
     </div>
 </div>
 
+<!-- ═══════════════ INTEREST CHAIN ═══════════════ -->
+<div class="calc-panel" id="panel-fraction">
+    <h2>Trace My Mineral Interest</h2>
+    <div class="accent-bar"></div>
+    <p class="calc-intro">Build a step-by-step chain from original ownership to your current interest. Add inheritance, conveyances, NPRI reservations, leases, and pooling to trace your decimal.</p>
+    <div class="formula-box">Start with total tract acres and your initial mineral interest, then add each transaction in order.</div>
+
+    <div class="field-row">
+        <div class="field">
+            <label>Total Tract Acres</label>
+            <div class="field-wrap"><input type="number" id="fc-acres" placeholder="e.g. 640" min="0" step="any" class="has-suffix" oninput="calcFraction()"><span class="suffix">acres</span></div>
+            <div class="help">The total acreage of the original tract (often a full section = 640)</div>
+        </div>
+        <div class="field">
+            <label>Starting Mineral Interest</label>
+            <div class="field-wrap"><input type="text" id="fc-start-mi" placeholder="e.g. 1/2 or 0.5" oninput="calcFraction()"></div>
+            <div class="help">Accepts fractions (1/2, 3/16) or decimals (0.5, 0.1875)</div>
+        </div>
+    </div>
+
+    <div id="fc-steps"></div>
+
+    <div class="frac-add-wrap">
+        <div class="frac-step-menu" id="fc-menu" style="display:none;">
+            <button class="frac-menu-item" onclick="addFracStep('inheritance')"><span class="frac-menu-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></span><div>Inheritance / Probate<br><small>Divide among heirs</small></div></button>
+            <button class="frac-menu-item" onclick="addFracStep('conveyance')"><span class="frac-menu-icon"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l3 3 3-3"/></svg></span><div>Conveyance / Deed<br><small>Multiply by fraction conveyed</small></div></button>
+            <button class="frac-menu-item" onclick="addFracStep('royalty')"><span class="frac-menu-icon"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span><div>Retained Royalty (NPRI)<br><small>Carve out burden on lease royalty</small></div></button>
+            <button class="frac-menu-item" onclick="addFracStep('lease')"><span class="frac-menu-icon"><svg viewBox="0 0 24 24"><path d="M12 2l1 7h4l-3.5 5L15 21l-3-2.5L9 21l1.5-7L7 9h4z"/><line x1="12" y1="2" x2="12" y2="22"/><path d="M7 22h10"/></svg></span><div>Oil &amp; Gas Lease<br><small>Apply royalty rate</small></div></button>
+            <button class="frac-menu-item" onclick="addFracStep('pooling')"><span class="frac-menu-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span><div>Pooling / Allocation<br><small>Multiply by allocation %</small></div></button>
+        </div>
+        <button class="add-option-btn" id="fc-add-btn" onclick="toggleFracMenu()" style="width:100%;margin-top:4px;">+ Add Step</button>
+    </div>
+
+    <div style="margin-top:12px;text-align:right;">
+        <button onclick="resetFracChain()" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text-muted);text-decoration:underline;">Reset All</button>
+    </div>
+
+    <div id="fc-summary"></div>
+
+    <div class="note" style="margin-top:16px;">
+        <strong>Cross-reference your work:</strong> Use the <a href="#" onclick="switchTab('decimal');return false;" style="color:var(--red-dirt);font-weight:600;">NRI Calculator</a> to verify your final decimal, or <a href="#" onclick="switchTab('verify');return false;" style="color:var(--red-dirt);font-weight:600;">Verify D.O.</a> to compare against your division order.
+    </div>
+</div>
+
     </div><!-- /.calc-card -->
 
     <!-- CTA -->
@@ -1099,7 +1225,7 @@ document.addEventListener('click', function(e) {
             panel.classList.toggle('active', panel.id === 'panel-' + tabId);
         });
         // Update card title
-        var titles = { decimal: "What's My Decimal?", verify: "Check My Division Order", royalties: "Estimate My Royalties", pooling: "Compare Pooling Elections", value: "What Are My Minerals Worth?" };
+        var titles = { decimal: "What's My Decimal?", verify: "Check My Division Order", royalties: "Estimate My Royalties", pooling: "Compare Pooling Elections", value: "What Are My Minerals Worth?", fraction: "Trace My Mineral Interest" };
         var h2 = document.querySelector('.calc-panel.active h2');
         if (h2) h2.textContent = titles[tabId] || '';
     };
@@ -1422,6 +1548,238 @@ document.addEventListener('click', function(e) {
             document.getElementById('val-nonprod-results').innerHTML = html;
         }
     };
+
+    // ══════════════════════════════
+    //  INTEREST CHAIN (fraction)
+    // ══════════════════════════════
+    var fracSteps = [];
+
+    // ── Fraction math (integer-exact) ──
+    function fracGcd(a, b) { a = Math.abs(a); b = Math.abs(b); while (b) { var t = b; b = a % b; a = t; } return a; }
+    function fracReduce(f) { if (f.n === 0) return { n: 0, d: 1 }; var g = fracGcd(f.n, f.d); var sign = f.d < 0 ? -1 : 1; return { n: sign * f.n / g, d: sign * f.d / g }; }
+    function fracMul(a, b) { return fracReduce({ n: a.n * b.n, d: a.d * b.d }); }
+    function fracDiv(a, b) { return fracReduce({ n: a.n * b.d, d: a.d * b.n }); }
+    function fracToDec(f) { return f.d === 0 ? 0 : f.n / f.d; }
+    function fracToStr(f) { if (f.d === 1) return String(f.n); return f.n + '/' + f.d; }
+    function fracSub(a, b) { return fracReduce({ n: a.n * b.d - b.n * a.d, d: a.d * b.d }); }
+    function fracAdd(a, b) { return fracReduce({ n: a.n * b.d + b.n * a.d, d: a.d * b.d }); }
+
+    function parseFraction(str) {
+        if (!str || !str.trim()) return null;
+        str = str.trim();
+        // Fraction form: "3/16"
+        var slashIdx = str.indexOf('/');
+        if (slashIdx > 0) {
+            var num_part = parseInt(str.substring(0, slashIdx), 10);
+            var den = parseInt(str.substring(slashIdx + 1), 10);
+            if (isNaN(num_part) || isNaN(den) || den === 0) return null;
+            return fracReduce({ n: num_part, d: den });
+        }
+        // Decimal form: "0.1875"
+        var val = parseFloat(str);
+        if (isNaN(val) || val < 0) return null;
+        if (val === 0) return { n: 0, d: 1 };
+        if (val >= 1 && val === Math.floor(val)) return { n: Math.round(val), d: 1 };
+        // Try common mineral denominators for clean display
+        var denoms = [2, 3, 4, 5, 6, 8, 10, 12, 16, 24, 32, 48, 64, 128, 256];
+        for (var i = 0; i < denoms.length; i++) {
+            var n = Math.round(val * denoms[i]);
+            if (Math.abs(n / denoms[i] - val) < 0.00001) return fracReduce({ n: n, d: denoms[i] });
+        }
+        // Fallback: /10000
+        return fracReduce({ n: Math.round(val * 10000), d: 10000 });
+    }
+
+    // ── Step management ──
+    window.addFracStep = function(type) {
+        var step = { type: type };
+        if (type === 'inheritance') step.divisor = '';
+        if (type === 'conveyance') { step.fracStr = ''; step.label = ''; }
+        if (type === 'royalty') { step.fracStr = ''; step.label = ''; }
+        if (type === 'lease') step.fracStr = '3/16';
+        if (type === 'pooling') step.allocPct = '';
+        fracSteps.push(step);
+        document.getElementById('fc-menu').style.display = 'none';
+        renderFracSteps();
+        calcFraction();
+    };
+
+    window.removeFracStep = function(idx) {
+        fracSteps.splice(idx, 1);
+        renderFracSteps();
+        calcFraction();
+    };
+
+    window.toggleFracMenu = function() {
+        var menu = document.getElementById('fc-menu');
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+    };
+
+    window.resetFracChain = function() {
+        fracSteps = [];
+        document.getElementById('fc-start-mi').value = '';
+        document.getElementById('fc-acres').value = '';
+        renderFracSteps();
+        document.getElementById('fc-summary').innerHTML = '';
+    };
+
+    window.updateFracStep = function(idx, field, value) {
+        fracSteps[idx][field] = value;
+        calcFraction();
+    };
+
+    function renderFracSteps() {
+        var container = document.getElementById('fc-steps');
+        if (fracSteps.length === 0) { container.innerHTML = ''; return; }
+        var html = '';
+        for (var i = 0; i < fracSteps.length; i++) {
+            var s = fracSteps[i];
+            if (i > 0) html += '<div class="frac-arrow">&#x2193;</div>';
+            html += '<div class="frac-step">';
+            html += '<div class="frac-step-num">' + (i + 1) + '</div>';
+            html += '<div class="frac-step-body">';
+
+            if (s.type === 'inheritance') {
+                html += '<div class="frac-step-type">Inheritance / Probate</div>';
+                html += '<div class="frac-step-inputs">';
+                html += '<label>Heirs:</label> <input type="number" min="1" step="1" value="' + esc(String(s.divisor)) + '" placeholder="e.g. 3" oninput="updateFracStep(' + i + ',\\'divisor\\',this.value)">';
+                html += '<label style="color:var(--text-muted);font-style:italic;">Your 1/' + (parseInt(s.divisor) > 0 ? s.divisor : 'N') + ' undivided share</label>';
+                html += '</div>';
+            } else if (s.type === 'conveyance') {
+                html += '<div class="frac-step-type">Conveyance / Deed</div>';
+                html += '<div class="frac-step-inputs">';
+                html += '<label>Fraction:</label> <input type="text" value="' + esc(s.fracStr) + '" placeholder="e.g. 1/4" oninput="updateFracStep(' + i + ',\\'fracStr\\',this.value)">';
+                html += '<label>To:</label> <input type="text" value="' + esc(s.label) + '" placeholder="Name (optional)" style="max-width:160px;" oninput="updateFracStep(' + i + ',\\'label\\',this.value)">';
+                html += '</div>';
+            } else if (s.type === 'royalty') {
+                html += '<div class="frac-step-type">Retained Royalty (NPRI)</div>';
+                html += '<div class="frac-step-inputs">';
+                html += '<label>NPRI fraction:</label> <input type="text" value="' + esc(s.fracStr) + '" placeholder="e.g. 1/16" oninput="updateFracStep(' + i + ',\\'fracStr\\',this.value)">';
+                html += '<label>Reserved by:</label> <input type="text" value="' + esc(s.label) + '" placeholder="Name (optional)" style="max-width:160px;" oninput="updateFracStep(' + i + ',\\'label\\',this.value)">';
+                html += '</div>';
+            } else if (s.type === 'lease') {
+                html += '<div class="frac-step-type">Oil &amp; Gas Lease</div>';
+                html += '<div class="frac-step-inputs">';
+                html += '<label>Royalty rate:</label> <select onchange="updateFracStep(' + i + ',\\'fracStr\\',this.value)">';
+                var leaseOpts = [['1/8','1/8 (12.5%)'],['3/16','3/16 (18.75%)'],['1/5','1/5 (20%)'],['1/4','1/4 (25%)']];
+                for (var j = 0; j < leaseOpts.length; j++) {
+                    html += '<option value="' + leaseOpts[j][0] + '"' + (s.fracStr === leaseOpts[j][0] ? ' selected' : '') + '>' + leaseOpts[j][1] + '</option>';
+                }
+                html += '</select>';
+                html += '</div>';
+            } else if (s.type === 'pooling') {
+                html += '<div class="frac-step-type">Pooling / Allocation</div>';
+                html += '<div class="frac-step-inputs">';
+                html += '<label>Allocation:</label> <input type="number" min="0" max="100" step="any" value="' + esc(String(s.allocPct)) + '" placeholder="e.g. 52.3" oninput="updateFracStep(' + i + ',\\'allocPct\\',this.value)"> <label>%</label>';
+                html += '</div>';
+            }
+
+            // Running result placeholder
+            html += '<div class="frac-step-result" id="fc-step-result-' + i + '"></div>';
+            html += '</div>'; // .frac-step-body
+            html += '<button class="remove-btn" onclick="removeFracStep(' + i + ')" title="Remove step">&times;</button>';
+            html += '</div>'; // .frac-step
+        }
+        container.innerHTML = html;
+    }
+
+    // ── Core calculation ──
+    window.calcFraction = function() {
+        var startFrac = parseFraction(document.getElementById('fc-start-mi').value);
+        var acres = num('fc-acres');
+        if (!startFrac || acres <= 0) {
+            document.getElementById('fc-summary').innerHTML = '';
+            // Clear step results
+            for (var c = 0; c < fracSteps.length; c++) {
+                var el = document.getElementById('fc-step-result-' + c);
+                if (el) el.innerHTML = '';
+            }
+            return;
+        }
+
+        var mi = { n: startFrac.n, d: startFrac.d };
+        var npriReservations = [];
+        var leaseRoyalty = null;
+        var allocation = null;
+
+        for (var i = 0; i < fracSteps.length; i++) {
+            var s = fracSteps[i];
+            var stepEl = document.getElementById('fc-step-result-' + i);
+
+            if (s.type === 'inheritance') {
+                var divisor = parseInt(s.divisor, 10);
+                if (divisor > 0) {
+                    mi = fracDiv(mi, { n: divisor, d: 1 });
+                }
+            } else if (s.type === 'conveyance') {
+                var cf = parseFraction(s.fracStr);
+                if (cf) {
+                    mi = fracMul(mi, cf);
+                }
+            } else if (s.type === 'royalty') {
+                var rf = parseFraction(s.fracStr);
+                if (rf) {
+                    npriReservations.push({ frac: rf, label: s.label || 'NPRI #' + (npriReservations.length + 1) });
+                }
+                // NPRI does NOT reduce MI
+            } else if (s.type === 'lease') {
+                var lf = parseFraction(s.fracStr);
+                if (lf) leaseRoyalty = lf;
+            } else if (s.type === 'pooling') {
+                var pct = parseFloat(s.allocPct);
+                if (pct > 0) allocation = pct / 100;
+            }
+
+            // Show running MI after this step
+            if (stepEl) {
+                var nma = fracToDec(mi) * acres;
+                stepEl.innerHTML = '<span>MI: <span class="frac-val">' + fracToStr(mi) + '</span></span>' +
+                    '<span>Decimal: <span class="frac-val">' + fracToDec(mi).toFixed(8) + '</span></span>' +
+                    '<span>NMA: <span class="frac-val">' + nma.toFixed(4) + '</span></span>';
+            }
+        }
+
+        // ── Summary ──
+        var nma = fracToDec(mi) * acres;
+        var summaryHtml = '<div class="frac-summary">';
+        summaryHtml += '<div class="frac-summary-title">Ownership Summary</div>';
+        summaryHtml += '<div class="frac-summary-grid">';
+        summaryHtml += '<div class="frac-summary-item"><div class="frac-sum-label">Mineral Interest</div><div class="frac-sum-value">' + fracToStr(mi) + '</div><div class="frac-sum-sub">' + fracToDec(mi).toFixed(8) + ' decimal</div></div>';
+        summaryHtml += '<div class="frac-summary-item"><div class="frac-sum-label">Net Mineral Acres</div><div class="frac-sum-value">' + nma.toFixed(4) + '</div><div class="frac-sum-sub">of ' + acres + ' total acres</div></div>';
+
+        if (leaseRoyalty) {
+            // NRI = MI * leaseRoyalty - sum(NPRIs), then * allocation
+            var nri = fracMul(mi, leaseRoyalty);
+            for (var k = 0; k < npriReservations.length; k++) {
+                nri = fracSub(nri, npriReservations[k].frac);
+            }
+            if (allocation) {
+                nri = fracMul(nri, { n: Math.round(allocation * 10000), d: 10000 });
+            }
+            nri = fracReduce(nri);
+            summaryHtml += '<div class="frac-summary-item"><div class="frac-sum-label">NRI Decimal</div><div class="frac-sum-value">' + fracToDec(nri).toFixed(8) + '</div><div class="frac-sum-sub">' + fracToStr(nri) + (allocation ? ' (after allocation)' : '') + '</div></div>';
+        }
+
+        summaryHtml += '</div>'; // .frac-summary-grid
+
+        // NPRI line items
+        for (var n = 0; n < npriReservations.length; n++) {
+            var np = npriReservations[n];
+            summaryHtml += '<div class="frac-npri-line">NPRI burden: <strong>' + fracToStr(np.frac) + '</strong> (' + fracToDec(np.frac).toFixed(8) + ') &mdash; ' + esc(np.label) + '</div>';
+        }
+
+        summaryHtml += '</div>'; // .frac-summary
+        document.getElementById('fc-summary').innerHTML = summaryHtml;
+    };
+
+    // Close menu on outside click
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('fc-menu');
+        var addBtn = document.getElementById('fc-add-btn');
+        if (menu && addBtn && !menu.contains(e.target) && !addBtn.contains(e.target)) {
+            menu.style.display = 'none';
+        }
+    });
 
     // ══════════════════════════════
     //  UTILS
