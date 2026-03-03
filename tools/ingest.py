@@ -134,6 +134,7 @@ def api_post(endpoint: str, body: dict, timeout: int = 30) -> dict:
         headers={
             "Content-Type": "application/json",
             "X-API-Key": PROCESSING_API_KEY,
+            "User-Agent": "MineralWatch-IngestCLI/1.0",
         },
         method="POST",
     )
@@ -154,7 +155,10 @@ def api_get(endpoint: str, timeout: int = 15) -> dict:
     url = f"{DOCUMENTS_WORKER_URL}{endpoint}"
     req = urllib.request.Request(
         url,
-        headers={"X-API-Key": PROCESSING_API_KEY},
+        headers={
+            "X-API-Key": PROCESSING_API_KEY,
+            "User-Agent": "MineralWatch-IngestCLI/1.0",
+        },
         method="GET",
     )
     with urllib.request.urlopen(req, timeout=timeout) as resp:
