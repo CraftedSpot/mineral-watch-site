@@ -1796,6 +1796,19 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleGetPropertyLinkedWells(propertyLinkedWellsMatch[1], request, env);
       }
       
+      // Title chain properties list (properties with chain-of-title docs)
+      if (path === "/api/title-chain/properties" && request.method === "GET") {
+        const { handleGetTitleChainProperties } = await import('./handlers/title-chain.js');
+        return handleGetTitleChainProperties(request, env);
+      }
+
+      // Title chain per-property (chain-of-title documents for a property)
+      const titleChainMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/title-chain$/);
+      if (titleChainMatch && request.method === "GET") {
+        const { handleGetTitleChain } = await import('./handlers/title-chain.js');
+        return handleGetTitleChain(titleChainMatch[1], request, env);
+      }
+
       // Well linked properties endpoint (using D1 with fallback)
       const wellLinkedPropertiesMatch = path.match(/^\/api\/well\/([a-zA-Z0-9_-]+)\/linked-properties$/);
       if (wellLinkedPropertiesMatch && request.method === "GET") {

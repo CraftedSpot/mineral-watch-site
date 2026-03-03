@@ -1,0 +1,478 @@
+// ─── Title Chain Tab ───
+var titleInitialized = false;
+var titleProperties = [];
+var titleSelectedPropertyId = null;
+var titleChainData = null;
+var titleDropdownOpen = false;
+
+const TITLE_CHAIN_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf'];
+
+function isTitleChainEnabled() {
+  return currentUser && currentUser.organizationId && TITLE_CHAIN_ALLOWED_ORGS.includes(currentUser.organizationId);
+}
+
+// Color map for doc type badges
+var TITLE_TYPE_COLORS = {
+  mineral_deed: '#059669',
+  royalty_deed: '#059669',
+  gift_deed: '#059669',
+  quit_claim_deed: '#059669',
+  warranty_deed: '#059669',
+  conveyance: '#059669',
+  oil_gas_lease: '#2563eb',
+  oil_and_gas_lease: '#2563eb',
+  lease: '#2563eb',
+  memorandum_of_lease: '#2563eb',
+  lease_amendment: '#2563eb',
+  lease_extension: '#2563eb',
+  lease_ratification: '#2563eb',
+  assignment: '#7c3aed',
+  assignment_of_lease: '#7c3aed',
+  lease_assignment: '#7c3aed',
+  assignment_and_bill_of_sale: '#7c3aed',
+  death_certificate: '#6b7280',
+  affidavit_of_heirship: '#6b7280',
+  probate: '#6b7280',
+  trust_funding: '#d97706',
+  title_opinion: '#0891b2',
+  well_transfer: '#374151',
+  subordination_agreement: '#374151'
+};
+
+// Friendly names for doc types
+var TITLE_TYPE_LABELS = {
+  mineral_deed: 'Mineral Deed',
+  royalty_deed: 'Royalty Deed',
+  gift_deed: 'Gift Deed',
+  quit_claim_deed: 'Quit Claim Deed',
+  warranty_deed: 'Warranty Deed',
+  conveyance: 'Conveyance',
+  oil_gas_lease: 'Oil & Gas Lease',
+  oil_and_gas_lease: 'Oil & Gas Lease',
+  lease: 'Lease',
+  memorandum_of_lease: 'Memorandum of Lease',
+  lease_amendment: 'Lease Amendment',
+  lease_extension: 'Lease Extension',
+  lease_ratification: 'Lease Ratification',
+  assignment: 'Assignment',
+  assignment_of_lease: 'Assignment of Lease',
+  lease_assignment: 'Lease Assignment',
+  assignment_and_bill_of_sale: 'Assignment & Bill of Sale',
+  death_certificate: 'Death Certificate',
+  affidavit_of_heirship: 'Affidavit of Heirship',
+  probate: 'Probate',
+  trust_funding: 'Trust Funding',
+  title_opinion: 'Title Opinion',
+  well_transfer: 'Well Transfer',
+  subordination_agreement: 'Subordination'
+};
+
+// Doc types that use arrow (from → to) display
+var TITLE_ARROW_TYPES = {
+  mineral_deed: ['grantor', 'grantee'],
+  royalty_deed: ['grantor', 'grantee'],
+  gift_deed: ['grantor', 'grantee'],
+  quit_claim_deed: ['grantor', 'grantee'],
+  warranty_deed: ['grantor', 'grantee'],
+  conveyance: ['grantor', 'grantee'],
+  oil_gas_lease: ['lessor', 'lessee'],
+  oil_and_gas_lease: ['lessor', 'lessee'],
+  lease: ['lessor', 'lessee'],
+  memorandum_of_lease: ['lessor', 'lessee'],
+  lease_amendment: ['lessor', 'lessee'],
+  lease_extension: ['lessor', 'lessee'],
+  lease_ratification: ['lessor', 'lessee'],
+  assignment: ['assignor', 'assignee'],
+  assignment_of_lease: ['assignor', 'assignee'],
+  lease_assignment: ['assignor', 'assignee'],
+  assignment_and_bill_of_sale: ['assignor', 'assignee'],
+  trust_funding: ['grantor', 'grantee']
+};
+
+async function loadTitleTab() {
+  var content = document.getElementById('titleContent');
+  content.innerHTML = '<div class="title-loading"><div class="spinner"></div>Loading title chain data...</div>';
+
+  try {
+    var resp = await fetch('/api/title-chain/properties');
+    if (!resp.ok) throw new Error('Failed to load');
+    var data = await resp.json();
+
+    titleProperties = data.properties || [];
+
+    if (titleProperties.length === 0 && (data.unlinkedCount || 0) === 0) {
+      content.innerHTML = '<div class="title-empty">' +
+        '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+        '<p>No chain-of-title documents found. Upload mineral deeds, leases, assignments, and other title documents to build your chain of title.</p></div>';
+      return;
+    }
+
+    renderTitleTabUI(data.unlinkedCount || 0);
+
+    // Auto-select first property if available
+    if (titleProperties.length > 0) {
+      selectTitleProperty(titleProperties[0].airtableRecordId);
+    }
+  } catch (err) {
+    console.error('[Title] Load error:', err);
+    content.innerHTML = '<div class="title-empty"><p>Failed to load title chain data. Please try again.</p></div>';
+    titleInitialized = false;
+  }
+}
+
+function renderTitleTabUI(unlinkedCount) {
+  var content = document.getElementById('titleContent');
+
+  var html = '<div class="title-disclaimer">' +
+    '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>' +
+    'AI-interpreted chain of title — not a legal opinion. Documents shown are those uploaded to your account.' +
+    '</div>';
+
+  // Property selector
+  html += '<div class="title-header">';
+  html += '<div class="title-property-selector">' +
+    '<button class="title-property-btn" onclick="toggleTitleDropdown()" id="titlePropertyBtn">' +
+    '<span id="titlePropertyLabel">Select a property...</span>' +
+    '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
+    '</button>' +
+    '<div class="title-property-dropdown" id="titleDropdown">' +
+    '<input type="text" class="title-property-search" id="titlePropertySearch" placeholder="Filter by county or legal..." oninput="filterTitleProperties()">' +
+    '<div class="title-property-list" id="titlePropertyList"></div>' +
+    '</div></div>';
+  html += '</div>';
+
+  // Stats line (populated after loading chain)
+  html += '<div class="title-stats" id="titleStats" style="display:none;"></div>';
+
+  // Timeline container
+  html += '<div id="titleTimeline"></div>';
+
+  // Unlinked section
+  if (unlinkedCount > 0) {
+    html += '<div class="title-unlinked">' +
+      '<button class="title-unlinked-toggle" onclick="toggleTitleUnlinked()">' +
+      '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="titleUnlinkedArrow" style="transition:transform 0.15s"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>' +
+      unlinkedCount + ' unlinked chain document' + (unlinkedCount !== 1 ? 's' : '') +
+      '</button>' +
+      '<div class="title-unlinked-list" id="titleUnlinkedList"></div>' +
+      '</div>';
+  }
+
+  content.innerHTML = html;
+  renderTitlePropertyList('');
+}
+
+function renderTitlePropertyList(filter) {
+  var list = document.getElementById('titlePropertyList');
+  if (!list) return;
+  var lower = filter.toLowerCase();
+  var filtered = titleProperties.filter(function(p) {
+    if (!lower) return true;
+    var label = (p.county || '') + ' ' + (p.section || '') + ' ' + (p.township || '') + ' ' + (p.range || '');
+    return label.toLowerCase().indexOf(lower) >= 0;
+  });
+
+  list.innerHTML = filtered.map(function(p) {
+    var label = (p.county || '?') + ' — S' + (p.section || '?') + '-' + (p.township || '?') + '-' + (p.range || '?');
+    var sel = titleSelectedPropertyId === p.airtableRecordId ? ' selected' : '';
+    return '<div class="title-property-option' + sel + '" onclick="selectTitleProperty(\'' + p.airtableRecordId + '\')">' +
+      '<span>' + escapeHtml(label) + '</span>' +
+      '<span class="doc-count">' + p.chainDocCount + ' doc' + (p.chainDocCount !== 1 ? 's' : '') + '</span></div>';
+  }).join('');
+}
+
+function toggleTitleDropdown() {
+  titleDropdownOpen = !titleDropdownOpen;
+  var dd = document.getElementById('titleDropdown');
+  var btn = document.getElementById('titlePropertyBtn');
+  if (titleDropdownOpen) {
+    dd.classList.add('visible');
+    btn.classList.add('open');
+    var search = document.getElementById('titlePropertySearch');
+    if (search) { search.value = ''; search.focus(); }
+    renderTitlePropertyList('');
+  } else {
+    dd.classList.remove('visible');
+    btn.classList.remove('open');
+  }
+}
+
+function filterTitleProperties() {
+  var search = document.getElementById('titlePropertySearch');
+  renderTitlePropertyList(search ? search.value : '');
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+  if (titleDropdownOpen && !e.target.closest('.title-property-selector')) {
+    titleDropdownOpen = false;
+    var dd = document.getElementById('titleDropdown');
+    var btn = document.getElementById('titlePropertyBtn');
+    if (dd) dd.classList.remove('visible');
+    if (btn) btn.classList.remove('open');
+  }
+});
+
+async function selectTitleProperty(airtableRecordId) {
+  titleSelectedPropertyId = airtableRecordId;
+
+  // Close dropdown
+  titleDropdownOpen = false;
+  var dd = document.getElementById('titleDropdown');
+  var btn = document.getElementById('titlePropertyBtn');
+  if (dd) dd.classList.remove('visible');
+  if (btn) btn.classList.remove('open');
+
+  // Update button label
+  var prop = titleProperties.find(function(p) { return p.airtableRecordId === airtableRecordId; });
+  if (prop) {
+    var label = (prop.county || '?') + ' — S' + (prop.section || '?') + '-' + (prop.township || '?') + '-' + (prop.range || '?');
+    document.getElementById('titlePropertyLabel').textContent = label;
+  }
+  renderTitlePropertyList('');
+
+  // Load chain
+  var timeline = document.getElementById('titleTimeline');
+  var stats = document.getElementById('titleStats');
+  timeline.innerHTML = '<div class="title-loading"><div class="spinner"></div>Loading chain of title...</div>';
+  if (stats) stats.style.display = 'none';
+
+  try {
+    var resp = await fetch('/api/property/' + encodeURIComponent(airtableRecordId) + '/title-chain?include_unlinked=1');
+    if (!resp.ok) throw new Error('Failed to load chain');
+    titleChainData = await resp.json();
+
+    renderTitleTimeline(titleChainData);
+    renderTitleStats(titleChainData);
+    renderTitleUnlinkedDocs(titleChainData.unlinkedDocuments || []);
+  } catch (err) {
+    console.error('[Title] Chain load error:', err);
+    timeline.innerHTML = '<div class="title-empty"><p>Failed to load chain of title for this property.</p></div>';
+  }
+}
+
+function renderTitleStats(data) {
+  var statsEl = document.getElementById('titleStats');
+  if (!statsEl) return;
+
+  var docs = data.documents || [];
+  if (docs.length === 0) { statsEl.style.display = 'none'; return; }
+
+  var count = docs.length;
+  var dates = docs.map(function(d) { return d.date; }).filter(Boolean).sort();
+  var dateRange = dates.length > 0 ? (dates[0].substring(0, 4) + '–' + dates[dates.length - 1].substring(0, 4)) : '';
+
+  // Count unique parties
+  var partySet = {};
+  docs.forEach(function(d) {
+    (d.parties || []).forEach(function(p) {
+      partySet[p.name.toLowerCase()] = true;
+    });
+  });
+  var partyCount = Object.keys(partySet).length;
+
+  var parts = [count + ' document' + (count !== 1 ? 's' : '')];
+  if (dateRange) parts.push(dateRange);
+  if (partyCount > 0) parts.push(partyCount + ' part' + (partyCount !== 1 ? 'ies' : 'y'));
+
+  statsEl.innerHTML = parts.join('<span>&middot;</span>');
+  statsEl.style.display = 'block';
+}
+
+function renderTitleTimeline(data) {
+  var timeline = document.getElementById('titleTimeline');
+  var docs = data.documents || [];
+
+  if (docs.length === 0) {
+    timeline.innerHTML = '<div class="title-empty"><p>No chain-of-title documents linked to this property yet.</p></div>';
+    return;
+  }
+
+  var html = '<div class="title-timeline">';
+  var lastYear = null;
+
+  docs.forEach(function(doc) {
+    var year = doc.date ? doc.date.substring(0, 4) : null;
+    if (year && year !== lastYear) {
+      html += '<div class="title-year-divider">' + year + '</div>';
+      lastYear = year;
+    } else if (!year && lastYear !== 'undated') {
+      html += '<div class="title-year-divider">Undated</div>';
+      lastYear = 'undated';
+    }
+
+    var color = TITLE_TYPE_COLORS[doc.docType] || '#374151';
+    var label = TITLE_TYPE_LABELS[doc.docType] || (doc.docType || 'Document').replace(/_/g, ' ');
+    var dateStr = doc.date ? formatTitleDate(doc.date) : '';
+
+    html += '<div class="title-card" id="tc-' + doc.id + '" onclick="toggleTitleCard(\'' + doc.id + '\')" style="--tc-color:' + color + '">';
+    html += '<style>#tc-' + doc.id + '::before { background: ' + color + '; }</style>';
+
+    // Header: badge + date
+    html += '<div class="title-card-header">';
+    html += '<span class="title-type-badge" style="background:' + color + '">' + escapeHtml(label) + '</span>';
+    if (dateStr) html += '<span class="title-card-date">' + dateStr + '</span>';
+    html += '</div>';
+
+    // Parties
+    html += renderTitleParties(doc);
+
+    // Interest
+    if (doc.interestConveyed) {
+      html += '<div class="title-interest">&ldquo;' + escapeHtml(doc.interestConveyed) + '&rdquo;</div>';
+    }
+
+    // Detail section (hidden until expanded)
+    html += '<div class="title-detail">';
+    if (doc.summary) {
+      html += '<div class="title-detail-summary">' + escapeHtml(doc.summary) + '</div>';
+    }
+    html += '<div class="title-detail-actions">';
+    html += '<button class="title-view-doc-btn" onclick="event.stopPropagation(); openDocumentDetail(\'' + doc.id + '\')">' +
+      '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' +
+      'View Document</button>';
+    html += '</div></div>';
+
+    html += '</div>'; // .title-card
+  });
+
+  html += '</div>'; // .title-timeline
+  timeline.innerHTML = html;
+}
+
+function renderTitleParties(doc) {
+  var parties = doc.parties || [];
+  if (parties.length === 0) return '';
+
+  var html = '<div class="title-parties">';
+  var arrowRoles = TITLE_ARROW_TYPES[doc.docType];
+
+  if (arrowRoles) {
+    // Arrow display: from → to
+    var fromRole = arrowRoles[0];
+    var toRole = arrowRoles[1];
+    var froms = parties.filter(function(p) { return p.role === fromRole; });
+    var tos = parties.filter(function(p) { return p.role === toRole; });
+
+    if (froms.length > 0 && tos.length > 0) {
+      html += escapeHtml(froms.map(function(p) { return p.name; }).join(', '));
+      html += '<span class="arrow">&rarr;</span>';
+      html += escapeHtml(tos.map(function(p) { return p.name; }).join(', '));
+    } else {
+      // Fallback: list all
+      html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
+    }
+  } else if (doc.docType === 'affidavit_of_heirship' || doc.docType === 'probate') {
+    // Estate display
+    var decedent = parties.find(function(p) { return p.role === 'grantor' || p.role === 'decedent'; });
+    var heirs = parties.filter(function(p) { return p.role === 'grantee'; });
+    if (decedent) {
+      html += 'Estate of ' + escapeHtml(decedent.name);
+      if (heirs.length > 0) {
+        html += '<div class="party-list">';
+        heirs.forEach(function(h) {
+          html += '<span class="party-list-item">&#8627; ' + escapeHtml(h.name) + '</span>';
+        });
+        html += '</div>';
+      }
+    } else {
+      html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
+    }
+  } else if (doc.docType === 'title_opinion') {
+    var examiner = parties.find(function(p) { return p.role === 'examiner'; });
+    var owners = parties.filter(function(p) { return p.role === 'owner'; });
+    if (examiner) {
+      html += '<span class="party-label">Examined by</span>' + escapeHtml(examiner.name);
+    }
+    if (owners.length > 0) {
+      html += '<div class="party-list">';
+      owners.forEach(function(o) {
+        html += '<span class="party-list-item">' + escapeHtml(o.name) + '</span>';
+      });
+      html += '</div>';
+    }
+    if (!examiner && owners.length === 0) {
+      html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
+    }
+  } else if (doc.docType === 'death_certificate') {
+    var dec = parties.find(function(p) { return p.role === 'decedent'; }) || parties[0];
+    if (dec) html += escapeHtml(dec.name);
+  } else {
+    // Generic: list all parties
+    html += parties.map(function(p) { return escapeHtml(p.name); }).join(', ');
+  }
+
+  html += '</div>';
+  return html;
+}
+
+function toggleTitleCard(docId) {
+  var card = document.getElementById('tc-' + docId);
+  if (!card) return;
+  card.classList.toggle('expanded');
+}
+
+function formatTitleDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    var parts = dateStr.split('-');
+    if (parts.length === 3) {
+      var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      var m = parseInt(parts[1], 10) - 1;
+      var d = parseInt(parts[2], 10);
+      return months[m] + ' ' + d + ', ' + parts[0];
+    }
+    return dateStr;
+  } catch (e) { return dateStr; }
+}
+
+// Unlinked documents
+function toggleTitleUnlinked() {
+  var list = document.getElementById('titleUnlinkedList');
+  var arrow = document.getElementById('titleUnlinkedArrow');
+  if (!list) return;
+  var visible = list.classList.toggle('visible');
+  if (arrow) arrow.style.transform = visible ? 'rotate(90deg)' : '';
+}
+
+function renderTitleUnlinkedDocs(docs) {
+  var list = document.getElementById('titleUnlinkedList');
+  if (!list || docs.length === 0) return;
+
+  list.innerHTML = docs.map(function(doc) {
+    var label = TITLE_TYPE_LABELS[doc.docType] || (doc.docType || '').replace(/_/g, ' ');
+    var dateStr = doc.date ? formatTitleDate(doc.date) : '';
+    return '<div class="title-unlinked-item" onclick="openDocumentDetail(\'' + doc.id + '\')">' +
+      '<strong>' + escapeHtml(doc.displayName || 'Untitled') + '</strong>' +
+      (dateStr ? ' &middot; ' + dateStr : '') +
+      '</div>';
+  }).join('');
+}
+
+// Deep-link from property details modal
+function openTitleChainForProperty(propertyId) {
+  // Close any open modals
+  if (typeof closePropertyDetailsModal === 'function') closePropertyDetailsModal();
+
+  // Switch to title tab
+  var titleBtn = document.querySelector('.tab[data-tab="title"]');
+  if (titleBtn) {
+    titleBtn.click();
+    // Wait for tab to initialize, then select property
+    var attempts = 0;
+    var trySelect = function() {
+      if (titleInitialized && titleProperties.length > 0) {
+        // Find property by airtable record ID (strip prop_ prefix if present)
+        var bareId = propertyId.startsWith('prop_') ? propertyId.slice(5) : propertyId;
+        var match = titleProperties.find(function(p) { return p.airtableRecordId === bareId; });
+        if (match) {
+          selectTitleProperty(match.airtableRecordId);
+        }
+      } else if (attempts < 20) {
+        attempts++;
+        setTimeout(trySelect, 200);
+      }
+    };
+    setTimeout(trySelect, 100);
+  }
+}

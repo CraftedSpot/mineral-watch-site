@@ -7615,8 +7615,8 @@ EXAMPLE:
 # ============================================================================
 
 # Document types that should use the LEASE focused prompt
-LEASE_DOC_TYPES = ["oil_gas_lease", "lease", "lease_amendment", "lease_extension",
-                   "lease_ratification", "memorandum_of_lease"]
+LEASE_DOC_TYPES = ["oil_gas_lease", "oil_and_gas_lease", "lease", "lease_amendment",
+                   "lease_extension", "lease_ratification", "memorandum_of_lease"]
 
 LEASE_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights attorney specializing in oil & gas lease review.
 Your task is to extract comprehensive lease terms and identify protective clauses that affect mineral owner rights.
@@ -11031,6 +11031,131 @@ async def process_image_batch(images: list[tuple[int, str]], batch_description: 
     return content
 
 
+async def sonnet_classify_chunk(page_texts: list[str], heuristic_hint: str = None,
+                                image_path: str = None, model_override: str = None) -> str:
+    """
+    Lightweight Sonnet-based document type classification.
+
+    Pass 1 of the two-pass pipeline: determines document type BEFORE extraction,
+    so the correct focused prompt is selected. The heuristic is passed as a hint
+    but Sonnet makes the final decision.
+
+    Uses OCR text (not images) for speed and cost efficiency. Falls back to
+    sending the first page image if OCR text is too short to classify.
+
+    Args:
+        page_texts: OCR text from the chunk's pages (at least the first page)
+        heuristic_hint: Optional coarse_type from heuristic classifier (informational only)
+        image_path: Optional path to first page image (fallback if text is sparse)
+        model_override: Optional model override
+
+    Returns:
+        Document type string (e.g., "lease", "mineral_deed", "correspondence")
+    """
+    model = model_override or CONFIG.CLAUDE_MODEL
+
+    # Combine first 2 pages of text (truncated to keep token count low)
+    combined_text = ""
+    for i, text in enumerate(page_texts[:2]):
+        if text and text.strip():
+            truncated = text[:2000]  # ~500 tokens per page
+            combined_text += f"--- Page {i+1} ---\n{truncated}\n\n"
+
+    if len(combined_text.strip()) < 50 and not image_path:
+        # Too little text and no image fallback — can't classify
+        logger.warning("sonnet_classify_chunk: insufficient text and no image — returning None")
+        return None
+
+    hint_text = ""
+    if heuristic_hint and heuristic_hint not in ("other", "unknown"):
+        hint_text = f"\nHeuristic pre-classification suggests: {heuristic_hint}. This may be wrong — override it if the text clearly indicates a different document type.\n"
+
+    prompt = f"""Classify this document based on its text content. Return ONLY the document type as a single word/phrase from the list below.
+
+DOCUMENT TYPES (pick exactly one):
+- mineral_deed, royalty_deed, quit_claim_deed, gift_deed, warranty_deed
+- oil_and_gas_lease, assignment_of_lease, lease_amendment, lease_extension, lease_ratification, memorandum_of_lease
+- division_order, check_stub, joint_interest_billing
+- pooling_order, pooling_application, increased_density_order, change_of_operator_order
+- multi_unit_horizontal_order, unitization_order
+- drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
+- drilling_permit, completion_report, well_transfer
+- title_opinion, joa
+- affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, ownership_entity
+- correspondence, rental_deposit_receipt, tax_record, map, occ_order
+- other (only if none of the above fit)
+
+CRITICAL RULES:
+- Classify by SUBSTANCE, not formatting. A lease typed on letterhead is still a lease. A deed sent as a letter attachment is still a deed.
+- If the text contains "OIL AND GAS LEASE" as a document title or heading, classify as oil_and_gas_lease regardless of letter formatting around it.
+- If the text contains "MINERAL DEED" as a title, classify as mineral_deed.
+- Document type titles in the text ALWAYS outrank formatting patterns (Dear..., Sincerely, letterhead).
+- Only classify as "correspondence" if the document is PURELY a letter/notice with no substantive legal instrument.
+{hint_text}
+DOCUMENT TEXT:
+{combined_text}
+
+Return ONLY the document type (e.g., "oil_and_gas_lease"). No JSON, no explanation."""
+
+    content = [{"type": "text", "text": prompt}]
+
+    # If text is very sparse, add the first page image as backup
+    if len(combined_text.strip()) < 200 and image_path:
+        try:
+            with open(image_path, 'rb') as img:
+                img_data = base64.b64encode(img.read()).decode()
+                content.insert(0, {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/jpeg",
+                        "data": img_data
+                    }
+                })
+                logger.info("sonnet_classify_chunk: sparse text, adding first page image")
+        except Exception as e:
+            logger.warning(f"sonnet_classify_chunk: failed to read image: {e}")
+
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=50,  # Only need a single type string
+            temperature=0,
+            messages=[{"role": "user", "content": content}]
+        )
+
+        doc_type = response.content[0].text.strip().lower().replace(" ", "_").replace("-", "_")
+        # Strip any quotes or punctuation Sonnet might add
+        doc_type = doc_type.strip('"\'.,;')
+
+        logger.info(f"sonnet_classify_chunk: classified as '{doc_type}' "
+                    f"(heuristic hint was '{heuristic_hint}')"
+                    f"{' — OVERRIDE' if doc_type != heuristic_hint else ''}")
+
+        return doc_type
+
+    except Exception as e:
+        logger.warning(f"sonnet_classify_chunk failed: {e} — falling back to heuristic hint '{heuristic_hint}'")
+        return heuristic_hint
+
+
+# Map Sonnet classification results to the focused prompt routing types.
+# Sonnet may return fine-grained types that need mapping to prompt groups.
+def map_to_prompt_type(doc_type: str) -> str:
+    """Map a Sonnet classification result to the type expected by get_extraction_prompt()."""
+    if not doc_type or doc_type in ("other", "unknown"):
+        return None
+    # oil_and_gas_lease → needs to be in LEASE_DOC_TYPES
+    # Most types map directly; this handles known aliases
+    TYPE_ALIASES = {
+        "oil_and_gas_lease": "lease",
+        "oil_gas_lease": "lease",
+        "lease": "lease",
+        "quitclaim_deed": "quit_claim_deed",
+    }
+    return TYPE_ALIASES.get(doc_type, doc_type)
+
+
 async def quick_classify_document(image_paths: list[str], model_override: str = None) -> dict:
     """
     Quick classification to determine if document is "other" type.
@@ -12197,17 +12322,33 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # If single document detected, extract it directly
     if not split_result["is_multi_document"]:
         chunk = split_result["chunks"][0]
-        coarse_type = chunk.get("coarse_type", "other")
+        heuristic_hint = chunk.get("coarse_type", "other")
 
-        logger.info(f"Single document detected (coarse_type: {coarse_type})")
+        logger.info(f"Single document detected (heuristic_hint: {heuristic_hint})")
 
-        # Extract the single document with focused prompt based on classification
-        # If coarse_type is "other" or "unknown" (heuristics couldn't determine type),
-        # still send to Sonnet — let it classify and extract. Only skip if Sonnet also says "other".
-        effective_doc_type = coarse_type if coarse_type not in ("other", "unknown") else None
+        # TWO-PASS: Sonnet classifies first, then extract with the correct focused prompt.
+        # Gather OCR text for classification
+        chunk_texts = []
+        if page_texts:
+            for pi in range(chunk["page_start"], min(chunk["page_end"] + 1, len(page_texts))):
+                chunk_texts.append(page_texts[pi] if pi < len(page_texts) else "")
+
+        first_image = image_paths[chunk["page_start"]] if chunk["page_start"] < len(image_paths) else None
+
+        sonnet_type = await sonnet_classify_chunk(
+            chunk_texts,
+            heuristic_hint=heuristic_hint,
+            image_path=first_image,
+            model_override=model_override
+        )
+
+        # Use Sonnet's classification, fall back to quick_classify result, then heuristic
+        effective_doc_type = sonnet_type if sonnet_type not in (None, "other", "unknown") else None
         if not effective_doc_type and classification.get("doc_type") not in (None, "other", "unknown", "multi_document"):
             effective_doc_type = classification.get("doc_type")
-            logger.info(f"Coarse type '{coarse_type}' unknown - using quick classification: {effective_doc_type}")
+            logger.info(f"Sonnet classify returned '{sonnet_type}' - using quick classification: {effective_doc_type}")
+
+        logger.info(f"Single doc routing: heuristic='{heuristic_hint}', sonnet='{sonnet_type}', effective='{effective_doc_type}'")
 
         result = await extract_single_document(
             image_paths,
@@ -12227,7 +12368,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             for sub_doc in result:
                 sub_doc["_start_page"] = 1
                 sub_doc["_end_page"] = len(image_paths)
-                sub_doc["_coarse_type"] = coarse_type
+                sub_doc["_coarse_type"] = heuristic_hint
+                sub_doc["_sonnet_classification"] = sonnet_type
                 sub_doc["_quick_classification"] = classification.get("doc_type")
                 sub_doc["_split_reason"] = "multi_instrument_in_chunk"
             return {
@@ -12238,7 +12380,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "documents": result
             }
 
-        result["_coarse_type"] = coarse_type
+        result["_coarse_type"] = heuristic_hint
+        result["_sonnet_classification"] = sonnet_type
         result["_quick_classification"] = classification.get("doc_type")
         result["_split_metadata"] = split_result.get("split_metadata")
         return result
@@ -12246,55 +12389,61 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # Multiple documents detected - process each chunk
     logger.info(f"Multi-document PDF: Processing {split_result['document_count']} documents")
 
-    # Valid doc types that have focused extraction prompts or are recognized by the system
-    VALID_COARSE_TYPES = {
-        "mineral_deed", "royalty_deed", "warranty_deed", "gift_deed", "quit_claim_deed",
-        "assignment_of_lease", "assignment", "lease", "division_order",
-        "pooling_order", "increased_density_order", "change_of_operator_order",
-        "multi_unit_horizontal_order", "unitization_order",
-        "drilling_and_spacing_order", "horizontal_drilling_and_spacing_order",
-        "location_exception_order", "occ_order",
-        "drilling_permit", "completion_report", "well_transfer", "title_opinion",
-        "lease_production", "check_stub", "joint_interest_billing",
-        "suspense_notice", "joa",
-        "affidavit_of_heirship", "death_certificate", "trust_funding", "limited_partnership",
-        "ownership_entity", "legal_document", "correspondence",
-        "tax_record", "map", "corporation_commission_notice",
-        "lease_amendment", "lease_extension", "lease_ratification", "memorandum_of_lease",
-        "rental_deposit_receipt", "pooling_application",
-    }
+    # NOTE: VALID_COARSE_TYPES is no longer used for routing decisions.
+    # Sonnet classification (sonnet_classify_chunk) now determines the doc_type
+    # for prompt selection. The heuristic coarse_type is kept only as a hint.
 
-    # Text-based GIS NRIS override + quick-classify for unrecognized types
+    # =========================================================================
+    # TWO-PASS CLASSIFICATION: Sonnet classifies each chunk before extraction.
+    # The heuristic coarse_type is passed as a hint but Sonnet makes the final call.
+    # This prevents the heuristic from locking Sonnet into the wrong focused prompt.
+    # =========================================================================
+
+    # GIS NRIS text override (structural, not heuristic — these are machine-printed)
     for chunk in split_result["chunks"]:
-        chunk_coarse = chunk.get("coarse_type", "other")
         page_start = chunk["page_start"]
-
-        # GIS NRIS text rule: if page text contains "GIS NRIS", it's a completion report
-        # (unless already classified as lease_production by a more specific pattern)
         if page_texts and page_start < len(page_texts) and page_texts[page_start]:
             page_text = page_texts[page_start]
-            if re.search(r"GIS\s+NRIS", page_text, re.IGNORECASE) and chunk_coarse not in ("lease_production",):
-                # Check if it's a production page or a well completion page
+            if re.search(r"GIS\s+NRIS", page_text, re.IGNORECASE):
                 if re.search(r"Lease\s+Production|Producing\s+Unit\s+No|Oil\s+Production\s+\(in\s+Bbls|Natural\s+Gas\s+Production", page_text, re.IGNORECASE):
-                    chunk["coarse_type"] = "lease_production"
-                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → lease_production")
+                    chunk["sonnet_doc_type"] = "lease_production"
+                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → lease_production (skip Sonnet classify)")
                 else:
-                    chunk["coarse_type"] = "completion_report"
-                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → completion_report")
-                continue
+                    chunk["sonnet_doc_type"] = "completion_report"
+                    logger.info(f"GIS NRIS text rule: chunk {chunk['chunk_index']} → completion_report (skip Sonnet classify)")
 
-        # Quick-classify chunks with unknown, other, or non-standard types
-        if chunk_coarse in ("other", "unknown") or chunk_coarse not in VALID_COARSE_TYPES:
-            try:
-                chunk_classification = await quick_classify_document(
-                    [image_paths[page_start]], model_override=model_override
-                )
-                chunk_doc_type = chunk_classification.get("doc_type")
-                if chunk_doc_type and chunk_doc_type not in ("other", "unknown", "multi_document"):
-                    logger.info(f"Quick-classified chunk {chunk['chunk_index']}: {chunk_coarse} → {chunk_doc_type}")
-                    chunk["coarse_type"] = chunk_doc_type
-            except Exception as e:
-                logger.warning(f"Quick-classify failed for chunk {chunk['chunk_index']}: {e}")
+    # Pass 1: Sonnet classification for each chunk that doesn't already have a type
+    for chunk in split_result["chunks"]:
+        if "sonnet_doc_type" in chunk:
+            continue  # Already classified (e.g., GIS NRIS override)
+
+        chunk_idx = chunk["chunk_index"]
+        page_start = chunk["page_start"]
+        page_end = chunk["page_end"]
+        heuristic_hint = chunk.get("coarse_type", "other")
+
+        # Gather OCR text for this chunk's pages
+        chunk_texts = []
+        if page_texts:
+            for pi in range(page_start, min(page_end + 1, len(page_texts))):
+                chunk_texts.append(page_texts[pi] if pi < len(page_texts) else "")
+
+        # First page image path as fallback for sparse text
+        first_image = image_paths[page_start] if page_start < len(image_paths) else None
+
+        sonnet_type = await sonnet_classify_chunk(
+            chunk_texts,
+            heuristic_hint=heuristic_hint,
+            image_path=first_image,
+            model_override=model_override
+        )
+
+        chunk["sonnet_doc_type"] = sonnet_type or heuristic_hint
+        chunk["_heuristic_hint"] = heuristic_hint
+
+        if sonnet_type and sonnet_type != heuristic_hint:
+            logger.info(f"Chunk {chunk_idx} (pages {page_start+1}-{page_end+1}): "
+                       f"Sonnet overrode heuristic '{heuristic_hint}' → '{sonnet_type}'")
 
     results = {
         "is_multi_document": True,
@@ -12304,20 +12453,21 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         "documents": []
     }
 
+    # Pass 2: Extract each chunk using Sonnet's classification for prompt routing
     for i, chunk in enumerate(split_result["chunks"]):
         chunk_idx = chunk["chunk_index"]
         page_start = chunk["page_start"]
         page_end = chunk["page_end"]
-        coarse_type = chunk.get("coarse_type", "other")
+        heuristic_hint = chunk.get("_heuristic_hint", chunk.get("coarse_type", "other"))
+        sonnet_type = chunk.get("sonnet_doc_type", "other")
         detected_title = chunk.get("detected_title")
 
         logger.info(f"Stage 2: Extracting document {i+1}/{split_result['document_count']} "
-                   f"(pages {page_start+1}-{page_end+1}, coarse_type: {coarse_type})")
+                   f"(pages {page_start+1}-{page_end+1}, "
+                   f"sonnet_type: {sonnet_type}, heuristic_hint: {heuristic_hint})")
 
-        # Always send chunks to Sonnet for extraction, even if heuristic said "other".
-        # The heuristic only does text-based boundary detection — Sonnet sees the actual images
-        # and will correctly identify document types the heuristic missed.
-        effective_chunk_type = coarse_type if coarse_type not in ("other", "unknown") else None
+        # Use Sonnet's classification for prompt routing (not the heuristic)
+        effective_chunk_type = sonnet_type if sonnet_type not in ("other", "unknown", None) else None
         doc_data = await extract_single_document(
             image_paths,
             page_start + 1,  # Convert to 1-based
@@ -12336,7 +12486,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             for sub_doc in doc_data:
                 sub_doc["_start_page"] = page_start + 1
                 sub_doc["_end_page"] = page_end + 1
-                sub_doc["_coarse_type"] = coarse_type
+                sub_doc["_coarse_type"] = heuristic_hint
+                sub_doc["_sonnet_classification"] = sonnet_type
                 sub_doc["_detected_title"] = detected_title
                 sub_doc["_split_reason"] = "multi_instrument_in_chunk"
                 if chunk.get("attachment_pages"):
@@ -12346,7 +12497,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             # Single result — existing behavior
             doc_data["_start_page"] = page_start + 1
             doc_data["_end_page"] = page_end + 1
-            doc_data["_coarse_type"] = coarse_type
+            doc_data["_coarse_type"] = heuristic_hint
+            doc_data["_sonnet_classification"] = sonnet_type
             doc_data["_detected_title"] = detected_title
             doc_data["_split_reason"] = chunk.get("split_reason")
             if chunk.get("attachment_pages"):
@@ -12364,6 +12516,38 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 ]):
                     logger.warning(f"Chunk {i} may contain multiple deeds but extraction returned single result")
 
+        # SAFETY VALVE: Check if extraction contradicts classification.
+        # If Sonnet's key_takeaway/observations describe a fundamentally different doc type
+        # than what was classified, re-extract with the mega-prompt (no type hint).
+        if not isinstance(doc_data, list):
+            reextract_type = _check_extraction_contradiction(doc_data, sonnet_type)
+            if reextract_type:
+                logger.warning(f"SAFETY VALVE: Chunk {i} classified as '{sonnet_type}' but extraction "
+                             f"describes '{reextract_type}' — re-extracting with mega-prompt")
+                doc_data_retry = await extract_single_document(
+                    image_paths,
+                    page_start + 1,
+                    page_end + 1,
+                    ocr_quality_warning,
+                    ocr_quality.get('max_confidence'),
+                    ocr_quality.get('quality_score'),
+                    ocr_quality.get('is_likely_handwritten', False),
+                    doc_type=None,  # Mega-prompt — no type constraint
+                    model_override=model_override
+                )
+                if not isinstance(doc_data_retry, list):
+                    doc_data_retry["_start_page"] = page_start + 1
+                    doc_data_retry["_end_page"] = page_end + 1
+                    doc_data_retry["_coarse_type"] = heuristic_hint
+                    doc_data_retry["_sonnet_classification"] = sonnet_type
+                    doc_data_retry["_safety_valve_triggered"] = True
+                    doc_data_retry["_safety_valve_reason"] = f"extraction said '{reextract_type}', classified as '{sonnet_type}'"
+                    doc_data_retry["_detected_title"] = detected_title
+                    doc_data_retry["_split_reason"] = chunk.get("split_reason")
+                    # Replace the last appended doc
+                    results["documents"][-1] = doc_data_retry
+                    logger.info(f"Safety valve re-extraction complete: now doc_type='{doc_data_retry.get('doc_type')}'")
+
         # Add delay between documents to avoid rate limits
         if i < len(split_result["chunks"]) - 1:
             logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
@@ -12373,6 +12557,59 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     results["document_count"] = len(results["documents"])
     logger.info(f"Multi-document extraction complete: {results['document_count']} documents extracted")
     return results
+
+
+# Keywords in key_takeaway/observations that signal a different doc type than classified.
+# Format: { classified_type_group: { keyword_pattern: actual_type } }
+_CONTRADICTION_SIGNALS = {
+    "correspondence": [
+        (r"\boil\s+and\s+gas\s+lease\b", "oil_and_gas_lease"),
+        (r"\bmineral\s+deed\b", "mineral_deed"),
+        (r"\broyalty\s+deed\b", "royalty_deed"),
+        (r"\bquit\s*claim\s+deed\b", "quit_claim_deed"),
+        (r"\bdivision\s+order\b", "division_order"),
+        (r"\bpooling\s+order\b", "pooling_order"),
+        (r"\bdrilling\s+and\s+spacing\b", "drilling_and_spacing_order"),
+        (r"\bcheck\s+stub\b", "check_stub"),
+        (r"\bcompletion\s+report\b", "completion_report"),
+        (r"\bassignment\s+of\s+(oil\s+and\s+gas\s+)?lease\b", "assignment_of_lease"),
+    ],
+    "other": [
+        (r"\boil\s+and\s+gas\s+lease\b", "oil_and_gas_lease"),
+        (r"\bmineral\s+deed\b", "mineral_deed"),
+        (r"\bdivision\s+order\b", "division_order"),
+    ],
+}
+
+
+def _check_extraction_contradiction(doc_data: dict, classified_type: str) -> str:
+    """
+    Check if the extraction result's key_takeaway/observations describe a document type
+    that contradicts the classification. Returns the actual type if contradiction found,
+    None otherwise.
+    """
+    if not classified_type:
+        return None
+
+    signals = _CONTRADICTION_SIGNALS.get(classified_type)
+    if not signals:
+        return None
+
+    takeaway = (doc_data.get("key_takeaway") or "").lower()
+    observations = (doc_data.get("ai_observations") or "").lower()
+    combined = takeaway + " " + observations
+
+    for pattern, actual_type in signals:
+        if re.search(pattern, combined):
+            # Make sure the extraction's own doc_type also matches (not just a mention)
+            extracted_type = (doc_data.get("doc_type") or "").lower()
+            if extracted_type == classified_type:
+                # Extraction returned the classified type even though takeaway says otherwise
+                # This is the classic "locked into wrong schema" case
+                logger.info(f"Contradiction found: doc_type='{extracted_type}' but takeaway mentions '{actual_type}'")
+                return actual_type
+
+    return None
 
 
 def calculate_document_confidence(field_scores: dict, doc_type: str = None, extracted_data: dict = None) -> str:

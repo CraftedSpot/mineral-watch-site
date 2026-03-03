@@ -58,6 +58,11 @@
                     document.getElementById('docCountDisplay').style.display = 'flex';
                 }
 
+                // Show Title tab for specific organizations (chain of title beta)
+                if (isTitleChainEnabled()) {
+                    document.getElementById('titleTab').style.display = 'flex';
+                }
+
                 // Show mobile photo upload section only on mobile devices
                 const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
                 if (isMobile) {
@@ -192,6 +197,11 @@
                             await loadWells().catch(() => { wellsInitialized = false; });
                         }
                         loadTools();
+                    }
+
+                    if (currentTab === 'title' && !titleInitialized) {
+                        titleInitialized = true;
+                        loadTitleTab().catch(() => { titleInitialized = false; });
                     }
                 });
             });

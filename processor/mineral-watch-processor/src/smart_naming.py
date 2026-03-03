@@ -2275,6 +2275,7 @@ NAMING_FUNCTIONS = {
     'royalty_deed': name_royalty_deed,
     'lease': name_lease,
     'oil_gas_lease': name_lease,  # v2 schema uses oil_gas_lease doc_type
+    'oil_and_gas_lease': name_lease,  # Sonnet sometimes returns this variant
     'division_order': name_division_order,
     'assignment': name_assignment,
     'pooling_order': name_pooling_order,

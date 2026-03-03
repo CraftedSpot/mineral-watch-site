@@ -202,6 +202,7 @@
 
             <!-- Footer Actions (fixed at bottom) -->
             <div class="card-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; flex-shrink: 0; background: white;">
+                <button class="action-btn primary" id="titleChainBtn" onclick="openTitleChainForProperty(document.getElementById('propertyDetailsId').value)" style="background: linear-gradient(135deg, #1e3a5f, #0f172a); flex: 1; display: none;">Title Chain</button>
                 <button class="action-btn primary" onclick="openRevenueModal('property')" style="background: var(--red-dirt); flex: 1;">Estimate Revenue</button>
                 <button class="action-btn primary" id="propertyDetailsMWMapBtn" onclick="viewPropertyOnMapFromModal()" style="background: var(--red-dirt); flex: 1;">MW Map ↗</button>
                 <button type="button" class="action-btn primary" id="propertyDetailsMapLink" style="background: var(--red-dirt); flex: 1; display: none;">OCC Map ↗</button>
