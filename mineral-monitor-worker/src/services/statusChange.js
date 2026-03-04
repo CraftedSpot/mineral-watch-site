@@ -187,32 +187,7 @@ export async function checkWellStatusChange(api10, currentData, env) {
       }
       
       // Update well record with new status (only once, after all users notified)
-      if (await isAirtableKilled(env.MINERAL_CACHE)) {
-        console.log(`[AirtableKillSwitch] Airtable write skipped: status change ${well.id} → ${currentStatus}`);
-      } else {
-        const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-        const updateResponse = await fetch(updateUrl, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fields: {
-              'Well Status': currentStatus,
-              'Last Status Check': new Date().toISOString(),
-              'Status Last Changed': new Date().toISOString()
-            }
-          })
-        });
-
-        if (!updateResponse.ok) {
-          console.error(`[Status Change] Failed to update well status in Airtable`);
-          result.errors.push('Failed to update well record');
-        }
-      }
-
-      // D1 dual-write (non-fatal)
+      // D1 is primary — write here first
       try {
         if (env.WELLS_DB) {
           await env.WELLS_DB.prepare(`
@@ -220,9 +195,11 @@ export async function checkWellStatusChange(api10, currentData, env) {
               status_last_changed = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
             WHERE airtable_id = ?
           `).bind(currentStatus, well.id).run();
+          console.log(`[Status Change] D1 updated: ${well.id} → ${currentStatus}`);
         }
       } catch (d1Err) {
         console.error(`[Status Change D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+        result.errors.push(`D1 write failed: ${d1Err.message}`);
         // Increment KV failure counter for monitoring
         try {
           if (env.MINERAL_CACHE) {
@@ -233,6 +210,34 @@ export async function checkWellStatusChange(api10, currentData, env) {
           }
         } catch (kvErr) {
           console.error(`[Status Change] Failed to increment failure counter: ${kvErr.message}`);
+        }
+      }
+
+      // Airtable mirror write (fire-and-forget, kill-switch protected)
+      if (await isAirtableKilled(env.MINERAL_CACHE)) {
+        console.log(`[AirtableKillSwitch] Airtable write skipped: status change ${well.id} → ${currentStatus}`);
+      } else {
+        try {
+          const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+          const updateResponse = await fetch(updateUrl, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: {
+                'Well Status': currentStatus,
+                'Last Status Check': new Date().toISOString(),
+                'Status Last Changed': new Date().toISOString()
+              }
+            })
+          });
+          if (!updateResponse.ok) {
+            console.error(`[Status Change] Airtable mirror write failed (non-fatal): ${updateResponse.status}`);
+          }
+        } catch (atErr) {
+          console.error(`[Status Change] Airtable mirror write error (non-fatal): ${atErr.message}`);
         }
       }
     }

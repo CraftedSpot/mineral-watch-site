@@ -366,21 +366,8 @@ export async function checkAllWellStatuses(env, options = {}) {
           // Check user preferences before sending status change alert
           if (!userWantsAlert(user, 'Status Change')) {
             console.log(`[RBDMS] Skipped status change alert for ${user.fields.Email} - user disabled status change alerts`);
-            // Still update the Airtable record but don't create activity or send email
-            if (await isAirtableKilled(env.MINERAL_CACHE)) {
-              console.log(`[AirtableKillSwitch] Airtable write skipped: silent RBDMS status ${well.id}`);
-            } else {
-              const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-              await fetch(updateUrl, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ fields: { 'Well Status': rbdmsStatus } })
-              });
-            }
-            // D1 dual-write (non-fatal)
+            // Still update the status but don't create activity or send email
+            // D1 is primary
             try {
               if (env.WELLS_DB) {
                 await env.WELLS_DB.prepare(`
@@ -391,6 +378,24 @@ export async function checkAllWellStatuses(env, options = {}) {
             } catch (d1Err) {
               console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
               await incrementD1WriteFailureCounter(env);
+            }
+            // Airtable mirror (fire-and-forget)
+            if (await isAirtableKilled(env.MINERAL_CACHE)) {
+              console.log(`[AirtableKillSwitch] Airtable write skipped: silent RBDMS status ${well.id}`);
+            } else {
+              try {
+                const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+                await fetch(updateUrl, {
+                  method: 'PATCH',
+                  headers: {
+                    'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+                    'Content-Type': 'application/json'
+                  },
+                  body: JSON.stringify({ fields: { 'Well Status': rbdmsStatus } })
+                });
+              } catch (atErr) {
+                console.error(`[RBDMS] Airtable mirror write error (non-fatal): ${atErr.message}`);
+              }
             }
             results.alertsSkipped = (results.alertsSkipped || 0) + 1;
             continue;
@@ -460,36 +465,7 @@ export async function checkAllWellStatuses(env, options = {}) {
           }
           
           // Update well record with RBDMS status (source of truth)
-          if (await isAirtableKilled(env.MINERAL_CACHE)) {
-            console.log(`[AirtableKillSwitch] Airtable write skipped: RBDMS status ${well.id} ${airtableStatus} → ${rbdmsStatus}`);
-          } else {
-            const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-            const updateResponse = await fetch(updateUrl, {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                fields: {
-                  'Well Status': rbdmsStatus,
-                  'Last Status Check': new Date().toISOString(),
-                  'Status Last Changed': new Date().toISOString(),
-                  'Last RBDMS Sync': new Date().toISOString()
-                }
-              })
-            });
-
-            if (!updateResponse.ok) {
-              const errorText = await updateResponse.text();
-              console.error(`[RBDMS] Failed to update well status in Airtable: ${errorText}`);
-              results.errors.push('Failed to update well record');
-            } else {
-              console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
-            }
-          }
-
-          // D1 dual-write (non-fatal)
+          // D1 is primary
           try {
             if (env.WELLS_DB) {
               await env.WELLS_DB.prepare(`
@@ -498,10 +474,41 @@ export async function checkAllWellStatuses(env, options = {}) {
                   updated_at = CURRENT_TIMESTAMP
                 WHERE airtable_id = ?
               `).bind(rbdmsStatus, well.id).run();
+              console.log(`[RBDMS] D1 updated: ${api} ${airtableStatus} → ${rbdmsStatus}`);
             }
           } catch (d1Err) {
             console.error(`[RBDMS D1-WRITE-FAIL] ${well.id}: ${d1Err.message}`);
+            results.errors.push(`D1 write failed for ${api}: ${d1Err.message}`);
             await incrementD1WriteFailureCounter(env);
+          }
+
+          // Airtable mirror (fire-and-forget)
+          if (await isAirtableKilled(env.MINERAL_CACHE)) {
+            console.log(`[AirtableKillSwitch] Airtable write skipped: RBDMS status ${well.id} ${airtableStatus} → ${rbdmsStatus}`);
+          } else {
+            try {
+              const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+              const updateResponse = await fetch(updateUrl, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  fields: {
+                    'Well Status': rbdmsStatus,
+                    'Last Status Check': new Date().toISOString(),
+                    'Status Last Changed': new Date().toISOString(),
+                    'Last RBDMS Sync': new Date().toISOString()
+                  }
+                })
+              });
+              if (!updateResponse.ok) {
+                console.error(`[RBDMS] Airtable mirror write failed (non-fatal): ${updateResponse.status}`);
+              }
+            } catch (atErr) {
+              console.error(`[RBDMS] Airtable mirror write error (non-fatal): ${atErr.message}`);
+            }
           }
           
         } catch (err) {

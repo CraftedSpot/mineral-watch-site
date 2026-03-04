@@ -106,6 +106,40 @@
         </div>
     </div>
 
+    <!-- Duplicate Comparison Modal -->
+    <div id="dupCompareModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000010; flex-direction: column;" role="dialog" aria-modal="true">
+        <!-- Header -->
+        <div style="background: #1C2B36; color: white; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600;">Duplicate Document Comparison</h2>
+            <button onclick="closeDupCompare()" style="background: none; border: none; color: white; font-size: 24px; cursor: pointer; padding: 4px;">&times;</button>
+        </div>
+        <!-- Action bar -->
+        <div id="dupActionBar" style="background: #FFFBEB; border-bottom: 1px solid #FDE68A; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <span id="dupMatchDesc" style="font-size: 13px; color: #92400E; flex: 1;"></span>
+            <div style="display: flex; gap: 8px;">
+                <button onclick="confirmDuplicate()" style="padding: 8px 16px; background: #DC2626; color: white; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Confirm Duplicate</button>
+                <button onclick="dismissDuplicate()" style="padding: 8px 16px; background: white; color: #374151; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Not a Duplicate</button>
+            </div>
+        </div>
+        <!-- Side-by-side panes -->
+        <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: #374151; overflow: hidden;">
+            <div style="display: flex; flex-direction: column; background: white;">
+                <div style="background: #065F46; color: white; padding: 8px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 11px;">KEEPER</span>
+                    <span id="dupKeeperName" style="font-weight: 400; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                </div>
+                <div id="dupKeeperPane" style="flex: 1; overflow: hidden; background: #525659; position: relative;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; background: white;">
+                <div style="background: #991B1B; color: white; padding: 8px 16px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                    <span style="background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 4px; font-size: 11px;">CANDIDATE</span>
+                    <span id="dupCandidateName" style="font-weight: 400; opacity: 0.9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;"></span>
+                </div>
+                <div id="dupCandidatePane" style="flex: 1; overflow: hidden; background: #525659; position: relative;"></div>
+            </div>
+        </div>
+    </div>
+
     <script>
 /* __SHARED_AUTH__ */
 /* __SHARED_UTILS__ */

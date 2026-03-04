@@ -39,6 +39,10 @@ def extract_last_name(full_name: str) -> str:
     if not full_name:
         return ""
 
+    # Handle dict objects (e.g. {'name': 'Some Company'}) that leak from extraction
+    if isinstance(full_name, dict):
+        full_name = full_name.get('name', '') or ''
+
     name = str(full_name).strip()
 
     # Clean up stray parentheses and brackets that might come from extraction

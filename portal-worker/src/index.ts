@@ -47,6 +47,8 @@ import {
   titleHtml
 } from './templates/index.js';
 
+import titleReactHtml from './templates/title-react-app.html';
+
 import {
   getUserByIdD1First,
   fetchAllAirtableRecords,
@@ -414,6 +416,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return servePage(operatorsHtml, request, env);
       }
       if (path === "/portal/title" || path === "/portal/title/") {
+        return servePage(titleReactHtml, request, env);
+      }
+      if (path === "/portal/title-legacy" || path === "/portal/title-legacy/") {
         return servePage(titleHtml, request, env);
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
@@ -976,6 +981,17 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           console.error('Marketing proxy error:', error);
           return jsonResponse({ error: 'Marketing service temporarily unavailable' }, 503);
         }
+      }
+
+      // Duplicate document review endpoints (handled by portal-worker, NOT proxied)
+      if (path === "/api/documents/duplicate-review-batch" && request.method === "POST") {
+        const { handleDuplicateReviewBatch } = await import('./handlers/document-duplicates.js');
+        return handleDuplicateReviewBatch(request, env);
+      }
+      const dupReviewMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/duplicate-review$/);
+      if (dupReviewMatch && request.method === "POST") {
+        const { handleDuplicateReview } = await import('./handlers/document-duplicates.js');
+        return handleDuplicateReview(dupReviewMatch[1], request, env);
       }
 
       // Proxy documents endpoints to documents-worker
@@ -1811,6 +1827,19 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (titleChainMatch && request.method === "GET") {
         const { handleGetTitleChain } = await import('./handlers/title-chain.js');
         return handleGetTitleChain(titleChainMatch[1], request, env);
+      }
+
+      // Chain edges — manual link/unlink + debug read
+      const chainEdgesMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/chain-edges$/);
+      if (chainEdgesMatch) {
+        if (request.method === "POST") {
+          const { handleManageChainEdge } = await import('./handlers/chain-edges.js');
+          return handleManageChainEdge(chainEdgesMatch[1], request, env);
+        }
+        if (request.method === "GET") {
+          const { handleGetChainEdges } = await import('./handlers/chain-edges.js');
+          return handleGetChainEdges(chainEdgesMatch[1], request, env);
+        }
       }
 
       // Well linked properties endpoint (using D1 with fallback)

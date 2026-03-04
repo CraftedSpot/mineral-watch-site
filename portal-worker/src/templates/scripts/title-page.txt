@@ -108,11 +108,10 @@ var TITLE_ARROW_TYPES = {
   trust_funding: ['grantor', 'grantee']
 };
 
-// Format property label in TRS format: County — Township-Range-Section
+// Format property label in TRS format: County — 19N-25W-09
 function formatPropertyLabel(p) {
-  var sec = (p.section || '?').replace(/^0+/, '') || '0';
-  if (sec.length === 1) sec = '0' + sec;
-  return (p.county || '?') + ' — ' + (p.township || '?') + '-' + (p.range || '?') + '-' + sec;
+  var trs = formatTRS(p.township, p.range, p.section);
+  return (p.county || '?') + ' — ' + trs;
 }
 
 // ─── Page Init ───
@@ -210,11 +209,17 @@ function renderPropertySelector(unlinkedCount) {
 function renderTitlePropertyList(filter) {
   var list = document.getElementById('titlePropertyList');
   if (!list) return;
-  var lower = filter.toLowerCase();
+  var lower = filter.toLowerCase().trim();
   var filtered = titleProperties.filter(function(p) {
     if (!lower) return true;
-    var label = (p.county || '') + ' ' + (p.section || '') + ' ' + (p.township || '') + ' ' + (p.range || '');
-    return label.toLowerCase().indexOf(lower) >= 0;
+    var trs = formatTRS(p.township, p.range, p.section).toLowerCase();
+    var county = (p.county || '').toLowerCase();
+    var full = county + ' ' + trs;
+    // Strip leading zeros from search term for flexible matching (9 matches 09)
+    var stripped = lower.replace(/\b0+(\d)/g, '$1');
+    var trsStripped = trs.replace(/\b0+(\d)/g, '$1');
+    return full.indexOf(lower) >= 0 || full.indexOf(stripped) >= 0
+      || trs.indexOf(lower) >= 0 || trsStripped.indexOf(stripped) >= 0;
   });
 
   list.innerHTML = filtered.map(function(p) {
@@ -339,7 +344,42 @@ function renderTitleTimeline(data) {
     return;
   }
 
-  var html = '<div class="title-timeline">';
+  // Duplicate review banner
+  var pendingDups = data.pendingDuplicates || [];
+  var html = '';
+  if (pendingDups.length > 0) {
+    html += '<div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;">';
+    html += '<div style="display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="toggleAccordion(\'dupReviewList\',\'dupReviewArrow\')">';
+    html += '<div style="display: flex; align-items: center; gap: 8px;">';
+    html += '<span style="background: #F59E0B; color: white; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px;">' + pendingDups.length + '</span>';
+    html += '<span style="font-size: 13px; color: #92400E; font-weight: 600;">possible duplicate' + (pendingDups.length > 1 ? 's' : '') + ' detected &mdash; review before analysis</span>';
+    html += '</div>';
+    html += '<div style="display: flex; align-items: center; gap: 8px;">';
+    html += '<button onclick="event.stopPropagation(); confirmAllDuplicates()" style="padding: 5px 12px; background: #DC2626; color: white; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer;">Confirm All</button>';
+    html += '<span id="dupReviewArrow" style="font-size: 14px; color: #92400E; transition: transform 0.2s;">&#9654;</span>';
+    html += '</div>';
+    html += '</div>';
+    html += '<div id="dupReviewList" style="display: none; margin-top: 10px; border-top: 1px solid #FDE68A; padding-top: 10px;">';
+    pendingDups.forEach(function(dup) {
+      var typeLabel = TITLE_TYPE_LABELS[dup.docType] || (dup.docType || '').replace(/_/g, ' ');
+      var typeColor = TITLE_TYPE_COLORS[dup.docType] || '#374151';
+      var matchBadge = (dup.matchType === 'instrument_number' || dup.matchType === 'book_page')
+        ? '<span style="background: #DBEAFE; color: #1D4ED8; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 600;">exact</span>'
+        : '<span style="background: #FEF3C7; color: #92400E; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 600;">~match</span>';
+      var safeName = (dup.displayName || 'Untitled').replace(/'/g, "\\'");
+      var safeKeeperName = (dup.keeperName || 'Unknown').replace(/'/g, "\\'");
+      html += '<div style="display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 13px;">';
+      html += '<span style="background:' + typeColor + '; color: white; font-size: 10px; padding: 2px 8px; border-radius: 8px;">' + escapeHtml(typeLabel) + '</span>';
+      html += '<span style="color: #374151;">' + escapeHtml(dup.displayName || 'Untitled') + '</span>';
+      html += matchBadge;
+      html += '<span style="color: #6B7280; font-size: 12px;">keeper: ' + escapeHtml(dup.keeperName || 'Unknown') + '</span>';
+      html += '<button onclick="event.stopPropagation(); openDupCompare(\'' + dup.id + '\', \'' + (dup.duplicateOfDocId || '') + '\', \'' + (dup.matchType || '') + '\', \'' + safeName + '\', \'' + safeKeeperName + '\')" style="margin-left: auto; padding: 4px 10px; background: white; border: 1px solid #D1D5DB; border-radius: 5px; font-size: 12px; cursor: pointer; color: #374151; white-space: nowrap;">Compare Side by Side</button>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+  }
+
+  html += '<div class="title-timeline">';
   var lastYear = null;
 
   docs.forEach(function(doc) {
@@ -364,6 +404,12 @@ function renderTitleTimeline(data) {
     html += '<span class="title-type-badge" style="background:' + color + '">' + escapeHtml(label) + '</span>';
     if (dateStr) html += '<span class="title-card-date">' + dateStr + '</span>';
     html += '</div>';
+
+    // Display name (title line)
+    var displayName = doc.displayName || '';
+    if (displayName && displayName !== label) {
+      html += '<div style="font-size: 13px; font-weight: 600; color: #1F2937; margin: 4px 0 2px; line-height: 1.3;">' + escapeHtml(displayName) + '</div>';
+    }
 
     // Parties
     html += renderTitleParties(doc);
@@ -499,4 +545,119 @@ function renderTitleUnlinkedDocs(docs) {
       (dateStr ? ' &middot; ' + dateStr : '') +
       '</div>';
   }).join('');
+}
+
+// ─── Duplicate Comparison Modal ───
+var _dupBlobUrls = [];
+var _dupCurrentCandidateId = null;
+
+function openDupCompare(candidateId, keeperId, matchType, candidateName, keeperName) {
+  _dupCurrentCandidateId = candidateId;
+  var modal = document.getElementById('dupCompareModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  // Set header names
+  document.getElementById('dupKeeperName').textContent = keeperName || 'Keeper';
+  document.getElementById('dupCandidateName').textContent = candidateName || 'Candidate';
+
+  // Match description
+  var desc = 'These documents ';
+  if (matchType === 'instrument_number') desc += 'share the same instrument number and county.';
+  else if (matchType === 'book_page') desc += 'share the same book and page in the same county.';
+  else desc += 'have matching parties, date, and legal description.';
+  document.getElementById('dupMatchDesc').textContent = desc;
+
+  // Load PDFs
+  _loadDupPane(keeperId, 'dupKeeperPane');
+  _loadDupPane(candidateId, 'dupCandidatePane');
+}
+
+function _loadDupPane(docId, containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: white; font-size: 14px;">Loading PDF...</div>';
+
+  fetch('/api/documents/' + docId + '/download?view=true', { credentials: 'include' })
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('Failed to fetch PDF');
+      return resp.blob();
+    })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      _dupBlobUrls.push(url);
+      container.innerHTML = '<iframe src="' + url + '#view=FitH" style="width: 100%; height: 100%; border: none;"></iframe>';
+    })
+    .catch(function(err) {
+      container.innerHTML = '<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #FCA5A5; font-size: 14px;">Failed to load PDF</div>';
+      console.error('[DupCompare] Load error:', err);
+    });
+}
+
+function confirmDuplicate() {
+  if (!_dupCurrentCandidateId) return;
+  fetch('/api/documents/' + _dupCurrentCandidateId + '/duplicate-review', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'confirm' })
+  }).then(function(resp) {
+    if (!resp.ok) throw new Error('Failed');
+    closeDupCompare();
+    selectTitleProperty(titleSelectedPropertyId);
+  }).catch(function(err) {
+    alert('Failed to confirm duplicate. Please try again.');
+    console.error('[DupCompare] Confirm error:', err);
+  });
+}
+
+function dismissDuplicate() {
+  if (!_dupCurrentCandidateId) return;
+  fetch('/api/documents/' + _dupCurrentCandidateId + '/duplicate-review', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'dismiss' })
+  }).then(function(resp) {
+    if (!resp.ok) throw new Error('Failed');
+    closeDupCompare();
+    selectTitleProperty(titleSelectedPropertyId);
+  }).catch(function(err) {
+    alert('Failed to dismiss duplicate. Please try again.');
+    console.error('[DupCompare] Dismiss error:', err);
+  });
+}
+
+function closeDupCompare() {
+  var modal = document.getElementById('dupCompareModal');
+  if (modal) modal.style.display = 'none';
+  // Clean up blob URLs
+  _dupBlobUrls.forEach(function(url) { try { URL.revokeObjectURL(url); } catch(e) {} });
+  _dupBlobUrls = [];
+  _dupCurrentCandidateId = null;
+  // Clear panes
+  var k = document.getElementById('dupKeeperPane');
+  var c = document.getElementById('dupCandidatePane');
+  if (k) k.innerHTML = '';
+  if (c) c.innerHTML = '';
+}
+
+function confirmAllDuplicates() {
+  var dups = (titleChainData && titleChainData.pendingDuplicates) || [];
+  if (dups.length === 0) return;
+  if (!confirm('Confirm all ' + dups.length + ' document' + (dups.length > 1 ? 's' : '') + ' as duplicates? They will be hidden from the title chain.')) return;
+
+  var ids = dups.map(function(d) { return d.id; });
+  fetch('/api/documents/duplicate-review-batch', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'confirm', document_ids: ids })
+  }).then(function(resp) {
+    if (!resp.ok) throw new Error('Failed');
+    selectTitleProperty(titleSelectedPropertyId);
+  }).catch(function(err) {
+    alert('Failed to confirm duplicates. Please try again.');
+    console.error('[DupCompare] Batch confirm error:', err);
+  });
 }

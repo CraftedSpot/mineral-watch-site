@@ -3,7 +3,8 @@ import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
 import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
-import { persistParties, extractSummary } from './services/party-extraction';
+import { persistParties, extractSummary, normalizePartyName } from './services/party-extraction';
+import { buildChainEdges } from './services/chain-edge-builder';
 import { PDFDocument } from 'pdf-lib';
 import { AwsClient } from 'aws4fetch';
 
@@ -155,6 +156,201 @@ function postProcessExtractedData(extractedData: any): any {
   }
 
   return extractedData;
+}
+
+/**
+ * Post-extraction duplicate detection.
+ * Called after extraction completes for chain-of-title docs.
+ * Flags the document as a potential duplicate if another doc with matching
+ * recording info (Tier 1) or party+date+TRS (Tier 2) already exists.
+ */
+async function detectDuplicate(db: D1Database, docId: string): Promise<{ matched: boolean; matchType?: string; keeperId?: string }> {
+  // Get current document's info
+  const doc = await db.prepare(`
+    SELECT id, user_id, organization_id, doc_type, county, section, township, range,
+           confidence, upload_date, extracted_data, chain_of_title, duplicate_status
+    FROM documents WHERE id = ? AND deleted_at IS NULL
+  `).bind(docId).first<any>();
+
+  if (!doc || doc.chain_of_title !== 1 || doc.duplicate_status) {
+    return { matched: false };
+  }
+
+  let extractedData: any;
+  try {
+    extractedData = typeof doc.extracted_data === 'string' ? JSON.parse(doc.extracted_data) : doc.extracted_data;
+  } catch { return { matched: false }; }
+
+  if (!extractedData) return { matched: false };
+
+  // Build ownership filter: same user OR same org
+  const ownerConds: string[] = [];
+  const ownerParams: any[] = [];
+  if (doc.user_id) {
+    ownerConds.push('d.user_id = ?');
+    ownerParams.push(doc.user_id);
+  }
+  if (doc.organization_id) {
+    ownerConds.push('d.organization_id = ?');
+    ownerParams.push(doc.organization_id);
+  }
+  if (ownerConds.length === 0) return { matched: false };
+  const ownerFilter = `(${ownerConds.join(' OR ')})`;
+
+  // === Tier 1: Recording Info Match ===
+  const ri = extractedData.recording_info || extractedData.recording || {};
+  const instrumentNumber = ri.instrument_number || extractedData.instrument_number;
+  const book = ri.book;
+  const page = ri.page;
+  const recordingDate = ri.recording_date;
+  const recordingYear = recordingDate ? String(recordingDate).substring(0, 4) : null;
+
+  // Tier 1a: Same county + instrument_number + recording year
+  if (instrumentNumber && doc.county && recordingYear) {
+    const match = await db.prepare(`
+      SELECT d.id, d.confidence, d.upload_date, d.extracted_data
+      FROM documents d
+      WHERE d.id != ?
+        AND ${ownerFilter}
+        AND d.county = ?
+        AND d.chain_of_title = 1
+        AND d.status = 'complete'
+        AND d.deleted_at IS NULL
+        AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+        AND (
+          json_extract(d.extracted_data, '$.recording_info.instrument_number') = ?
+          OR json_extract(d.extracted_data, '$.recording.instrument_number') = ?
+          OR json_extract(d.extracted_data, '$.instrument_number') = ?
+        )
+        AND SUBSTR(COALESCE(
+          json_extract(d.extracted_data, '$.recording_info.recording_date'),
+          json_extract(d.extracted_data, '$.recording.recording_date')
+        ), 1, 4) = ?
+      LIMIT 1
+    `).bind(docId, ...ownerParams, doc.county, instrumentNumber, instrumentNumber, instrumentNumber, recordingYear).first<any>();
+
+    if (match) {
+      const keeperId = selectKeeper(doc, match);
+      const candidateId = keeperId === doc.id ? match.id : doc.id;
+      await flagDuplicate(db, candidateId, keeperId, 'instrument_number');
+      console.log(`[DuplicateDetection] Instrument# match: ${candidateId} is dup of ${keeperId}`);
+      return { matched: true, matchType: 'instrument_number', keeperId };
+    }
+  }
+
+  // Tier 1b: Same county + book + page
+  if (book && page && doc.county) {
+    const match = await db.prepare(`
+      SELECT d.id, d.confidence, d.upload_date, d.extracted_data
+      FROM documents d
+      WHERE d.id != ?
+        AND ${ownerFilter}
+        AND d.county = ?
+        AND d.chain_of_title = 1
+        AND d.status = 'complete'
+        AND d.deleted_at IS NULL
+        AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+        AND (
+          (json_extract(d.extracted_data, '$.recording_info.book') = ? AND json_extract(d.extracted_data, '$.recording_info.page') = ?)
+          OR (json_extract(d.extracted_data, '$.recording.book') = ? AND json_extract(d.extracted_data, '$.recording.page') = ?)
+        )
+      LIMIT 1
+    `).bind(docId, ...ownerParams, doc.county, book, page, book, page).first<any>();
+
+    if (match) {
+      const keeperId = selectKeeper(doc, match);
+      const candidateId = keeperId === doc.id ? match.id : doc.id;
+      await flagDuplicate(db, candidateId, keeperId, 'book_page');
+      console.log(`[DuplicateDetection] Book/page match: ${candidateId} is dup of ${keeperId}`);
+      return { matched: true, matchType: 'book_page', keeperId };
+    }
+  }
+
+  // === Tier 2: Party + Date + TRS fallback ===
+  const executionDate = extractedData.execution_date;
+  if (doc.doc_type && doc.county && executionDate && doc.section && doc.township && doc.range) {
+    // Find candidate docs with same type, county, execution_date, and TRS
+    const candidates = await db.prepare(`
+      SELECT d.id, d.confidence, d.upload_date, d.extracted_data
+      FROM documents d
+      WHERE d.id != ?
+        AND ${ownerFilter}
+        AND d.doc_type = ?
+        AND d.county = ?
+        AND d.section = ?
+        AND d.township = ?
+        AND d.range = ?
+        AND d.chain_of_title = 1
+        AND d.status = 'complete'
+        AND d.deleted_at IS NULL
+        AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+        AND json_extract(d.extracted_data, '$.execution_date') = ?
+      LIMIT 10
+    `).bind(docId, ...ownerParams, doc.doc_type, doc.county, doc.section, doc.township, doc.range, executionDate).all<any>();
+
+    if (candidates.results && candidates.results.length > 0) {
+      // Get current doc's parties
+      const currentParties = await db.prepare(
+        `SELECT party_name_normalized FROM document_parties WHERE document_id = ?`
+      ).bind(docId).all<any>();
+      const currentNames = new Set((currentParties.results || []).map((p: any) => p.party_name_normalized));
+
+      if (currentNames.size > 0) {
+        for (const candidate of candidates.results) {
+          // Check for overlapping party
+          const candParties = await db.prepare(
+            `SELECT party_name_normalized FROM document_parties WHERE document_id = ?`
+          ).bind(candidate.id).all<any>();
+          const hasOverlap = (candParties.results || []).some((p: any) => currentNames.has(p.party_name_normalized));
+
+          if (hasOverlap) {
+            const keeperId = selectKeeper(doc, candidate);
+            const candidateId = keeperId === doc.id ? candidate.id : doc.id;
+            await flagDuplicate(db, candidateId, keeperId, 'party_date');
+            console.log(`[DuplicateDetection] Party+date+TRS match: ${candidateId} is dup of ${keeperId}`);
+            return { matched: true, matchType: 'party_date', keeperId };
+          }
+        }
+      }
+    }
+  }
+
+  return { matched: false };
+}
+
+/** Count non-null top-level fields in extracted_data for extraction completeness scoring */
+function countExtractedFields(extractedDataStr: string | null): number {
+  if (!extractedDataStr) return 0;
+  try {
+    const data = typeof extractedDataStr === 'string' ? JSON.parse(extractedDataStr) : extractedDataStr;
+    return Object.values(data).filter(v => v != null && v !== '' && v !== false).length;
+  } catch { return 0; }
+}
+
+/** Select which doc to keep: higher confidence, then more extracted fields, then earlier upload */
+function selectKeeper(docA: any, docB: any): string {
+  const confA = docA.confidence ?? 0;
+  const confB = docB.confidence ?? 0;
+  if (confA !== confB) return confA >= confB ? docA.id : docB.id;
+
+  const fieldsA = countExtractedFields(docA.extracted_data);
+  const fieldsB = countExtractedFields(docB.extracted_data);
+  if (fieldsA !== fieldsB) return fieldsA >= fieldsB ? docA.id : docB.id;
+
+  // Earlier upload wins
+  return (docA.upload_date || '') <= (docB.upload_date || '') ? docA.id : docB.id;
+}
+
+/** Flag a document as a pending duplicate */
+async function flagDuplicate(db: D1Database, candidateId: string, keeperId: string, matchType: string): Promise<void> {
+  await db.prepare(`
+    UPDATE documents
+    SET duplicate_of_doc_id = ?,
+        duplicate_status = 'pending_review',
+        duplicate_match_type = ?,
+        duplicate_detected_at = ?
+    WHERE id = ?
+  `).bind(keeperId, matchType, new Date().toISOString(), candidateId).run();
 }
 
 /**
@@ -552,7 +748,11 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'source_metadata', type: 'TEXT' },  // JSON: { type, api, url, uploadedAt }
     { name: 'user_email', type: 'TEXT' },
     { name: 'user_name', type: 'TEXT' },
-    { name: 'prescan_result', type: 'TEXT' }
+    { name: 'prescan_result', type: 'TEXT' },
+    { name: 'duplicate_of_doc_id', type: 'TEXT' },
+    { name: 'duplicate_status', type: 'TEXT' },
+    { name: 'duplicate_match_type', type: 'TEXT' },
+    { name: 'duplicate_detected_at', type: 'TEXT' }
   ];
 
   for (const column of columnsToAdd) {
@@ -2530,6 +2730,18 @@ export default {
               }
             }
 
+            // Post-extraction duplicate detection (non-fatal)
+            if (extracted_data && effectiveStatus !== 'failed' && effectiveStatus !== 'unprocessed' && !extracted_data?.skip_extraction) {
+              try {
+                const dupResult = await detectDuplicate(env.WELLS_DB, docId);
+                if (dupResult.matched) {
+                  console.log(`[DuplicateDetection] Document ${docId} flagged as ${dupResult.matchType} duplicate of ${dupResult.keeperId}`);
+                }
+              } catch (dupErr) {
+                console.error(`[DuplicateDetection] Non-fatal error for ${docId}:`, dupErr);
+              }
+            }
+
             // After successful update, attempt to link document to properties/wells
             console.log('[DEBUG] Checking if should link - extracted_data exists:', !!extracted_data, 'effectiveStatus:', effectiveStatus, 'skip_extraction:', extracted_data?.skip_extraction);
             console.log('[DEBUG] extracted_data type:', typeof extracted_data);
@@ -3075,6 +3287,24 @@ export default {
                     }
                   } catch (jibWriteBackError) {
                     console.error('[JIB Write-Back] Error:', jibWriteBackError);
+                  }
+                }
+
+                // Invalidate chain tree cache when a chain-of-title doc is linked to a property
+                if (chainOfTitle && linkResult.propertyId) {
+                  try {
+                    // Property ID may be comma-separated — invalidate for each
+                    const propIds = linkResult.propertyId.split(',').map((p: string) => p.trim()).filter(Boolean);
+                    for (const pid of propIds) {
+                      await env.WELLS_DB.prepare(
+                        `UPDATE chain_tree_cache SET invalidated_at = datetime('now') WHERE property_id = ?`
+                      ).bind(pid).run();
+                    }
+                    if (propIds.length > 0) {
+                      console.log(`[ChainEdges] Cache invalidated for ${propIds.length} property(s): ${propIds.join(', ')}`);
+                    }
+                  } catch (cacheErr) {
+                    console.error('[ChainEdges] Cache invalidation error:', cacheErr);
                   }
                 }
               } catch (linkError) {
@@ -5522,6 +5752,82 @@ export default {
       } catch (error) {
         console.error('[Pooling Reextract] Error:', error);
         return errorResponse('Failed to reextract', 500, env);
+      }
+    }
+
+    // ─── Chain-of-Title Edge Building ────────────────────────────────
+    // Internal endpoint: called by portal-worker via service binding
+    if (path === '/api/internal/build-chain-edges' && request.method === 'POST') {
+      try {
+        const body = await request.json() as { property_id?: string };
+        if (!body.property_id) {
+          return errorResponse('property_id required', 400, env);
+        }
+        const result = await buildChainEdges(env.WELLS_DB, body.property_id);
+        return jsonResponse({
+          success: true,
+          edges_created: result.edgesCreated,
+          owners_found: result.ownersFound,
+          orphan_count: result.orphanCount,
+          duration_ms: result.duration,
+        }, 200, env);
+      } catch (error) {
+        console.error('[ChainEdges] Internal build error:', error);
+        return errorResponse('Failed to build chain edges', 500, env);
+      }
+    }
+
+    // Admin endpoint: backfill all properties
+    if (path === '/api/admin/build-all-chain-edges' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        // Get all distinct property IDs from chain-of-title docs
+        const propsResult = await env.WELLS_DB.prepare(`
+          SELECT DISTINCT property_id FROM documents
+          WHERE chain_of_title = 1
+            AND status = 'complete'
+            AND (deleted_at IS NULL OR deleted_at = '')
+            AND property_id IS NOT NULL AND property_id != ''
+        `).all();
+
+        // Flatten: property_id can be comma-separated
+        const allPropIds = new Set<string>();
+        for (const row of (propsResult.results || []) as any[]) {
+          const parts = String(row.property_id).split(',').map((p: string) => p.trim()).filter(Boolean);
+          for (const p of parts) allPropIds.add(p);
+        }
+
+        let totalEdges = 0;
+        let totalOwners = 0;
+        let processed = 0;
+        const errors: string[] = [];
+
+        for (const propId of allPropIds) {
+          try {
+            const result = await buildChainEdges(env.WELLS_DB, propId);
+            totalEdges += result.edgesCreated;
+            totalOwners += result.ownersFound;
+            processed++;
+          } catch (err) {
+            errors.push(`${propId}: ${(err as Error).message}`);
+          }
+        }
+
+        return jsonResponse({
+          success: true,
+          properties_processed: processed,
+          properties_total: allPropIds.size,
+          edges_created: totalEdges,
+          owners_found: totalOwners,
+          errors: errors.length > 0 ? errors : undefined,
+        }, 200, env);
+      } catch (error) {
+        console.error('[ChainEdges] Backfill error:', error);
+        return errorResponse('Failed to backfill chain edges', 500, env);
       }
     }
 

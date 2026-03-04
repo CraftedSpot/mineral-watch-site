@@ -55,12 +55,44 @@ function normalizePlanForD1(plan) {
 }
 
 /**
- * Fire-and-forget D1 upsert for user record.
- * Uses ON CONFLICT to update if user already exists.
- * Never throws — logs errors only. The 15-min sync is the safety net.
+ * Dead-letter write — stores failed D1 operations in KV for visibility.
+ * TTL: 7 days. Key format: stripe-dead-letter:{timestamp}:{type}
+ */
+async function deadLetterWrite(env, type, data) {
+  try {
+    if (!env.WEBHOOK_KV) return;
+    const key = `stripe-dead-letter:${Date.now()}:${type}`;
+    await env.WEBHOOK_KV.put(key, JSON.stringify({
+      type,
+      data,
+      timestamp: new Date().toISOString()
+    }), { expirationTtl: 7 * 24 * 60 * 60 });
+    console.error(`[DEAD-LETTER] ${type}: ${JSON.stringify(data).substring(0, 200)}`);
+  } catch (e) {
+    console.error(`[DEAD-LETTER] Failed to write dead letter: ${e.message}`);
+  }
+}
+
+/**
+ * Generate a synthetic Airtable-like record ID for D1-first creates.
+ * Format: synth_{14 random chars} — compatible with downstream code.
+ */
+function generateSyntheticId() {
+  const bytes = new Uint8Array(10);
+  crypto.getRandomValues(bytes);
+  return 'synth_' + Array.from(bytes).map(b => b.toString(36).padStart(2, '0')).join('').substring(0, 14);
+}
+
+/**
+ * D1 upsert for user record — PRIMARY write path.
+ * Returns true on success, false on failure (+ dead-letter).
  */
 async function upsertUserD1(env, airtableRecordId, fields) {
-  if (!env.WELLS_DB) return;
+  if (!env.WELLS_DB) {
+    console.error('[D1] WELLS_DB not available — cannot write user');
+    await deadLetterWrite(env, 'upsert-user-no-d1', { airtableRecordId, fields });
+    return false;
+  }
   try {
     await env.WELLS_DB.prepare(`
       INSERT INTO users (
@@ -94,17 +126,24 @@ async function upsertUserD1(env, airtableRecordId, fields) {
       fields.cancellationFeedback || null,
       fields.planHistory || null
     ).run();
+    return true;
   } catch (err) {
-    console.error('[D1 Dual-Write] upsertUserD1 failed:', err.message);
+    console.error('[D1-WRITE-FAIL] upsertUserD1:', err.message);
+    await deadLetterWrite(env, 'upsert-user', { airtableRecordId, fields, error: err.message });
+    return false;
   }
 }
 
 /**
- * Fire-and-forget D1 upsert for organization record.
- * Never throws.
+ * D1 upsert for organization record — PRIMARY write path.
+ * Returns true on success, false on failure (+ dead-letter).
  */
-async function upsertOrgD1(env, airtableOrgId, ownerAirtableId, fields) {
-  if (!env.WELLS_DB) return;
+async function upsertOrgD1(env, orgRecordId, ownerAirtableId, fields) {
+  if (!env.WELLS_DB) {
+    console.error('[D1] WELLS_DB not available — cannot write org');
+    await deadLetterWrite(env, 'upsert-org-no-d1', { orgRecordId, ownerAirtableId, fields });
+    return false;
+  }
   try {
     await env.WELLS_DB.prepare(`
       INSERT INTO organizations (
@@ -117,8 +156,8 @@ async function upsertOrgD1(env, airtableOrgId, ownerAirtableId, fields) {
         max_users = COALESCE(excluded.max_users, organizations.max_users),
         owner_user_id = COALESCE(excluded.owner_user_id, organizations.owner_user_id)
     `).bind(
-      `org_${airtableOrgId}`,
-      airtableOrgId,
+      `org_${orgRecordId}`,
+      orgRecordId,
       fields.name || null,
       fields.plan || null,
       fields.maxUsers || null,
@@ -130,9 +169,12 @@ async function upsertOrgD1(env, airtableOrgId, ownerAirtableId, fields) {
     await env.WELLS_DB.prepare(`
       UPDATE users SET organization_id = ?, role = 'Admin'
       WHERE airtable_record_id = ?
-    `).bind(airtableOrgId, ownerAirtableId).run();
+    `).bind(orgRecordId, ownerAirtableId).run();
+    return true;
   } catch (err) {
-    console.error('[D1 Dual-Write] upsertOrgD1 failed:', err.message);
+    console.error('[D1-WRITE-FAIL] upsertOrgD1:', err.message);
+    await deadLetterWrite(env, 'upsert-org', { orgRecordId, ownerAirtableId, fields, error: err.message });
+    return false;
   }
 }
 
@@ -1756,63 +1798,155 @@ async function findUserByStripeCustomerId(env, customerId) {
 }
 
 /**
- * Create new user in Airtable
+ * Create new user — D1 primary, Airtable mirror.
+ * Generates a synthetic ID for D1, then mirrors to Airtable.
+ * If Airtable succeeds, updates D1 with the real recXXX ID.
  */
 async function createUser(env, fields) {
-  if (await isAirtableKilled(env.MINERAL_CACHE)) {
-    // Generate synthetic ID so D1 dual-write path still works
-    const bytes = new Uint8Array(10);
-    crypto.getRandomValues(bytes);
-    const syntheticId = 'synth_' + Array.from(bytes).map(b => b.toString(36).padStart(2, '0')).join('').substring(0, 14);
-    console.log(`[AirtableKillSwitch] Airtable write skipped: createUser ${fields.Email}, synthetic ID: ${syntheticId}`);
-    return { id: syntheticId, fields };
-  }
+  const syntheticId = generateSyntheticId();
 
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ fields })
+  // D1 is primary — write first
+  const d1Ok = await upsertUserD1(env, syntheticId, {
+    email: fields.Email,
+    name: fields.Name,
+    plan: fields.Plan,
+    status: fields.Status || 'Active',
+    stripeCustomerId: fields['Stripe Customer ID'],
+    stripeSubscriptionId: fields['Stripe Subscription ID'],
+    planHistory: fields['Plan History']
   });
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Airtable create failed: ${err}`);
+  if (!d1Ok) {
+    console.error(`[STRIPE] D1 create failed for ${fields.Email} — dead-lettered`);
+    // Continue to Airtable mirror anyway — the 15-min sync will eventually backfill D1
   }
 
-  return await response.json();
+  // Airtable mirror (fire-and-forget, kill-switch protected)
+  let airtableRecordId = syntheticId;
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: createUser ${fields.Email}`);
+  } else {
+    try {
+      const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ fields })
+      });
+
+      if (response.ok) {
+        const record = await response.json();
+        airtableRecordId = record.id;
+        // Update D1 with the real Airtable record ID so sync doesn't create a duplicate
+        if (env.WELLS_DB && syntheticId !== airtableRecordId) {
+          try {
+            await env.WELLS_DB.prepare(`
+              UPDATE users SET id = ?, airtable_record_id = ?
+              WHERE airtable_record_id = ?
+            `).bind(`user_${airtableRecordId}`, airtableRecordId, syntheticId).run();
+            console.log(`[D1] Updated synthetic ID ${syntheticId} → ${airtableRecordId}`);
+          } catch (patchErr) {
+            console.error(`[D1] Failed to patch synthetic ID: ${patchErr.message}`);
+            await deadLetterWrite(env, 'patch-synthetic-id', {
+              syntheticId, realId: airtableRecordId, error: patchErr.message
+            });
+          }
+        }
+      } else {
+        const err = await response.text();
+        console.error(`[STRIPE] Airtable create mirror failed (non-fatal): ${err}`);
+      }
+    } catch (atErr) {
+      console.error(`[STRIPE] Airtable create mirror error (non-fatal): ${atErr.message}`);
+    }
+  }
+
+  return { id: airtableRecordId, fields };
 }
 
 /**
- * Update existing user in Airtable
+ * Update existing user — D1 primary, Airtable mirror.
+ * Maps Airtable field names → D1 columns for the primary write.
  */
 async function updateUser(env, recordId, fields) {
+  // D1 primary — map Airtable field names to D1 columns
+  if (env.WELLS_DB) {
+    const FIELD_MAP = {
+      'Plan': 'plan',
+      'Status': 'status',
+      'Payment Status': 'payment_status',
+      'Stripe Customer ID': 'stripe_customer_id',
+      'Stripe Subscription ID': 'stripe_subscription_id',
+      'Plan History': 'plan_history',
+      'Cancellation Date': 'cancellation_date',
+      'Cancellation Reason': 'cancellation_reason',
+      'Cancellation Feedback': 'cancellation_feedback',
+      'Role': 'role',
+    };
+
+    const setClauses = [];
+    const values = [];
+
+    for (const [airtableField, d1Column] of Object.entries(FIELD_MAP)) {
+      if (fields[airtableField] !== undefined) {
+        let val = fields[airtableField];
+        // Normalize plan name for D1
+        if (d1Column === 'plan' && val) val = normalizePlanForD1(val);
+        setClauses.push(`${d1Column} = ?`);
+        values.push(val === '' ? null : val);
+      }
+    }
+
+    // Handle Organization → organization_id (array → first element)
+    if (fields['Organization'] !== undefined) {
+      const orgId = Array.isArray(fields['Organization']) ? fields['Organization'][0] || null : fields['Organization'];
+      setClauses.push('organization_id = ?');
+      values.push(orgId);
+    }
+
+    if (setClauses.length > 0) {
+      setClauses.push('updated_at = CURRENT_TIMESTAMP');
+      values.push(recordId);
+      try {
+        await env.WELLS_DB.prepare(
+          `UPDATE users SET ${setClauses.join(', ')} WHERE airtable_record_id = ?`
+        ).bind(...values).run();
+        console.log(`[D1] Updated user ${recordId}: ${setClauses.length - 1} fields`);
+      } catch (err) {
+        console.error(`[D1-WRITE-FAIL] updateUser ${recordId}: ${err.message}`);
+        await deadLetterWrite(env, 'update-user', { recordId, fields, error: err.message });
+      }
+    }
+  }
+
+  // Airtable mirror (fire-and-forget, kill-switch protected)
   if (await isAirtableKilled(env.MINERAL_CACHE)) {
     console.log(`[AirtableKillSwitch] Airtable write skipped: updateUser ${recordId}`);
     return { id: recordId, fields };
   }
 
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`;
-
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ fields })
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Airtable update failed: ${err}`);
+  try {
+    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`;
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ fields })
+    });
+    if (!response.ok) {
+      const err = await response.text();
+      console.error(`[STRIPE] Airtable update mirror failed (non-fatal): ${err}`);
+    }
+  } catch (atErr) {
+    console.error(`[STRIPE] Airtable update mirror error (non-fatal): ${atErr.message}`);
   }
 
-  return await response.json();
+  return { id: recordId, fields };
 }
 
 /**
