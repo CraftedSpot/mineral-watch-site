@@ -286,9 +286,9 @@
             const group = f.Group ? `<span style="color: var(--oil-navy); font-size: 12px; background: #F1F5F9; padding: 2px 8px; border-radius: 12px;">${escapeHtml(f.Group)}</span>` : '<em style="color: #A0AEC0;">—</em>';
 
             const linkCounts = p._linkCounts || { wells: 0, documents: 0, filings: 0 };
-            const wellsClass = linkCounts.wells === 0 ? 'link-count zero' : 'link-count';
-            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
-            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+            const wellsClass = linkCounts.wells === 0 ? 'link-count zero' : 'link-count lc-wells';
+            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count lc-docs';
+            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count lc-filings';
             const totalLinks = linkCounts.wells + linkCounts.documents + linkCounts.filings;
             const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
             const checked = selectedProperties.has(p.id) ? ' checked' : '';

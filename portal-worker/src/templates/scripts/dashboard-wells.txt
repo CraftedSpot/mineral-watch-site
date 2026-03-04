@@ -554,9 +554,9 @@
 
             const linkCounts = w._linkCounts || { properties: 0, documents: 0, filings: 0 };
             const isPartial = w._linkCountsPartial === true;
-            const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count';
-            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
-            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+            const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count lc-props';
+            const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count lc-docs';
+            const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count lc-filings';
             const totalLinks = linkCounts.properties + linkCounts.documents + linkCounts.filings;
             const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
             const partialIndicator = isPartial ? ' <span title="Counts may be incomplete — refresh to retry" style="color: #E2A336; font-size: 11px; cursor: help;">~</span>' : '';

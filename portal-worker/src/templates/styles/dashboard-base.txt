@@ -40,11 +40,11 @@
         .usage-label { color: var(--slate-blue); }
         .usage-separator { color: var(--slate-blue); }
         .upgrade-link { margin-left: auto; color: var(--red-dirt); text-decoration: none; font-size: 14px; font-weight: 600; }
-        .stats-card { background: white; border-radius: 8px; padding: 20px 30px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; gap: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .stat-item { text-align: center; }
-        .stat-label { display: block; font-size: 12px; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-        .stat-value { display: block; font-size: 24px; font-weight: 700; color: var(--oil-navy); font-family: 'Merriweather', serif; }
-        .stat-divider { width: 1px; height: 40px; background: var(--border); }
+        .stats-card { background: white; border-radius: 8px; padding: 8px 24px; margin-bottom: 20px; display: flex; align-items: center; justify-content: center; gap: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); height: 40px; }
+        .stat-item { text-align: center; display: flex; align-items: center; gap: 6px; }
+        .stat-label { font-size: 11px; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-value { font-size: 15px; font-weight: 700; color: var(--red-dirt); font-family: 'Merriweather', serif; }
+        .stat-divider { width: 1px; height: 20px; background: var(--border); }
         .activity-list { padding: 0; }
         .activity-item { display: flex; gap: 16px; padding: 20px; border-bottom: 1px solid var(--border); }
         .activity-item:last-child { border-bottom: none; }
@@ -127,6 +127,10 @@
             gap: 2px;
             color: var(--oil-navy);
         }
+        .link-count.lc-props { color: var(--red-dirt); }
+        .link-count.lc-wells { color: #2563EB; }
+        .link-count.lc-docs { color: #1D6F5C; }
+        .link-count.lc-filings { color: #111827; }
         .link-count.zero {
             color: #CBD5E1;
         }
@@ -2257,33 +2261,22 @@
             }
             
             /* Stats card mobile */
-            .stats-card { 
-                flex-direction: column; 
-                gap: 15px; 
-                padding: 15px 20px; 
-            }
-            .stat-divider {
-                display: none;
+            .stats-card {
+                gap: 16px;
+                padding: 6px 16px;
+                height: auto;
+                flex-wrap: wrap;
             }
             .stat-value {
-                font-size: 20px;
+                font-size: 14px;
+            }
+            .stat-label {
+                font-size: 10px;
             }
 
             /* Mobile: Collapse stats card when no alerts */
-            .stats-card.no-alerts {
-                padding: 12px 20px;
-                gap: 0;
-            }
             .stats-card.no-alerts .stat-item:not(:first-child) {
                 display: none;
-            }
-            .stats-card.no-alerts .stat-item:first-child {
-                flex-direction: row;
-                gap: 8px;
-                align-items: center;
-            }
-            .stats-card.no-alerts .stat-label {
-                margin-bottom: 0;
             }
             
             /* Activity mobile */
