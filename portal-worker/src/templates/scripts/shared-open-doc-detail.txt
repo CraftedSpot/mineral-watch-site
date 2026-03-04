@@ -72,8 +72,18 @@ async function openDocumentDetail(docId) {
         // Update modal content and show
         document.getElementById('documentDetailContent').innerHTML = content;
         var modal = document.getElementById('documentDetailModal');
+
+        // Use modalStack for dynamic z-index if available, else fixed
+        if (typeof modalStack !== 'undefined') {
+            var docZ = 999999 + (modalStack.length * 10);
+            modal.style.zIndex = docZ;
+            if (!modalStack.find(function(m) { return m.element === modal; })) {
+                modalStack.push({ type: 'document-detail', id: docId, element: modal });
+            }
+        } else {
+            modal.style.zIndex = '1000000';
+        }
         modal.style.display = 'flex';
-        modal.style.zIndex = '1000000';
 
         // Scroll to top
         var body = document.getElementById('documentDetailContent');
@@ -104,6 +114,10 @@ function closeDocumentDetailModal() {
     if (modal) {
         modal.style.display = 'none';
         modal.style.zIndex = '';
+        if (typeof modalStack !== 'undefined') {
+            var idx = modalStack.findIndex(function(m) { return m.element === modal; });
+            if (idx > -1) modalStack.splice(idx, 1);
+        }
     }
     _docDetailState.docId = null;
 }

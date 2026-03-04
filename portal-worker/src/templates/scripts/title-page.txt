@@ -1,4 +1,6 @@
 // ─── Chain of Title Standalone Page ───
+var modalStack = [];
+var MAX_MODAL_DEPTH = 4;
 var titleProperties = [];
 var titleSelectedPropertyId = null;
 var titleChainData = null;

@@ -21,14 +21,14 @@
             return county.replace(/^\d+-/, '');
         }
 
-        function _pdOpenWell(wellId) {
-            if (!wellId) return;
+        function _pdOpenWell(wellId, apiNumber, wellName) {
+            if (!wellId && !apiNumber) return;
             if (typeof openWellDetailsModal === 'function') {
                 openWellDetailsModal(wellId);
-            } else if (typeof openWellDetailByApi === 'function') {
-                openWellDetailByApi(wellId);
+            } else if (typeof openWellDetailByApi === 'function' && apiNumber) {
+                openWellDetailByApi(apiNumber, { wellName: wellName || '' });
             } else {
-                window.location.href = '/portal?well=' + encodeURIComponent(wellId);
+                window.location.href = '/portal?well=' + encodeURIComponent(wellId || apiNumber);
             }
         }
 
@@ -445,11 +445,17 @@
             if (typeof openRevenueModal === 'function') {
                 footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="openRevenueModal(\'property\')">Estimate Revenue</button>';
             }
-            // MW Map — always show, navigate if viewOnMap not available
+            // MW Map — always show with location params for zoom
+            var mapParams = new URLSearchParams({ property: propId });
+            if (f.COUNTY) mapParams.set('county', f.COUNTY);
+            if (f.SEC) mapParams.set('section', f.SEC);
+            if (f.TWN) mapParams.set('township', f.TWN);
+            if (f.RNG) mapParams.set('range', f.RNG);
+            var mapUrl = '/portal/oklahoma-map?' + mapParams.toString();
             if (typeof viewOnMap === 'function') {
                 footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="viewOnMap(\'' + escapeHtml(propId) + '\')">MW Map &#8599;</button>';
             } else {
-                footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="window.open(\'/portal/map\', \'_blank\')">MW Map &#8599;</button>';
+                footerHtml += '<button class="pd-footer-btn pd-btn-map" onclick="window.open(\'' + escapeHtml(mapUrl) + '\', \'_blank\')">MW Map &#8599;</button>';
             }
             footerHtml += '<button class="pd-footer-btn pd-btn-save" id="pdSaveBtn" onclick="_pdSaveAndClose()">Save &amp; Close</button>';
             document.getElementById('pdFooter').innerHTML = footerHtml;
@@ -495,7 +501,7 @@
                     var statusStyle = typeof getStatusStyle === 'function' ? getStatusStyle(w.wellStatus) : 'background:#e5e7eb;color:#374151;';
 
                     var row = '<div class="pd-well-row" style="' + (isUnlinked ? 'opacity:0.5;' : '') + '">';
-                    row += '<div style="flex:1;cursor:pointer;" onclick="_pdOpenWell(\'' + escapeHtml(w.wellId) + '\')">';
+                    row += '<div style="flex:1;cursor:pointer;" onclick="_pdOpenWell(\'' + escapeHtml(w.wellId) + '\',\'' + escapeHtml(w.apiNumber || '') + '\',\'' + escapeHtml(w.wellName || '') + '\')">';
                     row += '<div style="font-weight:500;color:' + (isUnlinked ? '#9ca3af' : '#2563eb') + ';">' + escapeHtml(w.wellName) + '</div>';
                     row += '<div style="font-size:12px;color:#6b7280;">' + escapeHtml(w.operator) + ' \u2022 ' + escapeHtml(w.county) + '</div>';
                     row += interestLine;
