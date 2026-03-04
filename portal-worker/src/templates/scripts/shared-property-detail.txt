@@ -362,7 +362,8 @@
             html += '<div class="pd-info-card">';
             html += '<div class="pd-row"><span class="pd-label">Legal</span><span class="pd-value" style="font-family:monospace;">' + escapeHtml(legal) + '</span></div>';
             if (f['Group']) {
-                html += '<div class="pd-row"><span class="pd-label">Group</span><span class="pd-value">' + escapeHtml(f['Group']) + '</span></div>';
+                var _gec = (typeof getEntityColor === 'function') ? getEntityColor(f['Group']) : { bg: '#F1F5F9', text: '#1C2B36' };
+                html += '<div class="pd-row"><span class="pd-label">Group</span><span class="pd-value"><span style="background:' + _gec.bg + '; color:' + _gec.text + '; padding: 2px 10px; border-radius: 12px; font-weight: 600; font-size: 13px;">' + escapeHtml(f['Group']) + '</span></span></div>';
             }
             html += '<div class="pd-row"><span class="pd-label">Total Acres</span><span class="pd-value" id="pdTotalAcres">' + (totalAcres > 0 ? totalAcres.toFixed(2) : '\u2014') + '</span></div>';
             html += '<div class="pd-row"><span class="pd-label">RI Acres</span><input type="number" id="pdRIAcres" class="pd-input" step="0.01" min="0" value="' + riAcres + '" oninput="_pdUpdateTotalAcres(); _pdCheckChanges();"></div>';
