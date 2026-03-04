@@ -2,9 +2,26 @@ import { useSearchParams } from 'react-router-dom';
 import { useProperties } from '../../hooks/useProperties';
 import { useWells } from '../../hooks/useWells';
 import { useModal } from '../../contexts/ModalContext';
-import { updateSearchParam } from '../../lib/helpers';
+import { updateSearchParam, formatTRS } from '../../lib/helpers';
 import { TabBar } from './TabBar';
 import { MODAL_TYPES, SLATE, DARK } from '../../lib/constants';
+
+// Deterministic group color palette (matches vanilla getEntityColor)
+const ENTITY_PALETTE = [
+  { bg: '#DBEAFE', text: '#1E40AF' },
+  { bg: '#FCE7F3', text: '#9D174D' },
+  { bg: '#D1FAE5', text: '#065F46' },
+  { bg: '#FEF3C7', text: '#92400E' },
+  { bg: '#EDE9FE', text: '#5B21B6' },
+  { bg: '#FFEDD5', text: '#9A3412' },
+  { bg: '#CCFBF1', text: '#115E59' },
+  { bg: '#FEE2E2', text: '#991B1B' },
+];
+function getEntityColor(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return ENTITY_PALETTE[Math.abs(h) % ENTITY_PALETTE.length];
+}
 
 const TABS = ['properties', 'wells', 'documents', 'activity', 'tools'] as const;
 type TabId = (typeof TABS)[number];
@@ -62,13 +79,25 @@ function PropertiesTestTab() {
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             }}
           >
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: DARK }}>
-                {String(p.fields.Name || p.fields['Property Name'] || 'Untitled')}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: DARK }}>
+                  {String(p.fields.COUNTY)} {formatTRS(p.fields.SEC as string, p.fields.TWN as string, p.fields.RNG as string)}
+                </div>
+                <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
+                  {(Number(p.fields['RI Acres'] || 0) + Number(p.fields['WI Acres'] || 0)) > 0
+                    ? `${(Number(p.fields['RI Acres'] || 0) + Number(p.fields['WI Acres'] || 0)).toFixed(2)} acres`
+                    : '\u2014'}
+                </div>
               </div>
-              <div style={{ fontSize: 12, color: SLATE }}>
-                {p.fields.COUNTY} &middot; S{p.fields.SEC}-T{p.fields.TWN}-R{p.fields.RNG}
-              </div>
+              {p.fields.Group != null && (() => {
+                const ec = getEntityColor(String(p.fields.Group));
+                return (
+                  <span style={{ background: ec.bg, color: ec.text, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
+                    {String(p.fields.Group)}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ fontSize: 11, color: SLATE }}>{p.id}</div>
           </button>

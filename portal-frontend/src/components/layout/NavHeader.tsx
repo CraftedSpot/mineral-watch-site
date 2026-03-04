@@ -36,7 +36,7 @@ export function NavHeader({ user }: NavHeaderProps) {
       }}>
         <a href="/" style={{
           fontFamily: "'Merriweather', serif", fontWeight: 900,
-          fontSize: 18, color: '#1D6F5C',
+          fontSize: 18, color: '#1e3a5f',
         }}>
           Mineral Watch
         </a>
@@ -48,8 +48,8 @@ export function NavHeader({ user }: NavHeaderProps) {
               : location.pathname.startsWith(href);
             const style = {
               padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
-              color: isActive ? '#1D6F5C' : '#64748b',
-              background: isActive ? '#f0fdf4' : 'transparent',
+              color: isActive ? '#1e3a5f' : '#64748b',
+              background: isActive ? '#eef2f7' : 'transparent',
               textDecoration: 'none',
             };
             if (isReactRoute) {
