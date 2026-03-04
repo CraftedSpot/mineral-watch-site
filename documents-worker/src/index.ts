@@ -2361,6 +2361,33 @@ export default {
         // Post-process extracted data (normalize PUNs, etc.)
         const extracted_data = postProcessExtractedData(raw_extracted_data);
 
+        // Normalize range — strip meridian suffixes (ECM→E, WCM→W, EIM→E, WIM→W)
+        // and populate meridian column separately
+        let normalizedRange = range ?? null;
+        let meridian: string | null = null;
+        if (normalizedRange) {
+          const rmMatch = normalizedRange.match(/^(\d+[NSEW]?)(CM|IM)$/i);
+          if (rmMatch) {
+            normalizedRange = rmMatch[1];
+            meridian = rmMatch[2].toUpperCase();
+          } else if (normalizedRange.match(/^(\d+)(E|W)CM$/i)) {
+            // Handle "27ECM" → range "27E", meridian "CM"
+            normalizedRange = normalizedRange.replace(/CM$/i, '');
+            meridian = 'CM';
+          } else if (normalizedRange.match(/^(\d+)(E|W)IM$/i)) {
+            // Handle "12WIM" → range "12W", meridian "IM"
+            normalizedRange = normalizedRange.replace(/IM$/i, '');
+            meridian = 'IM';
+          }
+          // Also try extracting meridian from extracted_data if not found in range
+          if (!meridian && extracted_data?.tracts?.[0]?.legal_description?.meridian) {
+            const m = extracted_data.tracts[0].legal_description.meridian;
+            if (m === 'IM' || m === 'CM' || m === 'Indian Meridian' || m === 'Cimarron Meridian') {
+              meridian = m.startsWith('C') ? 'CM' : 'IM';
+            }
+          }
+        }
+
         // Chain-of-title doc types — earmarked for future chain-of-title feature
         const CHAIN_OF_TITLE_TYPES = new Set([
           'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
@@ -2431,7 +2458,8 @@ export default {
             county,
             section,
             township,
-            range,
+            range: normalizedRange,
+            meridian,
             confidence,
             page_count,
             extraction_error,
@@ -2455,6 +2483,7 @@ export default {
                   section = ?,
                   township = ?,
                   range = ?,
+                  meridian = ?,
                   confidence = ?,
                   page_count = ?,
                   extraction_error = ?,
@@ -2475,7 +2504,8 @@ export default {
               county ?? null,
               section ?? null,
               township ?? null,
-              range ?? null,
+              normalizedRange,
+              meridian,
               confidence ?? null,
               page_count ?? null,
               extraction_error ?? null,
