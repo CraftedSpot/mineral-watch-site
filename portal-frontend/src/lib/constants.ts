@@ -23,3 +23,59 @@ export const EXPANDED_CARD_GAP = 8;
 
 // Org gating
 export const TITLE_CHAIN_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf'];
+
+// Dashboard colors
+export const SUCCESS_GREEN = '#16a34a';
+export const ERROR_RED = '#dc2626';
+export const WARNING_AMBER = '#f59e0b';
+export const INFO_BLUE = '#3b82f6';
+
+// Modal system
+export const MODAL_BASE_Z = 999999;
+export const MODAL_Z_INCREMENT = 10;
+export const MAX_MODAL_DEPTH = 4;
+
+// Toast
+export const TOAST_DEFAULT_DURATION = 3000;
+
+// Table
+export const TABLE_ROW_HEIGHT = 44;
+export const VIRTUAL_THRESHOLD = 100;
+
+// Well status colors
+export const WELL_STATUS_COLORS: Record<string, string> = {
+  AC: '#10b981', ACTIVE: '#10b981',
+  PA: '#ef4444', PLUGGED: '#ef4444',
+  IN: '#f59e0b', INACTIVE: '#f59e0b',
+  SI: '#8b5cf6', 'SHUT-IN': '#8b5cf6',
+  TA: '#6366f1', 'TEMP ABANDON': '#6366f1',
+  NEW: '#3b82f6',
+  NR: '#6b7280',
+};
+
+// Modal type string constants
+export const MODAL_TYPES = {
+  PROPERTY: 'property',
+  WELL: 'well',
+  DOCUMENT_DETAIL: 'document-detail',
+  DOCUMENT_VIEWER: 'document-viewer',
+} as const;
+
+// OCC filing status colors
+export const FILING_STATUS_COLORS: Record<string, { bg: string; color: string }> = {
+  heard: { bg: '#dcfce7', color: '#166534' },
+  recommended: { bg: '#dcfce7', color: '#166534' },
+  scheduled: { bg: '#dbeafe', color: '#1e40af' },
+  continued: { bg: '#fef3c7', color: '#92400e' },
+  dismissed: { bg: '#fee2e2', color: '#991b1b' },
+  filed: { bg: '#f3f4f6', color: '#374151' },
+};
+
+// Document status colors
+export const DOC_STATUS_COLORS: Record<string, string> = {
+  complete: '#16a34a',
+  failed: '#dc2626',
+  manual_review: '#f59e0b',
+  processing: '#3b82f6',
+  queued: '#8b5cf6',
+};

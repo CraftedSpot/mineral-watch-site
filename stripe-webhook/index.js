@@ -437,17 +437,6 @@ async function handleCheckoutComplete(session, env) {
     await updateUser(env, existingUser.id, updateFields);
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
 
-    // D1 dual-write (fire-and-forget)
-    upsertUserD1(env, existingUser.id, {
-      email: customerEmail,
-      name: customerName,
-      plan,
-      status: 'Active',
-      stripeCustomerId,
-      stripeSubscriptionId: subscriptionId,
-      planHistory: updatedHistory
-    });
-
     // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
     const hasOrg = existingUser.fields.Organization && existingUser.fields.Organization.length > 0;
     if (ORG_ELIGIBLE_PLANS.includes(plan) && !hasOrg) {
@@ -486,19 +475,6 @@ async function handleCheckoutComplete(session, env) {
 
     const newUser = await createUser(env, createFields);
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
-
-    // D1 dual-write (fire-and-forget)
-    if (newUser?.id) {
-      upsertUserD1(env, newUser.id, {
-        email: customerEmail,
-        name: customerName,
-        plan,
-        status: 'Active',
-        stripeCustomerId,
-        stripeSubscriptionId: subscriptionId,
-        planHistory: historyEntry
-      });
-    }
 
     // Create Organization for Business/Enterprise plans
     if (newUser?.id && ORG_ELIGIBLE_PLANS.includes(plan)) {
@@ -688,17 +664,6 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   }
   
   await updateUser(env, user.id, updateFields);
-
-  // D1 dual-write (fire-and-forget)
-  upsertUserD1(env, user.id, {
-    email: userEmail,
-    name: userName,
-    plan: newPlan,
-    status: airtableStatus,
-    stripeSubscriptionId: subscriptionId,
-    planHistory: updatedHistory
-  });
-
   console.log(`Updated user ${userEmail}: Plan=${newPlan}, Status=${airtableStatus}`);
 
   // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
@@ -785,18 +750,6 @@ async function handleSubscriptionDeleted(subscription, env) {
     'Plan History': updatedHistory
   });
 
-  // D1 dual-write (fire-and-forget)
-  upsertUserD1(env, user.id, {
-    email: userEmail,
-    plan: 'Free',
-    status: 'Active',
-    stripeSubscriptionId: null,
-    cancellationDate: cancellationDate,
-    cancellationReason: reasonMap[cancellationReason] || null,
-    cancellationFeedback: cancellationFeedback || null,
-    planHistory: updatedHistory
-  });
-
   console.log(`User ${userEmail} reverted to Free plan after cancellation`);
   
   // Send cancellation email
@@ -824,17 +777,6 @@ async function handleInvoicePaymentFailed(invoice, env) {
   await updateUser(env, user.id, {
     'Payment Status': 'Failed'
   });
-
-  // D1 dual-write
-  if (env.WELLS_DB) {
-    try {
-      await env.WELLS_DB.prepare(`
-        UPDATE users SET status = 'Past Due' WHERE airtable_record_id = ?
-      `).bind(user.id).run();
-    } catch (err) {
-      console.error('[D1 Dual-Write] payment failed update:', err.message);
-    }
-  }
 
   // Format amount and next retry date
   const amount = invoice.amount_due
@@ -1950,62 +1892,88 @@ async function updateUser(env, recordId, fields) {
 }
 
 /**
- * Create an Organization for Professional/Business/Enterprise users
- * Links the user as Owner and Admin
+ * Create an Organization for Professional/Business/Enterprise users.
+ * D1 primary, Airtable mirror. Links the user as Owner and Admin.
  */
 async function createOrganizationForUser(env, userId, userName, userEmail, plan) {
-  if (await isAirtableKilled(env.MINERAL_CACHE)) {
-    console.log(`[AirtableKillSwitch] Airtable write skipped: createOrganizationForUser ${userEmail}`);
-    return;
-  }
-
-  // Determine max users based on plan
+  // Determine max users based on plan (only Business and Enterprise get orgs)
   const maxUsers = {
-    'Professional': 1,
     'Business': 3,
     'Enterprise': 5
-  }[plan] || 1;
+  }[plan] || 3;
 
   const orgName = userName || userEmail.split('@')[0];
+  const syntheticOrgId = generateSyntheticId();
 
-  // Create the Organization
-  const orgUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORG_TABLE)}`;
-
-  const orgResponse = await fetch(orgUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      fields: {
-        'Name': orgName,
-        'Plan': plan === 'Enterprise' ? 'Enterprise 1K' : plan,
-        'Max Users': maxUsers,
-        'Owner': [userId],
-        '👤 Users': [userId],
-        'Default Notification Mode': 'Instant + Weekly'
-      }
-    })
-  });
-
-  if (!orgResponse.ok) {
-    const err = await orgResponse.text();
-    console.error(`Failed to create organization: ${err}`);
-    throw new Error(`Airtable create org failed: ${err}`);
-  }
-
-  const org = await orgResponse.json();
-  const orgId = org.id;
-  console.log(`Created organization ${orgId} for user ${userId} (${plan})`);
-
-  // D1 dual-write (fire-and-forget)
-  upsertOrgD1(env, orgId, userId, {
+  // D1 primary — create org and link user
+  const d1Ok = await upsertOrgD1(env, syntheticOrgId, userId, {
     name: orgName,
     plan: normalizePlanForD1(plan),
     maxUsers,
     defaultNotificationMode: 'Instant + Weekly'
   });
+
+  if (!d1Ok) {
+    console.error(`[STRIPE] D1 org create failed for ${userEmail} — dead-lettered`);
+  }
+
+  // Airtable mirror (fire-and-forget, kill-switch protected)
+  let orgId = syntheticOrgId;
+  if (await isAirtableKilled(env.MINERAL_CACHE)) {
+    console.log(`[AirtableKillSwitch] Airtable write skipped: createOrganizationForUser ${userEmail}`);
+  } else {
+    try {
+      const orgUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORG_TABLE)}`;
+      const orgResponse = await fetch(orgUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: {
+            'Name': orgName,
+            'Plan': plan === 'Enterprise' ? 'Enterprise 1K' : plan,
+            'Max Users': maxUsers,
+            'Owner': [userId],
+            '👤 Users': [userId],
+            'Default Notification Mode': 'Instant + Weekly'
+          }
+        })
+      });
+
+      if (orgResponse.ok) {
+        const org = await orgResponse.json();
+        orgId = org.id;
+        // Update D1 with real Airtable org ID
+        if (env.WELLS_DB && syntheticOrgId !== orgId) {
+          try {
+            await env.WELLS_DB.prepare(`
+              UPDATE organizations SET id = ?, airtable_record_id = ?
+              WHERE airtable_record_id = ?
+            `).bind(`org_${orgId}`, orgId, syntheticOrgId).run();
+            // Also update the user's org link to the real ID
+            await env.WELLS_DB.prepare(`
+              UPDATE users SET organization_id = ?
+              WHERE organization_id = ?
+            `).bind(orgId, syntheticOrgId).run();
+            console.log(`[D1] Updated org synthetic ID ${syntheticOrgId} → ${orgId}`);
+          } catch (patchErr) {
+            console.error(`[D1] Failed to patch org synthetic ID: ${patchErr.message}`);
+            await deadLetterWrite(env, 'patch-org-synthetic-id', {
+              syntheticOrgId, realId: orgId, error: patchErr.message
+            });
+          }
+        }
+        console.log(`[STRIPE] Created org ${orgId} in Airtable for ${userEmail}`);
+      } else {
+        const err = await orgResponse.text();
+        console.error(`[STRIPE] Airtable org create mirror failed (non-fatal): ${err}`);
+      }
+    } catch (atErr) {
+      console.error(`[STRIPE] Airtable org create mirror error (non-fatal): ${atErr.message}`);
+    }
+  }
 
   // Update user with Organization link and Admin role
   await updateUser(env, userId, {
@@ -2015,7 +1983,7 @@ async function createOrganizationForUser(env, userId, userName, userEmail, plan)
 
   console.log(`Linked user ${userId} to organization ${orgId} as Admin`);
 
-  return org;
+  return { id: orgId };
 }
 
 /**

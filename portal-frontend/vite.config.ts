@@ -3,9 +3,9 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: '/title-app/',
+  base: '/portal-app/',
   build: {
-    outDir: '../portal-worker/public/title-app',
+    outDir: '../portal-worker/public/portal-app',
     emptyOutDir: true,
   },
   server: {

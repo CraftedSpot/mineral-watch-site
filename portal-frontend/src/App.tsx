@@ -1,36 +1,30 @@
-import { useAuth } from './hooks/useAuth';
-import { useImpersonation } from './hooks/useImpersonation';
-import { NavHeader } from './components/layout/NavHeader';
-import { ImpersonationBanner } from './components/layout/ImpersonationBanner';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { ToastProvider } from './contexts/ToastContext';
+import { ConfirmProvider } from './contexts/ConfirmContext';
+import { ModalProvider } from './contexts/ModalContext';
+import { DashboardDataProvider } from './contexts/DashboardDataContext';
+import { AppShell } from './components/layout/AppShell';
+import { DashboardPage } from './components/dashboard/DashboardPage';
 import { TitlePage } from './components/title/TitlePage';
 
 export function App() {
-  const { user, loading } = useAuth();
-  const impersonation = useImpersonation();
-
-  if (loading) {
-    return (
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        height: '100vh', fontFamily: "'DM Sans', sans-serif", color: '#64748b',
-      }}>
-        <div style={{
-          width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#C05621',
-          borderRadius: '50%', animation: 'spin 0.8s linear infinite',
-        }} />
-        <span style={{ marginLeft: 12 }}>Loading...</span>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
-  if (!user) return null; // Redirecting to login
-
   return (
-    <div style={{ paddingTop: impersonation ? 42 : 0 }}>
-      {impersonation && <ImpersonationBanner info={impersonation} />}
-      <NavHeader user={user} />
-      <TitlePage />
-    </div>
+    <ToastProvider>
+      <ConfirmProvider>
+        <DashboardDataProvider>
+        <ModalProvider>
+          <Routes>
+            <Route path="/portal" element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="react" element={<DashboardPage />} />
+              <Route path="title" element={<TitlePage />} />
+            </Route>
+            {/* Fallback: dev server routes under /portal-app/ */}
+            <Route path="*" element={<Navigate to="/portal/react" replace />} />
+          </Routes>
+        </ModalProvider>
+        </DashboardDataProvider>
+      </ConfirmProvider>
+    </ToastProvider>
   );
 }

@@ -48,6 +48,7 @@ import {
 } from './templates/index.js';
 
 import titleReactHtml from './templates/title-react-app.html';
+import portalReactHtml from './templates/portal-react-app.html';
 
 import {
   getUserByIdD1First,
@@ -394,6 +395,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/portal" || path === "/portal/") {
         return servePage(dashboardHtml, request, env);
       }
+      if (path === "/portal/react" || path === "/portal/react/") {
+        return servePage(portalReactHtml, request, env);
+      }
       if (path === "/portal/login" || path === "/portal/login/") {
         return servePage(loginHtml, request, env);
       }
@@ -416,7 +420,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return servePage(operatorsHtml, request, env);
       }
       if (path === "/portal/title" || path === "/portal/title/") {
-        return servePage(titleReactHtml, request, env);
+        return servePage(portalReactHtml, request, env);
       }
       if (path === "/portal/title-legacy" || path === "/portal/title-legacy/") {
         return servePage(titleHtml, request, env);

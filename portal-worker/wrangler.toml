@@ -1,6 +1,7 @@
 name = "portal-worker"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
+workers_dev = true
 
 # Static assets - use public directory
 [assets]
@@ -59,6 +60,19 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 [vars]
 PROCESSING_API_KEY = "mmw-proc-2024-secure-key"
 OKCR_API_BASE = "https://okcountyrecords.com/api/v1"
+
+# Routes on custom domain — ensures portal-worker handles these, not Pages
+[[routes]]
+pattern = "mymineralwatch.com/portal*"
+zone_name = "mymineralwatch.com"
+
+[[routes]]
+pattern = "mymineralwatch.com/api/*"
+zone_name = "mymineralwatch.com"
+
+[[routes]]
+pattern = "mymineralwatch.com/signup*"
+zone_name = "mymineralwatch.com"
 
 [triggers]
 crons = [

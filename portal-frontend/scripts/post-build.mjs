@@ -9,8 +9,8 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const src = resolve(__dirname, '../../portal-worker/public/title-app/index.html');
-const dest = resolve(__dirname, '../../portal-worker/src/templates/title-react-app.html');
+const src = resolve(__dirname, '../../portal-worker/public/portal-app/index.html');
+const dest = resolve(__dirname, '../../portal-worker/src/templates/portal-react-app.html');
 
 // Verify source exists
 let stat;
@@ -32,4 +32,4 @@ if (ageSeconds > 60) {
 
 // Copy
 copyFileSync(src, dest);
-console.log(`\n✓ Copied index.html → title-react-app.html (${stat.size} bytes)\n`);
+console.log(`\n✓ Copied index.html → portal-react-app.html (${stat.size} bytes)\n`);

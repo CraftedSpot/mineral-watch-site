@@ -1,10 +1,22 @@
+import { Link, useLocation } from 'react-router-dom';
 import type { AuthUser } from '../../hooks/useAuth';
 
 interface NavHeaderProps {
   user: AuthUser;
 }
 
+const NAV_ITEMS = [
+  { href: '/portal', label: 'Dashboard', react: true },
+  { href: '/portal/title', label: 'Title', react: true },
+  { href: '/portal/map', label: 'Map', react: false },
+  { href: '/portal/intelligence', label: 'Intelligence', react: false },
+  { href: '/portal/account', label: 'Account', react: false },
+  { href: '/portal/learn', label: 'Learn', react: false },
+];
+
 export function NavHeader({ user }: NavHeaderProps) {
+  const location = useLocation();
+
   const handleLogout = async () => {
     try {
       await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
@@ -30,22 +42,21 @@ export function NavHeader({ user }: NavHeaderProps) {
         </a>
 
         <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          {[
-            { href: '/portal', label: 'Dashboard' },
-            { href: '/portal/title', label: 'Title', active: true },
-            { href: '/portal/map', label: 'Map' },
-            { href: '/portal/intelligence', label: 'Intelligence' },
-            { href: '/portal/account', label: 'Account' },
-            { href: '/portal/learn', label: 'Learn' },
-          ].map(({ href, label, active }) => (
-            <a key={href} href={href} style={{
+          {NAV_ITEMS.map(({ href, label, react: isReactRoute }) => {
+            const isActive = href === '/portal'
+              ? location.pathname === '/portal'
+              : location.pathname.startsWith(href);
+            const style = {
               padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
-              color: active ? '#1D6F5C' : '#64748b',
-              background: active ? '#f0fdf4' : 'transparent',
-            }}>
-              {label}
-            </a>
-          ))}
+              color: isActive ? '#1D6F5C' : '#64748b',
+              background: isActive ? '#f0fdf4' : 'transparent',
+              textDecoration: 'none',
+            };
+            if (isReactRoute) {
+              return <Link key={href} to={href} style={style}>{label}</Link>;
+            }
+            return <a key={href} href={href} style={style}>{label}</a>;
+          })}
         </nav>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -55,11 +66,13 @@ export function NavHeader({ user }: NavHeaderProps) {
                 background: 'rgba(239,68,68,0.15)', color: '#f87171',
                 border: '1px solid rgba(239,68,68,0.3)', padding: '6px 14px',
                 borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+                textDecoration: 'none',
               }}>Admin</a>
               <a href="/portal/marketing" style={{
                 background: 'rgba(139,92,246,0.15)', color: '#a78bfa',
                 border: '1px solid rgba(139,92,246,0.3)', padding: '6px 14px',
                 borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+                textDecoration: 'none',
               }}>Marketing</a>
             </>
           )}

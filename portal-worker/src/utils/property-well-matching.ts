@@ -2,10 +2,8 @@
  * Shared utilities for property-well matching
  */
 
-import { BASE_ID, PROPERTIES_TABLE, WELLS_TABLE, ORGANIZATION_TABLE } from '../constants.js';
-import { fetchAllAirtableRecords } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
-import { escapeAirtableValue } from './airtable-escape.js';
+import { getOrgMemberIds, buildOwnershipFilter } from './ownership.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
 export const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
@@ -824,7 +822,44 @@ export async function createLinksInBatches(
 }
 
 /**
- * Match a single property against all user's wells
+ * Transform D1 property row → Airtable-shaped record for processProperty()
+ */
+function d1PropertyToRecord(row: any): any {
+  return {
+    id: row.airtable_record_id || row.id,
+    fields: {
+      [PROPERTY_FIELDS.SEC]: row.section,
+      [PROPERTY_FIELDS.TWN]: row.township,
+      [PROPERTY_FIELDS.RNG]: row.range,
+      [PROPERTY_FIELDS.COUNTY]: row.county,
+      [PROPERTY_FIELDS.MERIDIAN]: row.meridian,
+    }
+  };
+}
+
+/**
+ * Transform D1 client_wells row → Airtable-shaped record for processWell()
+ */
+function d1WellToRecord(row: any): any {
+  return {
+    id: row.airtable_id || row.id,
+    fields: {
+      [WELL_FIELDS.SECTION]: row.section,
+      [WELL_FIELDS.TOWNSHIP]: row.township,
+      [WELL_FIELDS.RANGE]: row.range_val,
+      [WELL_FIELDS.BH_SECTION]: row.bh_section,
+      [WELL_FIELDS.BH_TOWNSHIP]: row.bh_township,
+      [WELL_FIELDS.BH_RANGE]: row.bh_range,
+      [WELL_FIELDS.WELL_NAME]: row.well_name,
+      [WELL_FIELDS.WELL_NUMBER]: row.well_number,
+      [WELL_FIELDS.COUNTY]: row.county,
+      [WELL_FIELDS.OCC_MAP_LINK]: row.occ_map_link,
+    }
+  };
+}
+
+/**
+ * Match a single property against all user's wells (D1-based)
  */
 export async function matchSingleProperty(
   propertyId: string,
@@ -832,65 +867,39 @@ export async function matchSingleProperty(
   organizationId: string | undefined,
   env: Env
 ): Promise<{ linksCreated: number; wellsChecked: number }> {
-  console.log(`[MatchSingleProperty] Starting for property ${propertyId}`);
-  
-  // Fetch the property
-  const propertyResponse = await fetch(
-    `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`,
-    {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-      signal: AbortSignal.timeout(10_000)
-    }
-  );
-  
-  if (!propertyResponse.ok) {
-    throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
+  console.log(`[MatchSingleProperty] Starting for property ${propertyId} (D1)`);
+
+  // Fetch the property from D1
+  const propRow = await env.WELLS_DB.prepare(
+    `SELECT id, airtable_record_id, section, township, range, county, meridian, user_id, organization_id
+     FROM properties WHERE airtable_record_id = ? OR id = ?`
+  ).bind(propertyId, propertyId).first() as any;
+
+  if (!propRow) {
+    throw new Error(`Property not found: ${propertyId}`);
   }
-  
-  const propertyData: any = await propertyResponse.json();
-  
+
   // Verify ownership
-  const propertyUserId = propertyData.fields.User?.[0];
-  const propertyOrgId = propertyData.fields.Organization?.[0];
-  
-  if (propertyUserId !== userId && (!organizationId || propertyOrgId !== organizationId)) {
+  if (propRow.user_id !== userId && (!organizationId || propRow.organization_id !== organizationId)) {
     throw new Error('Unauthorized');
   }
-  
+
+  const propertyData = d1PropertyToRecord(propRow);
+
   // Get existing links
   const { active: linkedWellIds, rejected: rejectedWellIds } = await getLinksForProperty(env, propertyId);
-  
-  // Build well filter
-  let wellsFilter: string;
-  
-  if (organizationId) {
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-        signal: AbortSignal.timeout(10_000)
-      }
-    );
 
-    const orgData: any = await orgResponse.json();
-    const orgName = orgData.fields?.Name || '';
-    wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
-  } else {
-    // Need user email for filter
-    const userResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🙋 Users')}/${userId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-        signal: AbortSignal.timeout(10_000)
-      }
-    );
-    const userData: any = await userResponse.json();
-    const userEmail = userData.fields.Email;
-    wellsFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
-  }
+  // Fetch all user/org wells from D1
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', organizationId, userId, memberIds);
 
-  // Fetch all user's wells
-  const wells = await fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter);
+  const wellRows = await env.WELLS_DB.prepare(
+    `SELECT id, airtable_id, section, township, range_val, bh_section, bh_township, bh_range,
+            well_name, well_number, county, occ_map_link
+     FROM client_wells cw WHERE ${ownerWhere} AND status = 'Active'`
+  ).bind(...ownerParams).all();
+
+  const wells = (wellRows.results || []).map(d1WellToRecord);
 
   // Enrich wells with BH data and compute lateral sections
   await enrichWellsWithD1Data(wells, env);
@@ -908,14 +917,14 @@ export async function matchSingleProperty(
 
     const processedWell = processWell(wellData);
     const matchReason = checkMatch(processedProperty, processedWell);
-    
+
     if (matchReason) {
       const wellName = extractFullWellName(wellData);
-      const propLocation = processedProperty.location 
+      const propLocation = processedProperty.location
         ? `S${processedProperty.location.section}-T${processedProperty.location.township}-R${processedProperty.location.range}`
         : 'Unknown Location';
       const linkName = `${wellName} → ${propLocation}`;
-      
+
       const linkRecord = {
         fields: {
           [LINK_FIELDS.LINK_NAME]: linkName,
@@ -927,138 +936,20 @@ export async function matchSingleProperty(
           [LINK_FIELDS.USER]: [userId]
         }
       };
-      
+
       if (organizationId) {
         linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
       }
-      
+
       newLinks.push(linkRecord);
     }
   }
-  
+
   // Create links
   const { created } = await createLinksInBatches(env, newLinks);
-  
+
+  console.log(`[MatchSingleProperty] Done: ${created} links from ${wells.length} wells`);
   return { linksCreated: created, wellsChecked: wells.length };
-}
-
-/**
- * Match a single well against all user's properties
- */
-export async function matchSingleWell(
-  wellId: string,
-  userId: string,
-  organizationId: string | undefined,
-  env: Env
-): Promise<{ linksCreated: number; propertiesChecked: number }> {
-  console.log(`[MatchSingleWell] Starting for well ${wellId}`);
-  
-  // Fetch the well
-  const wellResponse = await fetch(
-    `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`,
-    {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-      signal: AbortSignal.timeout(10_000)
-    }
-  );
-
-  if (!wellResponse.ok) {
-    throw new Error(`Failed to fetch well: ${wellResponse.status}`);
-  }
-
-  const wellData: any = await wellResponse.json();
-
-  // Verify ownership
-  const wellUserId = wellData.fields.User?.[0];
-  const wellOrgId = wellData.fields.Organization?.[0];
-
-  if (wellUserId !== userId && (!organizationId || wellOrgId !== organizationId)) {
-    throw new Error('Unauthorized');
-  }
-
-  // Get existing links
-  const { active: linkedPropertyIds, rejected: rejectedPropertyIds } = await getLinksForWell(env, wellId);
-
-  // Build property filter
-  let propertiesFilter: string;
-
-  if (organizationId) {
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-        signal: AbortSignal.timeout(10_000)
-      }
-    );
-
-    const orgData: any = await orgResponse.json();
-    const orgName = orgData.fields?.Name || '';
-    propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
-  } else {
-    // Need user email for filter
-    const userResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🙋 Users')}/${userId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-        signal: AbortSignal.timeout(10_000)
-      }
-    );
-    const userData: any = await userResponse.json();
-    const userEmail = userData.fields.Email;
-    propertiesFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
-  }
-
-  // Fetch all user's properties
-  const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
-
-  // Enrich the well with BH data and compute lateral sections
-  await enrichWellsWithD1Data([wellData], env);
-
-  // Process the well
-  const processedWell = processWell(wellData);
-  
-  // Check matches
-  const newLinks = [];
-  
-  for (const propertyData of properties) {
-    if (linkedPropertyIds.has(propertyData.id) || rejectedPropertyIds.has(propertyData.id)) {
-      continue;
-    }
-    
-    const processedProperty = processProperty(propertyData);
-    const matchReason = checkMatch(processedProperty, processedWell);
-    
-    if (matchReason) {
-      const wellName = extractFullWellName(wellData);
-      const propLocation = processedProperty.location 
-        ? `S${processedProperty.location.section}-T${processedProperty.location.township}-R${processedProperty.location.range}`
-        : 'Unknown Location';
-      const linkName = `${wellName} → ${propLocation}`;
-      
-      const linkRecord = {
-        fields: {
-          [LINK_FIELDS.LINK_NAME]: linkName,
-          [LINK_FIELDS.PROPERTY]: [propertyData.id],
-          [LINK_FIELDS.WELL]: [wellId],
-          [LINK_FIELDS.LINK_TYPE]: 'Auto',
-          [LINK_FIELDS.MATCH_REASON]: matchReason,
-          [LINK_FIELDS.STATUS]: 'Linked',
-          [LINK_FIELDS.USER]: [userId]
-        }
-      };
-      
-      if (organizationId) {
-        linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
-      }
-      
-      newLinks.push(linkRecord);
-    }
-  }
-  
-  // Create links
-  const { created } = await createLinksInBatches(env, newLinks);
-  
-  return { linksCreated: created, propertiesChecked: properties.length };
 }
 
 /**
@@ -1073,7 +964,7 @@ export function processWells(wells: any[]): WellRecord[] {
 }
 
 /**
- * Run full property-well matching for a user/organization
+ * Run full property-well matching for a user/organization (D1-based)
  */
 export async function runFullPropertyWellMatching(
   userId: string,
@@ -1081,43 +972,29 @@ export async function runFullPropertyWellMatching(
   organizationId: string | undefined,
   env: Env
 ): Promise<{ linksCreated: number; propertiesProcessed: number; wellsProcessed: number }> {
-  console.log(`[PropertyWellMatch] Starting for user ${userEmail}`);
-  
-  // Build Airtable filter formulas for tracked properties/wells
-  let propertiesFilter: string;
-  let wellsFilter: string;
+  console.log(`[PropertyWellMatch] Starting for user ${userEmail} (D1)`);
 
-  const escapedEmail = escapeAirtableValue(userEmail);
+  // Fetch all user/org properties and wells from D1
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
+  const { where: propOwnerWhere, params: propOwnerParams } = buildOwnershipFilter('p', organizationId, userId, memberIds);
+  const { where: wellOwnerWhere, params: wellOwnerParams } = buildOwnershipFilter('cw', organizationId, userId, memberIds);
 
-  if (organizationId) {
-    // Organization user - get org name for filtering
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` },
-        signal: AbortSignal.timeout(10_000)
-      }
-    );
-
-    const orgData: any = await orgResponse.json();
-    const orgName = orgData.fields?.Name || '';
-
-    const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
-    const userFind = `FIND('${escapedEmail}', ARRAYJOIN({User}))`;
-    propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-    wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-  } else {
-    propertiesFilter = `FIND('${escapedEmail}', ARRAYJOIN({User})) > 0`;
-    wellsFilter = `FIND('${escapedEmail}', ARRAYJOIN({User})) > 0`;
-  }
-
-  // Fetch tracked properties/wells from Airtable
-  const [properties, wells] = await Promise.all([
-    fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter),
-    fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter)
+  const [propRows, wellRows] = await Promise.all([
+    env.WELLS_DB.prepare(
+      `SELECT id, airtable_record_id, section, township, range, county, meridian
+       FROM properties p WHERE ${propOwnerWhere}`
+    ).bind(...propOwnerParams).all(),
+    env.WELLS_DB.prepare(
+      `SELECT id, airtable_id, section, township, range_val, bh_section, bh_township, bh_range,
+              well_name, well_number, county, occ_map_link
+       FROM client_wells cw WHERE ${wellOwnerWhere} AND status = 'Active'`
+    ).bind(...wellOwnerParams).all()
   ]);
 
-  console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells`);
+  const properties = (propRows.results || []).map(d1PropertyToRecord);
+  const wells = (wellRows.results || []).map(d1WellToRecord);
+
+  console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells from D1`);
 
   // Get existing links from D1 using actual property IDs (not user_id which may be NULL)
   const propertyIds = properties.map((p: any) => p.id);

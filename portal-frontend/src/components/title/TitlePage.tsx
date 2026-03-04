@@ -1,12 +1,23 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
-import { SLATE, GAP_COLOR } from '../../lib/constants';
+import { SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
+import { useAuth } from '../../hooks/useAuth';
 import type { ChainProperty, TitleChainResponse } from '../../types/title-chain';
 import { PropertySelector } from './PropertySelector';
 import { ChainTreeView } from './ChainTreeView';
 import { AISummary } from './AISummary';
 
 export function TitlePage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+
+  // Org gate: only allowed orgs can see title page
+  useEffect(() => {
+    if (user && !user.isSuperAdmin && !TITLE_CHAIN_ALLOWED_ORGS.includes(user.organizationId || '')) {
+      navigate('/portal', { replace: true });
+    }
+  }, [user, navigate]);
   const [properties, setProperties] = useState<ChainProperty[]>([]);
   const [propsLoading, setPropsLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
