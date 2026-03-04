@@ -100,7 +100,7 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
               onClick={() => onClose(entry.id)}
             />
             {/* Modal content */}
-            <div style={{ position: 'relative', zIndex: 1 }}>
+            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 'calc(100vw - 40px)', padding: '0 20px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
               <FocusTrap active={isTopmost}>
                 {Component ? (
                   <Component

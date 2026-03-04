@@ -68,41 +68,70 @@ function PropertiesTestTab() {
       {loading && <div style={{ color: SLATE, padding: 20 }}>Loading properties...</div>}
       {error && <div style={{ color: '#dc2626', padding: 20 }}>{error}</div>}
       {!loading && properties.length === 0 && <div style={{ color: SLATE, padding: 20 }}>No properties found</div>}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
-        {properties.slice(0, 20).map((p) => (
-          <button
-            key={p.id}
-            onClick={() => modal.open(MODAL_TYPES.PROPERTY, { propertyId: p.id })}
-            style={{
-              background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8,
-              padding: '10px 16px', textAlign: 'left', cursor: 'pointer',
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: DARK }}>
-                  {String(p.fields.COUNTY)} {formatTRS(p.fields.SEC as string, p.fields.TWN as string, p.fields.RNG as string)}
-                </div>
-                <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
-                  {(Number(p.fields['RI Acres'] || 0) + Number(p.fields['WI Acres'] || 0)) > 0
-                    ? `${(Number(p.fields['RI Acres'] || 0) + Number(p.fields['WI Acres'] || 0)).toFixed(2)} acres`
-                    : '\u2014'}
-                </div>
-              </div>
-              {p.fields.Group != null && (() => {
-                const ec = getEntityColor(String(p.fields.Group));
-                return (
-                  <span style={{ background: ec.bg, color: ec.text, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
-                    {String(p.fields.Group)}
-                  </span>
-                );
-              })()}
-            </div>
-            <div style={{ fontSize: 11, color: SLATE }}>{p.id}</div>
-          </button>
-        ))}
-      </div>
+      {!loading && properties.length > 0 && (
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, marginTop: 12 }}>
+          <thead>
+            <tr style={{ borderBottom: '2px solid #e2e8f0' }}>
+              <th style={thStyle}>County</th>
+              <th style={thStyle}>Legal</th>
+              <th style={thStyle}>Group</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Total Acres</th>
+              <th style={thStyle}>Notes</th>
+              <th style={{ ...thStyle, textAlign: 'right' }}>Links</th>
+            </tr>
+          </thead>
+          <tbody>
+            {properties.map((p) => {
+              const f = p.fields;
+              const totalAcres = Number(f['RI Acres'] || 0) + Number(f['WI Acres'] || 0);
+              const notes = String(f.Notes || '');
+              const group = f.Group ? String(f.Group) : null;
+              const ec = group ? getEntityColor(group) : null;
+              const counts = (p as unknown as Record<string, unknown>)._linkCounts as { wells?: number; documents?: number; filings?: number } | undefined;
+              return (
+                <tr
+                  key={p.id}
+                  onClick={() => modal.open(MODAL_TYPES.PROPERTY, { propertyId: p.id })}
+                  style={{ borderBottom: '1px solid #e2e8f0', cursor: 'pointer' }}
+                  onMouseOver={(e) => { (e.currentTarget as HTMLElement).style.background = '#f8fafc'; }}
+                  onMouseOut={(e) => { (e.currentTarget as HTMLElement).style.background = ''; }}
+                >
+                  <td style={tdStyle}>{String(f.COUNTY)}</td>
+                  <td style={{ ...tdStyle, color: '#C05621', fontWeight: 600 }}>
+                    {formatTRS(f.SEC as string, f.TWN as string, f.RNG as string)}
+                  </td>
+                  <td style={tdStyle}>
+                    {ec ? (
+                      <span style={{ background: ec.bg, color: ec.text, padding: '2px 8px', borderRadius: 12, fontSize: 12, fontWeight: 600 }}>
+                        {group}
+                      </span>
+                    ) : <span style={{ color: '#A0AEC0' }}>&mdash;</span>}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    {totalAcres > 0 ? totalAcres.toFixed(2) : <span style={{ color: '#A0AEC0' }}>&mdash;</span>}
+                  </td>
+                  <td style={{ ...tdStyle, maxWidth: 300 }}>
+                    {notes ? (
+                      <span style={{ color: SLATE, fontSize: 13 }}>
+                        {notes.length > 80 ? notes.substring(0, 80) + '...' : notes}
+                      </span>
+                    ) : <span style={{ color: '#A0AEC0' }}>&mdash;</span>}
+                  </td>
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    {counts && (
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', fontSize: 12 }}>
+                        {counts.wells != null && counts.wells > 0 && <span style={{ color: '#C05621' }}>&#9650;{counts.wells}</span>}
+                        {counts.documents != null && counts.documents > 0 && <span style={{ color: SLATE }}>&#128196;{counts.documents}</span>}
+                        {counts.filings != null && counts.filings > 0 && <span style={{ color: SLATE }}>&#128221;{counts.filings}</span>}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -142,6 +171,14 @@ function WellsTestTab() {
     </div>
   );
 }
+
+const thStyle: React.CSSProperties = {
+  padding: '10px 12px', textAlign: 'left', fontSize: 12, fontWeight: 600,
+  color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5,
+};
+const tdStyle: React.CSSProperties = {
+  padding: '10px 12px', fontSize: 13, color: '#1a2332',
+};
 
 function PlaceholderTab({ name, description }: { name: string; description: string }) {
   return (
