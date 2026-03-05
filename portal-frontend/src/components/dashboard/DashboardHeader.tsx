@@ -1,6 +1,5 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 import { useDashboardCounts } from '../../hooks/useDashboardCounts';
-import { useDashboardStore } from '../../contexts/DashboardDataContext';
 import { useToast } from '../../contexts/ToastContext';
 import { apiFetch } from '../../api/client';
 import { BORDER, OIL_NAVY, SLATE_BLUE, ORANGE, PLAN_LIMITS } from '../../lib/constants';
@@ -33,13 +32,11 @@ function formatLastAlert(iso: string | null): string {
 
 export function DashboardHeader({ activeTab, user }: Props) {
   const { data: counts } = useDashboardCounts();
-  const store = useDashboardStore();
-  const propState = useSyncExternalStore(store.subscribe, () => store.getSnapshot().properties);
   const toast = useToast();
   const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
 
   const limits = PLAN_LIMITS[user.plan] || { properties: 1, wells: 1 };
-  const propertyCount = propState.data?.length ?? 0;
+  const propertyCount = counts?.properties ?? 0;
 
   useEffect(() => {
     apiFetch<ActivityStats>('/api/activity/stats')

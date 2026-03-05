@@ -9,6 +9,7 @@ import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
+import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import type { Env } from '../types/env.js';
 
 // Import the original Airtable handlers as fallback
@@ -56,10 +57,9 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       }
 
       // Query all wells (linked + unlinked) from D1, filtered by ownership
-      const ownershipFilter = userOrgId
-        ? 'AND pwl.organization_id = ?'
-        : 'AND pwl.user_id = ?';
-      const ownershipBinding = userOrgId || authUser.id;
+      // Use standard ownership pattern: (org_id OR user_id IN members)
+      const memberIds = await getOrgMemberIds(env.WELLS_DB!, userOrgId);
+      const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('pwl', userOrgId, authUser.id, memberIds);
 
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
@@ -82,11 +82,11 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
           AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
-          ${ownershipFilter}
+          AND ${ownerWhere}
         ORDER BY
           CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
           cw.well_name
-      `).bind(propertyId, ownershipBinding).all();
+      `).bind(propertyId, ...ownerParams).all();
 
       console.log(`[GetLinkedWells-D1] D1 query: ${d1Results.results.length} wells in ${Date.now() - start}ms`);
 
@@ -195,10 +195,9 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       const resolvedWellId = wellResult.airtable_id as string;
 
       // Query all properties (linked + unlinked) from D1, filtered by ownership
-      const ownershipFilter = userOrgId
-        ? 'AND pwl.organization_id = ?'
-        : 'AND pwl.user_id = ?';
-      const ownershipBinding = userOrgId || authUser.id;
+      // Use standard ownership pattern: (org_id OR user_id IN members)
+      const memberIds = await getOrgMemberIds(env.WELLS_DB!, userOrgId);
+      const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('pwl', userOrgId, authUser.id, memberIds);
 
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
@@ -220,11 +219,11 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
           AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
-          ${ownershipFilter}
+          AND ${ownerWhere}
         ORDER BY
           CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
           p.section, p.township, p.range
-      `).bind(resolvedWellId, ownershipBinding).all();
+      `).bind(resolvedWellId, ...ownerParams).all();
       
       console.log(`[GetLinkedProperties-D1] D1 query: ${d1Results.results.length} properties in ${Date.now() - start}ms`);
 
