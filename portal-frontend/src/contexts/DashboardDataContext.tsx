@@ -91,18 +91,36 @@ export class DashboardDataStore {
     if (this._state.wells.loading) return;
     this.updateSlice('wells', { loading: true, error: null });
     try {
-      const res = await apiFetch<{ wells: WellRecord[] }>('/api/wells/v2');
+      const res = await apiFetch<{ records: WellRecord[] }>('/api/wells/v2');
+      const wells = res.records || [];
       this.updateSlice('wells', {
-        data: res.wells || [],
+        data: wells,
         loading: false,
         initialized: true,
         lastFetched: Date.now(),
       });
+      // Fetch link counts separately (like vanilla dashboard) and merge
+      if (wells.length > 0) {
+        this.loadWellLinkCounts(wells);
+      }
     } catch (err: unknown) {
       this.updateSlice('wells', {
         loading: false,
         error: err instanceof Error ? err.message : 'Failed to load wells',
       });
+    }
+  }
+
+  private async loadWellLinkCounts(wells: WellRecord[]) {
+    try {
+      const counts = await apiFetch<Record<string, { properties: number; documents: number; filings: number }>>('/api/wells/link-counts');
+      const merged = wells.map((w) => {
+        const c = counts[w.id];
+        return c ? { ...w, _linkCounts: c } : w;
+      });
+      this.updateSlice('wells', { data: merged });
+    } catch {
+      // Non-critical — grid just shows 0s
     }
   }
 
@@ -129,9 +147,9 @@ export class DashboardDataStore {
     if (this._state.activity.loading) return;
     this.updateSlice('activity', { loading: true, error: null });
     try {
-      const res = await apiFetch<{ activities: ActivityRecord[] }>('/api/activity');
+      const res = await apiFetch<{ records: ActivityRecord[] }>('/api/activity');
       this.updateSlice('activity', {
-        data: res.activities || [],
+        data: res.records || [],
         loading: false,
         initialized: true,
         lastFetched: Date.now(),

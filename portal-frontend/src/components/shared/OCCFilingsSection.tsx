@@ -5,7 +5,7 @@ import { fetchDocketEntriesByWell } from '../../api/wells';
 import { processOccFiling, fetchDocumentStatus, checkAnalyzedFilings } from '../../api/occ';
 import { useModal } from '../../contexts/ModalContext';
 import { useToast } from '../../contexts/ToastContext';
-import { StatusBadge } from '../ui/StatusBadge';
+import { Badge } from '../ui/Badge';
 import { Spinner } from '../ui/Spinner';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import { formatDate } from '../../lib/helpers';
@@ -39,6 +39,8 @@ function FilingRow({ filing, isAdjacent, processing, onAnalyze, onViewDoc }: {
   const state = processing?.state || 'idle';
   const statusKey = filing.status?.toLowerCase() || '';
   const statusStyle = FILING_STATUS_COLORS[statusKey] || FILING_STATUS_COLORS.filed;
+  // Only show Analyze for final orders (Heard/Recommended) — other statuses don't have fetchable documents
+  const hasFinalOrder = statusKey === 'heard' || statusKey === 'recommended';
 
   return (
     <div style={{
@@ -59,7 +61,7 @@ function FilingRow({ filing, isAdjacent, processing, onAnalyze, onViewDoc }: {
         )}
         <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: DARK, fontWeight: 500 }}>{filing.caseNumber}</span>
-          <StatusBadge label={filing.statusDisplay || filing.status} color={statusStyle.color} background={statusStyle.bg} />
+          <Badge bg={statusStyle.bg} color={statusStyle.color}>{filing.statusDisplay || filing.status}</Badge>
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0, marginLeft: 12 }}>
@@ -103,7 +105,7 @@ function FilingRow({ filing, isAdjacent, processing, onAnalyze, onViewDoc }: {
             }}>
               <Spinner size={10} /> {state === 'fetching' ? 'Fetching...' : state === 'queued' ? 'Queued...' : 'Processing...'}
             </button>
-          ) : (
+          ) : hasFinalOrder ? (
             <button
               onClick={() => onAnalyze(filing)}
               style={{
@@ -113,7 +115,7 @@ function FilingRow({ filing, isAdjacent, processing, onAnalyze, onViewDoc }: {
             >
               Analyze
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

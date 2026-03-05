@@ -172,11 +172,12 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
     
     try {
       // First verify the well exists in D1 client_wells table and check ownership
+      // Try airtable_id first (V2 format: recXXX or cwell_UUID), then id (D1 internal: cwell_recXXX)
       const wellResult = await env.WELLS_DB.prepare(`
         SELECT airtable_id, user_id, organization_id
         FROM client_wells
-        WHERE airtable_id = ?
-      `).bind(wellId).first();
+        WHERE airtable_id = ? OR id = ?
+      `).bind(wellId, wellId).first();
 
       if (!wellResult) {
         console.log(`[GetLinkedProperties-D1] Well not found in D1 client_wells, falling back to Airtable`);
@@ -189,6 +190,9 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       if (wellUserId !== authUser.id && (!userOrgId || wellOrgIdVal !== userOrgId)) {
         return jsonResponse({ error: "Unauthorized" }, 403);
       }
+
+      // Use the resolved airtable_id for link queries (handles cwell_recXXX → recXXX resolution)
+      const resolvedWellId = wellResult.airtable_id as string;
 
       // Query all properties (linked + unlinked) from D1, filtered by ownership
       const ownershipFilter = userOrgId
@@ -220,7 +224,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         ORDER BY
           CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
           p.section, p.township, p.range
-      `).bind(wellId, ownershipBinding).all();
+      `).bind(resolvedWellId, ownershipBinding).all();
       
       console.log(`[GetLinkedProperties-D1] D1 query: ${d1Results.results.length} properties in ${Date.now() - start}ms`);
 

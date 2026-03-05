@@ -29,12 +29,18 @@ interface Env {
 }
 
 // Credit pack pricing - must match Stripe product prices (LIVE MODE)
-const CREDIT_PACK_PRICES: Record<string, { credits: number; name: string; price: number }> = {
-  'price_1SpV6u9OfJmRCDOqmiQGFg2V': { credits: 100, name: 'Starter Pack', price: 4900 },
-  'price_1SpVCK9OfJmRCDOq8r8NrrqJ': { credits: 500, name: 'Working Pack', price: 19900 },
-  'price_1SpVCK9OfJmRCDOqhjfa5Na1': { credits: 2000, name: 'Team Pack', price: 69900 },
-  'price_1SpVCK9OfJmRCDOqNVkGVLVQ': { credits: 10000, name: 'Operations Pack', price: 249900 },
+// Keyed by slug for frontend-friendly API; priceId is the Stripe price identifier.
+interface CreditPackInfo { credits: number; name: string; price: number; priceId: string }
+const CREDIT_PACKS_BY_SLUG: Record<string, CreditPackInfo> = {
+  starter:    { credits: 100,   name: 'Starter Pack',    price: 4900,   priceId: 'price_1SpV6u9OfJmRCDOqmiQGFg2V' },
+  working:    { credits: 500,   name: 'Working Pack',    price: 19900,  priceId: 'price_1SpVCK9OfJmRCDOq8r8NrrqJ' },
+  team:       { credits: 2000,  name: 'Team Pack',       price: 69900,  priceId: 'price_1SpVCK9OfJmRCDOqhjfa5Na1' },
+  operations: { credits: 10000, name: 'Operations Pack', price: 249900, priceId: 'price_1SpVCK9OfJmRCDOqNVkGVLVQ' },
 };
+// Backward compat: lookup by Stripe priceId (vanilla frontend still sends priceId)
+const CREDIT_PACK_PRICES: Record<string, CreditPackInfo> = Object.fromEntries(
+  Object.values(CREDIT_PACKS_BY_SLUG).map((p) => [p.priceId, p]),
+);
 
 // Upload limits
 const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB per file
@@ -2903,6 +2909,31 @@ export default {
                     }
 
                     if (Array.isArray(unitSections) && unitSections.length > 0) {
+                      // === Validation Layer: check allocation factors before writing ===
+                      const allocFactors = unitSections
+                        .map((us: any) => {
+                          const raw = us.allocation_factor ?? us.allocation_percentage;
+                          if (raw == null || raw <= 0) return null;
+                          return raw > 1 ? raw / 100 : raw;
+                        })
+                        .filter((v: number | null): v is number => v !== null);
+
+                      const allocSum = allocFactors.reduce((s: number, v: number) => s + v, 0);
+                      const sumOk = Math.abs(allocSum - 1.0) < 0.02;
+
+                      // Flag swap risk: exactly 2 sections with different allocations
+                      const isSwapRisk = unitSections.length === 2
+                        && allocFactors.length === 2
+                        && Math.abs(allocFactors[0] - allocFactors[1]) > 0.05;
+
+                      if (!sumOk) {
+                        console.warn(`[Alloc Validation] WARNING: allocation factors sum to ${(allocSum * 100).toFixed(2)}% (expected ~100%) for doc ${docId}. Sections: ${unitSections.map((us: any) => `S${us.section}=${((us.allocation_factor ?? us.allocation_percentage) > 1 ? (us.allocation_factor ?? us.allocation_percentage) : (us.allocation_factor ?? us.allocation_percentage) * 100).toFixed(2)}%`).join(', ')}`);
+                      }
+                      if (isSwapRisk) {
+                        console.warn(`[Alloc Validation] SWAP RISK: 2-section unit with different allocations — verify section-to-allocation mapping. Doc ${docId}: ${unitSections.map((us: any) => `S${us.section}=${((us.allocation_factor ?? us.allocation_percentage) > 1 ? (us.allocation_factor ?? us.allocation_percentage) : (us.allocation_factor ?? us.allocation_percentage) * 100).toFixed(2)}%`).join(', ')}`);
+                      }
+                      // === End validation — proceed with write ===
+
                       // Get all property_well_links for this well with property TRS data
                       const links = await env.WELLS_DB.prepare(`
                         SELECT pwl.id, p.section, p.township, p.range
@@ -2930,7 +2961,7 @@ export default {
                                   allocation_source_doc_id = ?
                               WHERE id = ?
                             `).bind(allocDecimal, docId, link.id).run();
-                            console.log(`[Alloc Write-Back] Set ${(allocDecimal * 100).toFixed(2)}% on link ${link.id} (S${usNorm.sec}-T${usNorm.twn}-R${usNorm.rng}) from doc ${docId}`);
+                            console.log(`[Alloc Write-Back] Set ${(allocDecimal * 100).toFixed(2)}% on link ${link.id} (S${usNorm.sec}-T${usNorm.twn}-R${usNorm.rng}) from doc ${docId}${isSwapRisk ? ' [SWAP RISK]' : ''}`);
                             // Don't break — multi-entity same-TRS means multiple links need updating
                           }
                         }
@@ -4433,20 +4464,30 @@ export default {
       }
 
       try {
-        const body = await request.json() as { priceId: string };
-        const { priceId } = body;
+        const body = await request.json() as { priceId?: string; packId?: string; returnUrl?: string };
+        const { priceId, packId, returnUrl } = body;
 
-        if (!priceId) {
-          return errorResponse('priceId is required', 400, env);
-        }
-
-        // Validate price ID
-        const packInfo = CREDIT_PACK_PRICES[priceId];
-        if (!packInfo) {
-          return errorResponse('Invalid price ID', 400, env);
+        // Resolve pack info: prefer packId slug, fall back to raw priceId (vanilla compat)
+        let packInfo: CreditPackInfo | undefined;
+        let resolvedPriceId: string;
+        if (packId && CREDIT_PACKS_BY_SLUG[packId]) {
+          packInfo = CREDIT_PACKS_BY_SLUG[packId];
+          resolvedPriceId = packInfo.priceId;
+        } else if (priceId && CREDIT_PACK_PRICES[priceId]) {
+          packInfo = CREDIT_PACK_PRICES[priceId];
+          resolvedPriceId = priceId;
+        } else {
+          return errorResponse('Valid packId or priceId is required', 400, env);
         }
 
         console.log(`[Checkout] Creating checkout session for ${userEmail}, pack: ${packInfo.name}`);
+
+        // Build redirect URLs — allow frontend to specify returnUrl for React portal
+        const defaultBase = 'https://portal.mymineralwatch.com/portal';
+        const baseUrl = returnUrl || defaultBase;
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        const successUrl = `${baseUrl}${separator}purchase=success&session_id={CHECKOUT_SESSION_ID}`;
+        const cancelUrl = `${baseUrl}${separator}purchase=cancelled`;
 
         // Create Stripe Checkout session
         const checkoutResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
@@ -4459,10 +4500,10 @@ export default {
           body: new URLSearchParams({
             'mode': 'payment',
             'customer_email': userEmail,
-            'line_items[0][price]': priceId,
+            'line_items[0][price]': resolvedPriceId,
             'line_items[0][quantity]': '1',
-            'success_url': `https://portal.mymineralwatch.com/portal?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
-            'cancel_url': `https://portal.mymineralwatch.com/portal?purchase=cancelled`,
+            'success_url': successUrl,
+            'cancel_url': cancelUrl,
             'metadata[user_id]': userId,
             'metadata[pack_name]': packInfo.name,
             'metadata[credits]': packInfo.credits.toString(),

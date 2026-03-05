@@ -3828,6 +3828,8 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
 - Extract township/range for each section in unit_sections
 - If township/range is not explicitly stated for a secondary section, use the township/range from the primary (first) section
 - Example: If you see "Section 25-T18N-R15W has 640 acres... Section 36 has 640 acres...", Section 36 is also T18N-R15W
+- CRITICAL: Extract each section's allocation factor ONE AT A TIME. Anchor each section number to its percentage
+  BEFORE moving to the next section. Swapping allocations between sections causes incorrect revenue calculations.
 {
   "doc_type": "division_order",
 
@@ -8374,6 +8376,20 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
 - If township/range is not explicitly stated for a secondary section, use the township/range from the primary (first) section
 - Example: If you see "Section 25-T18N-R15W has 640 acres... Section 36 has 640 acres...", Section 36 is also T18N-R15W
 
+CRITICAL — ALLOCATION FACTOR ACCURACY (section-by-section extraction):
+Allocation swaps are a common extraction error. To prevent them, extract each section ONE AT A TIME:
+1. Find the FIRST section mentioned in the document. Note its section number and its allocation percentage.
+2. Write that section's entry in unit_sections with its allocation_factor BEFORE moving to the next section.
+3. Find the NEXT section. Note its section number and its allocation percentage.
+4. Write that section's entry.
+5. After all sections are extracted, verify: do the allocation_factors sum to approximately 1.0 (or 100%)?
+6. Double-check: re-read the document and confirm each section number is paired with ITS OWN allocation, not swapped.
+
+Example of CORRECT extraction from a document stating "Section 25: 640 acres, 30.54% ... Section 36: 640 acres, 69.46%":
+  unit_sections: [{{"section": "25", "allocation_factor": 0.3054}}, {{"section": "36", "allocation_factor": 0.6946}}]
+Example of WRONG extraction (swapped — DO NOT DO THIS):
+  unit_sections: [{{"section": "25", "allocation_factor": 0.6946}}, {{"section": "36", "allocation_factor": 0.3054}}]
+
 DIVISION ORDER EXAMPLE:
 {{
   "doc_type": "division_order",
@@ -8451,6 +8467,9 @@ MULTI-SECTION UNITS:
 - Each section should be in unit_sections with its allocation factor
 - The allocation_factor shows what percentage of production comes from that section
 - Top-level section/township/range should be from the FIRST section (for property matching)
+- CRITICAL: Extract section-by-section. For each section, anchor its number to its allocation BEFORE proceeding to the next.
+  Swapping allocations between sections is a high-severity error that causes incorrect revenue calculations.
+- Allocation factors must sum to approximately 1.0 (within 0.02 tolerance). If they don't, re-read the document.
 
 TRUST OWNERSHIP:
 - If owner is a trust, extract BOTH:

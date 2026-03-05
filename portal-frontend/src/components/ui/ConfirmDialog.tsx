@@ -1,5 +1,6 @@
 import { FocusTrap } from './FocusTrap';
-import { DARK, ERROR_RED, WARNING_AMBER, BORDER } from '../../lib/constants';
+import { Button } from './Button';
+import { DARK, ERROR_RED, WARNING_AMBER, TEAL } from '../../lib/constants';
 
 export interface ConfirmOptions {
   title?: string;
@@ -68,26 +69,19 @@ export function ConfirmDialog({ message, options, onConfirm, onCancel }: Confirm
             {message}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button
-              onClick={onCancel}
-              style={{
-                padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                border: `1px solid ${BORDER}`, background: '#fff', color: '#64748b',
-                cursor: 'pointer',
-              }}
-            >
+            <Button variant="secondary" size="md" onClick={onCancel}
+              style={{ padding: '8px 16px' }}>
               {cancelText}
-            </button>
-            <button
+            </Button>
+            <Button
+              variant={destructive ? 'destructive' : 'primary'}
+              color={destructive ? undefined : TEAL}
+              size="md"
               onClick={onConfirm}
-              style={{
-                padding: '8px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600,
-                border: 'none', cursor: 'pointer', color: '#fff',
-                background: destructive ? ERROR_RED : '#1D6F5C',
-              }}
+              style={{ padding: '8px 16px' }}
             >
               {confirmText}
-            </button>
+            </Button>
           </div>
         </div>
       </FocusTrap>

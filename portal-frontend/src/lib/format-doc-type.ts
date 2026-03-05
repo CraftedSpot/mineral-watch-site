@@ -33,19 +33,39 @@ export function formatFieldValue(value: unknown): string {
   if (typeof value === 'number') return String(value);
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (Array.isArray(value)) {
+    if (value.length === 0) return '\u2014';
     return value.map((v) => formatFieldValue(v)).join(', ');
   }
   if (typeof value === 'object') {
-    // Handle legal description objects
     const obj = value as Record<string, unknown>;
+    // Handle legal description objects
     if (obj.section || obj.township || obj.range) {
       const parts: string[] = [];
       if (obj.section) parts.push(`S${obj.section}`);
       if (obj.township) parts.push(`T${obj.township}`);
       if (obj.range) parts.push(`R${obj.range}`);
-      return parts.join('-');
+      if (obj.quarter_call) parts.push(String(obj.quarter_call));
+      if (obj.county) parts.push(String(obj.county));
+      return parts.join(' \u2013 ');
     }
-    return JSON.stringify(value);
+    // Flatten simple objects into readable key: value pairs (recursive — no JSON.stringify)
+    const entries = Object.entries(obj).filter(([, v]) => v != null && v !== '');
+    if (entries.length === 0) return '\u2014';
+    return entries.map(([k, v]) => {
+      const label = k.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+      return `${label}: ${formatFieldValue(v)}`;
+    }).join('; ');
   }
   return String(value);
+}
+
+/** Check if a value is "empty" (null, empty string, empty array, all-null object) */
+export function isEmptyValue(value: unknown): boolean {
+  if (value == null || value === '') return true;
+  if (Array.isArray(value)) return value.length === 0;
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v != null && v !== '');
+    return entries.length === 0;
+  }
+  return false;
 }

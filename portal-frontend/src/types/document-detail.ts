@@ -20,12 +20,13 @@ export interface DocumentDetail {
   children?: DocumentChild[];
   linked_properties?: Array<{
     id: string;
-    location: string;
-    group?: string;
+    name?: string;
+    group_name?: string;
     county?: string;
     section?: string;
     township?: string;
     range?: string;
+    meridian?: string;
   }>;
   linked_wells?: Array<{
     id: string;

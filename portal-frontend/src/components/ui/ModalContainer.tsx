@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, Activity } from 'react';
 import { createPortal } from 'react-dom';
 import { FocusTrap } from './FocusTrap';
 import { MODAL_BASE_Z, MODAL_Z_INCREMENT, BORDER, DARK } from '../../lib/constants';
@@ -7,6 +7,8 @@ import { PropertyModal } from '../modals/PropertyModal';
 import { WellModal } from '../modals/WellModal';
 import { DocumentDetailModal } from '../modals/DocumentDetailModal';
 import { DocumentViewer } from '../modals/DocumentViewer';
+import { CreditPackModal } from '../modals/CreditPackModal';
+import { OutOfCreditsModal } from '../modals/OutOfCreditsModal';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
@@ -14,6 +16,8 @@ const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
   'well': WellModal,
   'document-detail': DocumentDetailModal,
   'document-viewer': DocumentViewer,
+  'credit-pack': CreditPackModal,
+  'out-of-credits': OutOfCreditsModal,
 };
 
 interface ModalContainerProps {
@@ -84,36 +88,37 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
         const Component = MODAL_REGISTRY[entry.type];
 
         return (
-          <div
-            key={entry.id}
-            style={{
-              position: 'fixed', inset: 0, zIndex,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            {/* Backdrop */}
+          <Activity key={entry.id} mode={isTopmost ? 'visible' : 'hidden'}>
             <div
               style={{
-                position: 'absolute', inset: 0,
-                background: index === 0 ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)',
+                position: 'fixed', inset: 0, zIndex,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-              onClick={() => onClose(entry.id)}
-            />
-            {/* Modal content */}
-            <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 'calc(100vw - 40px)', padding: '0 20px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
-              <FocusTrap active={isTopmost}>
-                {Component ? (
-                  <Component
-                    {...entry.props}
-                    onClose={() => onClose(entry.id)}
-                    modalId={entry.id}
-                  />
-                ) : (
-                  <PlaceholderModal type={entry.type} onClose={() => onClose(entry.id)} />
-                )}
-              </FocusTrap>
+            >
+              {/* Backdrop */}
+              <div
+                style={{
+                  position: 'absolute', inset: 0,
+                  background: index === 0 ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.2)',
+                }}
+                onClick={() => onClose(entry.id)}
+              />
+              {/* Modal content */}
+              <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 'calc(100vw - 40px)', padding: '0 20px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
+                <FocusTrap active={isTopmost}>
+                  {Component ? (
+                    <Component
+                      {...entry.props}
+                      onClose={() => onClose(entry.id)}
+                      modalId={entry.id}
+                    />
+                  ) : (
+                    <PlaceholderModal type={entry.type} onClose={() => onClose(entry.id)} />
+                  )}
+                </FocusTrap>
+              </div>
             </div>
-          </div>
+          </Activity>
         );
       })}
     </>,

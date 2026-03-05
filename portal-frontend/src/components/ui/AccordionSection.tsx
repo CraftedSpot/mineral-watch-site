@@ -1,23 +1,26 @@
 import { useState } from 'react';
-import { BORDER, DARK, SLATE } from '../../lib/constants';
+import { BORDER, SLATE, BG_FIELD } from '../../lib/constants';
+import { Badge } from './Badge';
 
 interface AccordionSectionProps {
   title: string;
   count?: number | null;  // null = loading, undefined = no badge
   defaultOpen?: boolean;
+  maxHeight?: number;  // optional scroll cap on content
   children: React.ReactNode;
 }
 
-export function AccordionSection({ title, count, defaultOpen = false, children }: AccordionSectionProps) {
+export function AccordionSection({ title, count, defaultOpen = false, maxHeight, children }: AccordionSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <div style={{ marginTop: 12, border: `1px solid ${BORDER}`, borderRadius: 8, background: '#fff' }}>
+    <div style={{ margin: '8px 0', border: `1px solid ${BORDER}`, borderRadius: 8 }}>
       <div
         onClick={() => setOpen(!open)}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '10px 14px', cursor: 'pointer', userSelect: 'none',
+          padding: '8px 12px', cursor: 'pointer', userSelect: 'none',
+          background: BG_FIELD, borderRadius: open ? '8px 8px 0 0' : 8,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -27,26 +30,36 @@ export function AccordionSection({ title, count, defaultOpen = false, children }
           }}>
             &#9654;
           </span>
-          <span style={{ fontWeight: 600, fontSize: 13, color: DARK }}>{title}</span>
+          <span style={{ fontWeight: 500, fontSize: 14 }}>{title}</span>
         </div>
         {count !== undefined && (
           count === null ? (
             <span style={{
-              display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
-              background: SLATE, animation: 'pulse 1.5s ease-in-out infinite',
-            }} />
-          ) : (
-            <span style={{
-              background: '#f1f5f9', color: SLATE, fontSize: 11, fontWeight: 600,
-              padding: '2px 8px', borderRadius: 10,
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              background: BORDER, padding: '2px 10px', borderRadius: 12, fontSize: 11, color: '#6b7280',
             }}>
-              {count}
+              <span style={{
+                display: 'inline-block', width: 6, height: 6, borderRadius: '50%',
+                background: '#3b82f6', animation: 'pulse 1.2s ease-in-out infinite',
+              }} />
+              Loading
             </span>
+          ) : (
+            <Badge
+              bg={count > 0 ? '#dbeafe' : BORDER}
+              color={count > 0 ? '#1e40af' : '#9ca3af'}
+              shape="pill"
+            >
+              {count}
+            </Badge>
           )
         )}
       </div>
       {open && (
-        <div style={{ padding: '0 14px 14px', borderTop: `1px solid ${BORDER}` }}>
+        <div style={{
+          padding: '0 16px 16px',
+          ...(maxHeight ? { maxHeight, overflowY: 'auto' as const } : {}),
+        }}>
           {children}
         </div>
       )}

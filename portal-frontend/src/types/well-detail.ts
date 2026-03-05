@@ -11,12 +11,29 @@ export interface WellEnrichment {
   operator: string;
   well_name: string;
   measured_total_depth: string;
+  lateral_length: number | null;
   ip_oil_bbl: number | null;
   ip_gas_mcf: number | null;
   operator_phone: string;
   operator_contact: string;
   clientWellId?: string;
   is_horizontal?: boolean;
+  completion_date?: string | null;
+  first_production_date?: string | null;
+  notes?: string;
+  ri_nri?: number | null;
+  wi_nri?: number | null;
+  orri_nri?: number | null;
+  user_well_code?: string | null;
+  occMapLink?: string;
+}
+
+export interface LinkedDocument {
+  id: string;
+  displayName: string;
+  docType: string;
+  uploadDate: string;
+  r2Key?: string;
 }
 
 export interface LinkedProperty {

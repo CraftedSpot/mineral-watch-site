@@ -1,6 +1,36 @@
 import { apiFetch } from './client';
 import type { DocumentDetail } from '../types/document-detail';
 
+export interface UsageStats {
+  docs_processed: number;
+  credits_used: number;
+  monthly_limit: number;
+  monthly_remaining: number;
+  purchased_credits: number;
+  permanent_credits: number;
+  billing_period: string;
+  percentage_used: number;
+  total_available: number;
+  reset_date: string;
+  is_lifetime_tier: boolean;
+  total_credits_purchased: number;
+}
+
+export interface UsageResponse {
+  usage: UsageStats;
+  plan: string;
+  credits: {
+    hasCredits: boolean;
+    monthlyRemaining: number;
+    permanentRemaining: number;
+    totalAvailable: number;
+  };
+}
+
+export async function fetchUsageStats(): Promise<UsageResponse> {
+  return apiFetch<UsageResponse>('/api/documents/usage');
+}
+
 export async function fetchDocumentDetail(docId: string): Promise<DocumentDetail> {
   const res = await apiFetch<{ document: DocumentDetail } | DocumentDetail>(
     `/api/documents/${docId}`,

@@ -1,4 +1,5 @@
 import { ORANGE, BORDER } from '../../lib/constants';
+import { Button } from './Button';
 
 interface BulkActionBarProps {
   count: number;
@@ -19,16 +20,7 @@ export function BulkActionBar({ count, onClear, children }: BulkActionBarProps) 
       <span style={{ fontWeight: 600, color: ORANGE }}>
         {count} selected
       </span>
-      <button
-        onClick={onClear}
-        style={{
-          background: 'none', border: `1px solid ${BORDER}`,
-          borderRadius: 4, padding: '4px 10px', fontSize: 12,
-          color: '#64748b', cursor: 'pointer',
-        }}
-      >
-        Clear
-      </button>
+      <Button variant="ghost" size="sm" onClick={onClear}>Clear</Button>
       <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
         {children}
       </div>

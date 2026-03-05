@@ -4,7 +4,7 @@ import { fetchDrillingPermits } from '../../api/wells';
 import { analyzePermit, fetchDocumentStatus } from '../../api/occ';
 import { useModal } from '../../contexts/ModalContext';
 import { useToast } from '../../contexts/ToastContext';
-import { StatusBadge } from '../ui/StatusBadge';
+import { Badge } from '../ui/Badge';
 import { Spinner } from '../ui/Spinner';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import { formatDate } from '../../lib/helpers';
@@ -116,8 +116,8 @@ export function DrillingPermitsSection({ apiNumber, onCountChange }: Props) {
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <StatusBadge label="PERMIT 1000" background="#dbeafe" color="#1e40af" />
-                {isLatest && <StatusBadge label="Latest" background="#dcfce7" color="#166534" />}
+                <Badge bg="#dbeafe" color="#1e40af">PERMIT 1000</Badge>
+                {isLatest && <Badge bg="#dcfce7" color="#166534">Latest</Badge>}
                 {permit.location && <span style={{ fontSize: 11, color: SLATE }}>{permit.location}</span>}
               </div>
               <div style={{ fontSize: 12, color: SLATE, marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

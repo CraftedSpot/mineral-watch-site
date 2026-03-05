@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import { OIL_NAVY } from '../../lib/constants';
 import type { AuthUser } from '../../hooks/useAuth';
 
 interface NavHeaderProps {
@@ -6,7 +7,7 @@ interface NavHeaderProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/portal', label: 'Dashboard', react: true },
+  { href: '/portal/react', label: 'Dashboard', react: true },
   { href: '/portal/title', label: 'Title', react: true },
   { href: '/portal/map', label: 'Map', react: false },
   { href: '/portal/intelligence', label: 'Intelligence', react: false },
@@ -26,7 +27,7 @@ export function NavHeader({ user }: NavHeaderProps) {
 
   return (
     <header style={{
-      background: '#fff', borderBottom: '1px solid #e2e8f0',
+      background: OIL_NAVY,
       fontFamily: "'Inter', 'DM Sans', sans-serif",
     }}>
       <div style={{
@@ -36,20 +37,19 @@ export function NavHeader({ user }: NavHeaderProps) {
       }}>
         <a href="/" style={{
           fontFamily: "'Merriweather', serif", fontWeight: 900,
-          fontSize: 18, color: '#1e3a5f',
+          fontSize: 20, color: '#fff', textDecoration: 'none',
         }}>
           Mineral Watch
         </a>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
           {NAV_ITEMS.map(({ href, label, react: isReactRoute }) => {
-            const isActive = href === '/portal'
-              ? location.pathname === '/portal'
+            const isActive = href === '/portal/react'
+              ? location.pathname === '/portal/react' || location.pathname === '/portal'
               : location.pathname.startsWith(href);
-            const style = {
-              padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 500,
-              color: isActive ? '#1e3a5f' : '#64748b',
-              background: isActive ? '#eef2f7' : 'transparent',
+            const style: React.CSSProperties = {
+              fontSize: 14, fontWeight: 500,
+              color: isActive ? '#fff' : 'rgba(255,255,255,0.8)',
               textDecoration: 'none',
             };
             if (isReactRoute) {
@@ -59,28 +59,29 @@ export function NavHeader({ user }: NavHeaderProps) {
           })}
         </nav>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           {user.isSuperAdmin && (
             <>
               <a href="/portal/admin" style={{
-                background: 'rgba(239,68,68,0.15)', color: '#f87171',
-                border: '1px solid rgba(239,68,68,0.3)', padding: '6px 14px',
+                background: 'rgba(239,68,68,0.2)', color: '#fca5a5',
+                border: '1px solid rgba(239,68,68,0.4)', padding: '5px 12px',
                 borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
                 textDecoration: 'none',
               }}>Admin</a>
               <a href="/portal/marketing" style={{
-                background: 'rgba(139,92,246,0.15)', color: '#a78bfa',
-                border: '1px solid rgba(139,92,246,0.3)', padding: '6px 14px',
+                background: 'rgba(139,92,246,0.2)', color: '#c4b5fd',
+                border: '1px solid rgba(139,92,246,0.4)', padding: '5px 12px',
                 borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
                 textDecoration: 'none',
               }}>Marketing</a>
             </>
           )}
-          <span style={{ fontSize: 13, color: '#1a2332', fontWeight: 500 }}>{user.name}</span>
+          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{user.name}</span>
           <button onClick={handleLogout} style={{
-            background: 'transparent', border: '1px solid #e2e8f0',
-            borderRadius: 6, padding: '6px 14px', fontSize: 12, fontWeight: 500,
-            color: '#64748b', cursor: 'pointer',
+            background: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            borderRadius: 4, padding: '6px 14px', fontSize: 13,
+            color: '#fff', cursor: 'pointer',
           }}>
             Log Out
           </button>

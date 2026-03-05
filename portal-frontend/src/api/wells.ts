@@ -2,6 +2,7 @@ import { apiFetch } from './client';
 import type {
   WellEnrichment,
   LinkedProperty,
+  LinkedDocument,
   ProductionSummary,
   CompletionReport,
   DrillingPermit,
@@ -14,9 +15,7 @@ export async function fetchWellEnrichment(apiNumber: string): Promise<WellEnrich
 }
 
 export async function fetchLinkedProperties(wellId: string): Promise<LinkedProperty[]> {
-  // Strip cwell_ prefix if present
-  const id = wellId.replace(/^cwell_/, '');
-  const res = await apiFetch<{ properties: LinkedProperty[] }>(`/api/well/${id}/linked-properties`);
+  const res = await apiFetch<{ properties: LinkedProperty[] }>(`/api/well/${wellId}/linked-properties`);
   return (res.properties || []).filter((p) => p.linkStatus !== 'Unlinked');
 }
 
@@ -53,4 +52,18 @@ export async function fetchDocketEntriesByWell(
     `/api/docket-entries-by-well?api=${apiNumber}`,
   );
   return res;
+}
+
+export async function fetchLinkedDocuments(wellId: string, apiNumber: string): Promise<LinkedDocument[]> {
+  const res = await apiFetch<{ documents: LinkedDocument[] }>(
+    `/api/well/${wellId}/linked-documents?api_number=${apiNumber}`,
+  );
+  return res.documents || [];
+}
+
+export async function saveWellNotes(wellId: string, notes: string): Promise<void> {
+  await apiFetch(`/api/wells/${wellId}/notes`, {
+    method: 'PATCH',
+    body: JSON.stringify({ notes }),
+  });
 }

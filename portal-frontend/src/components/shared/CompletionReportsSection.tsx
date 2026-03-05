@@ -4,7 +4,7 @@ import { fetchCompletionReports } from '../../api/wells';
 import { analyzeCompletionReport, fetchDocumentStatus } from '../../api/occ';
 import { useModal } from '../../contexts/ModalContext';
 import { useToast } from '../../contexts/ToastContext';
-import { StatusBadge } from '../ui/StatusBadge';
+import { Badge } from '../ui/Badge';
 import { Spinner } from '../ui/Spinner';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import { formatDate } from '../../lib/helpers';
@@ -120,12 +120,13 @@ export function CompletionReportsSection({ apiNumber, onCountChange }: Props) {
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <StatusBadge
-                  label={report.formType === '1002C' ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A'}
-                  background={report.formType === '1002C' ? '#fef3c7' : '#dbeafe'}
+                <Badge
+                  bg={report.formType === '1002C' ? '#fef3c7' : '#dbeafe'}
                   color={report.formType === '1002C' ? '#92400e' : '#1e40af'}
-                />
-                {isCurrent && <StatusBadge label="Current" background="#dcfce7" color="#166534" />}
+                >
+                  {report.formType === '1002C' ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A'}
+                </Badge>
+                {isCurrent && <Badge bg="#dcfce7" color="#166534">Current</Badge>}
                 {report.location && <span style={{ fontSize: 11, color: SLATE }}>{report.location}</span>}
               </div>
               <div style={{ fontSize: 12, color: SLATE, marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

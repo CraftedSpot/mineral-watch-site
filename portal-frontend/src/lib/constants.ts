@@ -1,4 +1,6 @@
 // Colors (matching prototype + portal)
+export const OIL_NAVY = '#1C2B36';
+export const SLATE_BLUE = '#334E68';
 export const ORANGE = '#C05621';
 export const ORANGE_LIGHT = '#FEF3EC';
 export const DARK = '#1a2332';
@@ -8,6 +10,18 @@ export const GAP_BG = '#fef2f2';
 export const BORDER = '#e2e8f0';
 export const GREEN = '#16a34a';
 export const TEAL = '#1D6F5C'; // portal header/accent
+
+// Backgrounds
+export const BG_MUTED = '#f8fafc';   // table headers, info boxes, modal bodies
+export const BG_FIELD = '#f9fafb';   // extracted data fields, form field backgrounds
+
+// Text shades
+export const TEXT_MUTED = '#6B7280'; // secondary labels, metadata
+export const TEXT_FAINT = '#9CA3AF'; // disabled, tertiary text
+export const TEXT_DARK = '#374151';  // strong body text
+
+// Semantic
+export const ORANGE_DARK = '#9C4215'; // PropertyModal gradient endpoint
 
 // Layout dimensions
 export const NODE_W = 250;
@@ -53,12 +67,25 @@ export const WELL_STATUS_COLORS: Record<string, string> = {
   NR: '#6b7280',
 };
 
+// Plan limits
+export const PLAN_LIMITS: Record<string, { properties: number; wells: number }> = {
+  'Free': { properties: 1, wells: 1 },
+  'Starter': { properties: 10, wells: 10 },
+  'Standard': { properties: 50, wells: 50 },
+  'Professional': { properties: 250, wells: 250 },
+  'Business': { properties: 500, wells: 500 },
+  'Enterprise 1K': { properties: 1000, wells: 1000 },
+};
+
 // Modal type string constants
 export const MODAL_TYPES = {
   PROPERTY: 'property',
   WELL: 'well',
   DOCUMENT_DETAIL: 'document-detail',
   DOCUMENT_VIEWER: 'document-viewer',
+  UPLOAD_DOCUMENT: 'upload-document',
+  CREDIT_PACK: 'credit-pack',
+  OUT_OF_CREDITS: 'out-of-credits',
 } as const;
 
 // OCC filing status colors

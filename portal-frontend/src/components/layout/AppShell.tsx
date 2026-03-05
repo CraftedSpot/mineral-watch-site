@@ -1,8 +1,11 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import type { AuthUser } from '../../hooks/useAuth';
 import { useImpersonation } from '../../hooks/useImpersonation';
 import { NavHeader } from './NavHeader';
 import { ImpersonationBanner } from './ImpersonationBanner';
+
+export type { AuthUser };
 
 export function AppShell() {
   const { user, loading } = useAuth();
@@ -30,7 +33,7 @@ export function AppShell() {
     <div style={{ paddingTop: impersonation ? 42 : 0 }}>
       {impersonation && <ImpersonationBanner info={impersonation} />}
       <NavHeader user={user} />
-      <Outlet />
+      <Outlet context={{ user }} />
     </div>
   );
 }

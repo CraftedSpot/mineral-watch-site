@@ -15,11 +15,10 @@ export function App() {
         <ModalProvider>
           <Routes>
             <Route path="/portal" element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
               <Route path="react" element={<DashboardPage />} />
               <Route path="title" element={<TitlePage />} />
             </Route>
-            {/* Fallback: dev server routes under /portal-app/ */}
+            {/* Fallback: redirect to React dashboard (not /portal which is vanilla) */}
             <Route path="*" element={<Navigate to="/portal/react" replace />} />
           </Routes>
         </ModalProvider>

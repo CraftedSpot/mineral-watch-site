@@ -6,8 +6,15 @@ export interface ColumnDef<T> {
   sortable?: boolean;
   sortKey?: string;
   searchable?: boolean;
+  headerAlign?: 'left' | 'right' | 'center';
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => string;
+  compare?: (a: T, b: T) => number;
+}
+
+export interface DropdownOption {
+  value: string;
+  label: string;
 }
 
 export interface DataTableProps<T> {
@@ -30,6 +37,22 @@ export interface DataTableProps<T> {
 
   // Sort
   defaultSort?: { key: string; direction: 'asc' | 'desc' };
+  sortDropdown?: {
+    options: DropdownOption[];
+    value: string;
+    onChange: (value: string) => void;
+  };
+
+  // Filter dropdown (optional, e.g. category)
+  filterDropdown?: {
+    options: DropdownOption[];
+    value: string;
+    onChange: (value: string) => void;
+    label?: string;
+  };
+
+  // Extra sort comparators (for sort keys not tied to a visible column)
+  customComparators?: Record<string, (a: T, b: T) => number>;
 
   // Empty/loading states
   emptyTitle?: string;
