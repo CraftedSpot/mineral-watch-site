@@ -22,10 +22,14 @@ export async function handleGetDashboardCounts(request: Request, env: Env) {
     const organizationId = userRecord.fields.Organization?.[0];
     const memberIds = await getOrgMemberIds(env.WELLS_DB, organizationId);
 
+    const propOwner = buildOwnershipFilter('p', organizationId, user.id, memberIds);
     const wellOwner = buildOwnershipFilter('cw', organizationId, user.id, memberIds);
     const docOwner = buildOwnershipFilter('d', organizationId, user.id, memberIds);
 
-    const [wellResult, docResult] = await env.WELLS_DB.batch([
+    const [propResult, wellResult, docResult] = await env.WELLS_DB.batch([
+      env.WELLS_DB.prepare(
+        `SELECT COUNT(*) as cnt FROM properties p WHERE ${propOwner.where}`
+      ).bind(...propOwner.params),
       env.WELLS_DB.prepare(
         `SELECT COUNT(*) as cnt FROM client_wells cw WHERE ${wellOwner.where}`
       ).bind(...wellOwner.params),
@@ -35,6 +39,7 @@ export async function handleGetDashboardCounts(request: Request, env: Env) {
     ]);
 
     return jsonResponse({
+      properties: (propResult.results as any[])[0]?.cnt || 0,
       wells: (wellResult.results as any[])[0]?.cnt || 0,
       documents: (docResult.results as any[])[0]?.cnt || 0,
     });
