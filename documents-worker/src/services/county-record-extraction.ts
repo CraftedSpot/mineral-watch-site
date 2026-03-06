@@ -11,7 +11,7 @@
 
 import { PDFDocument } from 'pdf-lib';
 import { UsageTrackingService } from './usage-tracking';
-import { getExtractionPrompt, preparePrompt } from './extraction-prompts';
+import { getExtractionPrompt, getExtractionPromptByInstrumentType, preparePrompt, CLASSIFICATION_PROMPT } from './extraction-prompts';
 import { persistParties, extractSummary } from './party-extraction';
 
 interface Env {
@@ -32,6 +32,7 @@ interface ExtractionRequest {
   userPlan: string;
   organizationId?: string;
   credits_required: number;
+  enhanced_extraction?: boolean;
 }
 
 interface ExtractionResult {
@@ -63,7 +64,7 @@ export class CountyRecordExtractionService {
     const {
       county, instrument_number, images, format,
       instrument_type, userId, userPlan, organizationId,
-      credits_required
+      credits_required, enhanced_extraction
     } = params;
 
     // 1. Check credits
@@ -125,13 +126,43 @@ export class CountyRecordExtractionService {
       };
     }
 
-    // 5. Extract with Claude Sonnet
+    // 5a. Pass 1: Classify document type from content
+    let classifiedDocType: string | null = null;
+    let isMultiDocument = false;
+    let estimatedDocuments = 1;
+    try {
+      const classification = await this.classifyDocument(mergedPdfBytes, instrument_type);
+      classifiedDocType = classification.docType;
+      isMultiDocument = classification.isMultiDocument;
+      estimatedDocuments = classification.estimatedDocuments;
+      console.log(`[OKCR] Pass 1 classification: ${classifiedDocType} (hint was: ${instrument_type}, multi-doc: ${isMultiDocument}, est docs: ${estimatedDocuments})`);
+    } catch (err: any) {
+      console.warn(`[OKCR] Pass 1 classification failed, falling back to instrumentType: ${err.message}`);
+      // Non-fatal — fall back to instrumentType keyword matching in Pass 2
+    }
+
+    // Multi-document guard: OKCR bundles instruments (lease + exhibit + ratification)
+    const MAX_SINGLE_DOC_PAGES = 8;
+    const multiDocWarning = isMultiDocument || images.length > MAX_SINGLE_DOC_PAGES;
+    if (multiDocWarning) {
+      console.warn(
+        `[OKCR] Multi-document detected for ${county}:${instrument_number}: ` +
+        `${images.length} pages, estimated ${estimatedDocuments} documents. ` +
+        `Multi-doc splitting not yet implemented — extracting as single document.`
+      );
+    }
+
+    // 5b. Pass 2: Extract with focused prompt based on classification
+    // Route: classified doc_type → focused prompt; fallback → instrumentType keyword match
+    const effectiveDocType = classifiedDocType || undefined;
     let extraction: any;
     let rawResponse: string;
+    let extractionModel: string;
     try {
-      const result = await this.callClaudeExtraction(mergedPdfBytes, instrument_type);
+      const result = await this.callClaudeExtraction(mergedPdfBytes, effectiveDocType, instrument_type, enhanced_extraction);
       extraction = result.extraction;
       rawResponse = result.rawResponse;
+      extractionModel = result.model;
     } catch (err: any) {
       console.error(`[OKCR] Claude extraction failed for ${county}:${instrument_number}:`, err);
       return {
@@ -161,6 +192,13 @@ export class CountyRecordExtractionService {
       format,
       images,
       r2_key: r2Key,
+      classification: {
+        classified_doc_type: classifiedDocType,
+        instrument_type_hint: instrument_type,
+        is_multi_document: isMultiDocument,
+        estimated_documents: estimatedDocuments,
+        multi_doc_warning: multiDocWarning,
+      },
     });
 
     try {
@@ -246,7 +284,7 @@ export class CountyRecordExtractionService {
       r2_path: r2Key,
       page_count: images.length,
       credits_charged: credits_required,
-      extraction_model: 'claude-sonnet-4-6',
+      extraction_model: extractionModel,
     };
   }
 
@@ -410,16 +448,32 @@ export class CountyRecordExtractionService {
     return await mergedDoc.save();
   }
 
+  /**
+   * Pass 2: Full extraction with focused prompt.
+   *
+   * @param pdfBytes - The merged PDF document bytes
+   * @param classifiedDocType - Doc type from Pass 1 classification (e.g., 'oil_and_gas_lease')
+   * @param instrumentTypeHint - OKCR instrument type string (fallback if classification failed)
+   * @param enhanced - If true, use Opus for extraction (2 credits)
+   */
   private async callClaudeExtraction(
     pdfBytes: Uint8Array,
-    instrumentType?: string
-  ): Promise<{ extraction: any; rawResponse: string }> {
+    classifiedDocType?: string,
+    instrumentTypeHint?: string,
+    enhanced?: boolean
+  ): Promise<{ extraction: any; rawResponse: string; model: string }> {
     if (!this.env.ANTHROPIC_API_KEY) {
       throw new Error('ANTHROPIC_API_KEY not configured');
     }
 
     const base64Pdf = this.uint8ArrayToBase64(pdfBytes);
-    const prompt = preparePrompt(getExtractionPrompt(instrumentType));
+
+    // Route to focused prompt: classified doc_type first, then instrumentType keyword fallback
+    const prompt = classifiedDocType
+      ? preparePrompt(getExtractionPrompt(classifiedDocType))
+      : preparePrompt(getExtractionPromptByInstrumentType(instrumentTypeHint));
+
+    const model = enhanced ? 'claude-opus-4-6' : 'claude-sonnet-4-6';
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -429,7 +483,7 @@ export class CountyRecordExtractionService {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
+        model,
         max_tokens: 8192,
         messages: [{
           role: 'user',
@@ -462,7 +516,89 @@ export class CountyRecordExtractionService {
     // Parse JSON from response (it may have text after the JSON)
     const extraction = this.parseExtractionResponse(rawResponse);
 
-    return { extraction, rawResponse };
+    return { extraction, rawResponse, model };
+  }
+
+  /**
+   * Pass 1: Classify document type from content using Sonnet.
+   * Matches processor's sonnet_classify_chunk() for classification parity.
+   *
+   * Returns the classified doc_type, multi-document detection, and estimated count.
+   * Falls back gracefully — caller should use instrumentType keyword matching if this fails.
+   */
+  private async classifyDocument(
+    pdfBytes: Uint8Array,
+    instrumentTypeHint?: string
+  ): Promise<{ docType: string | null; isMultiDocument: boolean; estimatedDocuments: number }> {
+    if (!this.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not configured');
+    }
+
+    const base64Pdf = this.uint8ArrayToBase64(pdfBytes);
+    const prompt = CLASSIFICATION_PROMPT.replace('{hint}', instrumentTypeHint || 'unknown');
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': this.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6', // matches processor's sonnet_classify_chunk
+        max_tokens: 100,
+        temperature: 0,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'base64',
+                media_type: 'application/pdf',
+                data: base64Pdf,
+              }
+            },
+            {
+              type: 'text',
+              text: prompt,
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Classification API error ${response.status}: ${errorText.substring(0, 200)}`);
+    }
+
+    const result: any = await response.json();
+    const rawText = result.content?.[0]?.text || '';
+
+    // Parse JSON response: {"doc_type": "...", "is_multi_document": false, "estimated_documents": 1}
+    try {
+      const parsed = JSON.parse(rawText.trim());
+      const docType = parsed.doc_type?.toLowerCase()?.trim()?.replace(/[\s-]/g, '_')?.replace(/['".,;]/g, '') || null;
+
+      // Reject "other" and "unknown" — let fallback handle it
+      if (docType === 'other' || docType === 'unknown') {
+        return { docType: null, isMultiDocument: parsed.is_multi_document || false, estimatedDocuments: parsed.estimated_documents || 1 };
+      }
+
+      return {
+        docType,
+        isMultiDocument: parsed.is_multi_document || false,
+        estimatedDocuments: parsed.estimated_documents || 1,
+      };
+    } catch {
+      // If Sonnet returned a bare string instead of JSON (like the processor's classify)
+      const docType = rawText.trim().toLowerCase().replace(/[\s-]/g, '_').replace(/['".,;]/g, '');
+      if (docType && docType !== 'other' && docType !== 'unknown') {
+        return { docType, isMultiDocument: false, estimatedDocuments: 1 };
+      }
+      return { docType: null, isMultiDocument: false, estimatedDocuments: 1 };
+    }
   }
 
   private parseExtractionResponse(text: string): any {

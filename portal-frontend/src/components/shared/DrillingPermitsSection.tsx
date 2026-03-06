@@ -82,8 +82,9 @@ export function DrillingPermitsSection({ apiNumber, onCountChange }: Props) {
     try {
       const result = await analyzePermit(apiNumber, permit.entryId, force);
       if (!mountedRef.current) return;
+      const docId = result.documentId || result.document?.id;
       if (result.alreadyProcessed || result.document?.status === 'complete') {
-        setStateMap((prev) => new Map(prev).set(permit.entryId, { state: 'complete', docId: result.document!.id }));
+        setStateMap((prev) => new Map(prev).set(permit.entryId, { state: 'complete', docId }));
       } else if (result.document) {
         setStateMap((prev) => new Map(prev).set(permit.entryId, { state: 'processing', docId: result.document!.id }));
         startPolling(permit.entryId, result.document.id);

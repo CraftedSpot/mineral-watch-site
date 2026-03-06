@@ -84,9 +84,11 @@ export function CompletionReportsSection({ apiNumber, onCountChange }: Props) {
     try {
       const result = await analyzeCompletionReport(apiNumber, report.entryId, force);
       if (!mountedRef.current) return;
+      const docId = result.documentId || result.document?.id;
+      const docDisplayName = result.displayName || result.document?.displayName || result.document?.display_name;
       if (result.alreadyProcessed || result.document?.status === 'complete') {
         setStateMap((prev) => new Map(prev).set(report.entryId, {
-          state: 'complete', docId: result.document!.id, displayName: result.document!.display_name,
+          state: 'complete', docId, displayName: docDisplayName,
         }));
       } else if (result.document) {
         setStateMap((prev) => new Map(prev).set(report.entryId, { state: 'processing', docId: result.document!.id }));

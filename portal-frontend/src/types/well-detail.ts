@@ -107,7 +107,9 @@ export interface DocketEntry {
 export interface OccProcessResult {
   success: boolean;
   alreadyProcessed: boolean;
-  document?: { id: string; status: string; display_name: string };
+  document?: { id: string; status: string; displayName?: string; display_name?: string };
+  documentId?: string;
+  displayName?: string;
   creditsRemaining?: number;
   error?: string;
 }

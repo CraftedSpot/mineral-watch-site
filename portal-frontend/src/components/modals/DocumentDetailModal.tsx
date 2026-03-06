@@ -12,189 +12,17 @@ import { Card } from '../ui/Card';
 import { TextArea } from '../ui/FormField';
 import { Spinner } from '../ui/Spinner';
 import { formatDate, getWellStatusColor } from '../../lib/helpers';
-import { formatDocType, formatFieldName, formatFieldValue, isEmptyValue } from '../../lib/format-doc-type';
-import { MODAL_TYPES, DOC_STATUS_COLORS, BORDER, DARK, SLATE, TEAL, BG_MUTED, BG_FIELD } from '../../lib/constants';
+import { formatDocType, cleanFieldValue } from '../../lib/format-doc-type';
+import { groupFieldsBySection } from '../../lib/doc-section-config';
+import { FieldRenderer } from '../document-detail/FieldRenderer';
+import { AnalysisText } from '../document-detail/AnalysisText';
+import { MODAL_TYPES, DOC_STATUS_COLORS, BORDER, DARK, SLATE, TEAL, BG_MUTED } from '../../lib/constants';
 import type { DocumentDetail } from '../../types/document-detail';
 
 interface Props {
   onClose: () => void;
   modalId: string;
   docId: string;
-}
-
-// --- Field grouping (maps extracted_data keys → sections) ---
-
-const SECTION_MAP: Record<string, string> = {
-  // Legal Description
-  legal_description: 'Legal Description', section: 'Legal Description', township: 'Legal Description',
-  range: 'Legal Description', county: 'Legal Description', state: 'Legal Description',
-  meridian: 'Legal Description', quarter_call: 'Legal Description', quarter: 'Legal Description',
-  quarter_section: 'Legal Description', lot: 'Legal Description', lot_block: 'Legal Description',
-  block: 'Legal Description', survey: 'Legal Description', abstract: 'Legal Description',
-  location: 'Legal Description', acreage: 'Legal Description',
-
-  // Operator & Well
-  operator: 'Operator & Well', operator_name: 'Operator & Well', operator_address: 'Operator & Well',
-  operator_phone: 'Operator & Well', operator_email: 'Operator & Well',
-  return_instructions: 'Operator & Well', property_name: 'Operator & Well',
-  property_number: 'Operator & Well', billing_code: 'Operator & Well',
-  well_name: 'Operator & Well', api_number: 'Operator & Well',
-  wells: 'Operator & Well', well_names: 'Operator & Well', api_numbers: 'Operator & Well',
-
-  // Owner & Interest
-  owner_name: 'Owner & Interest', owner_address: 'Owner & Interest',
-  trustee_name: 'Owner & Interest', owner_number: 'Owner & Interest',
-  owner_phone: 'Owner & Interest', owner_fax: 'Owner & Interest', owner_email: 'Owner & Interest',
-  grantors: 'Owner & Interest', grantees: 'Owner & Interest', lessors: 'Owner & Interest',
-  lessees: 'Owner & Interest', assignors: 'Owner & Interest', assignees: 'Owner & Interest',
-  grantor: 'Owner & Interest', grantee: 'Owner & Interest', lessor: 'Owner & Interest', lessee: 'Owner & Interest',
-  heirs: 'Owner & Interest', heirs_summary: 'Owner & Interest', children_living: 'Owner & Interest',
-  spouses: 'Owner & Interest', decedent_name: 'Owner & Interest',
-  interest_conveyed: 'Owner & Interest', interest_type: 'Owner & Interest', interest_decimal: 'Owner & Interest',
-  mineral_interest: 'Owner & Interest', royalty_interest: 'Owner & Interest',
-  working_interest: 'Owner & Interest', overriding_royalty: 'Owner & Interest',
-  overriding_royalty_interest: 'Owner & Interest', net_revenue_interest: 'Owner & Interest',
-  non_participating_royalty_interest: 'Owner & Interest',
-
-  // Terms & Unit
-  effective_date: 'Terms & Unit', primary_term: 'Terms & Unit', royalty_rate: 'Terms & Unit',
-  bonus_per_acre: 'Terms & Unit', delay_rental: 'Terms & Unit', shut_in_royalty: 'Terms & Unit',
-  extension_provisions: 'Terms & Unit', lease_form: 'Terms & Unit',
-  habendum_clause: 'Terms & Unit', pooling_provisions: 'Terms & Unit',
-  expiration_date: 'Terms & Unit', lease_date: 'Terms & Unit',
-  payment_minimum: 'Terms & Unit', product_type: 'Terms & Unit',
-  is_multi_section_unit: 'Terms & Unit', unit_sections: 'Terms & Unit',
-  acres: 'Terms & Unit', net_acres: 'Terms & Unit', gross_acres: 'Terms & Unit',
-  tracts: 'Terms & Unit',
-
-  // Payment Information
-  check_number: 'Payment Information', check_date: 'Payment Information',
-  check_amount: 'Payment Information', statement_type: 'Payment Information',
-  consideration: 'Payment Information', total_amount: 'Payment Information',
-  payment_date: 'Payment Information', pay_period: 'Payment Information',
-
-  // Unit Details
-  unit_size_acres: 'Unit Details', spacing_order: 'Unit Details',
-  lateral_direction: 'Unit Details', lateral_length_ft: 'Unit Details',
-
-  // Recording Info
-  recording_info: 'Recording', book: 'Recording', page: 'Recording',
-  recording_date: 'Recording', recording_county: 'Recording', document_number: 'Recording',
-  filed_date: 'Recording', instrument_number: 'Recording',
-
-  // Election Options (handled separately)
-  election_options: '_skip',
-
-  // AI fields (handled separately)
-  key_takeaway: '_skip', detailed_analysis: '_skip', ai_observations: '_skip',
-  observations: '_skip', notes: '_skip', summary: '_skip',
-  document_type: '_skip', status: '_skip', confidence: '_skip',
-  skip_extraction: '_skip', _schema_validation: '_skip',
-
-  // Internal metadata (not user-facing)
-  _review_flags: '_skip', _validation_issues: '_skip', _flag_details: '_skip',
-  adopted_stepchildren: '_skip', grandchildren_of_predeceased: '_skip',
-};
-
-const SECTION_ORDER = [
-  'Legal Description', 'Operator & Well', 'Owner & Interest',
-  'Terms & Unit', 'Payment Information', 'Unit Details',
-  'Recording', 'Other Information',
-];
-
-function groupExtractedFields(data: Record<string, unknown>): Map<string, Array<[string, unknown]>> {
-  const groups = new Map<string, Array<[string, unknown]>>();
-  for (const section of SECTION_ORDER) groups.set(section, []);
-
-  for (const [key, val] of Object.entries(data)) {
-    if (isEmptyValue(val)) continue;
-    const section = SECTION_MAP[key];
-    if (section === '_skip') continue;
-    const target = section || 'Other Information';
-    if (!groups.has(target)) groups.set(target, []);
-    groups.get(target)!.push([key, val]);
-  }
-
-  // Remove empty sections
-  for (const [key, val] of groups) {
-    if (val.length === 0) groups.delete(key);
-  }
-  return groups;
-}
-
-// --- Check stub rendering ---
-
-function CheckStubWellRevenue({ wells }: { wells: Array<Record<string, unknown>> }) {
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-        <thead>
-          <tr style={{ background: '#f1f5f9' }}>
-            {['Well', 'Product', 'Gross Vol', 'Price', 'Gross Value', 'Deductions', 'Net'].map((h) => (
-              <th key={h} style={{ padding: '6px 8px', textAlign: h === 'Well' || h === 'Product' ? 'left' : 'right', fontWeight: 600, color: DARK, borderBottom: `1px solid ${BORDER}` }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {wells.map((w, i) => {
-            const deductionTotal = Array.isArray(w.deductions)
-              ? (w.deductions as Array<Record<string, unknown>>).reduce((sum, d) => sum + (Number(d.amount) || 0), 0)
-              : (Number(w.total_deductions) || 0);
-            return (
-              <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
-                <td style={{ padding: '6px 8px', fontWeight: 500, color: DARK }}>{String(w.well_name || w.property_description || '\u2014')}</td>
-                <td style={{ padding: '6px 8px', color: SLATE }}>{String(w.product_type || w.product || '\u2014')}</td>
-                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{w.gross_volume != null ? Number(w.gross_volume).toLocaleString() : '\u2014'}</td>
-                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{w.price != null ? `$${Number(w.price).toFixed(2)}` : '\u2014'}</td>
-                <td style={{ padding: '6px 8px', textAlign: 'right' }}>{w.gross_value != null ? `$${Number(w.gross_value).toFixed(2)}` : '\u2014'}</td>
-                <td style={{ padding: '6px 8px', textAlign: 'right', color: deductionTotal < 0 ? '#dc2626' : SLATE }}>
-                  {deductionTotal !== 0 ? `$${deductionTotal.toFixed(2)}` : '\u2014'}
-                </td>
-                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: '#166534' }}>
-                  {w.net_value != null ? `$${Number(w.net_value).toFixed(2)}` : '\u2014'}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function CheckStubSummary({ summary }: { summary: Record<string, unknown> }) {
-  const items = [
-    { label: 'Oil Revenue', value: summary.oil_revenue || summary.total_oil, color: '#166534' },
-    { label: 'Gas Revenue', value: summary.gas_revenue || summary.total_gas, color: '#166534' },
-    { label: 'NGL Revenue', value: summary.ngl_revenue || summary.total_ngl, color: '#166534' },
-    { label: 'Total Net', value: summary.total_net || summary.check_amount || summary.total, color: '#166534' },
-  ].filter((item) => item.value != null);
-
-  if (items.length === 0) return null;
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginTop: 8 }}>
-      {items.map((item, i) => (
-        <div key={i} style={{
-          background: i === items.length - 1 ? '#dcfce7' : BG_MUTED,
-          border: `1px solid ${i === items.length - 1 ? '#86efac' : BORDER}`,
-          borderRadius: 8, padding: 10, textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: SLATE, textTransform: 'uppercase' }}>{item.label}</div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: item.color, marginTop: 2 }}>
-            ${Number(item.value).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function cleanMarkdown(text: string): string {
-  return text.trim()
-    .replace(/^#{1,6}\s*/gm, '')
-    .replace(/^---+$/gm, '')
-    .replace(/\*\*([^*]+)\*\*/g, '$1')
-    .replace(/\*([^*]+)\*/g, '$1');
 }
 
 // --- Close button for DocumentDetail: 40px circle ---
@@ -230,11 +58,11 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
   const initialNotes = useMemo(() => ({ notes: doc?.user_notes ?? '' }), [doc]);
   const { values, setValue, isDirty } = useFormDirty(initialNotes);
 
-  // Group remaining fields by section (must be before conditional returns — Rules of Hooks)
+  // Group fields by section using the new config system
   const fieldGroups = useMemo(() => {
     if (!extracted) return new Map<string, Array<[string, unknown]>>();
-    return groupExtractedFields(extracted);
-  }, [extracted]);
+    return groupFieldsBySection(extracted, doc?.doc_type);
+  }, [extracted, doc?.doc_type]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -288,13 +116,17 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
   const statusColor = DOC_STATUS_COLORS[doc.status] || SLATE;
   const displayName = doc.display_name || formatDocType(doc.doc_type);
   const isCheckStub = (doc.doc_type || '').includes('check_stub') || (doc.doc_type || '').includes('royalty_statement');
+  const isDeathCert = doc.doc_type === 'death_certificate';
+  const hasUnits = extracted?.units && Array.isArray(extracted.units);
 
   // Extracted data sections
   const keyTakeaway = extracted?.key_takeaway as string | undefined;
   const detailedAnalysis = (extracted?.detailed_analysis || extracted?.ai_observations) as string | undefined;
-  const electionOptions = extracted?.election_options as Array<Record<string, unknown>> | undefined;
+
+  // Check stub special sections (rendered directly, outside the section loop)
   const checkStubWells = isCheckStub ? (extracted?.wells as Array<Record<string, unknown>> | undefined) : undefined;
   const checkStubSummary = isCheckStub ? (extracted?.summary as Record<string, unknown> | undefined) : undefined;
+  const checkStubExpenses = isCheckStub ? (extracted?.operating_expenses as Array<Record<string, unknown>> | undefined) : undefined;
 
   return (
     <ModalShell
@@ -435,9 +267,10 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
         <AccordionSection title="Key Takeaway" defaultOpen>
           <div style={{
             fontSize: 14, color: '#065f46', lineHeight: 1.6, whiteSpace: 'pre-wrap',
-            borderLeft: '3px solid #16a34a', paddingLeft: 12, ...wrapStyle,
+            borderLeft: '3px solid #16a34a', paddingLeft: 12,
+            wordBreak: 'break-word', overflowWrap: 'break-word',
           }}>
-            {cleanMarkdown(keyTakeaway)}
+            {cleanFieldValue(keyTakeaway)}
           </div>
         </AccordionSection>
       )}
@@ -445,85 +278,45 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
       {/* Detailed Analysis */}
       {detailedAnalysis && (
         <AccordionSection title="Detailed Analysis">
-          <div style={{ fontSize: 14, color: DARK, lineHeight: 1.6, whiteSpace: 'pre-wrap', ...wrapStyle }}>
-            {cleanMarkdown(detailedAnalysis)}
-          </div>
+          <AnalysisText text={detailedAnalysis} />
         </AccordionSection>
       )}
 
-      {/* Check Stub: Well Revenue */}
+      {/* Check Stub: Well Revenue (direct, outside section loop) */}
       {checkStubWells && checkStubWells.length > 0 && (
         <AccordionSection title="Well Revenue" count={checkStubWells.length} defaultOpen>
-          <CheckStubWellRevenue wells={checkStubWells} />
+          <FieldRenderer fieldName="wells" value={checkStubWells} docType={doc.doc_type} />
         </AccordionSection>
       )}
 
       {/* Check Stub: Summary */}
       {checkStubSummary && (
         <AccordionSection title="Check Summary" defaultOpen>
-          <CheckStubSummary summary={checkStubSummary} />
+          <FieldRenderer fieldName="summary" value={checkStubSummary} docType={doc.doc_type} />
         </AccordionSection>
       )}
 
-      {/* Election Options */}
-      {electionOptions && electionOptions.length > 0 && (
-        <AccordionSection title="Election Options" count={electionOptions.length} defaultOpen>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-            {electionOptions.map((opt, i) => {
-              const optType = String(opt.option_type || opt.type || 'unknown').toLowerCase();
-              let bg = '#f3f4f6', border = '#d1d5db';
-              if (optType === 'participate') { bg = '#eff6ff'; border = '#3b82f6'; }
-              else if (optType.includes('cash')) { bg = '#fef3c7'; border = '#f59e0b'; }
-              else if (optType === 'non_consent') { bg = '#fee2e2'; border = '#ef4444'; }
-              return (
-                <div key={i} style={{ background: bg, border: `1px solid ${border}`, borderRadius: 8, padding: 10 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: DARK, textTransform: 'capitalize' }}>
-                    {String(opt.option_type || opt.type || 'Option').replace(/_/g, ' ')}
-                  </div>
-                  {opt.bonus_per_acre != null && (
-                    <div style={{ fontSize: 11, color: SLATE, marginTop: 2 }}>Bonus: ${String(opt.bonus_per_acre)}/acre</div>
-                  )}
-                  {opt.royalty_rate != null && (
-                    <div style={{ fontSize: 11, color: SLATE }}>Royalty: {String(opt.royalty_rate)}</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+      {/* Check Stub: Operating Expenses */}
+      {checkStubExpenses && checkStubExpenses.length > 0 && (
+        <AccordionSection title="Operating Expenses" count={checkStubExpenses.length} defaultOpen>
+          <FieldRenderer fieldName="operating_expenses" value={checkStubExpenses} docType={doc.doc_type} />
         </AccordionSection>
       )}
 
       {/* Grouped extracted fields by section */}
       {Array.from(fieldGroups.entries())
+        .filter(([section]) => {
+          // Skip Legal Description for death certs and when units array exists
+          if (section === 'Legal Description' && (isDeathCert || hasUnits)) return false;
+          return true;
+        })
         .map(([section, fields]) => (
-          <AccordionSection key={section} title={section} count={fields.length} defaultOpen={section !== 'Other Information'}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {fields.map(([key, val]: [string, unknown]) => {
-                const isArrayOfObjects = Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && val[0] !== null;
-                return (
-                  <div key={key} style={{
-                    background: BG_FIELD, borderRadius: 6, padding: 10, border: `1px solid ${BORDER}`,
-                    gridColumn: isArrayOfObjects ? '1 / -1' : undefined,
-                    ...wrapStyle,
-                  }}>
-                    <div style={{ fontSize: 12, color: SLATE, fontWeight: 500 }}>{formatFieldName(key)}</div>
-                    {isArrayOfObjects ? (
-                      <div style={{ marginTop: 4 }}>
-                        {(val as Array<Record<string, unknown>>).map((item, idx) => (
-                          <div key={idx} style={{
-                            fontSize: 13, color: DARK, padding: '4px 0',
-                            borderBottom: idx < (val as unknown[]).length - 1 ? `1px solid ${BORDER}` : undefined,
-                          }}>
-                            {formatFieldValue(item)}
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div style={{ fontSize: 14, color: DARK, marginTop: 2 }}>{formatFieldValue(val)}</div>
-                    )}
-                  </div>
-                );
-              })}
+          <AccordionSection key={section} title={section} count={fields.length}
+            defaultOpen={section !== 'Other Information'}>
+            <div style={{ maxWidth: 600 }}>
+              {fields.map(([key, val]: [string, unknown]) => (
+                <FieldRenderer key={key} fieldName={key} value={val} docType={doc?.doc_type} />
+              ))}
             </div>
           </AccordionSection>
         ))
@@ -531,8 +324,9 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
 
       {/* Notes */}
       <div style={{ marginTop: 14 }}>
-        <label style={{ fontSize: 14, fontWeight: 600, color: DARK, display: 'block', marginBottom: 4 }}>Notes</label>
+        <label htmlFor="doc-notes" style={{ fontSize: 14, fontWeight: 600, color: DARK, display: 'block', marginBottom: 4 }}>Notes</label>
         <TextArea
+          id="doc-notes"
           value={values.notes as string}
           onChange={(e) => setValue('notes', e.target.value)}
           placeholder="Add notes about this document..."
@@ -542,7 +336,3 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
     </ModalShell>
   );
 }
-
-const wrapStyle: React.CSSProperties = {
-  wordBreak: 'break-word', overflowWrap: 'break-word',
-};

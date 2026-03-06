@@ -226,10 +226,12 @@ export function OCCFilingsSection({ apiNumber, section, township, range, onCount
     try {
       const result = await processOccFiling(filing.caseNumber, filing.orderNumber, force);
       if (!mountedRef.current) return;
+      const docId = result.documentId || result.document?.id;
+      const docDisplayName = result.displayName || result.document?.displayName || result.document?.display_name;
       if (result.alreadyProcessed || result.document?.status === 'complete') {
         setProcessingMap((prev) => {
           const m = new Map(prev);
-          m.set(key, { state: 'complete', documentId: result.document!.id, displayName: result.document!.display_name });
+          m.set(key, { state: 'complete', documentId: docId, displayName: docDisplayName });
           return m;
         });
       } else if (result.document) {
