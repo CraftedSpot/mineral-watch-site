@@ -106,10 +106,17 @@ export function CompletionReportsSection({ apiNumber, onCountChange }: Props) {
   if (error) return <div style={{ color: '#dc2626', fontSize: 12, padding: 8 }}>Failed to load</div>;
   if (!data || data.length === 0) return <div style={{ color: SLATE, fontSize: 12, padding: 8, textAlign: 'center' }}>No completion reports found</div>;
 
+  // Sort newest first so "Latest" badge is correct
+  const sorted = [...data].sort((a, b) => {
+    const da = a.effectiveDate ? new Date(a.effectiveDate).getTime() : 0;
+    const db = b.effectiveDate ? new Date(b.effectiveDate).getTime() : 0;
+    return db - da;
+  });
+
   return (
     <div>
-      {data.map((report, i) => {
-        const isCurrent = i === 0;
+      {sorted.map((report, i) => {
+        const isLatest = i === 0;
         const entry = stateMap.get(report.entryId);
         const state = entry?.state || 'idle';
 
@@ -126,7 +133,7 @@ export function CompletionReportsSection({ apiNumber, onCountChange }: Props) {
                 >
                   {report.formType === '1002C' ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A'}
                 </Badge>
-                {isCurrent && <Badge bg="#dcfce7" color="#166534">Current</Badge>}
+                {isLatest && <Badge bg="#dcfce7" color="#166534">Latest</Badge>}
                 {report.location && <span style={{ fontSize: 11, color: SLATE }}>{report.location}</span>}
               </div>
               <div style={{ fontSize: 12, color: SLATE, marginTop: 4, display: 'flex', gap: 8, flexWrap: 'wrap' }}>

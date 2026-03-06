@@ -438,7 +438,7 @@ async function matchSingleWellD1(
   const stmts: any[] = [];
 
   for (const prop of matched as any[]) {
-    const propId = prop.airtable_record_id || prop.id;
+    const propId = prop.airtable_record_id || (prop.id ? String(prop.id).replace(/^prop_/, '') : prop.id);
 
     const exists = await env.WELLS_DB.prepare(
       'SELECT 1 FROM property_well_links WHERE property_airtable_id = ? AND well_airtable_id = ?'

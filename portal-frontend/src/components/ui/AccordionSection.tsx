@@ -2,6 +2,15 @@ import { useState } from 'react';
 import { BORDER, SLATE, BG_FIELD } from '../../lib/constants';
 import { Badge } from './Badge';
 
+// Inject pulse keyframes once
+const styleId = 'accordion-pulse-keyframes';
+if (typeof document !== 'undefined' && !document.getElementById(styleId)) {
+  const style = document.createElement('style');
+  style.id = styleId;
+  style.textContent = '@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }';
+  document.head.appendChild(style);
+}
+
 interface AccordionSectionProps {
   title: string;
   count?: number | null;  // null = loading, undefined = no badge

@@ -50,9 +50,9 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   const modal = useModal();
   const toast = useToast();
   const { data: wells } = useWells();
-  const [occCount, setOccCount] = useState<number | undefined>(undefined);
-  const [completionCount, setCompletionCount] = useState<number | undefined>(undefined);
-  const [permitCount, setPermitCount] = useState<number | undefined>(undefined);
+  const [occCountOverride, setOccCountOverride] = useState<number | undefined>(undefined);
+  const [completionCount, setCompletionCount] = useState<number | null>(null);
+  const [permitCount, setPermitCount] = useState<number | null>(null);
   const [notesValue, setNotesValue] = useState<string | null>(null);
   const [notesDirty, setNotesDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -63,6 +63,9 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
     if (apiProp) return wells.find((w) => w.apiNumber === apiProp) || null;
     return null;
   }, [wellId, apiProp, wells]);
+
+  // OCC filing count: show pre-fetched _linkCounts immediately, override once accordion loads
+  const occCount = occCountOverride ?? wellRecord?._linkCounts?.filings;
 
   const resolvedApi = useMemo(() => {
     if (apiProp) return apiProp;
@@ -427,7 +430,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                 section={section}
                 township={township}
                 range={range}
-                onCountChange={setOccCount}
+                onCountChange={setOccCountOverride}
               />
             ) : (
               <div style={{ color: '#6b7280', fontSize: 14, padding: '12px 0', fontStyle: 'italic' }}>

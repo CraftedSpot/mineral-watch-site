@@ -802,8 +802,8 @@ export async function createLinksInBatches(
         }
         const updateStmts = Array.from(propCounts.entries()).map(([propId, count]) =>
           env.WELLS_DB!.prepare(
-            `UPDATE properties SET well_count = well_count + ? WHERE airtable_record_id = ?`
-          ).bind(count, propId)
+            `UPDATE properties SET well_count = well_count + ? WHERE airtable_record_id = ? OR id = ?`
+          ).bind(count, propId, `prop_${propId}`)
         );
         if (updateStmts.length > 0) {
           await env.WELLS_DB!.batch(updateStmts);
@@ -826,7 +826,7 @@ export async function createLinksInBatches(
  */
 function d1PropertyToRecord(row: any): any {
   return {
-    id: row.airtable_record_id || row.id,
+    id: row.airtable_record_id || (row.id ? String(row.id).replace(/^prop_/, '') : row.id),
     fields: {
       [PROPERTY_FIELDS.SEC]: row.section,
       [PROPERTY_FIELDS.TWN]: row.township,

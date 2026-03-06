@@ -1,7 +1,13 @@
-/** Format date for display: "1951-03-20" → "Mar 20, 1951" */
+/** Format date for display: "1951-03-20" or "3/20/1951" → "Mar 20, 1951" */
 export function formatDate(d: string | null | undefined): string {
   if (!d) return '';
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', {
+  // ISO format (YYYY-MM-DD): append time to avoid timezone shift
+  // US format (M/D/YYYY): parse natively
+  const date = d.includes('-') && d.indexOf('-') === 4
+    ? new Date(d + 'T00:00:00')
+    : new Date(d);
+  if (isNaN(date.getTime())) return d; // fallback to raw string
+  return date.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 }
