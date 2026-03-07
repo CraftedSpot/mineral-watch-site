@@ -54,7 +54,7 @@ export async function handleAdminUsers(request: Request, env: Env): Promise<Resp
         (SELECT COUNT(*) FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active') as prop_count,
         (SELECT COUNT(*) FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active') as well_count,
         (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.detected_at > datetime('now', '-30 days')) as alerts_30d,
-        (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.email_sent = 0 AND al.detected_at > datetime('now', '-7 days')) as failed_emails,
+        (SELECT COUNT(*) FROM activity_log al WHERE al.user_id = u.airtable_record_id AND al.email_sent = 0 AND al.detected_at > datetime('now', '-7 days') AND NOT EXISTS (SELECT 1 FROM pending_alerts pa WHERE pa.activity_log_id = al.id)) as failed_emails,
         (SELECT COUNT(*) FROM admin_notes an WHERE an.user_id = u.airtable_record_id AND an.resolved = 0) as open_notes
       FROM users u
       LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
@@ -177,8 +177,8 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
                u.created_at, u.last_login, u.total_logins, u.organization_id,
                u.cancellation_date, u.cancellation_reason, u.cancellation_feedback,
                u.stripe_customer_id, u.role,
-               u.alert_new_permits, u.alert_completions, u.alert_status_changes,
-               u.alert_operator_changes, u.alert_statewide, u.alert_email_enabled,
+               u.alert_permits, u.alert_completions, u.alert_status_changes,
+               u.alert_expirations, u.alert_operator_transfers,
                o.name as org_name, o.plan as org_plan, o.stripe_customer_id as org_stripe_id
         FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
@@ -268,6 +268,7 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
     const [
       nullStatuses,
       failedEmailsToday,
+      digestQueuedToday,
       tableCounts,
       authStats,
       pendingLocations,
@@ -277,7 +278,17 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
       lastSyncDocket,
     ] = await Promise.all([
       env.WELLS_DB.prepare(`SELECT COUNT(*) as count FROM client_wells WHERE status='Active' AND well_status IS NULL`).first(),
-      env.WELLS_DB.prepare(`SELECT COUNT(*) as count FROM activity_log WHERE date(detected_at) = date('now') AND email_sent = 0`).first(),
+      // Count truly failed emails (email_sent=0 AND not queued in pending_alerts for digest)
+      env.WELLS_DB.prepare(`
+        SELECT COUNT(*) as count FROM activity_log al
+        WHERE date(al.detected_at) = date('now') AND al.email_sent = 0
+          AND NOT EXISTS (SELECT 1 FROM pending_alerts pa WHERE pa.activity_log_id = al.id)
+      `).first(),
+      // Count alerts queued for digest (pending_alerts not yet sent)
+      env.WELLS_DB.prepare(`
+        SELECT COUNT(*) as count FROM pending_alerts
+        WHERE date(created_at) = date('now') AND digest_sent_at IS NULL
+      `).first(),
 
       // Table row counts
       Promise.all([
@@ -317,6 +328,7 @@ export async function handleAdminHealth(request: Request, env: Env): Promise<Res
       d1WriteFailuresToday: d1WriteFailures ? parseInt(d1WriteFailures as string, 10) : 0,
       nullWellStatuses: (nullStatuses as any)?.count || 0,
       failedEmailsToday: (failedEmailsToday as any)?.count || 0,
+      digestQueuedToday: (digestQueuedToday as any)?.count || 0,
       pendingWellLocations: pendingLocations,
       tableCounts: {
         users: (users as any)?.c || 0,

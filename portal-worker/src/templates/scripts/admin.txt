@@ -509,7 +509,8 @@
             html += '<div class="cards-grid">';
             html += healthCard('D1 Write Failures', data.d1WriteFailuresToday, 'Today', data.d1WriteFailuresToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
             html += healthCard('NULL Well Statuses', data.nullWellStatuses, 'Active wells', data.nullWellStatuses > 0 ? 'var(--accent-amber)' : 'var(--accent-green)');
-            html += healthCard('Failed Emails', data.failedEmailsToday, 'Today', data.failedEmailsToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
+            html += healthCard('Failed Emails', data.failedEmailsToday, 'Today (truly failed)', data.failedEmailsToday > 0 ? 'var(--accent-red)' : 'var(--accent-green)');
+            html += healthCard('Digest Queued', data.digestQueuedToday || 0, 'Awaiting digest', 'var(--text-primary)');
             html += healthCard('Pending Locations', data.pendingWellLocations, 'In KV queue', data.pendingWellLocations > 5 ? 'var(--accent-amber)' : 'var(--text-primary)');
             html += '</div>';
 
