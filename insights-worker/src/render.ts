@@ -4217,7 +4217,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <div class="clause-card">
     <div class="clause-card-header">
-        <div class="clause-icon">&#9878;&#65039;</div>
+        <div class="clause-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M5 7h14"/><path d="M5 7L3 14h4L5 7z"/><path d="M3 14a2 2 0 0 0 4 0"/><path d="M19 7l-2 7h4l-2-7z"/><path d="M17 14a2 2 0 0 0 4 0"/></svg></div>
         <div>
             <div class="clause-card-title">The Gross Proceeds Clause</div>
             <div class="clause-card-subtitle">Also known as: No Post-Production Deductions / At the Wellhead Language</div>
@@ -4235,7 +4235,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <div class="clause-card">
     <div class="clause-card-header">
-        <div class="clause-icon">&#128208;</div>
+        <div class="clause-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18"/><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-6h6v6"/><path d="M9 12h.01"/><path d="M15 12h.01"/></svg></div>
         <div>
             <div class="clause-card-title">The Pugh Clause</div>
             <div class="clause-card-subtitle">Horizontal Pugh / Vertical Pugh / Both</div>
@@ -4252,7 +4252,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <div class="clause-card">
     <div class="clause-card-header">
-        <div class="clause-icon">&#128274;</div>
+        <div class="clause-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1"/></svg></div>
         <div>
             <div class="clause-card-title">The Top-Lease Prohibition</div>
             <div class="clause-card-subtitle">Anti-Top-Lease / Future Lease Restriction</div>
@@ -4266,7 +4266,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <div class="clause-card">
     <div class="clause-card-header">
-        <div class="clause-icon">&#127981;</div>
+        <div class="clause-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg></div>
         <div>
             <div class="clause-card-title">The Continuous Development Clause</div>
             <div class="clause-card-subtitle">Cessation of Production / Continuous Operations / Shut-In Royalty</div>
