@@ -4,6 +4,7 @@ import { useToast } from '../../contexts/ToastContext';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { addWell, searchWells } from '../../api/wells';
 import type { SearchWellResult } from '../../api/wells';
+import { BulkWellImport } from './BulkWellImport';
 import { TEAL, BORDER, SLATE, DARK, WELL_STATUS_COLORS } from '../../lib/constants';
 
 interface Props {
@@ -48,6 +49,8 @@ export function AddWellModal({ onClose, onComplete }: Props) {
 
   // Tabs
   const [tab, setTab] = useState<Tab>('api');
+  const [importFooter, setImportFooter] = useState<React.ReactNode>(null);
+  const [importStep, setImportStep] = useState<string>('upload');
 
   // Tab 1 state
   const [apiValue, setApiValue] = useState('');
@@ -150,17 +153,21 @@ export function AddWellModal({ onClose, onComplete }: Props) {
 
   // --- Tab bar ---
 
+  const tabsDisabled = tab === 'import' && importStep !== 'upload';
+
   const tabBar = (
     <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${BORDER}`, background: '#fff' }}>
       {([['api', isMobile ? 'API' : 'By API Number'], ['search', 'Search'], ['import', 'Import']] as [Tab, string][]).map(([key, label]) => (
         <button
           key={key}
-          onClick={() => { setTab(key); setError(''); }}
+          onClick={() => { if (!tabsDisabled) { setTab(key); setError(''); } }}
           style={{
             flex: 1, padding: isMobile ? '10px 8px' : '10px 16px', fontSize: isMobile ? 12 : 13, fontWeight: tab === key ? 700 : 500,
             color: tab === key ? TEAL : SLATE, background: 'none', border: 'none',
             borderBottom: tab === key ? `2px solid ${TEAL}` : '2px solid transparent',
-            cursor: 'pointer', transition: 'all 0.15s',
+            cursor: tabsDisabled && key !== tab ? 'not-allowed' : 'pointer',
+            opacity: tabsDisabled && key !== tab ? 0.5 : 1,
+            transition: 'all 0.15s',
             fontFamily: "'Inter', 'DM Sans', sans-serif",
           }}
         >
@@ -172,24 +179,26 @@ export function AddWellModal({ onClose, onComplete }: Props) {
 
   // --- Footer ---
 
-  const footer = phase === 'success' ? null : (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-      <button onClick={onClose} style={ghostBtnStyle}>Cancel</button>
-      {tab === 'api' && (
-        <button
-          onClick={handleSubmit}
-          disabled={!valid || phase === 'submitting'}
-          style={{
-            ...primaryBtnStyle,
-            opacity: !valid || phase === 'submitting' ? 0.5 : 1,
-            cursor: !valid || phase === 'submitting' ? 'not-allowed' : 'pointer',
-          }}
-        >
-          {phase === 'submitting' ? 'Adding...' : 'Add Well'}
-        </button>
-      )}
-    </div>
-  );
+  const footer = tab === 'import'
+    ? importFooter
+    : phase === 'success' ? null : (
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <button onClick={onClose} style={ghostBtnStyle}>Cancel</button>
+        {tab === 'api' && (
+          <button
+            onClick={handleSubmit}
+            disabled={!valid || phase === 'submitting'}
+            style={{
+              ...primaryBtnStyle,
+              opacity: !valid || phase === 'submitting' ? 0.5 : 1,
+              cursor: !valid || phase === 'submitting' ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {phase === 'submitting' ? 'Adding...' : 'Add Well'}
+          </button>
+        )}
+      </div>
+    );
 
   return (
     <ModalShell
@@ -197,11 +206,13 @@ export function AddWellModal({ onClose, onComplete }: Props) {
       title="Add Well"
       subtitle="Track a well by API number or search the statewide database"
       headerBg={TEAL}
-      maxWidth={560}
+      maxWidth={tab === 'import' && importStep !== 'upload' ? 640 : 560}
       footer={footer}
     >
       {tabBar}
 
+      {/* Tabs 1 & 2: padded content */}
+      {tab !== 'import' && (
       <div style={{ padding: '16px 20px', minHeight: 380 }}>
         {/* Success state */}
         {phase === 'success' && (
@@ -424,24 +435,18 @@ export function AddWellModal({ onClose, onComplete }: Props) {
           </div>
         )}
 
-        {/* Tab 3: Import Spreadsheet (stub) */}
-        {phase !== 'success' && tab === 'import' && (
-          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <div style={{ fontSize: 40, color: '#d1d5db', marginBottom: 12 }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="12" y1="18" x2="12" y2="12" />
-                <line x1="9" y1="15" x2="15" y2="15" />
-              </svg>
-            </div>
-            <div style={{ fontWeight: 600, color: DARK, fontSize: 15, marginBottom: 4 }}>Coming Soon</div>
-            <div style={{ fontSize: 13, color: SLATE }}>
-              Import wells from CSV or Excel spreadsheets
-            </div>
-          </div>
-        )}
       </div>
+      )}
+
+      {/* Tab 3: Import Spreadsheet */}
+      {phase !== 'success' && tab === 'import' && (
+        <BulkWellImport
+          onClose={onClose}
+          onComplete={onComplete}
+          onFooterChange={setImportFooter}
+          onStepChange={(s) => setImportStep(s)}
+        />
+      )}
     </ModalShell>
   );
 }

@@ -306,6 +306,10 @@ export function BulkPropertyImport({ onClose, onComplete, onFooterChange, onStep
               const n = r.normalized as Record<string, unknown> | null;
               return n && n.property_code;
             });
+            const hasNotes = results.some((r) => {
+              const n = r.normalized as Record<string, unknown> | null;
+              return n && n.NOTES;
+            });
             return (
               <div style={{ maxHeight: 400, overflowY: 'auto', overflowX: 'auto', margin: '0 20px 16px', border: `1px solid ${BORDER}`, borderRadius: 8, WebkitOverflowScrolling: 'touch' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, whiteSpace: 'nowrap' }}>
@@ -321,6 +325,7 @@ export function BulkPropertyImport({ onClose, onComplete, onFooterChange, onStep
                       {hasAcres && <th style={thStyle}>Acres</th>}
                       {hasRiDecimal && <th style={thStyle}>RI Decimal</th>}
                       {hasCode && <th style={thStyle}>Code</th>}
+                      {hasNotes && <th style={thStyle}>Notes</th>}
                       <th style={thStyle}>Status</th>
                     </tr>
                   </thead>
@@ -333,9 +338,10 @@ export function BulkPropertyImport({ onClose, onComplete, onFooterChange, onStep
                       const statusText = r.isDuplicate ? 'Duplicate' : hasError ? r.errors[0] : 'Valid';
                       const riAcres = Number(n?.['RI Acres'] ?? 0);
                       const wiAcres = Number(n?.['WI Acres'] ?? 0);
+                      const tAcres = Number(n?.total_acres ?? 0);
                       const acresDisplay = riAcres > 0 && wiAcres > 0
                         ? `RI: ${riAcres} / WI: ${wiAcres}`
-                        : riAcres > 0 ? String(riAcres) : wiAcres > 0 ? `WI: ${wiAcres}` : '-';
+                        : riAcres > 0 ? String(riAcres) : wiAcres > 0 ? `WI: ${wiAcres}` : tAcres > 0 ? String(tAcres) : '-';
                       return (
                         <tr key={i} style={{ background: bg, borderBottom: `1px solid ${BORDER}` }}>
                           <td style={tdStyle}>{i + 1}</td>
@@ -352,6 +358,11 @@ export function BulkPropertyImport({ onClose, onComplete, onFooterChange, onStep
                             </td>
                           )}
                           {hasCode && <td style={tdStyle}>{String(n?.property_code ?? '') || '-'}</td>}
+                          {hasNotes && (
+                            <td style={{ ...tdStyle, maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {String(n?.NOTES ?? '') || '-'}
+                            </td>
+                          )}
                           <td style={{ ...tdStyle, color: statusColor, fontWeight: 600 }}>{statusText}</td>
                         </tr>
                       );

@@ -6,11 +6,12 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { formatTRS } from '../../../lib/helpers';
 import { getEntityColor } from '../../../lib/entity-colors';
+import { matchPropertyWells } from '../../../api/matching';
 import { PropertyLinkCounts } from '../../ui/LinkCounts';
 import { DataTable } from '../../ui/DataTable';
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
-import { MODAL_TYPES, SLATE, ORANGE } from '../../../lib/constants';
+import { MODAL_TYPES, SLATE, ORANGE, BORDER } from '../../../lib/constants';
 import type { ColumnDef } from '../../ui/DataTableTypes';
 import type { PropertyRecord } from '../../../types/dashboard';
 
@@ -75,6 +76,24 @@ export function PropertiesTab() {
   const { confirm } = useConfirm();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortValue, setSortValue] = useState('legal-asc');
+  const [matchingState, setMatchingState] = useState<'idle' | 'loading'>('idle');
+
+  const handleMatchWells = useCallback(async () => {
+    setMatchingState('loading');
+    try {
+      const res = await matchPropertyWells();
+      if (res.stats.linksCreated > 0) {
+        toast.success(`Matched ${res.stats.linksCreated} new well-property link${res.stats.linksCreated === 1 ? '' : 's'}`);
+        reload();
+      } else {
+        toast.info('No new matches found \u2014 all wells already linked');
+      }
+    } catch {
+      toast.error('Matching failed. Please try again.');
+    } finally {
+      setMatchingState('idle');
+    }
+  }, [toast, reload]);
 
   // Column definitions (inside component so render can use isMobile)
   const columns: ColumnDef<PropertyRecord>[] = useMemo(() => [
@@ -264,17 +283,39 @@ export function PropertiesTab() {
         </Button>
       }
       toolbarActions={
-        <button
-          onClick={handleAddProperty}
-          style={{
-            marginLeft: 'auto', background: ORANGE, color: '#fff', border: 'none',
-            borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
-            whiteSpace: 'nowrap',
-          }}
-        >
-          + Add Property
-        </button>
+        <>
+          <button
+            onClick={handleMatchWells}
+            disabled={matchingState === 'loading'}
+            style={{
+              marginLeft: 'auto', padding: '8px 14px', fontSize: 13,
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              background: '#fff', color: '#374151',
+              cursor: matchingState === 'loading' ? 'wait' : 'pointer',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+              whiteSpace: 'nowrap', fontWeight: 500,
+              opacity: matchingState === 'loading' ? 0.7 : 1,
+            }}
+          >
+            {matchingState === 'loading' ? 'Matching...' : 'Match Wells'}
+          </button>
+          {matchingState === 'loading' && (
+            <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>
+              This may take a moment...
+            </span>
+          )}
+          <button
+            onClick={handleAddProperty}
+            style={{
+              background: ORANGE, color: '#fff', border: 'none',
+              borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
+              whiteSpace: 'nowrap',
+            }}
+          >
+            + Add Property
+          </button>
+        </>
       }
     />
   );

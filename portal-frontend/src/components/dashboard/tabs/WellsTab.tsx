@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useWells } from '../../../hooks/useWells';
 import { useModal } from '../../../contexts/ModalContext';
@@ -7,12 +7,15 @@ import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { formatTRS, formatPhone, getWellStatusColor, formatDecimal } from '../../../lib/helpers';
 import { formatProdMonth, computeDataHorizon, getProductionStatus } from '../../../lib/production-utils';
+import { discoverWellsPreview } from '../../../api/matching';
+import { DiscoverWellsModal } from '../../modals/DiscoverWellsModal';
 import { WellLinkCounts } from '../../ui/LinkCounts';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { BulkActionBar } from '../../ui/BulkActionBar';
 import { MODAL_TYPES, BORDER, SLATE, DARK, TEAL } from '../../../lib/constants';
 import type { WellRecord } from '../../../types/dashboard';
+import type { DiscoverWellsPreviewResponse } from '../../../api/matching';
 
 // Estimated row height for collapsed row (3 lines + padding)
 const ROW_H = 80;
@@ -135,6 +138,18 @@ export function WellsTab() {
   const parentRef = useRef<HTMLDivElement>(null);
   const lastClickedRef = useRef<number>(-1);
 
+  // Discover Wells state
+  const [discoverState, setDiscoverState] = useState<'idle' | 'scanning'>('idle');
+  const [discoverModalOpen, setDiscoverModalOpen] = useState(false);
+  const [discoverData, setDiscoverData] = useState<DiscoverWellsPreviewResponse | null>(null);
+  const [scanElapsed, setScanElapsed] = useState(0);
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Cleanup scan interval on unmount
+  useEffect(() => {
+    return () => { if (scanIntervalRef.current) clearInterval(scanIntervalRef.current); };
+  }, []);
+
   // Compute data horizon for production status
   const dataHorizon = useMemo(() => computeDataHorizon(wells), [wells]);
 
@@ -187,6 +202,34 @@ export function WellsTab() {
       onComplete: () => reload(),
     });
   }, [modal, reload]);
+
+  const handleDiscover = useCallback(async () => {
+    setDiscoverState('scanning');
+    setScanElapsed(0);
+    scanIntervalRef.current = setInterval(() => setScanElapsed((s) => s + 1), 1000);
+    try {
+      const res = await discoverWellsPreview();
+      if (res.wells.length === 0) {
+        toast.info('No new wells found at your property locations');
+      } else {
+        setDiscoverData(res);
+        setDiscoverModalOpen(true);
+      }
+    } catch {
+      toast.error('Discovery scan failed. Please try again.');
+    } finally {
+      setDiscoverState('idle');
+      if (scanIntervalRef.current) { clearInterval(scanIntervalRef.current); scanIntervalRef.current = null; }
+      setScanElapsed(0);
+    }
+  }, [toast]);
+
+  const handleDiscoverComplete = useCallback(() => {
+    toast.success('Wells added and linked to your properties');
+    setDiscoverModalOpen(false);
+    setDiscoverData(null);
+    reload();
+  }, [toast, reload]);
 
   const openWellModal = useCallback((w: WellRecord) => {
     modal.open(MODAL_TYPES.WELL, {
@@ -281,17 +324,37 @@ export function WellsTab() {
               {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, color: SLATE }}>
               {(search || filterValue !== 'all') ? `${sortedData.length} of ${wells.length}` : `${wells.length} wells`}
             </span>
-            <button onClick={handleAddWell} style={{
-              background: TEAL, color: '#fff', border: 'none',
-              borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
-              cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
-            }}>
-              + Add Well
-            </button>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={handleDiscover}
+                disabled={discoverState === 'scanning'}
+                style={{
+                  padding: '8px 12px', fontSize: 13, fontWeight: 500,
+                  border: `1px solid ${BORDER}`, borderRadius: 6,
+                  background: '#fff', color: '#374151',
+                  cursor: discoverState === 'scanning' ? 'wait' : 'pointer',
+                  fontFamily: "'Inter', 'DM Sans', sans-serif",
+                  whiteSpace: 'nowrap',
+                  opacity: discoverState === 'scanning' ? 0.7 : 1,
+                }}
+              >
+                {discoverState === 'scanning'
+                  ? `Scanning...${scanElapsed >= 3 ? ` (${scanElapsed}s)` : ''}`
+                  : 'Discover'}
+              </button>
+              <button onClick={handleAddWell} style={{
+                background: TEAL, color: '#fff', border: 'none',
+                borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
+                whiteSpace: 'nowrap',
+              }}>
+                + Add Well
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -320,9 +383,31 @@ export function WellsTab() {
             </span>
           )}
           <button
+            onClick={handleDiscover}
+            disabled={discoverState === 'scanning'}
+            style={{
+              marginLeft: 'auto', padding: '8px 14px', fontSize: 13, fontWeight: 500,
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              background: '#fff', color: '#374151',
+              cursor: discoverState === 'scanning' ? 'wait' : 'pointer',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+              whiteSpace: 'nowrap',
+              opacity: discoverState === 'scanning' ? 0.7 : 1,
+            }}
+          >
+            {discoverState === 'scanning'
+              ? `Scanning...${scanElapsed >= 3 ? ` (${scanElapsed}s)` : ''}`
+              : 'Discover Wells'}
+          </button>
+          {discoverState === 'scanning' && (
+            <span style={{ fontSize: 11, color: '#6b7280', whiteSpace: 'nowrap' }}>
+              This may take a moment...
+            </span>
+          )}
+          <button
             onClick={handleAddWell}
             style={{
-              marginLeft: 'auto', background: TEAL, color: '#fff', border: 'none',
+              background: TEAL, color: '#fff', border: 'none',
               borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
               cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
               display: 'flex', alignItems: 'center', gap: 4,
@@ -562,6 +647,26 @@ export function WellsTab() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Discover Wells Modal */}
+      {discoverModalOpen && discoverData && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 999999,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div
+            style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}
+            onClick={() => { setDiscoverModalOpen(false); setDiscoverData(null); }}
+          />
+          <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 'calc(100vw - 40px)', padding: '0 20px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
+            <DiscoverWellsModal
+              data={discoverData}
+              onClose={() => { setDiscoverModalOpen(false); setDiscoverData(null); }}
+              onComplete={handleDiscoverComplete}
+            />
           </div>
         </div>
       )}
