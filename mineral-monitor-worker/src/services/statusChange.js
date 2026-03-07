@@ -132,6 +132,10 @@ export async function checkWellStatusChange(api10, currentData, env) {
             newValue: currentStatus,
             wellName: well.fields['Well Name'] || `API ${api10}`,
             operator: well.fields.Operator || currentData.operator || 'Unknown',
+            sectionTownshipRange: wellRecord.Section && wellRecord.Township && wellRecord.Range
+              ? `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`
+              : null,
+            county: currentData.county || well.fields.County || 'Unknown',
             notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`,
             mapLink: mapLink || "",
             coordinateSource: coordinateSource,

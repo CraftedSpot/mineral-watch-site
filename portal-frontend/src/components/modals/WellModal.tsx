@@ -9,6 +9,7 @@ import {
 } from '../../api/wells';
 import { AccordionSection } from '../ui/AccordionSection';
 import { Badge } from '../ui/Badge';
+import { getMatchStyle } from '../../lib/match-styles';
 import { ModalShell } from '../ui/ModalShell';
 import { Card } from '../ui/Card';
 import { TextArea, TextInput } from '../ui/FormField';
@@ -439,7 +440,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                           )}
                           {p.county && <span>{p.county}</span>}
                           {p.matchReason && (
-                            <Badge bg={BORDER} color="#374151" size="sm">{p.matchReason}</Badge>
+                            <Badge bg={getMatchStyle(p.matchReason).bg} color={getMatchStyle(p.matchReason).color} size="sm">{p.matchReason}</Badge>
                           )}
                         </div>
                       </div>

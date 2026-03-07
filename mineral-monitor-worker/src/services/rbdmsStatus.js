@@ -250,7 +250,8 @@ export async function checkAllWellStatuses(env, options = {}) {
     try {
       if (!env.WELLS_DB) throw new Error('D1 not available');
       const { results: rows } = await env.WELLS_DB.prepare(`
-        SELECT airtable_id, api_number, well_name, well_status, user_id, operator, organization_id, status
+        SELECT airtable_id, api_number, well_name, well_status, user_id, operator, organization_id, status,
+               section, township, range_val, county
         FROM client_wells WHERE status = 'Active'
       `).all();
       // Transform D1 rows to Airtable record shape for compatibility
@@ -262,7 +263,11 @@ export async function checkAllWellStatuses(env, options = {}) {
           'Well Status': r.well_status,
           'User': r.user_id ? [r.user_id] : [],
           'Operator': r.operator,
-          'Organization': r.organization_id ? [r.organization_id] : []
+          'Organization': r.organization_id ? [r.organization_id] : [],
+          'Section': r.section,
+          'Township': r.township,
+          'Range': r.range_val,
+          'County': r.county
         }
       }));
     } catch (error) {
@@ -412,7 +417,9 @@ export async function checkAllWellStatuses(env, options = {}) {
             newValue: rbdmsStatus,
             wellName: well.fields['Well Name'] || `API ${api}`,
             operator: well.fields.Operator || currentData.operator || 'Unknown',
-            sectionTownshipRange: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+            sectionTownshipRange: wellRecord.Section && wellRecord.Township && wellRecord.Range
+              ? `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`
+              : null,
             county: currentData.county || wellRecord.County || 'Unknown',
             notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
             mapLink: mapLink || ""
@@ -672,7 +679,9 @@ async function simulateStatusChange(env, testApi, newStatus = 'IA') {
           newValue: newStatus,
           wellName: well.fields['Well Name'] || `API ${testApi}`,
           operator: well.fields.Operator || 'Unknown',
-          sectionTownshipRange: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+          sectionTownshipRange: wellRecord.Section && wellRecord.Township && wellRecord.Range
+            ? `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`
+            : null,
           county: wellRecord.County,
           notes: `TEST MODE: Simulated status change from ${getStatusDescription(currentStatus)} to ${getStatusDescription(newStatus)}`,
           mapLink: mapLink || ""

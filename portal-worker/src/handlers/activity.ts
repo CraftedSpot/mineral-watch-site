@@ -88,7 +88,19 @@ export async function handleListActivity(request: Request, env: Env) {
 
   try {
     const result = await env.WELLS_DB.prepare(query).bind(...params).all();
-    const records = result.results.map(mapRowToRecord);
+    const allRecords = result.results.map(mapRowToRecord);
+
+    // Deduplicate: when org has multiple members, the same well event creates
+    // one activity_log row per member. Keep the first (lowest id) per event.
+    const seen = new Set<string>();
+    const records = allRecords.filter((r: any) => {
+      // Group by api_number + activity_type + minute-truncated timestamp
+      const minute = (r.fields['Detected At'] || '').substring(0, 16);
+      const key = `${r.fields['API Number']}|${r.fields['Activity Type']}|${minute}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
 
     // If this is for the map (days parameter provided), return simplified format
     if (days) {

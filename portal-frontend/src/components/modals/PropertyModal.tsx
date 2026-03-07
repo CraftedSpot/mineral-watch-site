@@ -19,6 +19,7 @@ import { formatDate, formatDecimal, formatTRS, getWellStatusColor } from '../../
 import { OCCFilingsSection } from '../shared/OCCFilingsSection';
 import { CompletionReportsSection } from '../shared/CompletionReportsSection';
 import { MODAL_TYPES, BORDER, SLATE, ORANGE, ORANGE_DARK } from '../../lib/constants';
+import { getMatchStyle } from '../../lib/match-styles';
 import type { LinkedWell, LinkedDocument } from '../../types/property-detail';
 
 // Vanilla CSS variables
@@ -49,16 +50,6 @@ interface Props {
   propertyId: string;
 }
 
-const MATCH_STYLES: Record<string, { bg: string; color: string }> = {
-  'Surface Location': { bg: '#dbeafe', color: '#1d4ed8' },
-  'Bottom Hole': { bg: '#cffafe', color: '#0e7490' },
-  'Lateral Path': { bg: '#f3e8ff', color: '#7c3aed' },
-  'Adjacent Section': { bg: '#fef3c7', color: '#92400e' },
-};
-
-function getMatchStyle(reason: string) {
-  return MATCH_STYLES[reason] || { bg: BORDER, color: '#374151' };
-}
 
 export function PropertyModal({ onClose, propertyId }: Props) {
   const modal = useModal();

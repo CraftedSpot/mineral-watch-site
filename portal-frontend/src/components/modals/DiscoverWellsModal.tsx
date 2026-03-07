@@ -4,6 +4,7 @@ import { useIsMobile } from '../../hooks/useIsMobile';
 import { discoverWellsCommit } from '../../api/matching';
 import { formatTRS } from '../../lib/helpers';
 import { BORDER, SLATE, DARK, TEAL } from '../../lib/constants';
+import { getMethodLabel } from '../../lib/match-styles';
 import type { DiscoverWellPreview, DiscoverWellsPreviewResponse } from '../../api/matching';
 
 interface DiscoverWellsModalProps {
@@ -12,16 +13,8 @@ interface DiscoverWellsModalProps {
   onComplete: () => void;
 }
 
-const METHOD_LABELS: Record<string, { label: string; bg: string; color: string }> = {
-  surface_section: { label: 'Surface', bg: '#dcfce7', color: '#166534' },
-  lateral_path: { label: 'Lateral', bg: '#dbeafe', color: '#1e40af' },
-  bottom_hole: { label: 'Bottom Hole', bg: '#ede9fe', color: '#5b21b6' },
-  adjacent_bh: { label: 'Adjacent', bg: '#f1f5f9', color: '#475569' },
-  adjacent_surface: { label: 'Adjacent', bg: '#f1f5f9', color: '#475569' },
-};
-
 function MethodBadge({ method }: { method: string }) {
-  const m = METHOD_LABELS[method] || { label: method, bg: '#f1f5f9', color: '#475569' };
+  const m = getMethodLabel(method);
   return (
     <span style={{
       fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
