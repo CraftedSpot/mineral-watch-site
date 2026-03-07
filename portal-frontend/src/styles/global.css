@@ -23,6 +23,12 @@ button { font-family: inherit; }
   .mobile-tab-bar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+/* Pulsating status dot for documents being processed */
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* NavHeader mobile menu animation */
 .nav-mobile-menu {
   max-height: 0;
