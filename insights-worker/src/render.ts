@@ -402,6 +402,16 @@ export function renderInsightsHub(): string {
                         </div>
                     </a>
 
+                    <a href="/insights/guides/lease-negotiation" class="guide-card">
+                        <div class="guide-card-icon">${iconLg('shield')}</div>
+                        <div class="guide-card-body">
+                            <span class="tag tag-guide">Guide</span>
+                            <h3>The Mineral Owner&rsquo;s Guide to Lease Negotiations</h3>
+                            <p>That lease offer was written by the operator&rsquo;s lawyers. Here&rsquo;s how to read it, create leverage, and fight back on every clause.</p>
+                            <span class="read-link">Read guide &rarr;</span>
+                        </div>
+                    </a>
+
                 </div>
             </div>
         </section>
@@ -1057,6 +1067,64 @@ const ARTICLES: Record<string, Article> = {
     </script>`,
     get body() { return SCOOP_STACK_OVERVIEW_BODY; },
   },
+  'lease-negotiation': {
+    slug: 'lease-negotiation',
+    title: 'The Mineral Owner\u2019s Guide to Lease Negotiations',
+    description: 'That lease offer in your mailbox was written by the operator\u2019s lawyers. Here\u2019s how to read it, create leverage, and negotiate the terms that actually matter.',
+    canonical: 'https://mymineralwatch.com/insights/guides/lease-negotiation',
+    ogImage: 'https://mymineralwatch.com/assets/insights/lease-negotiation-guide.jpg',
+    tag: 'Essential Guide',
+    tagClass: 'tag-guide',
+    author: 'James Price',
+    authorTitle: 'Founder of Mineral Watch',
+    readTime: '18 min read',
+    updated: 'Updated March 2026',
+    breadcrumb: 'Lease Negotiations',
+    featuredImage: {
+      src: '/assets/insights/lease-negotiation-guide.jpg',
+      alt: 'Conference room meeting with people reviewing geological maps and lease documents, Oklahoma City skyline visible through windows.',
+      width: 1376,
+      height: 750,
+    },
+    toc: [
+      { id: 'leverage', label: 'Creating Leverage' },
+      { id: 'big-three', label: 'The Big Three Terms' },
+      { id: 'protective-clauses', label: 'Protective Clauses' },
+      { id: 'red-flags', label: 'Red Flags' },
+      { id: 'after-signing', label: 'After the Ink Dries' },
+      { id: 'professionals', label: 'When to Get Help' },
+      { id: 'checklist', label: 'Full Checklist' },
+    ],
+    related: [
+      { href: '/insights/guides/understanding-pooling-orders', label: 'Understanding Pooling Orders' },
+      { href: '/insights/guides/division-orders-101', label: 'Division Orders 101' },
+      { href: '/insights/guides/auditing-royalty-checks', label: 'How to Audit Your Royalty Checks' },
+      { href: '/insights/guides/occ-filing-types', label: 'Every Type of OCC Filing, Explained' },
+    ],
+    resources: [
+      { label: 'OCC Docket Search', href: 'https://oklahoma.gov/occ/court-dockets.html' },
+      { label: 'National Association of Royalty Owners (NARO)', href: 'https://naro-us.org' },
+      { label: 'Oklahoma Statute Title 52 \u00a787.1 \u2014 Pooling', href: 'https://www.oscn.net/applications/oscn/DeliverDocument.asp?CiteID=94003' },
+    ],
+    ctaTitle: 'Know What Your Minerals Are Worth',
+    ctaText: 'Mineral Watch monitors OCC filings, drilling permits, and completion reports across your properties \u2014 so you always know what\u2019s happening before the landman calls.',
+    jsonLdExtra: `
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        { "@type": "Question", "name": "What royalty rate should I negotiate in an Oklahoma oil and gas lease?", "acceptedAnswer": { "@type": "Answer", "text": "The standard offer is often 1/8th (12.5%), but experienced mineral owners negotiate for 3/16ths (18.75%) to 1/4th (25%). The difference can represent over $150,000 per net royalty acre on a productive horizontal well. Use recent OCC pooling orders in your area as benchmark data for current market rates." } },
+        { "@type": "Question", "name": "What is a Gross Proceeds clause in an oil and gas lease?", "acceptedAnswer": { "@type": "Answer", "text": "A Gross Proceeds clause requires the operator to calculate your royalty based on the gross sale price of oil and gas, without deducting post-production costs like transportation, compression, dehydration, or processing. Without this clause, deductions can reduce your effective royalty by 30-50%." } },
+        { "@type": "Question", "name": "What is a Pugh Clause and why do I need one?", "acceptedAnswer": { "@type": "Answer", "text": "A Pugh Clause releases unleased acreage and/or undeveloped depths from your lease once the primary term expires. Without it, a single producing well on a corner of your tract can hold your entire acreage and all depths under lease for decades." } },
+        { "@type": "Question", "name": "How long should the primary term of my oil and gas lease be?", "acceptedAnswer": { "@type": "Answer", "text": "Push for a 3-year primary term with no free extension option. A 5-year lease with a 2-year extension means the operator can sit on your acreage for up to 7 years without drilling, blocking your ability to re-lease to a better operator." } },
+        { "@type": "Question", "name": "Should I warranty my title in an oil and gas lease?", "acceptedAnswer": { "@type": "Answer", "text": "No. Never warrant your title. A warranty makes you financially responsible if a title defect surfaces, even one dating back decades. Replace warranty language with 'without warranty of title, express or implied, and without recourse.'" } },
+        { "@type": "Question", "name": "When should I hire an oil and gas attorney for lease negotiations?", "acceptedAnswer": { "@type": "Answer", "text": "Consider hiring an attorney if your net mineral acreage is 10 acres or more, the operator is pressuring you to sign quickly, you have a non-standard form, your title chain involves probate or trust complications, or the proposed well is a horizontal covering multiple sections." } }
+      ]
+    }
+    </script>`,
+    get body() { return LEASE_NEGOTIATION_BODY; },
+  },
 };
 
 export function renderArticle(slug: string): string | null {
@@ -1376,6 +1444,60 @@ export function renderArticle(slug: string): string | null {
         .badge-primary { background: #EBF5FF; color: #1A56DB; }
         .badge-secondary { background: var(--success-bg); color: var(--success); }
         .badge-emerging { background: #FFFAF0; color: #C05621; }
+
+        /* Lease negotiation guide — email block */
+        .email-block { border: 1px solid var(--border); border-top: 3px solid var(--oil-navy); margin: 28px 0; border-radius: 0 0 6px 6px; overflow: hidden; }
+        .email-header { background: var(--paper); padding: 14px 20px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; color: #718096; }
+        .email-header strong { color: var(--oil-navy); }
+        .email-body { padding: 20px; line-height: 1.7; }
+        .email-body p { font-size: 15px; margin-bottom: 12px; }
+        .email-body p:last-child { margin-bottom: 0; }
+
+        /* Lease negotiation guide — compare table */
+        .compare-wrap { overflow-x: auto; margin: 28px 0; }
+        .compare-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        .compare-table thead tr { background: var(--oil-navy); color: white; }
+        .compare-table th { padding: 12px 16px; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+        .compare-table th:nth-child(3) { color: #7dd3a8; }
+        .compare-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: top; color: #2D3748; line-height: 1.5; }
+        .compare-table tr:last-child td { border-bottom: none; }
+        .compare-table tr:nth-child(even) td { background: var(--paper); }
+        .compare-table td:first-child { font-weight: 600; color: var(--oil-navy); }
+        .compare-table td:nth-child(2) { color: var(--red-dirt); }
+        .compare-table td:nth-child(3) { color: #2F855A; font-weight: 600; }
+
+        /* Lease negotiation guide — clause cards */
+        .clause-card { background: #fff; border: 1px solid var(--border); border-radius: 6px; margin: 28px 0; overflow: hidden; }
+        .clause-card-header { display: flex; align-items: center; gap: 14px; padding: 18px 24px; background: var(--paper); border-bottom: 1px solid var(--border); }
+        .clause-icon { width: 40px; height: 40px; border-radius: 8px; background: var(--red-dirt); color: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+        .clause-card-title { font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; color: var(--oil-navy); }
+        .clause-card-subtitle { font-size: 13px; color: #718096; margin-top: 2px; font-style: italic; }
+        .clause-card-body { padding: 20px 24px; }
+        .clause-card-body p { font-size: 15px; margin-bottom: 14px; }
+        .clause-card-body p:last-child { margin-bottom: 0; }
+        .code-comparison { background: var(--paper); border: 1px solid var(--border); padding: 14px 16px; font-size: 13.5px; line-height: 1.65; color: var(--oil-navy); margin-top: 12px; border-radius: 4px; }
+        .code-comparison .bad { color: #E53E3E; }
+        .code-comparison .good { color: #2F855A; font-weight: 600; }
+
+        /* Lease negotiation guide — red flag list */
+        .flag-list { list-style: none; margin: 8px 0 24px; padding: 0; }
+        .flag-item { display: flex; gap: 16px; padding: 20px 0; border-bottom: 1px solid var(--border); align-items: flex-start; }
+        .flag-item:last-child { border-bottom: none; }
+        .flag-dot { width: 28px; height: 28px; background: #E53E3E; color: white; border-radius: 50%; font-size: 14px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+        .flag-content h4 { font-family: 'Merriweather', serif; font-size: 16px; font-weight: 700; color: var(--oil-navy); margin-bottom: 6px; }
+        .flag-content p { font-size: 15px; color: #2D3748; margin-bottom: 10px; }
+        .flag-content p:last-child { margin-bottom: 0; }
+        .code-fix { font-size: 13px; background: var(--paper); border: 1px solid var(--border); padding: 10px 14px; line-height: 1.7; border-radius: 4px; margin-top: 8px; }
+        .code-fix .x { color: #E53E3E; }
+        .code-fix .check { color: #2F855A; font-weight: 600; }
+
+        /* Lease negotiation guide — master checklist */
+        .master-checklist { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin: 32px 0; }
+        .master-checklist-header { background: var(--oil-navy); color: white; padding: 16px 24px; font-family: 'Merriweather', serif; font-size: 17px; font-weight: 700; }
+        .master-checklist-item { display: flex; align-items: flex-start; gap: 12px; padding: 12px 24px; border-bottom: 1px solid var(--border); font-size: 15px; color: #2D3748; }
+        .master-checklist-item:last-child { border-bottom: none; }
+        .master-checklist-item:nth-child(even) { background: var(--paper); }
+        .mcl-cb { width: 16px; height: 16px; border: 1.5px solid #CBD5E0; flex-shrink: 0; margin-top: 3px; border-radius: 2px; }
 
         /* Share & Print */
         .article-actions { display: flex; gap: 8px; margin-top: 18px; }
@@ -3974,4 +4096,306 @@ const SCOOP_STACK_OVERVIEW_BODY = `
 <p>The SCOOP, STACK, and MERGE plays represent the present and future of Oklahoma&rsquo;s oil and gas industry. For mineral owners with acreage in the core counties of these plays, the stacked formation opportunities mean your minerals may be more valuable than a single well would suggest. Multiple formations mean multiple development cycles, multiple pooling events, and multiple revenue streams &mdash; but only if you&rsquo;re paying attention to what&rsquo;s being filed on your sections.</p>
 
 <p>The operators drilling these plays are sophisticated, well-capitalized companies making long-term development commitments. As a mineral owner, your leverage comes from understanding the activity on your sections, knowing when filings require action (especially pooling orders), and ensuring you&rsquo;re receiving fair treatment in every lease and every royalty check. The geology is doing its part. Make sure you&rsquo;re doing yours.</p>
+`;
+
+const LEASE_NEGOTIATION_BODY = `
+<p>When an oil company sends a lease offer, most mineral owners make the same mistake: they focus almost entirely on the bonus check. That one-time payment, while gratifying, can pale in comparison to the royalty income &mdash; and legal exposure &mdash; buried in the fine print of a poorly negotiated lease.</p>
+
+<p>This guide walks through the full negotiation landscape: how to create leverage before you respond, which specific terms to fight for, which protective clauses are non-negotiable, and which phrases in the &ldquo;standard&rdquo; lease are quietly designed to cost you money over the life of the well.</p>
+
+<p>Remember: <strong>the first draft is never the best draft.</strong> It is a contract designed by their lawyers to protect their interests, not yours. To maximize your value, you need to look beyond the bonus check and focus on the Net Revenue Interest (NRI) and your legal protections.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Note</div>
+    <p>Oklahoma mineral law is nuanced, and no guide replaces the advice of a qualified oil and gas attorney for high-stakes negotiations. The concepts below are broadly applicable and will help you ask far better questions &mdash; even if you ultimately hire a professional to finalize the deal.</p>
+</div>
+
+<h2 id="leverage">1. Creating Leverage: The &ldquo;Shopping&rdquo; Strategy</h2>
+
+<p>The biggest mistake mineral owners make is assuming they only have one suitor. Even if one company is the primary &ldquo;land grabber&rdquo; in your section, others may be active nearby &mdash; and the mere possibility of competition changes everything.</p>
+
+<p>When a landman believes you have no other options, &ldquo;take-it-or-leave-it&rdquo; becomes their default posture. When they suspect you&rsquo;ve been talking to competitors, suddenly there&rsquo;s flexibility on royalty rates, bonus amounts, and protective language they swore was non-negotiable.</p>
+
+<h3>Identify the Neighbors</h3>
+
+<p>Use the OCC website (see our <a href="/insights/guides/occ-filing-types" style="color: var(--red-dirt); font-weight: 600;">OCC Filing Types Guide</a>) to look at recent Intent to Drill filings and Pooling Orders in the surrounding nine sections around your mineral interest. Any operator with active permits nearby is a potential competing suitor. Pay special attention to:</p>
+
+<ul>
+    <li><strong><a href="/insights/guides/understanding-pooling-orders" style="color: var(--red-dirt);">Pooling Orders</a></strong> &mdash; these reveal the exact bonus and royalty options operators offered nearby owners, documented in public record</li>
+    <li><strong>Recent drilling permits</strong> in adjacent sections &mdash; active operators moving in your direction</li>
+    <li><strong>Completion reports</strong> from the past 12 months &mdash; operators who know the formation works in your area</li>
+</ul>
+
+<h3>The Outreach</h3>
+
+<p>Contact the land departments of those active companies directly. You don&rsquo;t need to be confrontational &mdash; you simply need to signal that you are an informed owner evaluating all options before signing.</p>
+
+<div class="email-block">
+    <div class="email-header">
+        <strong>TO:</strong><span>Land Department &mdash; [Company Name]</span>
+        <strong>SUBJECT:</strong><span>Mineral Interest Available &mdash; [Legal Description], [County] County, Oklahoma</span>
+    </div>
+    <div class="email-body">
+        <p>Dear Land Team,</p>
+        <p>My name is [Your Name], and I am the mineral rights owner of [Net Mineral Acres] acres in [Legal Description] (Section [X], Township [X]N, Range [X]W), [County] County, Oklahoma.</p>
+        <p>I have received a lease offer from another operator at [X/Xths] royalty and $[X] per acre bonus. Before executing any agreement, I wanted to reach out to see whether [Company Name] has any interest in this acreage, either as a lessee or as a participant in a proposed unit.</p>
+        <p>I am happy to share further details. Please feel free to contact me at your convenience.</p>
+        <p>Sincerely,<br>[Your Name]<br>[Phone / Email]</p>
+    </div>
+</div>
+
+<h3>Use Pooling Orders as a Benchmark</h3>
+
+<p>Oklahoma Corporation Commission Pooling Orders are perhaps the most underutilized negotiating tool available to mineral owners. When an operator pools a unit, they must offer all owners a menu of options &mdash; typically ranging from a lower royalty with a higher bonus, to a higher royalty with a lower bonus. These orders are public record and searchable through the <a href="/insights/guides/navigating-occ-website" style="color: var(--red-dirt); font-weight: 600;">OCC website</a>.</p>
+
+<p>If an operator has recently pooled a nearby section, you now have documented proof of exactly what they offered other owners. That&rsquo;s an extraordinarily powerful data point to bring to a lease negotiation.</p>
+
+<div class="callout">
+    <div class="callout-title">The &ldquo;Vibes&rdquo; Check</div>
+    <p>Even if competing operators don&rsquo;t offer more money, having a second offer &mdash; or even the possibility of one &mdash; stops the first landman from telling you &ldquo;This is a take-it-or-leave-it deal.&rdquo; The psychology of competition is the point.</p>
+</div>
+
+<h2 id="big-three">2. The &ldquo;Big Three&rdquo; Negotiation Points</h2>
+
+<p>Most owners negotiate only on the bonus. Experienced mineral owners negotiate on all three of the following dimensions simultaneously &mdash; and they know that royalty rate and lease term will almost always matter more than the upfront check.</p>
+
+<div class="compare-wrap">
+    <table class="compare-table">
+        <thead>
+            <tr>
+                <th>Term</th>
+                <th>Their &ldquo;Standard&rdquo; Offer</th>
+                <th>What You Should Target</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Royalty Interest</td>
+                <td>&frac18;th (12.5%) or 3/16ths (18.75%)</td>
+                <td>&frac15;th (20%) or &frac14;th (25%)</td>
+            </tr>
+            <tr>
+                <td>Bonus Amount</td>
+                <td>Low-ball per-acre price</td>
+                <td>Market rate &mdash; verified against recent pooling orders in your area</td>
+            </tr>
+            <tr>
+                <td>Primary Lease Term</td>
+                <td>5&ndash;10 years + option to extend</td>
+                <td>3 years, no extension option &mdash; keeps reversionary interest near</td>
+            </tr>
+            <tr>
+                <td>Depth / Formation</td>
+                <td>All depths, all formations</td>
+                <td>Limit to the target formation; retain rights to other depths</td>
+            </tr>
+            <tr>
+                <td>Acreage Held</td>
+                <td>Your entire tract</td>
+                <td>Only acreage within the defined unit (requires Pugh Clause &mdash; see Section 3)</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<p>The difference between a &frac18;th (12.5%) and a &frac14;th (25%) royalty might seem like a negotiating detail &mdash; until you do the math on a productive well. On a horizontal well with an initial production rate of 600 barrels of oil per day at $70/bbl, the difference in royalty income over just the first year is roughly <strong>$150,000 per net royalty acre</strong>. That&rsquo;s why operators offer &frac18;th as the default &mdash; and why pushing for 3/16ths or &frac14;th is worth the negotiating discomfort.</p>
+
+<div class="callout">
+    <div class="callout-title">On Lease Terms</div>
+    <p>A 5-year lease with a 2-year option to extend means the operator can sit on your acreage for up to 7 years without drilling. In that window, commodity prices can shift, technology can improve, and your ability to re-lease to a better operator is completely blocked. Push hard for a 3-year primary term with no extension option.</p>
+</div>
+
+<h3>The Depth Limitation Tactic</h3>
+
+<p>In Oklahoma&rsquo;s stacked-pay environment, a single tract may sit above multiple producing formations &mdash; the Sycamore, Woodford, Springer, and Mississippian, each at different depths. A &ldquo;standard&rdquo; lease typically covers all depths in one instrument. Consider negotiating a depth-limited lease that covers only the formation the operator is actually pursuing. This preserves your right to separately lease other formations to different operators at different times &mdash; potentially multiplying your bonus income and creating independent royalty streams from a single tract.</p>
+
+<h2 id="protective-clauses">3. Critical &ldquo;Protective&rdquo; Clauses</h2>
+
+<p>Do not sign a lease without these addendums. Operators will frequently tell you these clauses are &ldquo;non-standard&rdquo; or that they &ldquo;don&rsquo;t use that language.&rdquo; Push anyway. These often matter more than the bonus check over the life of a well.</p>
+
+<div class="clause-card">
+    <div class="clause-card-header">
+        <div class="clause-icon">&#9878;&#65039;</div>
+        <div>
+            <div class="clause-card-title">The Gross Proceeds Clause</div>
+            <div class="clause-card-subtitle">Also known as: No Post-Production Deductions / At the Wellhead Language</div>
+        </div>
+    </div>
+    <div class="clause-card-body">
+        <p>This is the single most financially impactful clause in your lease. By default, operators are often permitted to deduct &ldquo;post-production costs&rdquo; &mdash; transportation, compression, dehydration, and processing fees &mdash; from your royalty before calculating your check. On some wells, these deductions can reduce your effective royalty by 30&ndash;50% or more.</p>
+        <p>A Gross Proceeds clause requires the operator to calculate your royalty based on the gross price received for oil or gas &mdash; before any of those deductions are applied. If the crude sells for $70/bbl, your &frac14;th royalty is calculated at $70, not $70 minus $12 in pipeline fees.</p>
+        <div class="code-comparison">
+            <span class="bad">&#10007; Avoid: &ldquo;Lessee shall pay royalty on the market value at the wellhead, less reasonable post-production costs...&rdquo;</span><br><br>
+            <span class="good">&#10003; Seek: &ldquo;Royalty shall be calculated on the gross proceeds received by Lessee from the sale of oil and gas, without deduction for any post-production costs, including but not limited to costs of transportation, compression, dehydration, treatment, or marketing.&rdquo;</span>
+        </div>
+    </div>
+</div>
+
+<div class="clause-card">
+    <div class="clause-card-header">
+        <div class="clause-icon">&#128208;</div>
+        <div>
+            <div class="clause-card-title">The Pugh Clause</div>
+            <div class="clause-card-subtitle">Horizontal Pugh / Vertical Pugh / Both</div>
+        </div>
+    </div>
+    <div class="clause-card-body">
+        <p>Without a Pugh Clause, a single producing well on a corner of your 160-acre tract can hold your <em>entire</em> acreage &mdash; and all depths &mdash; under lease for as long as that well produces, which could be 30+ years. The Pugh Clause is the antidote.</p>
+        <p><strong>The Horizontal Pugh Clause</strong> releases any acreage not within the defined producing unit once the primary lease term expires. So if a well is drilled on 40 of your 160 acres, the other 120 acres are released back to you to re-lease.</p>
+        <p><strong>The Vertical Pugh Clause</strong> releases any depths or formations not being actively developed. If the operator is producing from the Woodford at 10,000 feet, formations above and below that depth revert to you after the primary term.</p>
+        <p>Ideally, negotiate both. In practice, operators are more resistant to the vertical version. Start there in negotiations &mdash; you&rsquo;ll often land at least the horizontal Pugh as a concession.</p>
+    </div>
+</div>
+
+<div class="clause-card">
+    <div class="clause-card-header">
+        <div class="clause-icon">&#128274;</div>
+        <div>
+            <div class="clause-card-title">The Top-Lease Prohibition</div>
+            <div class="clause-card-subtitle">Anti-Top-Lease / Future Lease Restriction</div>
+        </div>
+    </div>
+    <div class="clause-card-body">
+        <p>A &ldquo;top lease&rdquo; is signed while an existing lease is still in effect, designed to take hold immediately upon expiration of the underlying lease. Operators use them to lock up acreage before it reverts to the owner, often at terms far less favorable than a free-market negotiation would yield.</p>
+        <p>If you sign a top lease today for a lease that doesn&rsquo;t expire for five years, you&rsquo;ve surrendered your future negotiating leverage entirely &mdash; including any improvements in commodity prices, technology, or competitive interest that might develop in the interim. Include language explicitly prohibiting the lessee from acquiring any top lease or option on a future lease during the current agreement.</p>
+    </div>
+</div>
+
+<div class="clause-card">
+    <div class="clause-card-header">
+        <div class="clause-icon">&#127981;</div>
+        <div>
+            <div class="clause-card-title">The Continuous Development Clause</div>
+            <div class="clause-card-subtitle">Cessation of Production / Continuous Operations / Shut-In Royalty</div>
+        </div>
+    </div>
+    <div class="clause-card-body">
+        <p>Standard leases contain a &ldquo;habendum clause&rdquo; keeping the lease in force &ldquo;for so long as oil and gas is produced.&rdquo; Without clear language, operators may argue the lease is still &ldquo;held by production&rdquo; during long interruptions for workovers, equipment failures, or market shut-ins.</p>
+        <p>A well-drafted Continuous Development Clause specifies the maximum permissible shut-in or cessation period (typically 90&ndash;180 days) and requires the operator to demonstrate ongoing development or the lease terminates. Also negotiate the <strong>shut-in royalty</strong>: if a well is capable of production but shut in for market reasons, you should receive a nominal per-acre payment. Without this, an operator can shut a well in indefinitely without paying you a dime.</p>
+    </div>
+</div>
+
+<h2 id="red-flags">4. Red Flags to Watch For</h2>
+
+<p>Beyond the clauses you want to <em>add</em>, several provisions in &ldquo;standard&rdquo; lease forms should be removed or modified before you sign. These can create significant financial liability or permanently foreclose future opportunities.</p>
+
+<ul class="flag-list">
+    <li class="flag-item">
+        <div class="flag-dot">!</div>
+        <div class="flag-content">
+            <h4>Warranty of Title</h4>
+            <p>Never warrant your title. A warranty makes you financially responsible to the oil company if a title defect &mdash; even one dating back decades before you ever owned the land &mdash; surfaces in the future. Chain-of-title issues in Oklahoma mineral records are common and can originate from 1920s-era errors, probate oversights, or partition suits your grandfather&rsquo;s estate never properly resolved.</p>
+            <div class="code-fix">
+                <span class="x">&#10007; Remove: &ldquo;Lessor warrants and agrees to defend title to said lands...&rdquo;</span><br>
+                <span class="check">&#10003; Replace with: &ldquo;Lessor conveys WITHOUT warranty of title, express or implied, and without recourse.&rdquo;</span>
+            </div>
+        </div>
+    </li>
+    <li class="flag-item">
+        <div class="flag-dot">!</div>
+        <div class="flag-content">
+            <h4>The Unpaid Option to Extend</h4>
+            <p>If the operator wants the right to extend a 3-year primary term by 1&ndash;2 additional years, that option has real value &mdash; and they should pay for it now or at a significantly higher rate when exercised. An extension clause that requires no additional payment gives the operator a free call option on your acreage at your expense.</p>
+            <div class="code-fix">
+                <span class="x">&#10007; &ldquo;Lessee may extend this lease for [X] additional years upon written notice...&rdquo;</span><br>
+                <span class="check">&#10003; Require a specified extension bonus (at minimum, the same per-acre rate as the original) payable at time of exercise.</span>
+            </div>
+        </div>
+    </li>
+    <li class="flag-item">
+        <div class="flag-dot">!</div>
+        <div class="flag-content">
+            <h4>The &ldquo;Mother Hubbard&rdquo; Clause</h4>
+            <p>This clause attempts to include in the lease not just the property you explicitly described, but also any &ldquo;strips, gores, or small parcels of land&rdquo; adjacent to the described tract that you might own &mdash; sweeping up mineral interests you may not even know you have. Strike it entirely.</p>
+        </div>
+    </li>
+    <li class="flag-item">
+        <div class="flag-dot">!</div>
+        <div class="flag-content">
+            <h4>The Free-Use Clause</h4>
+            <p>Many standard lease forms permit the operator to use oil, gas, or water from your property free of royalty for drilling and operating purposes. Gas from your well could be consumed in field operations &mdash; generating no royalty for you &mdash; while the operator credits it as a cost reduction. Strike or negotiate a cap on the volume that can be used royalty-free.</p>
+        </div>
+    </li>
+    <li class="flag-item">
+        <div class="flag-dot">!</div>
+        <div class="flag-content">
+            <h4>Assignment Without Consent</h4>
+            <p>You negotiated with a specific operator because you believe they are reputable and financially capable. A lease that permits unrestricted assignment means that company can sell your lease to any third party &mdash; including small operators with questionable track records &mdash; without notifying you. At minimum, negotiate a requirement for prior written notice before any assignment.</p>
+        </div>
+    </li>
+</ul>
+
+<h2 id="after-signing">5. After the Ink Dries</h2>
+
+<p>Negotiating a good lease is the beginning, not the end. The most common way mineral owners lose money isn&rsquo;t in the lease negotiation &mdash; it&rsquo;s in the years afterward, when they assume everything is running correctly and stop paying attention.</p>
+
+<h3>Verify Your Division Order</h3>
+
+<p>Once a well is completed, the operator will send you a <strong><a href="/insights/guides/division-orders-101" style="color: var(--red-dirt);">Division Order</a></strong> &mdash; a document specifying your decimal interest in the well and authorizing payment. Before you sign it, verify the decimal independently. Errors are surprisingly common, and an incorrect decimal that underpays you by even a fraction of a percent can represent thousands of dollars over the life of a well.</p>
+
+<p>Your decimal interest should reflect your Net Royalty Acres divided by the total acres in the production unit, multiplied by your negotiated royalty fraction. If the numbers don&rsquo;t match, do not sign until the discrepancy is resolved in writing.</p>
+
+<h3>Audit Your Royalty Statements</h3>
+
+<p>Oklahoma law requires operators to pay royalties in a timely manner, but it does not guarantee accuracy. Review each remittance statement to confirm the volumes and prices match available public production data. The OCC and OTC both publish production records you can use as a cross-reference. See our <a href="/insights/guides/auditing-royalty-checks" style="color: var(--red-dirt); font-weight: 600;">Royalty Check Audit Guide</a> for a step-by-step walkthrough.</p>
+
+<div class="callout callout-tip">
+    <div class="callout-title">Monitoring Tip</div>
+    <p>Mineral Watch can notify you when new completion reports, production data, or OCC filings are posted for wells on your properties &mdash; giving you the independent data you need to verify your royalty statements are accurate and timely.</p>
+</div>
+
+<h3>Watch for Lease Expiration</h3>
+
+<p>Track your lease&rsquo;s primary term carefully. If the operator has not commenced drilling operations by the expiration date and the lease has not been extended by production, your minerals revert to you &mdash; free and clear to re-lease, often at significantly better terms. Landmen are counting on you not noticing. Keep your own calendar.</p>
+
+<h2 id="professionals">6. When to Bring in Professionals</h2>
+
+<p>Not every lease negotiation requires a legal team. But there are circumstances where the cost of professional help is trivially small compared to the value at stake.</p>
+
+<h3>Consider hiring an oil and gas attorney if:</h3>
+
+<ul>
+    <li>Your net mineral acreage is 10 acres or more</li>
+    <li>The operator is moving quickly and pressuring you to sign fast</li>
+    <li>You are being offered a non-standard form you&rsquo;ve never seen before</li>
+    <li>Your title chain involves probate, partition actions, or family trust complications</li>
+    <li>The proposed well is a horizontal well covering multiple sections</li>
+</ul>
+
+<h3>Consider hiring a petroleum landman if:</h3>
+
+<ul>
+    <li>You want someone to shop your lease to multiple operators</li>
+    <li>You need help verifying your mineral ownership and acreage</li>
+    <li>You want an independent review of recent comparable lease terms in your area</li>
+</ul>
+
+<div class="callout callout-warning">
+    <div class="callout-title">Caution</div>
+    <p>Be cautious of any professional who offers to &ldquo;handle your lease negotiation&rdquo; in exchange for a cut of your royalties or a future interest in your minerals. A legitimate oil-and-gas attorney works on an hourly or flat-fee basis. Arrangements that trade a portion of your mineral interest for services can create long-term complications that far outweigh the short-term convenience.</p>
+</div>
+
+<h2 id="checklist">Before You Sign: The Full Checklist</h2>
+
+<div class="master-checklist">
+    <div class="master-checklist-header">Lease Negotiation Checklist</div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Searched OCC for recent pooling orders in surrounding 9 sections</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Identified 2&ndash;3 competing operators to contact</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Sent outreach emails to competing operators&rsquo; land departments</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Verified current market bonus rate against recent pooling order data</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Negotiated royalty to at least 3/16ths; pushed for &frac15;th or &frac14;th</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Lease term limited to 3 years with no free extension option</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Depth limitation clause covering target formation only</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Gross Proceeds / No Deductions clause confirmed in writing</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Horizontal Pugh Clause included</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Vertical Pugh Clause included (or explicitly negotiated)</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Top-lease prohibition confirmed</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Continuous development / shut-in royalty terms defined</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Warranty of title replaced with &ldquo;without warranty&rdquo; language</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Mother Hubbard clause removed</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Free-use clause removed or volume-capped</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Assignment restriction or prior-notice requirement included</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Division Order decimal verified independently before signing</span></div>
+    <div class="master-checklist-item"><div class="mcl-cb"></div><span>Lease expiration date calendared for follow-up</span></div>
+</div>
 `;

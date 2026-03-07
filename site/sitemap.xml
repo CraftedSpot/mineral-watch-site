@@ -105,6 +105,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://mymineralwatch.com/insights/guides/lease-negotiation</loc>
+    <lastmod>2026-03-07</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://mymineralwatch.com/insights/guides/understanding-pooling-orders</loc>
     <lastmod>2026-02-14</lastmod>
     <changefreq>monthly</changefreq>
