@@ -470,7 +470,7 @@
                     html += '<tr><td>' + fmtDateTime(a.detected_at) + '</td><td>' + esc(a.activity_type) + '</td>' +
                         '<td>' + esc(a.well_name || a.api_number || '—') + '</td>' +
                         '<td>' + esc(a.previous_value || '') + ' &rarr; ' + esc(a.new_value || '') + '</td>' +
-                        '<td>' + (a.email_sent ? '<span class="dot-green" title="Email sent"></span>' : '<span class="dot-red" title="Email failed"></span>') + '</td></tr>';
+                        '<td>' + (a.email_sent ? '<span class="dot-green" title="Sent"></span>' : a.digest_queued ? '<span class="dot-amber" title="Queued for digest"></span>' : a.digest_sent ? '<span class="dot-green" title="Sent via digest"></span>' : '<span class="dot-red" title="Failed"></span>') + '</td></tr>';
                 }
                 html += '</tbody></table>';
             } else {
@@ -743,7 +743,7 @@
                     '<td>' + esc(a.well_name || '—') + '</td>' +
                     '<td style="font-family:var(--font-mono);font-size:12px;">' + esc(a.api_number || '—') + '</td>' +
                     '<td class="' + levelClass + '">' + esc(a.alert_level || '—') + '</td>' +
-                    '<td>' + (a.email_sent ? '<span class="dot-green" title="Email sent"></span>' : '<span class="dot-red" title="Email failed"></span>') + '</td>' +
+                    '<td>' + (a.email_sent ? '<span class="dot-green" title="Sent"></span>' : a.digest_queued ? '<span class="dot-amber" title="Queued for digest"></span>' : a.digest_sent ? '<span class="dot-green" title="Sent via digest"></span>' : '<span class="dot-red" title="Failed"></span>') + '</td>' +
                 '</tr>';
             }).join('');
 
@@ -777,30 +777,24 @@
             // Summary cards
             html += '<div class="billing-summary">';
             html += '<div class="stat-card"><div class="stat-card-label">MRR</div><div class="stat-card-value" style="color:var(--accent-green);">$' + (data.mrr || 0) + '</div></div>';
-            html += '<div class="stat-card"><div class="stat-card-label">Active Paid</div><div class="stat-card-value" style="color:var(--accent-blue);">' + (data.activePaid || 0) + '</div></div>';
+            html += '<div class="stat-card"><div class="stat-card-label">Paid Subscriptions</div><div class="stat-card-value" style="color:var(--accent-blue);">' + (data.activePaid || 0) + '</div><div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + esc(data.activePaidLabel || '') + '</div></div>';
             html += '<div class="stat-card"><div class="stat-card-label">Free Users</div><div class="stat-card-value">' + (data.freeUsers || 0) + '</div></div>';
             html += '<div class="stat-card"><div class="stat-card-label">Churn (30d)</div><div class="stat-card-value" style="color:' + (data.churn30d > 0 ? 'var(--accent-red)' : 'var(--text-primary)') + ';">' + (data.churn30d || 0) + '</div></div>';
             html += '</div>';
 
-            // Plan breakdown
-            html += '<div class="detail-section"><div class="detail-section-title">Plan Breakdown</div>';
-            html += '<table class="data-table"><thead><tr><th>Plan</th><th>Status</th><th>Users</th></tr></thead><tbody>';
-            if (data.planBreakdown) {
-                for (const row of data.planBreakdown) {
-                    html += '<tr><td>' + esc(row.plan || 'Unknown') + '</td><td>' + statusBadge(row.status) + '</td><td>' + row.user_count + '</td></tr>';
+            // Subscriptions (unified: orgs + individuals)
+            html += '<div class="detail-section"><div class="detail-section-title">Active Subscriptions</div>';
+            html += '<table class="data-table"><thead><tr><th>Subscriber</th><th>Plan</th><th>Members</th><th>MRR</th></tr></thead><tbody>';
+            if (data.subscriptions) {
+                for (const sub of data.subscriptions) {
+                    if (sub.type === 'org') {
+                        html += '<tr><td>' + esc(sub.name) + ' <span style="font-size:11px;color:var(--text-muted);">(org)</span></td><td>' + esc(sub.plan) + '</td><td>1 + ' + (sub.members - 1) + ' members</td><td>$' + sub.price + '</td></tr>';
+                    } else {
+                        html += '<tr><td>Individual' + (sub.count > 1 ? ' (' + sub.count + ' users)' : '') + '</td><td>' + esc(sub.plan) + '</td><td>' + sub.count + '</td><td>$' + (sub.price * sub.count) + '</td></tr>';
+                    }
                 }
             }
             html += '</tbody></table></div>';
-
-            // Org subscriptions
-            if (data.orgPlans && data.orgPlans.length > 0) {
-                html += '<div class="detail-section"><div class="detail-section-title">Organization Subscriptions</div>';
-                html += '<table class="data-table"><thead><tr><th>Org</th><th>Plan</th><th>Members</th></tr></thead><tbody>';
-                for (const org of data.orgPlans) {
-                    html += '<tr><td>' + esc(org.org_name) + '</td><td>' + esc(org.plan) + '</td><td>' + org.member_count + '</td></tr>';
-                }
-                html += '</tbody></table></div>';
-            }
 
             // Recent cancellations
             html += '<div class="detail-section"><div class="detail-section-title">Recent Cancellations (30 days)</div>';

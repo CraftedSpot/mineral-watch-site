@@ -398,7 +398,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/portal" || path === "/portal/") {
         return servePage(dashboardHtml, request, env);
       }
-      if (path === "/portal/react" || path === "/portal/react/") {
+      if (path === "/portal/react" || path === "/portal/react/" || path.startsWith("/portal/react/")) {
         return servePage(portalReactHtml, request, env);
       }
       if (path === "/portal/login" || path === "/portal/login/") {
@@ -947,7 +947,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       if (path === "/api/auth/me" && request.method === "GET") {
         const { handleGetCurrentUser } = await import('./handlers/auth.js');
-        return handleGetCurrentUser(request, env);
+        return handleGetCurrentUser(request, env, ctx);
       }
 
       if (path === "/api/auth/logout" && request.method === "POST") {

@@ -260,7 +260,7 @@ export async function handleVerifyMagicLink(request: Request, env: Env, url: URL
  * Get current user from session cookie — fresh Airtable lookup + org preferences.
  * Called by frontend on every page load and by authenticateRequest middleware.
  */
-export async function handleGetCurrentUser(request: Request, env: Env) {
+export async function handleGetCurrentUser(request: Request, env: Env, ctx?: ExecutionContext) {
   const cookie = request.headers.get('Cookie') || '';
   const sessionToken = getCookieValue(cookie, COOKIE_NAME);
 
@@ -306,6 +306,29 @@ export async function handleGetCurrentUser(request: Request, env: Env) {
     if (org) {
       orgDefaultNotificationMode = normalizeNotificationMode(org.defaultNotificationMode) || 'Daily + Weekly';
       orgAllowOverride = org.allowUserOverride;
+    }
+  }
+
+  // Throttled activity tracking — update last_login only if older than 1 hour
+  // Non-blocking: uses waitUntil so it doesn't slow down the response
+  if (env.WELLS_DB) {
+    const trackActivity = async () => {
+      try {
+        const airtableId = user.id?.replace('user_', '') || user.id;
+        await env.WELLS_DB!.prepare(
+          `UPDATE users SET last_login = CURRENT_TIMESTAMP,
+             total_logins = COALESCE(total_logins, 0) + 1
+           WHERE airtable_record_id = ?
+             AND (last_login IS NULL OR last_login < datetime('now', '-1 hour'))`
+        ).bind(airtableId).run();
+      } catch (e) {
+        console.error('[Auth] Activity tracking error:', e);
+      }
+    };
+    if (ctx) {
+      ctx.waitUntil(trackActivity());
+    } else {
+      trackActivity();
     }
   }
 

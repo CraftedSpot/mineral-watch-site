@@ -1,0 +1,508 @@
+/** Intelligence tier based on user's plan */
+export type IntelligenceTier = 'none' | 'portfolio' | 'full';
+
+/** Insight severity levels */
+export type InsightSeverity = 'info' | 'warning' | 'success' | 'critical';
+
+/** Summary card data from /api/intelligence/summary */
+export interface SummaryData {
+  activeWells: number;
+  countyCount: number;
+  estimatedRevenue: number | null;
+  revenueChange: number | null;
+  revenueWellCount?: number;
+  totalWells?: number;
+  deductionFlags: number | null;
+  shutInWells: number;
+  wellsAnalyzed: number;
+  wellsWithLinks?: number;
+  actionItems: number;
+  nearestDeadline: string | null;
+  _intelligence_tier: IntelligenceTier;
+  _beta_restricted?: boolean;
+}
+
+/** Single insight from /api/intelligence/insights */
+export interface Insight {
+  severity: InsightSeverity;
+  title: string;
+  description: string;
+  action?: string;
+  actionId?: string;
+}
+
+/** Report identifiers */
+export type ReportType =
+  | 'deduction'
+  | 'production-decline'
+  | 'pooling'
+  | 'shut-in'
+  | 'occ-filing'
+  | 'well-risk'
+  | 'operator-efficiency'
+  | 'operator-directory';
+
+// ── Deduction Report ──
+
+export interface DeductionProduct {
+  product_code: string;
+  product_name: string;
+  gross_value: number;
+  market_deduction: number;
+  deduction_pct: number;
+}
+
+export interface DeductionMonthly {
+  year_month: string;
+  gross_value: number;
+  market_deduction: number;
+  net_value: number;
+  deduction_pct: number;
+}
+
+export interface DeductionWell {
+  api_number: string;
+  well_name: string;
+  county: string;
+  agg_deduction_pct: number;
+  total_gross: number;
+  total_deductions: number;
+  total_net: number;
+  products: DeductionProduct[];
+  monthly: DeductionMonthly[];
+  residueGasNote: boolean;
+  county_avg_pct: number | null;
+  variance_points: number | null;
+  operator: string;
+  purchaser_id: string | null;
+  purchaser_name: string | null;
+  is_affiliated: boolean;
+  gas_profile: 'lean' | 'rich' | null;
+  gor: number | null;
+  lean_gas_expected: boolean;
+  oil_only_verify: boolean;
+  operator_number: string | null;
+}
+
+export interface DeductionReportData {
+  flaggedWells: DeductionWell[];
+  portfolio: {
+    avg_deduction_pct: number;
+    total_wells_analyzed: number;
+  };
+  statewide: {
+    avg_deduction_pct: number | null;
+  };
+  summary: {
+    flagged_count: number;
+    worst_deduction_pct: number;
+    total_excess_deductions: number;
+    analysis_period: string;
+    latest_month: string | null;
+  };
+}
+
+// ── Operator Comparison ──
+
+export interface OperatorComparisonEntry {
+  operator_number: string;
+  company_name: string;
+  well_count: number;
+  total_gross: number;
+  deduction_ratio: number;
+  ngl_recovery_ratio: number;
+  purchaser_id: string | null;
+  purchaser_name: string | null;
+  gas_profile: 'lean' | 'rich' | null;
+  gor: number | null;
+  userWellCount: number;
+}
+
+export interface OperatorComparisonData {
+  operators: OperatorComparisonEntry[];
+  statewide: {
+    avg_deduction_ratio: number;
+    avg_ngl_recovery_ratio: number;
+  } | null;
+  summary: {
+    totalOperators: number;
+    userOperators: number;
+  };
+}
+
+// ── Deduction Research ──
+
+export interface DeductionResearchData {
+  topDeductionCounties: Array<{ county: string; avg_deduction_pct: number; well_count: number }>;
+  topOperatorsByPcrr: Array<{ operator_name: string; pcrr: number; well_count: number }>;
+  topOperatorsByNetReturn: Array<{ operator_name: string; net_value_return: number; well_count: number }>;
+}
+
+// ── Production Decline ──
+
+export interface DeclineMonthly {
+  yearMonth: string;
+  oil: number;
+  gas: number;
+  boe: number;
+}
+
+export interface DeclineWell {
+  clientWellId: string;
+  wellId: string;
+  apiNumber: string;
+  wellName: string;
+  operator: string;
+  county: string;
+  formation: string;
+  wellType: string;
+  isHorizontal: boolean;
+  status: 'active' | 'declining' | 'steep_decline' | 'idle';
+  productCount: number;
+  yoyChangePct: number | null;
+  yoyBoe: number | null;
+  trendConfidence: string;
+  monthlyData: DeclineMonthly[];
+  hbpExpiredFlag: boolean;
+}
+
+export interface DeclineMarketComparison {
+  county: string;
+  avgYoyPct: number | null;
+  userAvgYoyPct: number | null;
+  delta: number | null;
+  userWellCount: number;
+  countyWellCount: number;
+}
+
+export interface ProductionDeclineData {
+  wells: DeclineWell[];
+  summary: {
+    totalWells: number;
+    activeCount: number;
+    decliningCount: number;
+    steepDeclineCount: number;
+    idleCount: number;
+    portfolioOil: number;
+    portfolioGas: number;
+    portfolioBoe: number;
+    portfolioYoyChangePct: number | null;
+  };
+  latestDataMonth: string;
+  marketComparison: DeclineMarketComparison[];
+}
+
+// ── Production Decline Markets ──
+
+export interface FormationSummary {
+  formation: string;
+  wellCount: number;
+  avgYoyChangePct: number | null;
+  activeWells: number;
+  idleWells: number;
+}
+
+export interface DeclineCountyAggregate {
+  county: string;
+  totalWells: number;
+  activeWells: number;
+  idleWells: number;
+  avgYoyChangePct: number | null;
+  medianYoyChangePct: number | null;
+  weightedAvgYoyPct: number | null;
+  userWellCount: number;
+  userAvgYoyPct: number | null;
+  userMedianYoyPct: number | null;
+  userVsCountyDelta: number | null;
+  topFormations: FormationSummary[];
+}
+
+export interface DeclineMarketsData {
+  latestDataMonth: string;
+  counties: DeclineCountyAggregate[];
+}
+
+// ── Decline Research ──
+
+export interface DeclineResearchData {
+  topDeclineCounties?: Array<{ county: string; avg_decline_pct: number; well_count: number }>;
+  topOperators?: Array<{ operator_name: string; avg_decline_pct: number; well_count: number }>;
+  [key: string]: unknown;
+}
+
+// ── Shut-In Detector ──
+
+export interface ShutInOperatorPattern {
+  operator: string;
+  wellCount: number;
+  idleCount: number;
+  idleRate: number;
+  flag: boolean;
+}
+
+export interface ShutInWell {
+  apiNumber: string;
+  wellName: string;
+  operator: string;
+  county: string;
+  wellType: string;
+  spudDate: string | null;
+  completionDate: string | null;
+  monthsSinceProduction: number | null;
+  firstProdMonth: string | null;
+  lastProdMonth: string | null;
+  peakMonth: string | null;
+  declineRate12m: number | null;
+  idleReason: string;
+  hbpExpiredFlag: boolean;
+  suddenStopFlag: boolean;
+  flaggedOperatorFlag: boolean;
+  taxPeriodStatus: string | null;
+}
+
+export interface ShutInDetectorData {
+  summary: {
+    totalWells: number;
+    idleWells: number;
+    recentlyIdle: number;
+    flaggedOperators: number;
+    hbpRiskWells: number;
+    suddenStopWells: number;
+  };
+  operatorPatterns: ShutInOperatorPattern[];
+  idleWells: ShutInWell[];
+}
+
+// ── Pooling Report ──
+
+export interface PoolingElectionOption {
+  optionNumber: number;
+  optionType: string;
+  bonusPerAcre: number | null;
+  royaltyFraction: string | null;
+}
+
+export interface PoolingNearbyOrder {
+  id: string;
+  orderDate: string;
+  operator: string;
+  formations: Array<{ name: string } | string>;
+  county: string;
+  section: string;
+  township: string;
+  range: string;
+  unitSizeAcres: number;
+  wellType: string;
+  responseDeadline: string;
+  caseNumber: string;
+  orderNumber: string;
+  applicant: string;
+  distanceTier: number;
+  distanceDescription: string;
+  electionOptions: PoolingElectionOption[];
+}
+
+export interface PoolingPropertyGroup {
+  propertyId: string;
+  propertyName: string;
+  section: string;
+  township: string;
+  range: string;
+  county: string;
+  orderCount: number;
+  avgBonus: number | null;
+  sameSectionCount: number;
+  adjacentCount: number;
+  nearbyOrders: PoolingNearbyOrder[];
+}
+
+export interface PoolingCountyAvg {
+  county: string;
+  avgBonus: number | null;
+  minBonus: number | null;
+  maxBonus: number | null;
+  orderCount: number;
+  formations: string[];
+  mostActiveOperator: string;
+  dominantRoyalty: string;
+}
+
+export interface PoolingReportData {
+  summary: {
+    totalNearbyOrders: number;
+    avgBonusPerAcre: number | null;
+    bonusRange: { min: number | null; max: number | null };
+    royaltyOptions: Record<string, number>;
+    topOperators: Array<{ name: string; orderCount: number }>;
+    dateRange: { earliest: string | null; latest: string | null };
+    countyCount: number;
+  };
+  byProperty: PoolingPropertyGroup[];
+  countyAverages: PoolingCountyAvg[];
+  marketResearch: {
+    topFormations: Array<{ name: string; avgBonus: number; orderCount: number }>;
+    topPayingOperators: Array<{ name: string; avgBonus: number; orderCount: number }>;
+    hottestCounties: Array<{ county: string; orderCount: number }>;
+  };
+}
+
+// ── OCC Filing Activity ──
+
+export interface OccFiling {
+  id: string;
+  case_number: string;
+  relief_type: string;
+  applicant: string;
+  county: string;
+  section: string;
+  township: string;
+  range: string;
+  hearing_date: string | null;
+  status: string;
+  docket_date: string;
+  source_url: string;
+  order_number: string | null;
+  distanceTier: number;
+  distanceDescription: string;
+}
+
+export interface OccFilingProperty {
+  propertyId: string;
+  propertyName: string;
+  section: string;
+  township: string;
+  range: string;
+  county: string;
+  filingCount: number;
+  sameSectionCount: number;
+  filings: OccFiling[];
+}
+
+export interface OccFilingData {
+  summary: {
+    totalFilings: number;
+    sameSectionFilings: number;
+    filingTypes: Record<string, number>;
+    topApplicants: Array<{ name: string; count: number }>;
+    dateRange: { earliest: string | null; latest: string | null };
+    propertiesWithActivity: number;
+  };
+  byProperty: OccFilingProperty[];
+  byCounty: Array<{
+    county: string;
+    filingCount: number;
+    topApplicants: Array<{ name: string; count: number }>;
+    filingTypes: Record<string, number>;
+    latestDate: string;
+  }>;
+  marketResearch?: {
+    hottestCounties: Array<{ county: string; count: number }>;
+    topFilers: Array<{ applicant: string; count: number }>;
+    filingTypeBreakdown: Record<string, number>;
+    totalStatewideFilings90d: number;
+  };
+}
+
+// ── Well Risk Profile ──
+
+export interface RiskProfileWell {
+  clientWellId: string;
+  wellName: string;
+  apiNumber: string;
+  operator: string;
+  county: string;
+  wellType: string;
+  formationCanonical: string | null;
+  formationGroup: string | null;
+  profileId: string;
+  profileName: string;
+  halfCycleBreakeven: number;
+  riskLevel: 'at_risk' | 'tight' | 'adequate' | 'comfortable';
+  cushionDollar: number;
+  cushionPct: number;
+  totalDiscountPct: number;
+  mktDeductionPct: number | null;
+  taxPct: number | null;
+  netBackPrice: number;
+  stressedAtWti: number | null;
+  criticalAtWti: number | null;
+  hasDeductionData: boolean;
+  deductionSource: string;
+  deductionSourceDetail: string | null;
+  deductionConfidence: string;
+  isStale: boolean;
+  lastProdMonth: string | null;
+  declineRate12m: number | null;
+}
+
+export interface WellRiskProfileData {
+  wtiPrice: { price: number; date: string; source: string };
+  henryHubPrice: { price: number; date: string } | null;
+  summary: {
+    totalWells: number;
+    idleWellsExcluded: number;
+    atRiskCount: number;
+    tightCount: number;
+    adequateCount: number;
+    comfortableCount: number;
+    avgCushion: number;
+    coverageRate: number;
+    wellsWithDeductionData: number;
+    avgDiscountPct: number;
+    portfolioNetBack: number;
+  };
+  wells: RiskProfileWell[];
+  byProfile: Array<{
+    profileId: string;
+    profileName: string;
+    halfCycleBreakeven: number | null;
+    wellCount: number;
+    riskLevel: string;
+  }>;
+  byFormation: Array<{
+    formationGroup: string;
+    wellCount: number;
+    avgBreakeven: number | null;
+    profileDistribution: Record<string, number>;
+    atRiskCount: number;
+  }>;
+}
+
+// ── Operator Tools ──
+
+export interface OperatorDirectoryEntry {
+  operator_number: string;
+  company_name: string;
+  well_count: number;
+  counties: string[];
+  phone?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+}
+
+export interface OperatorEfficiencyEntry {
+  operator_number: string;
+  company_name: string;
+  well_count: number;
+  net_return_6m: number;
+  pcrr: number;
+  deduction_ratio: number;
+  ngl_recovery_ratio: number;
+  counties: string[];
+}
+
+// ── Report card config ──
+
+export interface ReportCardConfig {
+  type: ReportType;
+  title: string;
+  description: string;
+  tier: 'portfolio' | 'full';
+  icon: React.ReactNode;
+  iconBg?: string;
+  iconStroke?: string;
+  section: 'reports' | 'research';
+  initialTab?: string;
+}

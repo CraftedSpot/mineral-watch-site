@@ -6,6 +6,9 @@ import { DashboardDataProvider } from './contexts/DashboardDataContext';
 import { AppShell } from './components/layout/AppShell';
 import { DashboardPage } from './components/dashboard/DashboardPage';
 import { TitlePage } from './components/title/TitlePage';
+import { AccountPage } from './components/account/AccountPage';
+import { LearnPage } from './components/learn/LearnPage';
+import { IntelligencePage } from './components/intelligence/IntelligencePage';
 
 export function App() {
   return (
@@ -17,6 +20,9 @@ export function App() {
             <Route path="/portal" element={<AppShell />}>
               <Route path="react" element={<DashboardPage />} />
               <Route path="title" element={<TitlePage />} />
+              <Route path="account" element={<AccountPage />} />
+              <Route path="learn" element={<LearnPage />} />
+              <Route path="intelligence" element={<IntelligencePage />} />
             </Route>
             {/* Fallback: redirect to React dashboard (not /portal which is vanilla) */}
             <Route path="*" element={<Navigate to="/portal/react" replace />} />

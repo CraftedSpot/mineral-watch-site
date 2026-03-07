@@ -78,12 +78,15 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
   try {
     // Run all category queries in parallel
     const [neverLogged, dormantPaid, emptyAccount, failedEmails, recentlyCanceled, staleFree, engagedNoWells] = await Promise.all([
-      // Never logged in (created > 3 days ago)
+      // Never logged in (created > 3 days ago, no login tracking AND no usage evidence)
       env.WELLS_DB.prepare(`
         SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status != 'Deleted' AND (u.total_logins IS NULL OR u.total_logins = 0)
+          AND u.last_login IS NULL
           AND u.created_at < datetime('now', '-3 days')
+          AND NOT EXISTS (SELECT 1 FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active')
+          AND NOT EXISTS (SELECT 1 FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active')
         ORDER BY u.created_at DESC
       `).all(),
 
@@ -96,24 +99,26 @@ export async function handleAdminAttention(request: Request, env: Env): Promise<
         ORDER BY u.last_login ASC
       `).all(),
 
-      // Empty account (0 properties AND 0 wells, created > 7 days)
+      // Empty account (0 properties AND 0 wells, created > 7 days, not in an org)
       env.WELLS_DB.prepare(`
         SELECT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         WHERE u.status != 'Deleted'
           AND u.created_at < datetime('now', '-7 days')
+          AND (u.organization_id IS NULL OR u.organization_id = '')
           AND (SELECT COUNT(*) FROM properties p WHERE p.user_id = u.airtable_record_id AND p.status = 'Active') = 0
           AND (SELECT COUNT(*) FROM client_wells cw WHERE cw.user_id = u.airtable_record_id AND cw.status = 'Active') = 0
         ORDER BY u.created_at DESC
       `).all(),
 
-      // Failed emails in last 7 days
+      // Failed emails in last 7 days (exclude digest-queued)
       env.WELLS_DB.prepare(`
         SELECT DISTINCT u.id, u.airtable_record_id, u.name, u.email, u.plan, u.status, u.created_at, u.last_login, u.total_logins, u.organization_id, u.cancellation_date, o.name as org_name FROM users u
         LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
         INNER JOIN activity_log al ON al.user_id = u.airtable_record_id
         WHERE u.status != 'Deleted' AND al.email_sent = 0
           AND al.detected_at > datetime('now', '-7 days')
+          AND NOT EXISTS (SELECT 1 FROM pending_alerts pa WHERE pa.activity_log_id = al.id)
         ORDER BY u.name
       `).all(),
 
@@ -187,11 +192,14 @@ export async function handleAdminUserDetail(userId: string, request: Request, en
 
       // Recent activity (last 25)
       env.WELLS_DB.prepare(`
-        SELECT id, well_name, api_number, activity_type, alert_level, operator,
-               county, detected_at, email_sent, notes, case_number
-        FROM activity_log
-        WHERE user_id = ?
-        ORDER BY detected_at DESC
+        SELECT al.id, al.well_name, al.api_number, al.activity_type, al.alert_level, al.operator,
+               al.county, al.detected_at, al.email_sent, al.notes, al.case_number,
+               CASE WHEN pa.id IS NOT NULL AND pa.digest_sent_at IS NULL THEN 1 ELSE 0 END as digest_queued,
+               CASE WHEN pa.id IS NOT NULL AND pa.digest_sent_at IS NOT NULL THEN 1 ELSE 0 END as digest_sent
+        FROM activity_log al
+        LEFT JOIN pending_alerts pa ON pa.activity_log_id = al.id
+        WHERE al.user_id = ?
+        ORDER BY al.detected_at DESC
         LIMIT 25
       `).bind(userId).all(),
 
@@ -371,9 +379,12 @@ export async function handleAdminActivity(request: Request, env: Env): Promise<R
       SELECT al.id, al.user_id, al.well_name, al.api_number, al.activity_type,
              al.alert_level, al.operator, al.county, al.detected_at, al.email_sent,
              al.notes, al.case_number,
-             u.email as user_email, u.name as user_name
+             u.email as user_email, u.name as user_name,
+             CASE WHEN pa.id IS NOT NULL AND pa.digest_sent_at IS NULL THEN 1 ELSE 0 END as digest_queued,
+             CASE WHEN pa.id IS NOT NULL AND pa.digest_sent_at IS NOT NULL THEN 1 ELSE 0 END as digest_sent
       FROM activity_log al
       LEFT JOIN users u ON u.airtable_record_id = al.user_id
+      LEFT JOIN pending_alerts pa ON pa.activity_log_id = al.id
       WHERE 1=1
     `;
     const binds: any[] = [];
@@ -415,13 +426,24 @@ export async function handleAdminBilling(request: Request, env: Env): Promise<Re
   if (auth instanceof Response) return auth;
 
   try {
-    const [planBreakdown, recentCancellations, orgPlans] = await Promise.all([
-      // Plan breakdown (individual users — non-org or org primary)
+    const [individualUsers, orgPlans, recentCancellations] = await Promise.all([
+      // Individual (non-org) users by plan
       env.WELLS_DB.prepare(`
         SELECT plan, status, COUNT(*) as user_count
-        FROM users WHERE status != 'Deleted'
+        FROM users
+        WHERE status != 'Deleted' AND (organization_id IS NULL OR organization_id = '')
         GROUP BY plan, status
         ORDER BY plan
+      `).all(),
+
+      // Org subscriptions with member counts
+      env.WELLS_DB.prepare(`
+        SELECT o.plan, o.name as org_name, o.airtable_record_id,
+          COUNT(u.id) as member_count
+        FROM organizations o
+        LEFT JOIN users u ON u.organization_id = o.airtable_record_id AND u.status != 'Deleted'
+        WHERE o.plan IS NOT NULL AND o.plan != ''
+        GROUP BY o.airtable_record_id
       `).all(),
 
       // Recent cancellations (last 30 days)
@@ -431,69 +453,66 @@ export async function handleAdminBilling(request: Request, env: Env): Promise<Re
         WHERE cancellation_date > datetime('now', '-30 days')
         ORDER BY cancellation_date DESC
       `).all(),
-
-      // Org-level plans for MRR (avoid double-counting org members)
-      env.WELLS_DB.prepare(`
-        SELECT o.plan, o.name as org_name, COUNT(u.id) as member_count
-        FROM organizations o
-        LEFT JOIN users u ON u.organization_id = o.airtable_record_id AND u.status != 'Deleted'
-        WHERE o.plan IS NOT NULL AND o.plan != ''
-        GROUP BY o.airtable_record_id
-      `).all(),
     ]);
 
-    // Calculate MRR: org subscriptions + individual non-org users
+    // Calculate MRR
     let mrr = 0;
-    const orgIds = new Set<string>();
 
     // Org-level MRR (one subscription per org)
     for (const org of (orgPlans.results as any[])) {
       mrr += PLAN_PRICES[org.plan] || 0;
     }
 
-    // Get org member user IDs to exclude from individual calc
-    const orgMembers = await env.WELLS_DB.prepare(`
-      SELECT airtable_record_id FROM users WHERE organization_id IS NOT NULL AND status != 'Deleted'
-    `).all();
-    const orgMemberIds = new Set((orgMembers.results as any[]).map(r => r.airtable_record_id));
-
-    // Individual non-org users MRR
-    for (const row of (planBreakdown.results as any[])) {
+    // Individual non-org paid users MRR
+    for (const row of (individualUsers.results as any[])) {
       if (row.status === 'Active' && row.plan !== 'Free') {
-        // We need to subtract org members from the count
-        // Since we have aggregate counts, we'll do a separate query
+        mrr += (PLAN_PRICES[row.plan] || 0) * row.user_count;
       }
     }
 
-    // More precise individual MRR
-    const individualPaid = await env.WELLS_DB.prepare(`
-      SELECT plan, COUNT(*) as user_count FROM users
-      WHERE status = 'Active' AND plan != 'Free'
-        AND (organization_id IS NULL OR organization_id = '')
-      GROUP BY plan
-    `).all();
+    // Build unified subscriptions list: orgs as single entries + individual users
+    const subscriptions: any[] = [];
 
-    for (const row of (individualPaid.results as any[])) {
-      mrr += (PLAN_PRICES[(row as any).plan] || 0) * (row as any).user_count;
+    for (const org of (orgPlans.results as any[])) {
+      subscriptions.push({
+        type: 'org',
+        name: org.org_name,
+        plan: org.plan,
+        members: org.member_count,
+        price: PLAN_PRICES[org.plan] || 0,
+      });
+    }
+
+    for (const row of (individualUsers.results as any[])) {
+      if (row.plan && row.plan !== 'Free' && row.status === 'Active') {
+        subscriptions.push({
+          type: 'individual',
+          plan: row.plan,
+          count: row.user_count,
+          price: PLAN_PRICES[row.plan] || 0,
+        });
+      }
     }
 
     // Summary counts
-    const activePaid = (planBreakdown.results as any[])
-      .filter(r => r.status === 'Active' && r.plan !== 'Free')
-      .reduce((sum, r) => sum + r.user_count, 0);
-    const freeUsers = (planBreakdown.results as any[])
-      .filter(r => r.plan === 'Free')
-      .reduce((sum, r) => sum + r.user_count, 0);
+    const totalOrgMembers = (orgPlans.results as any[]).reduce((sum: number, o: any) => sum + o.member_count, 0);
+    const activePaidIndividual = (individualUsers.results as any[])
+      .filter((r: any) => r.status === 'Active' && r.plan !== 'Free')
+      .reduce((sum: number, r: any) => sum + r.user_count, 0);
+    const freeUsers = (individualUsers.results as any[])
+      .filter((r: any) => r.plan === 'Free')
+      .reduce((sum: number, r: any) => sum + r.user_count, 0);
     const churn30d = (recentCancellations.results as any[]).length;
 
     return jsonResponse({
       mrr,
-      activePaid,
+      activePaid: activePaidIndividual + (orgPlans.results as any[]).length,
+      activePaidLabel: `${(orgPlans.results as any[]).length} org${(orgPlans.results as any[]).length !== 1 ? 's' : ''} + ${activePaidIndividual} individual`,
       freeUsers,
+      totalOrgMembers,
       churn30d,
-      planBreakdown: planBreakdown.results,
+      subscriptions,
       recentCancellations: recentCancellations.results,
-      orgPlans: orgPlans.results,
     });
   } catch (err: any) {
     return jsonResponse({ error: err.message }, 500);

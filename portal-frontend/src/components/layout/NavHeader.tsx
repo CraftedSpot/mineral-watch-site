@@ -12,7 +12,7 @@ const NAV_ITEMS = [
   { href: '/portal/react', label: 'Dashboard', react: true },
   { href: '/portal/title', label: 'Title', react: true },
   { href: '/portal/map', label: 'Map', react: false },
-  { href: '/portal/intelligence', label: 'Intelligence', react: false },
+  { href: '/portal/intelligence', label: 'Intelligence', react: true },
   { href: '/portal/account', label: 'Account', react: false },
   { href: '/portal/learn', label: 'Learn', react: false },
 ];
