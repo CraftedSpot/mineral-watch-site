@@ -3,6 +3,7 @@ import { useActivity } from '../../../hooks/useActivity';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import {
   normalizeActivityType, getFilterCategory, getActivityIcon,
   getAlertLevelStyle, ACTIVITY_FILTER_CATEGORIES,
@@ -46,6 +47,7 @@ export function ActivityTab() {
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
+  const isMobile = useIsMobile();
 
   const [search, setSearch] = useState('');
   const [sortValue, setSortValue] = useState('date-desc');
@@ -141,28 +143,56 @@ export function ActivityTab() {
   return (
     <div style={{ fontFamily: "'Inter', 'DM Sans', sans-serif" }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by well, operator, county, case..."
-          style={{
-            flex: 1, maxWidth: 320, padding: '8px 12px',
-            border: `1px solid ${BORDER}`, borderRadius: 6,
-            fontSize: 13, outline: 'none',
-            fontFamily: "'Inter', 'DM Sans', sans-serif",
-          }}
-        />
-        <select value={sortValue} onChange={(e) => setSortValue(e.target.value)} style={dropdownStyle}>
-          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {(search || filterCat) && (
-          <span style={{ fontSize: 12, color: SLATE }}>
-            {displayRecords.length} of {activity.length}
-          </span>
-        )}
-      </div>
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search activity..."
+            style={{
+              width: '100%', padding: '8px 12px',
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              fontSize: 13, outline: 'none',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <select value={sortValue} onChange={(e) => setSortValue(e.target.value)}
+              style={{ ...dropdownStyle, minWidth: 0 }}>
+              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            {(search || filterCat) && (
+              <span style={{ fontSize: 12, color: SLATE }}>
+                {displayRecords.length} of {activity.length}
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by well, operator, county, case..."
+            style={{
+              flex: 1, maxWidth: 320, padding: '8px 12px',
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              fontSize: 13, outline: 'none',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+            }}
+          />
+          <select value={sortValue} onChange={(e) => setSortValue(e.target.value)} style={dropdownStyle}>
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {(search || filterCat) && (
+            <span style={{ fontSize: 12, color: SLATE }}>
+              {displayRecords.length} of {activity.length}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Filter chips */}
       {showChips && (
@@ -236,8 +266,9 @@ export function ActivityTab() {
               <div
                 key={id}
                 style={{
-                  display: 'flex', alignItems: 'flex-start', gap: 12,
-                  padding: '14px 16px', background: isSelected ? '#f0f9ff' : '#fff',
+                  display: 'flex', alignItems: 'flex-start', gap: isMobile ? 8 : 12,
+                  padding: isMobile ? '10px 12px' : '14px 16px',
+                  background: isSelected ? '#f0f9ff' : '#fff',
                   borderBottom: `1px solid ${BORDER}`,
                 }}
               >
@@ -254,8 +285,10 @@ export function ActivityTab() {
 
                 {/* Icon */}
                 <div style={{
-                  width: 36, height: 36, borderRadius: '50%', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: 16,
+                  width: isMobile ? 30 : 36, height: isMobile ? 30 : 36,
+                  borderRadius: '50%', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  fontSize: isMobile ? 14 : 16,
                   background: '#f1f5f9', flexShrink: 0,
                 }}>
                   {icon}
@@ -309,12 +342,17 @@ export function ActivityTab() {
                       {changeText}
                     </div>
                   )}
+                  {isMobile && date && (
+                    <div style={{ fontSize: 11, color: SLATE, marginTop: 4 }}>{date}</div>
+                  )}
                 </div>
 
-                {/* Date */}
-                <div style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  {date}
-                </div>
+                {/* Date — desktop only */}
+                {!isMobile && (
+                  <div style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    {date}
+                  </div>
+                )}
               </div>
             );
           })}

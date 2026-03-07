@@ -191,3 +191,51 @@ export async function handleDeleteActivity(activityId: string, request: Request,
     return jsonResponse({ error: "Failed to delete activity" }, 500);
   }
 }
+
+/**
+ * Bulk delete activity records for the authenticated user
+ */
+export async function handleBulkDeleteActivity(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  if (!env.WELLS_DB) {
+    return jsonResponse({ error: "Database not available" }, 500);
+  }
+
+  const body: any = await request.json();
+  const ids: (string | number)[] = body.ids;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return jsonResponse({ error: "Missing ids array" }, 400);
+  }
+
+  const userRecord = await getUserFromSession(env, user);
+  const userOrganizations = userRecord?.fields.Organization || [];
+  const orgId = userOrganizations.length > 0 ? userOrganizations[0] : null;
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, orgId);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('al', orgId, user.id, memberIds);
+
+  try {
+    // Batch in groups of 30 to stay under D1 bind param limit
+    const BATCH = 30;
+    let deleted = 0;
+
+    for (let i = 0; i < ids.length; i += BATCH) {
+      const batch = ids.slice(i, i + BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const bindParams = batch.map(id => parseInt(String(id)));
+
+      const result = await env.WELLS_DB.prepare(
+        `DELETE FROM activity_log WHERE id IN (${placeholders}) AND id IN (SELECT al.id FROM activity_log al WHERE ${ownerWhere})`
+      ).bind(...bindParams, ...ownerParams).run();
+
+      deleted += result.meta?.changes || 0;
+    }
+
+    console.log(`[ActivityBulkDelete] Deleted ${deleted}/${ids.length} activity records by ${user.email}`);
+    return jsonResponse({ success: true, deleted });
+  } catch (error) {
+    console.error("D1 bulk delete activity error:", error);
+    return jsonResponse({ error: "Failed to delete activity records" }, 500);
+  }
+}

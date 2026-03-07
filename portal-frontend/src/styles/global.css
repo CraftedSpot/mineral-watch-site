@@ -16,3 +16,19 @@ body {
 
 a { text-decoration: none; color: inherit; }
 button { font-family: inherit; }
+
+/* Mobile: hide scrollbar on tab bar */
+@media (max-width: 767px) {
+  .mobile-tab-bar::-webkit-scrollbar { display: none; }
+  .mobile-tab-bar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* NavHeader mobile menu animation */
+.nav-mobile-menu {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.25s ease-out;
+}
+.nav-mobile-menu.open {
+  max-height: 500px;
+}

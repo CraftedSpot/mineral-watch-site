@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { BORDER, SLATE, BG_MUTED, TABLE_ROW_HEIGHT, VIRTUAL_THRESHOLD } from '../../lib/constants';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { EmptyState } from './EmptyState';
 import { BulkActionBar } from './BulkActionBar';
@@ -43,19 +44,29 @@ export function DataTable<T>({
   emptyDescription,
   emptyAction,
   bulkActions,
+  transformData,
+  getRowStyle,
+  toolbarActions,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [sort, setSort] = useState<SortState | null>(defaultSort || null);
   const [internalSelected, setInternalSelected] = useState<Set<string>>(new Set());
   const parentRef = useRef<HTMLDivElement>(null);
   const lastClickedRef = useRef<number>(-1);
+  const isMobile = useIsMobile();
 
   const selected = externalSelected ?? internalSelected;
   const setSelected = onSelectionChange ?? setInternalSelected;
 
-  const gridTemplate = useMemo(() => buildGridTemplate(columns, selectable), [columns, selectable]);
+  // Filter columns for mobile — hide columns marked hideOnMobile
+  const visibleColumns = useMemo(
+    () => isMobile ? columns.filter(c => !c.hideOnMobile) : columns,
+    [columns, isMobile]
+  );
 
-  // Filter
+  const gridTemplate = useMemo(() => buildGridTemplate(visibleColumns, selectable), [visibleColumns, selectable]);
+
+  // Filter — use ALL columns for search (even hidden ones)
   const filteredData = useMemo(() => {
     if (!search) return data;
     const term = search.toLowerCase();
@@ -94,10 +105,15 @@ export function DataTable<T>({
     });
   }, [filteredData, sort, columns, customComparators]);
 
+  // Transform (e.g. grouping) — runs after search+sort, before render
+  const displayData = useMemo(() => {
+    return transformData ? transformData(sortedData) : sortedData;
+  }, [sortedData, transformData]);
+
   // Virtual
-  const useVirtual = sortedData.length > virtualThreshold;
+  const useVirtual = displayData.length > virtualThreshold;
   const virtualizer = useVirtualizer({
-    count: sortedData.length,
+    count: displayData.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => rowHeight,
     overscan: 10,
@@ -123,7 +139,7 @@ export function DataTable<T>({
       const next = new Set(selected);
       const adding = !selected.has(id);
       for (let i = start; i <= end; i++) {
-        const rowId = getRowId(sortedData[i]);
+        const rowId = getRowId(displayData[i]);
         if (adding) next.add(rowId);
         else next.delete(rowId);
       }
@@ -135,16 +151,16 @@ export function DataTable<T>({
       setSelected(next);
     }
     lastClickedRef.current = index;
-  }, [selected, setSelected, sortedData, getRowId]);
+  }, [selected, setSelected, displayData, getRowId]);
 
   // Select all
   const handleSelectAll = useCallback(() => {
-    if (selected.size === sortedData.length) {
+    if (selected.size === displayData.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(sortedData.map(getRowId)));
+      setSelected(new Set(displayData.map(getRowId)));
     }
-  }, [selected.size, sortedData, getRowId, setSelected]);
+  }, [selected.size, displayData, getRowId, setSelected]);
 
   // Sort indicator
   const sortIndicator = (col: ColumnDef<T>) => {
@@ -154,67 +170,131 @@ export function DataTable<T>({
   };
 
   if (loading) {
-    return <LoadingSkeleton columns={columns.length} />;
+    return <LoadingSkeleton columns={visibleColumns.length} />;
   }
+
+  const cellPadding = isMobile ? '8px 10px' : '10px 16px';
 
   const vRows = useVirtual
     ? virtualizer.getVirtualItems()
-    : sortedData.map((_, i) => ({ index: i, start: i * rowHeight, size: rowHeight, key: i }));
+    : displayData.map((_, i) => ({ index: i, start: i * rowHeight, size: rowHeight, key: i }));
 
   return (
     <div style={{ fontFamily: "'Inter', 'DM Sans', sans-serif" }}>
       {/* Search + Dropdowns */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
-        {searchable && (
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={searchPlaceholder}
-            style={{
-              flex: 1, padding: '8px 12px',
-              border: `1px solid ${BORDER}`, borderRadius: 6,
-              fontSize: 13, outline: 'none',
-              fontFamily: "'Inter', 'DM Sans', sans-serif",
-            }}
-          />
-        )}
-        {filterDropdown && (
-          <Select
-            value={filterDropdown.value}
-            onChange={(e) => filterDropdown.onChange(e.target.value)}
-            style={{ minWidth: 160, fontSize: 13 }}
-          >
-            {filterDropdown.options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
-        )}
-        {sortDropdown && (
-          <Select
-            value={sortDropdown.value}
-            onChange={(e) => {
-              const val = e.target.value;
-              sortDropdown.onChange(val);
-              // Sync internal sort state: parse "field-direction" format
-              const dash = val.lastIndexOf('-');
-              if (dash > 0) {
-                const key = val.substring(0, dash);
-                const dir = val.substring(dash + 1) as 'asc' | 'desc';
-                setSort({ key, direction: dir });
-              }
-            }}
-            style={{ minWidth: 160, fontSize: 13 }}
-          >
-            {sortDropdown.options.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </Select>
-        )}
-        <span style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap' }}>
-          {search ? `${sortedData.length} of ${data.length}` : `${data.length} ${data.length === 1 ? 'record' : 'records'}`}
-        </span>
-      </div>
+      {isMobile ? (
+        /* Mobile toolbar: stacked layout */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          {searchable && (
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder}
+              style={{
+                width: '100%', padding: '8px 12px',
+                border: `1px solid ${BORDER}`, borderRadius: 6,
+                fontSize: 13, outline: 'none',
+                fontFamily: "'Inter', 'DM Sans', sans-serif",
+              }}
+            />
+          )}
+          {(filterDropdown || sortDropdown) && (
+            <div style={{ display: 'flex', gap: 8 }}>
+              {filterDropdown && (
+                <Select
+                  value={filterDropdown.value}
+                  onChange={(e) => filterDropdown.onChange(e.target.value)}
+                  style={{ flex: 1, fontSize: 13 }}
+                >
+                  {filterDropdown.options.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </Select>
+              )}
+              {sortDropdown && (
+                <Select
+                  value={sortDropdown.value}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    sortDropdown.onChange(val);
+                    const dash = val.lastIndexOf('-');
+                    if (dash > 0) {
+                      const key = val.substring(0, dash);
+                      const dir = val.substring(dash + 1) as 'asc' | 'desc';
+                      setSort({ key, direction: dir });
+                    }
+                  }}
+                  style={{ flex: 1, fontSize: 13 }}
+                >
+                  {sortDropdown.options.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </Select>
+              )}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap' }}>
+              {search ? `${displayData.length} of ${data.length}` : `${data.length} ${data.length === 1 ? 'record' : 'records'}`}
+            </span>
+            {toolbarActions}
+          </div>
+        </div>
+      ) : (
+        /* Desktop toolbar: horizontal row */
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
+          {searchable && (
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={searchPlaceholder}
+              style={{
+                flex: 1, maxWidth: 240, padding: '8px 12px',
+                border: `1px solid ${BORDER}`, borderRadius: 6,
+                fontSize: 13, outline: 'none',
+                fontFamily: "'Inter', 'DM Sans', sans-serif",
+              }}
+            />
+          )}
+          {filterDropdown && (
+            <Select
+              value={filterDropdown.value}
+              onChange={(e) => filterDropdown.onChange(e.target.value)}
+              style={{ minWidth: 160, fontSize: 13 }}
+            >
+              {filterDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          )}
+          {sortDropdown && (
+            <Select
+              value={sortDropdown.value}
+              onChange={(e) => {
+                const val = e.target.value;
+                sortDropdown.onChange(val);
+                const dash = val.lastIndexOf('-');
+                if (dash > 0) {
+                  const key = val.substring(0, dash);
+                  const dir = val.substring(dash + 1) as 'asc' | 'desc';
+                  setSort({ key, direction: dir });
+                }
+              }}
+              style={{ minWidth: 160, fontSize: 13 }}
+            >
+              {sortDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          )}
+          <span style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap' }}>
+            {search ? `${displayData.length} of ${data.length}` : `${data.length} ${data.length === 1 ? 'record' : 'records'}`}
+          </span>
+          {toolbarActions}
+        </div>
+      )}
 
       {selected.size > 0 && bulkActions && (
         <BulkActionBar count={selected.size} onClear={() => setSelected(new Set())}>
@@ -222,7 +302,7 @@ export function DataTable<T>({
         </BulkActionBar>
       )}
 
-      {sortedData.length === 0 ? (
+      {displayData.length === 0 ? (
         <EmptyState
           title={search ? 'No results found' : emptyTitle}
           description={search ? `No matches for "${search}"` : emptyDescription}
@@ -246,18 +326,18 @@ export function DataTable<T>({
               <div style={{ padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <input
                   type="checkbox"
-                  checked={selected.size > 0 && selected.size === sortedData.length}
+                  checked={selected.size > 0 && selected.size === displayData.length}
                   onChange={handleSelectAll}
                   style={{ cursor: 'pointer' }}
                 />
               </div>
             )}
-            {columns.map((col) => (
+            {visibleColumns.map((col) => (
               <div
                 key={col.key}
                 onClick={col.sortable ? () => toggleSort(col) : undefined}
                 style={{
-                  padding: '10px 16px', textAlign: col.headerAlign || 'left',
+                  padding: cellPadding, textAlign: col.headerAlign || 'left',
                   fontWeight: 600, color: '#475569', fontSize: 11,
                   textTransform: 'uppercase', letterSpacing: '0.05em',
                   cursor: col.sortable ? 'pointer' : 'default',
@@ -275,7 +355,7 @@ export function DataTable<T>({
             height: virtualizer.getTotalSize(), position: 'relative',
           } : undefined}>
             {vRows.map((vRow) => {
-              const row = sortedData[vRow.index];
+              const row = displayData[vRow.index];
               const id = getRowId(row);
               const isSelected = selected.has(id);
 
@@ -298,6 +378,7 @@ export function DataTable<T>({
                       width: '100%',
                       transform: `translateY(${vRow.start}px)`,
                     } : {}),
+                    ...(getRowStyle?.(row, vRow.index) || {}),
                   }}
                 >
                   {selectable && (
@@ -313,11 +394,11 @@ export function DataTable<T>({
                       />
                     </div>
                   )}
-                  {columns.map((col) => (
+                  {visibleColumns.map((col) => (
                     <div
                       key={col.key}
                       style={{
-                        padding: '10px 16px',
+                        padding: cellPadding,
                         overflow: 'hidden', textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap', color: '#1a2332',
                         textAlign: col.headerAlign || 'left',

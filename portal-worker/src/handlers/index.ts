@@ -8,7 +8,8 @@
 export {
   handleListActivity,
   handleActivityStats,
-  handleDeleteActivity
+  handleDeleteActivity,
+  handleBulkDeleteActivity
 } from './activity.js';
 
 // Property handlers (handleListProperties V1 removed — Airtable-based, deprecated)
@@ -16,7 +17,8 @@ export {
   handleListPropertiesV2,
   handleAddProperty,
   handleUpdateProperty,
-  handleDeleteProperty
+  handleDeleteProperty,
+  handleBulkDeleteProperties
 } from './properties.js';
 
 // Property link counts handler
@@ -30,6 +32,7 @@ export {
   handleGetWell,
   handleAddWell,
   handleDeleteWell,
+  handleBulkDeleteWells,
   handleUpdateWellNotes,
   handleUpdateWellInterests,
   handleSearchWells,

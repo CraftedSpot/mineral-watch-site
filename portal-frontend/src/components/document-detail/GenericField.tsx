@@ -32,19 +32,22 @@ export function GenericField({ fieldName, value }: Props) {
   }
 
   // Default: horizontal flex row (label left, value right) matching vanilla
+  const formatted = cleanFieldValue(formatFieldValue(value));
+  const isLongText = typeof formatted === 'string' && formatted.length > 60;
+
   return (
     <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      display: 'flex', justifyContent: 'space-between', alignItems: isLongText ? 'flex-start' : 'baseline',
       padding: '12px 0', borderBottom: `1px solid ${BORDER}`, gap: 16,
     }}>
       <label style={{ fontSize: 14, fontWeight: 500, color: SLATE, flex: '0 0 160px' }}>
         {formatFieldName(fieldName)}
       </label>
       <div style={{
-        fontSize: 15, color: DARK, textAlign: 'right', flex: 1, lineHeight: 1.5,
-        wordBreak: 'break-word', overflowWrap: 'break-word',
+        fontSize: 15, color: DARK, textAlign: isLongText ? 'left' : 'right', flex: 1, lineHeight: 1.5,
+        wordBreak: 'break-word', overflowWrap: 'break-word', whiteSpace: isLongText ? 'pre-wrap' : undefined,
       }}>
-        {cleanFieldValue(formatFieldValue(value))}
+        {formatted}
       </div>
     </div>
   );

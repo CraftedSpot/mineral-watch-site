@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useDashboardCounts } from '../../hooks/useDashboardCounts';
-import { useToast } from '../../contexts/ToastContext';
 import { apiFetch } from '../../api/client';
 import { BORDER, OIL_NAVY, SLATE_BLUE, ORANGE, PLAN_LIMITS } from '../../lib/constants';
 import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { AuthUser } from '../layout/AppShell';
 
 interface Props {
@@ -32,8 +31,8 @@ function formatLastAlert(iso: string | null): string {
 
 export function DashboardHeader({ activeTab, user }: Props) {
   const { data: counts } = useDashboardCounts();
-  const toast = useToast();
   const [activityStats, setActivityStats] = useState<ActivityStats | null>(null);
+  const isMobile = useIsMobile();
 
   const limits = PLAN_LIMITS[user.plan] || { properties: 1, wells: 1 };
   const propertyCount = counts?.properties ?? 0;
@@ -44,45 +43,23 @@ export function DashboardHeader({ activeTab, user }: Props) {
       .catch(() => {});
   }, []);
 
-  const stub = (label: string) => () => toast.info(`${label} — coming in Phase 2d`);
-
   return (
-    <div style={{ padding: '24px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
-      {/* Title row + actions */}
-      <div style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
-        marginBottom: 16, flexWrap: 'wrap', gap: 16,
-      }}>
+    <div style={{ padding: isMobile ? '16px 16px 0' : '24px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
+      {/* Title row */}
+      <div style={{ marginBottom: isMobile ? 12 : 16 }}>
         <h1 style={{
-          margin: 0, fontSize: 28, fontWeight: 700, color: OIL_NAVY, lineHeight: 1.2,
+          margin: 0, fontSize: isMobile ? 22 : 28, fontWeight: 700, color: OIL_NAVY, lineHeight: 1.2,
           fontFamily: "'Merriweather', serif",
         }}>
           My Monitoring
         </h1>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {activeTab === 'properties' && (
-            <>
-              <Button variant="primary" color={ORANGE} onClick={stub('Add Property')}>+ Add Property</Button>
-              <Button variant="secondary" onClick={stub('Import Properties')}>Import</Button>
-            </>
-          )}
-          {activeTab === 'wells' && (
-            <>
-              <Button variant="primary" color={ORANGE} onClick={stub('Add Well')}>+ Add Well</Button>
-              <Button variant="secondary" onClick={stub('Import Wells')}>Import</Button>
-            </>
-          )}
-          {activeTab === 'documents' && (
-            <Button variant="primary" color={ORANGE} onClick={stub('Upload Documents')}>Upload Documents</Button>
-          )}
-        </div>
       </div>
 
       {/* Plan info card */}
       <div style={{
-        background: '#fff', borderRadius: 8, padding: '14px 20px', marginBottom: 12,
-        display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+        background: '#fff', borderRadius: 8,
+        padding: isMobile ? '10px 14px' : '14px 20px', marginBottom: 12,
+        display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16, flexWrap: 'wrap',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
       }}>
         <Badge bg="#DEF7EC" color="#03543F" shape="pill" size="lg"
@@ -90,13 +67,16 @@ export function DashboardHeader({ activeTab, user }: Props) {
           {user.plan || 'Free'}
         </Badge>
 
-        <div style={{ display: 'flex', gap: 20, alignItems: 'center', fontSize: 14, color: SLATE_BLUE }}>
+        <div style={{
+          display: 'flex', gap: isMobile ? 12 : 20, alignItems: 'center',
+          fontSize: isMobile ? 13 : 14, color: SLATE_BLUE, flexWrap: 'wrap',
+        }}>
           <UsageStat count={propertyCount} limit={limits.properties} label="Properties" />
-          <span style={{ color: SLATE_BLUE }}>|</span>
+          {!isMobile && <span style={{ color: SLATE_BLUE }}>|</span>}
           <UsageStat count={counts?.wells ?? 0} limit={limits.wells} label="Wells" />
           {counts?.documents != null && (
             <>
-              <span style={{ color: SLATE_BLUE }}>|</span>
+              {!isMobile && <span style={{ color: SLATE_BLUE }}>|</span>}
               <span>
                 <span style={{ fontWeight: 700, color: OIL_NAVY }}>{counts.documents}</span> Documents
               </span>
@@ -106,7 +86,7 @@ export function DashboardHeader({ activeTab, user }: Props) {
 
         {!['Business', 'Enterprise 1K'].includes(user.plan) && (
           <a href="/portal/upgrade" style={{
-            marginLeft: 'auto', color: ORANGE, textDecoration: 'none',
+            marginLeft: isMobile ? 0 : 'auto', color: ORANGE, textDecoration: 'none',
             fontSize: 14, fontWeight: 600,
           }}>
             Upgrade &rarr;
@@ -116,20 +96,25 @@ export function DashboardHeader({ activeTab, user }: Props) {
 
       {/* Thin stats bar */}
       <div style={{
-        background: '#fff', borderRadius: 8, padding: '8px 24px', marginBottom: 20,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)', height: 40,
+        background: '#fff', borderRadius: 8,
+        padding: isMobile ? '8px 14px' : '8px 24px', marginBottom: isMobile ? 12 : 20,
+        display: 'flex', alignItems: 'center',
+        justifyContent: isMobile ? 'flex-start' : 'center',
+        gap: isMobile ? 16 : 32,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        height: isMobile ? 'auto' : 40,
+        flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={statLabelStyle}>Last Alert</span>
           <span style={statValueStyle}>{activityStats ? formatLastAlert(activityStats.lastAlert) : '\u2014'}</span>
         </div>
-        <div style={{ width: 1, height: 20, background: BORDER }} />
+        {!isMobile && <div style={{ width: 1, height: 20, background: BORDER }} />}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={statLabelStyle}>This Month</span>
           <span style={statValueStyle}>{activityStats?.thisMonth ?? '\u2014'}</span>
         </div>
-        <div style={{ width: 1, height: 20, background: BORDER }} />
+        {!isMobile && <div style={{ width: 1, height: 20, background: BORDER }} />}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={statLabelStyle}>This Year</span>
           <span style={statValueStyle}>{activityStats?.thisYear ?? '\u2014'}</span>

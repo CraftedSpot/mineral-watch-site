@@ -74,6 +74,7 @@ const columns: ColumnDef<PropertyRecord>[] = [
     width: '10%',
     sortable: true,
     searchable: true,
+    hideOnMobile: true,
     getValue: (p) => cleanCounty(p.fields.COUNTY),
     compare: (a, b) => cleanCounty(a.fields.COUNTY).localeCompare(cleanCounty(b.fields.COUNTY)),
     render: (p) => <span>{cleanCounty(p.fields.COUNTY)}</span>,
@@ -102,6 +103,7 @@ const columns: ColumnDef<PropertyRecord>[] = [
     label: 'Group',
     width: '10%',
     searchable: true,
+    hideOnMobile: true,
     getValue: (p) => String(p.fields.Group || p.fields.entity_name || ''),
     render: (p) => {
       const group = String(p.fields.Group || p.fields.entity_name || '');
@@ -118,6 +120,7 @@ const columns: ColumnDef<PropertyRecord>[] = [
     width: '8%',
     headerAlign: 'right',
     sortable: true,
+    hideOnMobile: true,
     compare: (a, b) => totalAcres(a) - totalAcres(b),
     render: (p) => {
       const t = totalAcres(p);
@@ -133,6 +136,7 @@ const columns: ColumnDef<PropertyRecord>[] = [
     label: 'Notes',
     width: '1fr',
     searchable: true,
+    hideOnMobile: true,
     getValue: (p) => String(p.fields.Notes || ''),
     render: (p) => {
       const notes = String(p.fields.Notes || '');
@@ -194,6 +198,12 @@ export function PropertiesTab() {
     modal.open(MODAL_TYPES.PROPERTY, { propertyId: p.id });
   }, [modal]);
 
+  const handleAddProperty = useCallback(() => {
+    modal.open(MODAL_TYPES.ADD_PROPERTY, {
+      onComplete: () => reload(),
+    });
+  }, [modal, reload]);
+
   const handleBulkDelete = useCallback(async () => {
     const count = selected.size;
     if (count === 0) return;
@@ -239,6 +249,19 @@ export function PropertiesTab() {
         <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
           Delete Selected
         </Button>
+      }
+      toolbarActions={
+        <button
+          onClick={handleAddProperty}
+          style={{
+            marginLeft: 'auto', background: ORANGE, color: '#fff', border: 'none',
+            borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
+            whiteSpace: 'nowrap',
+          }}
+        >
+          + Add Property
+        </button>
       }
     />
   );

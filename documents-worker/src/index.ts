@@ -71,6 +71,7 @@ function errorResponse(message: string, status: number, env: Env) {
   return jsonResponse({ error: message }, status, env);
 }
 
+
 /**
  * Validate OTC Production Unit Number format.
  * Valid formats:
@@ -424,7 +425,7 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
     },
     signal: AbortSignal.timeout(120_000),
     body: JSON.stringify({
-      model: 'claude-opus-4-20250514',
+      model: 'claude-opus-4-6',
       max_tokens: 8192,
       messages: [{
         role: 'user',
@@ -1844,18 +1845,30 @@ export default {
         // Pre-extracted children have their own R2 key matching their doc ID
         const isPreExtracted = doc.r2_key && (doc.r2_key as string).startsWith(docId);
 
-        // If this is a legacy child (shares parent r2_key) with page ranges, extract on-the-fly
+        // If this is a legacy child (shares parent r2_key) with page ranges, extract and cache
         if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1 && !isPreExtracted) {
           console.log(`Extracting pages ${pageStart}-${pageEnd} for child document ${docId}`);
+          const baseName = downloadName.replace(/\.pdf$/i, '');
+          const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
+
+          // Skip extraction for very large files (>95MB) — Worker 128MB memory limit
+          if (object.size > 95 * 1024 * 1024) {
+            console.log(`File too large for in-memory extraction (${Math.round(object.size / 1024 / 1024)}MB), streaming full PDF`);
+            return new Response(object.body, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="${fallbackName}"`,
+                'Cache-Control': 'private, no-store',
+                ...corsHeaders(env),
+              },
+            });
+          }
+
           try {
-            // Load the full PDF
             const pdfBytes = await object.arrayBuffer();
             const fullPdf = await PDFDocument.load(pdfBytes);
 
-            // Create a new PDF with only the specific pages
             const extractedPdf = await PDFDocument.create();
-
-            // Page indices are 0-based in pdf-lib, but our page_range is 1-based
             const pageIndices = [];
             for (let i = pageStart - 1; i <= pageEnd - 1 && i < fullPdf.getPageCount(); i++) {
               pageIndices.push(i);
@@ -1866,6 +1879,18 @@ export default {
 
             const extractedBytes = await extractedPdf.save();
 
+            // Cache: save extracted child PDF to R2 and update D1 so future requests are fast
+            const childR2Key = `${docId}.pdf`;
+            try {
+              await env.UPLOADS_BUCKET.put(childR2Key, extractedBytes, {
+                httpMetadata: { contentType: 'application/pdf' },
+              });
+              await env.WELLS_DB.prepare('UPDATE documents SET r2_key = ? WHERE id = ?').bind(childR2Key, docId).run();
+              console.log(`[Cache] Saved extracted child ${docId} to R2 (${Math.round(extractedBytes.byteLength / 1024)}KB)`);
+            } catch (cacheErr) {
+              console.error(`[Cache] Failed to cache child ${docId}, serving anyway:`, cacheErr);
+            }
+
             return new Response(extractedBytes, {
               headers: {
                 'Content-Type': 'application/pdf',
@@ -1875,20 +1900,10 @@ export default {
               },
             });
           } catch (extractError) {
-            console.error(`Error extracting pages (likely OOM on large PDF): ${extractError}`);
-            // R2 body was consumed by arrayBuffer() — re-fetch for fallback
+            console.error(`Error extracting pages: ${extractError}`);
+            // R2 body was consumed by arrayBuffer() — re-fetch for streaming fallback
             const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
             if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
-            // Guard rail: if the fallback PDF is >50MB, don't serve it (would fail in browser anyway)
-            if (fallbackObject.size > 50 * 1024 * 1024) {
-              return new Response(JSON.stringify({ error: 'large_document' }), {
-                status: 413,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders(env) },
-              });
-            }
-            // Add page range to filename so user knows where to look
-            const baseName = downloadName.replace(/\.pdf$/i, '');
-            const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
             return new Response(fallbackObject.body, {
               headers: {
                 'Content-Type': 'application/pdf',
@@ -1967,9 +1982,26 @@ export default {
         // Pre-extracted children have their own R2 key matching their doc ID
         const isPreExtracted = doc.r2_key && (doc.r2_key as string).startsWith(docId);
 
-        // If this is a legacy child (shares parent r2_key) with page ranges, extract on-the-fly
+        // If this is a legacy child (shares parent r2_key) with page ranges, extract and cache
         if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1 && !isPreExtracted) {
           console.log(`Extracting pages ${pageStart}-${pageEnd} for viewing child document ${docId}`);
+          const baseName = (viewName as string).replace(/\.pdf$/i, '');
+          const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
+
+          // Skip extraction for very large files (>95MB) — Worker 128MB memory limit
+          if (object.size > 95 * 1024 * 1024) {
+            console.log(`File too large for in-memory extraction (${Math.round(object.size / 1024 / 1024)}MB), streaming full PDF for view`);
+            return new Response(object.body, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `inline; filename="${fallbackName}"`,
+                'X-Page-Range': `${pageStart}-${pageEnd}`,
+                'Cache-Control': 'private, no-store',
+                ...corsHeaders(env),
+              },
+            });
+          }
+
           try {
             const pdfBytes = await object.arrayBuffer();
             const fullPdf = await PDFDocument.load(pdfBytes);
@@ -1985,6 +2017,18 @@ export default {
 
             const extractedBytes = await extractedPdf.save();
 
+            // Cache: save extracted child PDF to R2 and update D1 so future requests are fast
+            const childR2Key = `${docId}.pdf`;
+            try {
+              await env.UPLOADS_BUCKET.put(childR2Key, extractedBytes, {
+                httpMetadata: { contentType: 'application/pdf' },
+              });
+              await env.WELLS_DB.prepare('UPDATE documents SET r2_key = ? WHERE id = ?').bind(childR2Key, docId).run();
+              console.log(`[Cache] Saved extracted child ${docId} to R2 (${Math.round(extractedBytes.byteLength / 1024)}KB)`);
+            } catch (cacheErr) {
+              console.error(`[Cache] Failed to cache child ${docId}, serving anyway:`, cacheErr);
+            }
+
             return new Response(extractedBytes, {
               headers: {
                 'Content-Type': 'application/pdf',
@@ -1994,19 +2038,10 @@ export default {
               },
             });
           } catch (extractError) {
-            console.error(`Error extracting pages for view (likely OOM on large PDF): ${extractError}`);
-            // R2 body was consumed by arrayBuffer() — re-fetch for fallback
+            console.error(`Error extracting pages for view: ${extractError}`);
+            // R2 body was consumed by arrayBuffer() — re-fetch for streaming fallback
             const fallbackObject = await env.UPLOADS_BUCKET.get(doc.r2_key);
             if (!fallbackObject) return errorResponse('File not found in storage', 404, env);
-            // Guard rail: if the fallback PDF is >50MB, don't serve it (would fail in browser anyway)
-            if (fallbackObject.size > 50 * 1024 * 1024) {
-              return new Response(JSON.stringify({ error: 'large_document' }), {
-                status: 413,
-                headers: { 'Content-Type': 'application/json', ...corsHeaders(env) },
-              });
-            }
-            const baseName = (viewName as string).replace(/\.pdf$/i, '');
-            const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
             return new Response(fallbackObject.body, {
               headers: {
                 'Content-Type': 'application/pdf',
@@ -2567,6 +2602,17 @@ export default {
         // Post-process extracted data (normalize PUNs, etc.)
         const extracted_data = postProcessExtractedData(raw_extracted_data);
 
+        // Fallback county from extracted_data if not provided at top level
+        let resolvedCounty = county ?? null;
+        if (!resolvedCounty && extracted_data) {
+          resolvedCounty = extracted_data.county
+            || extracted_data.tracts?.[0]?.legal?.county
+            || extracted_data.tracts?.[0]?.county
+            || extracted_data.tracts?.[0]?.legal_description?.county
+            || extracted_data.recording_info?.county
+            || null;
+        }
+
         // Normalize range — strip meridian suffixes (ECM→E, WCM→W, EIM→E, WIM→W)
         // and populate meridian column separately
         let normalizedRange = range ?? null;
@@ -2661,7 +2707,7 @@ export default {
             status: effectiveStatus,
             extracted_data: extracted_data ? JSON.stringify(extracted_data) : null,
             doc_type,
-            county,
+            county: resolvedCounty,
             section,
             township,
             range: normalizedRange,
@@ -2707,7 +2753,7 @@ export default {
               effectiveStatus,
               extracted_data ? JSON.stringify(extracted_data) : null,
               doc_type ?? null,
-              county ?? null,
+              resolvedCounty,
               section ?? null,
               township ?? null,
               normalizedRange,
@@ -3933,8 +3979,8 @@ export default {
           const parentR2Object = await env.UPLOADS_BUCKET.get(parentDoc.r2_key);
           if (parentR2Object) {
             const rawSize = parentR2Object.size;
-            if (rawSize > 60 * 1024 * 1024) {
-              console.log(`[Split] Parent PDF too large for extraction (${Math.round(rawSize / 1024 / 1024)}MB > 60MB), children will share parent r2_key`);
+            if (rawSize > 95 * 1024 * 1024) {
+              console.log(`[Split] Parent PDF too large for extraction (${Math.round(rawSize / 1024 / 1024)}MB > 95MB), children will share parent r2_key`);
             } else {
               const pdfBytes = await parentR2Object.arrayBuffer();
               fullPdfDoc = await PDFDocument.load(pdfBytes);

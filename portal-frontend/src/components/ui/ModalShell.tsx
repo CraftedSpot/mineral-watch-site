@@ -1,4 +1,5 @@
 import { BORDER, BG_MUTED, DARK } from '../../lib/constants';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface ModalShellProps {
   children: React.ReactNode;
@@ -12,7 +13,7 @@ interface ModalShellProps {
   /** Header text color (default #fff for colored headers, DARK for plain) */
   headerColor?: string;
   /** Max width of the modal card (default 700) */
-  maxWidth?: number;
+  maxWidth?: number | string;
   /** Body background (default BG_MUTED) */
   bodyBg?: string;
   /** Body padding (default '20px 24px') */
@@ -58,14 +59,19 @@ export function ModalShell({
   showHeader = true,
   closeStyle: closeStyleOverride,
 }: ModalShellProps) {
+  const isMobile = useIsMobile();
   const hasColoredHeader = !!headerBg;
   const resolvedHeaderColor = headerColor || (hasColoredHeader ? '#fff' : DARK);
   const resolvedCloseStyle = closeStyleOverride || (hasColoredHeader ? defaultCloseWhite : defaultCloseGray);
 
+  const radius = isMobile ? 12 : 16;
+  const resolvedBodyPadding = bodyPadding || (isMobile ? '16px 16px' : '20px 24px');
+
   return (
     <div style={{
-      background: '#fff', borderRadius: 16, width: maxWidth, maxWidth: '100%',
-      maxHeight: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column',
+      background: '#fff', borderRadius: radius, width: maxWidth, maxWidth: '100%',
+      maxHeight: isMobile ? 'calc(100vh - 16px)' : 'calc(100vh - 20px)',
+      display: 'flex', flexDirection: 'column',
       boxShadow: '0 8px 30px rgba(0,0,0,0.15)', fontFamily: "'Inter', 'DM Sans', sans-serif",
       overflow: 'hidden', position: 'relative',
     }}>
@@ -77,19 +83,19 @@ export function ModalShell({
         <div style={{
           background: headerBg || 'transparent',
           color: resolvedHeaderColor,
-          padding: '20px 24px',
+          padding: isMobile ? '16px 16px' : '20px 24px',
           position: 'relative',
           flexShrink: 0,
         }}>
           {headerContent || (
             <>
               {title && (
-                <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, fontFamily: "'Merriweather', serif" }}>
+                <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 22, fontWeight: 700, fontFamily: "'Merriweather', serif" }}>
                   {title}
                 </h2>
               )}
               {subtitle && (
-                <div style={{ fontSize: 15, opacity: 0.9, marginTop: 2 }}>{subtitle}</div>
+                <div style={{ fontSize: isMobile ? 13 : 15, opacity: 0.9, marginTop: 2 }}>{subtitle}</div>
               )}
             </>
           )}
@@ -98,7 +104,7 @@ export function ModalShell({
 
       {/* Body */}
       <div style={{
-        padding: bodyPadding, flex: 1, overflowY: 'auto', minHeight: 0,
+        padding: resolvedBodyPadding, flex: 1, overflowY: 'auto', minHeight: 0,
         WebkitOverflowScrolling: 'touch', background: bodyBg, overflowX: 'hidden',
       }}>
         {children}
@@ -107,9 +113,9 @@ export function ModalShell({
       {/* Footer */}
       {footer && (
         <div style={{
-          padding: '14px 24px', borderTop: `1px solid ${BORDER}`,
+          padding: isMobile ? '10px 16px' : '14px 24px', borderTop: `1px solid ${BORDER}`,
           display: 'flex', gap: 10, flexShrink: 0, background: '#fff',
-          borderRadius: '0 0 16px 16px', alignItems: 'center',
+          borderRadius: `0 0 ${radius}px ${radius}px`, alignItems: 'center',
         }}>
           {footer}
         </div>

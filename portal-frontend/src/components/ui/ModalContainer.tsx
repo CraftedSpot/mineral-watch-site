@@ -2,6 +2,7 @@ import { useEffect, Activity } from 'react';
 import { createPortal } from 'react-dom';
 import { FocusTrap } from './FocusTrap';
 import { MODAL_BASE_Z, MODAL_Z_INCREMENT, BORDER, DARK } from '../../lib/constants';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { ModalEntry } from '../../contexts/ModalContext';
 import { PropertyModal } from '../modals/PropertyModal';
 import { WellModal } from '../modals/WellModal';
@@ -9,6 +10,9 @@ import { DocumentDetailModal } from '../modals/DocumentDetailModal';
 import { DocumentViewer } from '../modals/DocumentViewer';
 import { CreditPackModal } from '../modals/CreditPackModal';
 import { OutOfCreditsModal } from '../modals/OutOfCreditsModal';
+import { UploadDocumentModal } from '../modals/UploadDocumentModal';
+import { AddWellModal } from '../modals/AddWellModal';
+import { AddPropertyModal } from '../modals/AddPropertyModal';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
@@ -18,6 +22,9 @@ const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
   'document-viewer': DocumentViewer,
   'credit-pack': CreditPackModal,
   'out-of-credits': OutOfCreditsModal,
+  'upload-document': UploadDocumentModal,
+  'add-well': AddWellModal,
+  'add-property': AddPropertyModal,
 };
 
 interface ModalContainerProps {
@@ -55,6 +62,8 @@ function PlaceholderModal({ type, onClose }: { type: string; onClose: () => void
 }
 
 export function ModalContainer({ stack, onClose }: ModalContainerProps) {
+  const isMobile = useIsMobile();
+
   // Escape key closes topmost
   useEffect(() => {
     if (stack.length === 0) return;
@@ -92,7 +101,10 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
             <div
               style={{
                 position: 'fixed', inset: 0, zIndex,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                display: 'flex',
+                alignItems: isMobile ? 'flex-start' : 'center',
+                justifyContent: 'center',
+                paddingTop: isMobile ? 8 : 0,
               }}
             >
               {/* Backdrop */}
@@ -104,7 +116,12 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
                 onClick={() => onClose(entry.id)}
               />
               {/* Modal content */}
-              <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 'calc(100vw - 40px)', padding: '0 20px', boxSizing: 'border-box', display: 'flex', justifyContent: 'center' }}>
+              <div style={{
+                position: 'relative', zIndex: 1, width: '100%',
+                maxWidth: isMobile ? 'calc(100vw - 16px)' : 'calc(100vw - 40px)',
+                padding: isMobile ? '0 8px' : '0 20px',
+                boxSizing: 'border-box', display: 'flex', justifyContent: 'center',
+              }}>
                 <FocusTrap active={isTopmost}>
                   {Component ? (
                     <Component

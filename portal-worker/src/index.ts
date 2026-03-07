@@ -81,11 +81,13 @@ import {
   handleListActivity,
   handleActivityStats,
   handleDeleteActivity,
+  handleBulkDeleteActivity,
   // Property handlers (V1 handleListProperties removed)
   handleListPropertiesV2,
   handleAddProperty,
   handleUpdateProperty,
   handleDeleteProperty,
+  handleBulkDeleteProperties,
   // Property link counts
   handleGetPropertyLinkCounts,
   // Tools revenue estimator
@@ -96,6 +98,7 @@ import {
   handleGetWell,
   handleAddWell,
   handleDeleteWell,
+  handleBulkDeleteWells,
   handleUpdateWellNotes,
   handleUpdateWellInterests,
   handleSearchWells,
@@ -998,6 +1001,37 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleDuplicateReview(dupReviewMatch[1], request, env);
       }
 
+      // Bulk delete documents — proxy individual DELETEs to documents-worker
+      if (path === "/api/documents/bulk-delete" && request.method === "POST") {
+        const user = await authenticateRequest(request, env);
+        if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+        if (!env.DOCUMENTS_WORKER) return jsonResponse({ error: 'Documents service not available' }, 503);
+
+        const body: any = await request.json();
+        const ids: string[] = body.ids;
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+          return jsonResponse({ error: "Missing ids array" }, 400);
+        }
+
+        let deleted = 0;
+        const errors: string[] = [];
+        for (const docId of ids) {
+          try {
+            const deleteUrl = new URL(`/api/documents/${docId}`, request.url);
+            const deleteReq = new Request(deleteUrl.toString(), {
+              method: 'DELETE',
+              headers: request.headers,
+            });
+            const res = await env.DOCUMENTS_WORKER.fetch(deleteReq);
+            if (res.ok) { deleted++; } else { errors.push(docId); }
+          } catch {
+            errors.push(docId);
+          }
+        }
+        console.log(`[DocumentBulkDelete] Deleted ${deleted}/${ids.length} documents by ${user.email}`);
+        return jsonResponse({ success: true, deleted, errors: errors.length > 0 ? errors : undefined });
+      }
+
       // Proxy documents endpoints to documents-worker
       if (path.startsWith("/api/documents")) {
         console.log(`[Portal] Proxying documents request: ${path}${url.search}`);
@@ -1122,6 +1156,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/properties" && request.method === "POST") {
         return handleAddProperty(request, env, ctx);
       }
+      if (path === "/api/properties/bulk-delete" && request.method === "POST") {
+        return handleBulkDeleteProperties(request, env);
+      }
       const propertyIdMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)$/);
       if (propertyIdMatch && request.method === "PATCH") {
         return handleUpdateProperty(propertyIdMatch[1], request, env);
@@ -1148,6 +1185,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       // Track well endpoint (alias for adding wells)
       if (path === "/api/wells/track" && request.method === "POST") {
         return handleAddWell(request, env, ctx);
+      }
+      if (path === "/api/wells/bulk-delete" && request.method === "POST") {
+        return handleBulkDeleteWells(request, env);
       }
       const wellIdMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9_-]+)$/);
       if (wellIdMatch && request.method === "GET") {
@@ -1222,6 +1262,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       }
       if (path === "/api/activity/stats" && request.method === "GET") {
         return handleActivityStats(request, env);
+      }
+      if (path === "/api/activity/bulk-delete" && request.method === "POST") {
+        return handleBulkDeleteActivity(request, env);
       }
       const deleteActivityMatch = path.match(/^\/api\/activity\/([a-zA-Z0-9]+)$/);
       if (deleteActivityMatch && request.method === "DELETE") {

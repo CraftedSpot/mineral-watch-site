@@ -886,6 +886,60 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
 }
 
 /**
+ * Bulk delete wells for the authenticated user
+ */
+export async function handleBulkDeleteWells(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const userRecord = await getUserFromSession(env, user);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot delete wells" }, 403);
+  }
+
+  const body: any = await request.json();
+  const ids: string[] = body.ids;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return jsonResponse({ error: "Missing ids array" }, 400);
+  }
+
+  const organizationId = userRecord?.fields.Organization?.[0];
+  let deleted = 0;
+
+  // Process each well individually since findClientWellD1 handles all ID formats
+  for (const wellId of ids) {
+    const well = await findClientWellD1(wellId, user.id, organizationId, env);
+    if (!well) continue;
+
+    const wellAirtableId = well.airtable_id || well.id;
+
+    // Find linked properties before deletion (for well_count updates)
+    const linkedProps = await env.WELLS_DB.prepare(
+      'SELECT DISTINCT property_airtable_id FROM property_well_links WHERE well_airtable_id = ?'
+    ).bind(wellAirtableId).all();
+
+    const stmts: any[] = [
+      env.WELLS_DB.prepare('DELETE FROM client_wells WHERE id = ?').bind(well.id),
+      env.WELLS_DB.prepare('DELETE FROM property_well_links WHERE well_airtable_id = ?').bind(wellAirtableId),
+    ];
+
+    for (const row of (linkedProps.results || []) as any[]) {
+      stmts.push(
+        env.WELLS_DB.prepare(
+          'UPDATE properties SET well_count = MAX(COALESCE(well_count, 1) - 1, 0) WHERE airtable_record_id = ?'
+        ).bind(row.property_airtable_id)
+      );
+    }
+
+    await env.WELLS_DB.batch(stmts);
+    deleted++;
+  }
+
+  console.log(`[WellBulkDelete] Deleted ${deleted}/${ids.length} wells by ${user.email}`);
+  return jsonResponse({ success: true, deleted });
+}
+
+/**
  * Update well notes for the authenticated user
  * @param wellId The well ID to update
  * @param request The incoming request with notes data

@@ -138,7 +138,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   const body: any = await request.json();
-  const required = ["COUNTY", "SEC", "TWN", "RNG"];
+  const required = ["SEC", "TWN", "RNG"];
   for (const field of required) {
     if (!body[field]) {
       return jsonResponse({ error: `${field} is required` }, 400);
@@ -195,13 +195,14 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   }
   const range = rngStr.toUpperCase();
 
-  // Smart meridian detection based on county
+  // Meridian: accept from body, fallback to county-based detection, default IM
   const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
   let meridian = body.MERIDIAN;
   if (!meridian) {
-    meridian = panhandleCounties.includes(body.COUNTY) ? "CM" : "IM";
+    meridian = (body.COUNTY && panhandleCounties.includes(body.COUNTY)) ? "CM" : "IM";
   }
-  const isDuplicate = await checkDuplicatePropertyD1(env, user.id, userOrganization, body.COUNTY, section, township, range);
+  const county = body.COUNTY?.trim() || '';
+  const isDuplicate = await checkDuplicatePropertyD1(env, user.id, userOrganization, county, section, township, range);
   if (isDuplicate) {
     return jsonResponse({ error: "You are already monitoring this property." }, 409);
   }
@@ -215,19 +216,19 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
       ri_acres, wi_acres, notes, owner, group_name, user_id, organization_id, monitor_adjacent, status)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Active')
   `).bind(
-    propId, recordId, body.COUNTY, section, township, range, meridian,
+    propId, recordId, county, section, township, range, meridian,
     body['RI Acres'] || 0, body['WI Acres'] || 0, body.Notes || '',
     user.id, body.Group || '', user.id, userOrganization || null
   ).run();
 
-  console.log(`[PropertyCreate] D1 created: ${body.COUNTY} S${section} T${township} R${range} (${recordId})`);
+  console.log(`[PropertyCreate] D1 created: ${county || '(no county)'} S${section} T${township} R${range} (${recordId})`);
 
   // Return Airtable-compatible shape for frontend
   const newRecord = {
     id: recordId,
     createdTime: new Date().toISOString(),
     fields: {
-      COUNTY: body.COUNTY,
+      COUNTY: county,
       SEC: section,
       TWN: township,
       RNG: range,
@@ -412,4 +413,59 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
   console.log(`[PropertyDelete] D1 deleted: ${propertyId} by ${user.email}`);
 
   return jsonResponse({ success: true });
+}
+
+/**
+ * Bulk delete properties for the authenticated user
+ */
+export async function handleBulkDeleteProperties(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  const userRecord = await getUserFromSession(env, user);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot delete properties" }, 403);
+  }
+
+  const body: any = await request.json();
+  const ids: string[] = body.ids;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return jsonResponse({ error: "Missing ids array" }, 400);
+  }
+
+  const userOrg = userRecord?.fields.Organization?.[0];
+  const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrg);
+  const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('p', userOrg, user.id, memberIds);
+
+  // Delete in batches (D1 limit: 100 bind params, ownership uses ~2, each id uses 2 for OR check)
+  const BATCH = 20;
+  let deleted = 0;
+
+  for (let i = 0; i < ids.length; i += BATCH) {
+    const batch = ids.slice(i, i + BATCH);
+    const placeholders = batch.map(() => '(p.airtable_record_id = ? OR p.id = ?)').join(' OR ');
+    const bindParams = batch.flatMap(id => [id, id]);
+
+    // Verify ownership and get matching IDs
+    const rows = (await env.WELLS_DB.prepare(
+      `SELECT p.id, p.airtable_record_id FROM properties p WHERE (${placeholders}) AND ${ownerWhere}`
+    ).bind(...bindParams, ...ownerParams).all()).results as any[];
+
+    if (rows.length === 0) continue;
+
+    // Build delete statements
+    const stmts = rows.flatMap((row: any) => {
+      const deleteId = row.airtable_record_id || row.id;
+      return [
+        env.WELLS_DB.prepare('DELETE FROM property_well_links WHERE property_airtable_id = ?').bind(deleteId),
+        env.WELLS_DB.prepare('DELETE FROM properties WHERE id = ?').bind(row.id),
+      ];
+    });
+
+    await env.WELLS_DB.batch(stmts);
+    deleted += rows.length;
+  }
+
+  console.log(`[PropertyBulkDelete] Deleted ${deleted}/${ids.length} properties by ${user.email}`);
+  return jsonResponse({ success: true, deleted });
 }

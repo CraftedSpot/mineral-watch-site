@@ -42,6 +42,10 @@ const HIDE_BY_DOC_TYPE: Record<string, string[]> = {
   drilling_permit: ['bottom_hole_location', 'surface_location'],
   completion_report: ['bottom_hole_location', 'lateral_details', 'formation_tops', 'first_sales'],
   division_order: ['well_number'],
+  // Surface use provisions are surface owner concerns, not mineral owner
+  lease: ['surface_use'],
+  oil_and_gas_lease: ['surface_use'],
+  oil_gas_lease: ['surface_use'],
 };
 
 // Pattern-based hiding

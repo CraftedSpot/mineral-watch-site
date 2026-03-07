@@ -55,66 +55,129 @@ def extract_last_name(full_name: str) -> str:
                         'Associates', 'Group', 'Holdings', 'Energy', 'Resources',
                         'Oil', 'Gas', 'Petroleum', 'Operating', 'Production']
     
-    name_lower = name.lower()
-    is_company = any(suffix.lower() in name_lower for suffix in company_suffixes)
-    
+    # Use word-boundary matching to avoid false positives (e.g. "Trustee" matching "Trust")
+    name_words_lower = [w.strip('.,;') .lower() for w in name.split()]
+    company_suffixes_lower = {s.lower().rstrip('.') for s in company_suffixes}
+    is_company = any(w.rstrip('.') in company_suffixes_lower for w in name_words_lower)
+
     # Also check for "&" which often indicates law firms or partnerships
     if ' & ' in name or ' and ' in name.lower():
         is_company = True
-    
+
     if is_company:
-        # For companies, take meaningful first word(s)
+        # For companies, take meaningful words BEFORE the first suffix word
         words = name.split()
-        
+
         # Skip common prefixes
-        skip_words = ['the', 'a', 'an']
-        meaningful_words = [w for w in words if w.lower() not in skip_words]
-        
-        if not meaningful_words:
-            return name[:20]
-        
-        # For short company names (1-2 meaningful words before suffix), use first word
-        # For longer names, might want first two words
-        first_word = meaningful_words[0]
-        
-        # If first word is very short (like initials), include second word
-        if len(first_word) <= 3 and len(meaningful_words) > 1:
-            return f"{first_word} {meaningful_words[1]}"
-        
-        return first_word
+        skip_words = {'the', 'a', 'an'}
+
+        # Collect words before the first company suffix
+        meaningful_before_suffix = []
+        for w in words:
+            cleaned = w.strip('.,;').lower().rstrip('.')
+            if cleaned in skip_words:
+                continue
+            if cleaned in company_suffixes_lower:
+                break
+            meaningful_before_suffix.append(w.strip('.,;'))
+
+        if not meaningful_before_suffix:
+            # All words are suffixes — just use first word
+            return words[0] if words else name[:20]
+
+        # Return up to 2 words before the suffix for concise but descriptive names
+        result_words = meaningful_before_suffix[:2]
+        # Strip trailing conjunctions (e.g. "Smith &" from "Smith & Associates")
+        while result_words and result_words[-1] in ('&', 'and', 'of', 'for'):
+            result_words.pop()
+        return ' '.join(result_words) if result_words else (words[0] if words else name[:20])
     
     # For individuals, get last name
-    parts = name.split()
+    # Strip trailing commas (e.g. "Virginia K. Price, Trustee")
+    parts = [p.strip(',') for p in name.split()]
     if parts:
         last = parts[-1]
-        # Handle suffixes like Jr., Sr., III
-        if last.lower() in ['jr', 'jr.', 'sr', 'sr.', 'ii', 'iii', 'iv'] and len(parts) > 1:
-            return parts[-2]
+        # Handle suffixes like Jr., Sr., III, Trustee
+        personal_suffixes = {'jr', 'sr', 'ii', 'iii', 'iv', 'trustee', 'executor',
+                             'executrix', 'administrator', 'administratrix', 'partner'}
+        if last.lower().rstrip('.') in personal_suffixes and len(parts) > 1:
+            # Also skip preceding titles like "General" in "General Partner"
+            candidate = parts[-2].strip(',')
+            if candidate.lower() in ('general', 'limited', 'managing', 'successor'):
+                return parts[-3].strip(',') if len(parts) > 2 else candidate
+            return candidate
         return last
     
     return name
 
 
-def format_party_transfer(grantor: str, grantee: str, use_last_names: bool = True) -> Optional[str]:
-    """Format 'Grantor to Grantee' string, optionally using last names only.
+def _extract_first_and_last(full_name: str) -> str:
+    """Extract 'FirstName LastName' for individuals (e.g. 'Robert Price').
 
-    When both parties share the same last name, adds first initial to disambiguate
-    (e.g., 'J. Price to V. Price' instead of 'Price to Price').
+    For companies, delegates to extract_last_name (short company form).
+    Strips personal titles like Trustee, General Partner, etc.
+    """
+    if not full_name:
+        return ""
+
+    if isinstance(full_name, dict):
+        full_name = full_name.get('name', '') or ''
+
+    name = str(full_name).strip()
+    name = name.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
+
+    # Check if company — if so, use short company name
+    company_suffixes = ['LLC', 'L.L.C.', 'Inc', 'Inc.', 'Corp', 'Corp.', 'Corporation',
+                        'Company', 'Co.', 'Co', 'Ltd', 'Ltd.', 'LP', 'L.P.', 'LLP',
+                        'L.L.P.', 'Trust', 'Estate', 'Partners', 'Partnership',
+                        'Associates', 'Group', 'Holdings', 'Energy', 'Resources',
+                        'Oil', 'Gas', 'Petroleum', 'Operating', 'Production']
+    name_words_lower = [w.strip('.,;').lower() for w in name.split()]
+    company_suffixes_lower = {s.lower().rstrip('.') for s in company_suffixes}
+    is_company = any(w.rstrip('.') in company_suffixes_lower for w in name_words_lower)
+    if ' & ' in name or ' and ' in name.lower():
+        is_company = True
+
+    if is_company:
+        return extract_last_name(full_name)
+
+    # Individual: strip personal titles, return FirstName LastName
+    personal_suffixes = {'jr', 'sr', 'ii', 'iii', 'iv', 'trustee', 'executor',
+                         'executrix', 'administrator', 'administratrix', 'partner'}
+    title_prefixes = {'general', 'limited', 'managing', 'successor'}
+
+    parts = [p.strip(',') for p in name.split()]
+
+    # Strip trailing titles from the end
+    while len(parts) > 1 and parts[-1].lower().rstrip('.') in (personal_suffixes | title_prefixes):
+        parts.pop()
+
+    if not parts:
+        return name
+
+    # Get last name (handling Jr/Sr that might remain)
+    last = parts[-1]
+
+    # Get first name — skip middle initials
+    first = parts[0] if parts else ''
+
+    if first and last and first != last:
+        return f"{first} {last}"
+    return last
+
+
+def format_party_transfer(grantor: str, grantee: str, use_last_names: bool = True) -> Optional[str]:
+    """Format 'Grantor to Grantee' string.
+
+    Companies get short form (e.g. 'Price Royalty').
+    Individuals get 'FirstName LastName' (e.g. 'Robert Price').
     """
     if not grantor and not grantee:
         return None
 
     if use_last_names:
-        grantor_last = extract_last_name(grantor) if grantor else "Unknown"
-        grantee_last = extract_last_name(grantee) if grantee else "Unknown"
-
-        # When last names match, add first initial to disambiguate
-        if grantor_last == grantee_last and grantor_last != "Unknown":
-            grantor_name = _add_first_initial(grantor, grantor_last)
-            grantee_name = _add_first_initial(grantee, grantee_last)
-        else:
-            grantor_name = grantor_last
-            grantee_name = grantee_last
+        grantor_name = _extract_first_and_last(grantor) if grantor else "Unknown"
+        grantee_name = _extract_first_and_last(grantee) if grantee else "Unknown"
     else:
         grantor_name = grantor or "Unknown"
         grantee_name = grantee or "Unknown"

@@ -86,6 +86,8 @@ export const MODAL_TYPES = {
   UPLOAD_DOCUMENT: 'upload-document',
   CREDIT_PACK: 'credit-pack',
   OUT_OF_CREDITS: 'out-of-credits',
+  ADD_WELL: 'add-well',
+  ADD_PROPERTY: 'add-property',
 } as const;
 
 // OCC filing status colors

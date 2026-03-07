@@ -15,6 +15,14 @@ import { Button } from '../../ui/Button';
 import type { ColumnDef } from '../../ui/DataTableTypes';
 import type { DocumentRecord } from '../../../types/dashboard';
 
+/** Extended row type for grouped display (parent headers + child rows) */
+type DisplayRow = DocumentRecord & {
+  _isGroupRow?: boolean;
+  _children?: DocumentRecord[];
+  _expanded?: boolean;
+  _isChildRow?: boolean;
+};
+
 /** Map db doc_type/category → filter value (matching vanilla docTypeToFilterValue) */
 const DOC_TYPE_MAP: Record<string, string> = {
   mineral_deed: 'mineral_deeds',
@@ -103,6 +111,71 @@ function getStatusDisplay(status: string): { text: string; color: string } {
   }
 }
 
+/** Check if a doc is a multi-document parent */
+function isMultiDocParent(doc: DocumentRecord): boolean {
+  return doc.doc_type === 'multi_document' || doc.category === 'multi_document';
+}
+
+/** Build grouped display list: parents become collapsible headers, children nested underneath */
+function buildDisplayList(
+  docs: DocumentRecord[],
+  expandedParents: Set<string>,
+): DisplayRow[] {
+  const parentMap = new Map<string, DocumentRecord>();
+  const childMap = new Map<string, DocumentRecord[]>();
+  const standalone: DocumentRecord[] = [];
+
+  for (const doc of docs) {
+    if (isMultiDocParent(doc)) {
+      parentMap.set(doc.id, doc);
+      if (!childMap.has(doc.id)) childMap.set(doc.id, []);
+    } else if (doc.parent_document_id) {
+      if (!childMap.has(doc.parent_document_id)) childMap.set(doc.parent_document_id, []);
+      childMap.get(doc.parent_document_id)!.push(doc);
+    } else {
+      standalone.push(doc);
+    }
+  }
+
+  const display: DisplayRow[] = [];
+  const handledChildIds = new Set<string>();
+
+  for (const doc of docs) {
+    if (handledChildIds.has(doc.id)) continue;
+
+    if (parentMap.has(doc.id)) {
+      const children = (childMap.get(doc.id) || [])
+        .sort((a, b) => ((a as any).page_range_start || 0) - ((b as any).page_range_start || 0));
+      const expanded = expandedParents.has(doc.id);
+
+      display.push({
+        ...doc,
+        _isGroupRow: true,
+        _children: children,
+        _expanded: expanded,
+      });
+
+      if (expanded) {
+        for (const child of children) {
+          display.push({ ...child, _isChildRow: true });
+          handledChildIds.add(child.id);
+        }
+      } else {
+        for (const child of children) {
+          handledChildIds.add(child.id);
+        }
+      }
+    } else if (!doc.parent_document_id) {
+      display.push(doc);
+    } else if (!parentMap.has(doc.parent_document_id)) {
+      // Orphaned child — parent not in current list, show as standalone
+      display.push(doc);
+    }
+  }
+
+  return display;
+}
+
 const POLL_STATUSES = new Set(['processing', 'pending', 'pending_prescan', 'prescan_complete']);
 const POLL_INTERVAL = 15_000;
 const MAX_POLL_DURATION = 30 * 60 * 1000;
@@ -151,77 +224,151 @@ function getDocDisplayName(d: DocumentRecord): string {
   return d.display_name || d.filename || 'Untitled';
 }
 
-const columns: ColumnDef<DocumentRecord>[] = [
-  {
-    key: 'filename',
-    label: 'Document',
-    width: '3fr',
-    searchable: true,
-    sortable: true,
-    getValue: (d) => `${d.display_name || ''} ${d.filename || ''}`,
-    render: (d) => {
-      const name = getDocDisplayName(d);
-      return (
-        <div style={{ overflow: 'hidden' }}>
-          <strong style={{ color: '#1a2332', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</strong>
-          {d.display_name && d.filename && (
-            <div style={{ fontSize: 11, color: SLATE, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</div>
-          )}
-        </div>
-      );
+/** Build column defs — needs toggleParent for group row chevron clicks */
+function buildColumns(toggleParent: (id: string) => void): ColumnDef<DisplayRow>[] {
+  return [
+    {
+      key: 'filename',
+      label: 'Document',
+      width: '3fr',
+      searchable: true,
+      sortable: true,
+      getValue: (d) => `${d.display_name || ''} ${d.filename || ''}`,
+      render: (d) => {
+        // Group header row
+        if ((d as DisplayRow)._isGroupRow) {
+          const dr = d as DisplayRow;
+          const childCount = dr._children?.length || 0;
+          const chevron = dr._expanded ? '\u25BC' : '\u25B6';
+          return (
+            <div style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span
+                onClick={(e) => { e.stopPropagation(); toggleParent(d.id); }}
+                style={{ cursor: 'pointer', fontSize: 11, color: SLATE, userSelect: 'none', flexShrink: 0, width: 14 }}
+              >
+                {chevron}
+              </span>
+              <div style={{ overflow: 'hidden', flex: 1 }}>
+                <strong style={{ color: '#1a2332', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {d.display_name || d.filename || 'Multi-Document PDF'}
+                </strong>
+                <div style={{ fontSize: 11, color: SLATE, marginTop: 1 }}>
+                  {childCount} document{childCount !== 1 ? 's' : ''}
+                </div>
+              </div>
+            </div>
+          );
+        }
+        // Child row — indented
+        const indent = (d as DisplayRow)._isChildRow;
+        const name = getDocDisplayName(d);
+        return (
+          <div style={{ overflow: 'hidden', paddingLeft: indent ? 22 : 0 }}>
+            <strong style={{ color: '#1a2332', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</strong>
+            {d.display_name && d.filename && (
+              <div style={{ fontSize: 11, color: SLATE, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</div>
+            )}
+          </div>
+        );
+      },
     },
-  },
-  {
-    key: 'doc_type',
-    label: 'Type',
-    width: '1fr',
-    searchable: true,
-    getValue: (d) => d.doc_type || '',
-    render: (d) => {
-      const dt = d.doc_type;
-      if (!dt) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
-      return <span>{formatDocType(dt)}</span>;
+    {
+      key: 'doc_type',
+      label: 'Type',
+      width: '1fr',
+      searchable: true,
+      sortable: true,
+      hideOnMobile: true,
+      getValue: (d) => formatDocType(d.doc_type),
+      compare: (a, b) => formatDocType(a.doc_type).localeCompare(formatDocType(b.doc_type)),
+      render: (d) => {
+        if ((d as DisplayRow)._isGroupRow) return null;
+        const dt = d.doc_type;
+        if (!dt) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
+        return <span>{formatDocType(dt)}</span>;
+      },
     },
-  },
-  {
-    key: 'county',
-    label: 'County',
-    width: '1fr',
-    searchable: true,
-    getValue: (d) => d.county || '',
-    render: (d) => d.county
-      ? <span>{d.county}</span>
-      : <em style={{ color: '#A0AEC0' }}>&mdash;</em>,
-  },
-  {
-    key: 'status',
-    label: 'Status',
-    width: '100px',
-    render: (d) => {
-      const { text, color } = getStatusDisplay(d.status);
-      const isPulsing = d.status === 'processing' || d.status === 'pending' || d.status === 'pending_prescan';
-      return (
-        <Badge bg={color + '20'} color={color} shape="pill"
-          style={isPulsing ? { animation: 'pulse 1.5s ease-in-out infinite' } : undefined}>
-          {text}
-        </Badge>
-      );
+    {
+      key: 'county',
+      label: 'County',
+      width: '1fr',
+      searchable: true,
+      sortable: true,
+      hideOnMobile: true,
+      getValue: (d) => d.county || '',
+      compare: (a, b) => (a.county || '').localeCompare(b.county || ''),
+      render: (d) => {
+        // Group header: show most common county from children
+        if ((d as DisplayRow)._isGroupRow) {
+          const children = (d as DisplayRow)._children || [];
+          const counts: Record<string, number> = {};
+          for (const c of children) {
+            const county = c.county;
+            if (county) counts[county] = (counts[county] || 0) + 1;
+          }
+          const entries = Object.entries(counts);
+          if (entries.length === 0) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
+          entries.sort((a, b) => b[1] - a[1]);
+          const top = entries[0][0];
+          const extra = entries.length > 1 ? ` +${entries.length - 1}` : '';
+          return <span style={{ fontSize: 12, color: SLATE }}>{top}{extra}</span>;
+        }
+        return d.county
+          ? <span>{d.county}</span>
+          : <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
+      },
     },
-  },
-  {
-    key: 'upload_date',
-    label: 'Uploaded',
-    width: '100px',
-    sortable: true,
-    sortKey: 'date',
-    compare: (a, b) => new Date(a.upload_date).getTime() - new Date(b.upload_date).getTime(),
-    render: (d) => (
-      <span style={{ fontSize: 12, color: SLATE }}>
-        {new Date(d.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
-      </span>
-    ),
-  },
-];
+    {
+      key: 'status',
+      label: 'Status',
+      width: '120px',
+      sortable: true,
+      compare: (a, b) => (a.status || '').localeCompare(b.status || ''),
+      render: (d) => {
+        // Group header: show aggregated status badges
+        if ((d as DisplayRow)._isGroupRow) {
+          const children = (d as DisplayRow)._children || [];
+          const counts: Record<string, number> = {};
+          for (const c of children) counts[c.status] = (counts[c.status] || 0) + 1;
+          return (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {Object.entries(counts).map(([status, count]) => {
+                const { text, color } = getStatusDisplay(status);
+                return (
+                  <Badge key={status} bg={color + '20'} color={color} shape="pill" size="sm">
+                    {count} {text}
+                  </Badge>
+                );
+              })}
+            </div>
+          );
+        }
+        const { text, color } = getStatusDisplay(d.status);
+        const isPulsing = d.status === 'processing' || d.status === 'pending' || d.status === 'pending_prescan';
+        return (
+          <Badge bg={color + '20'} color={color} shape="pill"
+            style={isPulsing ? { animation: 'pulse 1.5s ease-in-out infinite' } : undefined}>
+            {text}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'upload_date',
+      label: 'Uploaded',
+      width: '100px',
+      sortable: true,
+      sortKey: 'date',
+      hideOnMobile: true,
+      compare: (a, b) => new Date(a.upload_date).getTime() - new Date(b.upload_date).getTime(),
+      render: (d) => (
+        <span style={{ fontSize: 12, color: SLATE }}>
+          {new Date(d.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' })}
+        </span>
+      ),
+    },
+  ];
+}
 
 export function DocumentsTab() {
   const { data: documents, loading, reload } = useDocuments();
@@ -233,6 +380,7 @@ export function DocumentsTab() {
   const [sortValue, setSortValue] = useState('date-desc');
   const [enhanced, setEnhanced] = useState(false);
   const [usage, setUsage] = useState<UsageResponse | null>(null);
+  const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set());
 
   // Polling refs
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -324,9 +472,45 @@ export function DocumentsTab() {
     return { key: effectiveSortValue, direction: 'asc' as const };
   }, [effectiveSortValue]);
 
-  const handleRowClick = useCallback((d: DocumentRecord) => {
+  const toggleParent = useCallback((id: string) => {
+    setExpandedParents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const columns = useMemo(() => buildColumns(toggleParent), [toggleParent]);
+
+  // Group documents into parent/child folders (only when no filter/search active)
+  const transformData = useCallback((sorted: DisplayRow[]): DisplayRow[] => {
+    // Check if any filter is active — if so, flat mode (no grouping)
+    if (category !== 'all') return sorted;
+    return buildDisplayList(sorted, expandedParents);
+  }, [category, expandedParents]);
+
+  // Style group header rows differently
+  const getRowStyle = useCallback((row: DisplayRow): React.CSSProperties | undefined => {
+    if (row._isGroupRow) {
+      return {
+        background: row._expanded ? '#f0fdfa' : '#f8fafc',
+        borderLeft: `3px solid ${TEAL}`,
+      };
+    }
+    if (row._isChildRow) {
+      return { borderLeft: '3px solid #e2e8f0' };
+    }
+    return undefined;
+  }, []);
+
+  const handleRowClick = useCallback((d: DisplayRow) => {
+    if (d._isGroupRow) {
+      toggleParent(d.id);
+      return;
+    }
     modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId: d.id });
-  }, [modal]);
+  }, [modal, toggleParent]);
 
   const handleCategoryChange = useCallback((val: string) => {
     setCategory(val);
@@ -354,7 +538,8 @@ export function DocumentsTab() {
     }
   }, [selected, confirm, toast, reload]);
 
-  if (loading) return <LoadingSkeleton columns={5} />;
+  // Only show skeleton on initial load — not on poll reloads (which cause blinking)
+  if (loading && documents.length === 0) return <LoadingSkeleton columns={5} />;
 
   return (
     <div>
@@ -366,7 +551,10 @@ export function DocumentsTab() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
           <EnhancedToggle enabled={enhanced} onToggle={() => setEnhanced((v) => !v)} />
           <Button variant="primary" color={TEAL}
-            onClick={() => modal.open(MODAL_TYPES.UPLOAD_DOCUMENT, { enhanced })}
+            onClick={() => modal.open(MODAL_TYPES.UPLOAD_DOCUMENT, {
+              enhanced,
+              onUploadComplete: () => { reload(); fetchUsageStats().then(setUsage).catch(() => {}); },
+            })}
             style={{ whiteSpace: 'nowrap' }}
             icon={
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" width={16} height={16}>
@@ -379,7 +567,7 @@ export function DocumentsTab() {
         </div>
       </div>
 
-      <DataTable<DocumentRecord>
+      <DataTable<DisplayRow>
         columns={columns}
         data={filteredByCategory}
         loading={false}
@@ -401,6 +589,8 @@ export function DocumentsTab() {
           value: effectiveSortValue,
           onChange: setSortValue,
         }}
+        transformData={transformData}
+        getRowStyle={getRowStyle}
         emptyTitle="No documents yet"
         emptyDescription="Upload your first document to start extracting mineral data."
         bulkActions={

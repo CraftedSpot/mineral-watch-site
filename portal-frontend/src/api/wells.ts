@@ -67,3 +67,55 @@ export async function saveWellNotes(wellId: string, notes: string): Promise<void
     body: JSON.stringify({ notes }),
   });
 }
+
+// --- Add Well ---
+
+export async function addWell(apiNumber: string, notes?: string): Promise<{ id: string; success: true }> {
+  return apiFetch<{ id: string; success: true }>('/api/wells', {
+    method: 'POST',
+    body: JSON.stringify({ apiNumber, notes: notes || '' }),
+  });
+}
+
+// --- Search Wells ---
+
+export interface SearchWellResult {
+  api_number: string;
+  well_name: string;
+  well_number: string;
+  section: string | number;
+  township: string;
+  range: string;
+  county: string;
+  operator: string;
+  well_type: string;
+  well_status: string;
+  formation_name: string;
+  ip_oil_bbl: number | null;
+  ip_gas_mcf: number | null;
+}
+
+export interface SearchWellsParams {
+  q?: string;
+  well_name?: string;
+  operator?: string;
+  section?: string;
+  township?: string;
+  range?: string;
+  county?: string;
+}
+
+export async function searchWells(params: SearchWellsParams): Promise<{
+  wells: SearchWellResult[];
+  total: number;
+  truncated: boolean;
+}> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) qs.set(k, v);
+  }
+  const res = await apiFetch<{ success: boolean; data: { wells: SearchWellResult[]; total: number; truncated: boolean } }>(
+    `/api/wells/search?${qs.toString()}`,
+  );
+  return res.data;
+}

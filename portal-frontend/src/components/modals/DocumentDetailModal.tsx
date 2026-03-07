@@ -122,6 +122,16 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
   // Extracted data sections
   const keyTakeaway = extracted?.key_takeaway as string | undefined;
   const detailedAnalysis = (extracted?.detailed_analysis || extracted?.ai_observations) as string | undefined;
+  const extractedNotes = (extracted?.notes || extracted?.extraction_notes || extracted?.additional_info) as string | undefined;
+  const rawUnderlyingLease = extracted?.underlying_lease as string | Record<string, unknown> | undefined;
+  // Only show underlying lease for assignments/releases/amendments — not for the lease itself.
+  // Also skip empty objects.
+  const isLeaseDoc = (doc?.doc_type || '').includes('lease') && !(doc?.doc_type || '').includes('assignment') && !(doc?.doc_type || '').includes('release') && !(doc?.doc_type || '').includes('amendment') && !(doc?.doc_type || '').includes('extension');
+  const underlyingLease = (!isLeaseDoc && rawUnderlyingLease &&
+    (typeof rawUnderlyingLease === 'string'
+      ? rawUnderlyingLease.trim().length > 0
+      : Object.values(rawUnderlyingLease).some(v => v != null && v !== '')))
+    ? rawUnderlyingLease : undefined;
 
   // Check stub special sections (rendered directly, outside the section loop)
   const checkStubWells = isCheckStub ? (extracted?.wells as Array<Record<string, unknown>> | undefined) : undefined;
@@ -282,6 +292,23 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
         </AccordionSection>
       )}
 
+      {/* Underlying Lease (full-width standalone block) */}
+      {underlyingLease && (
+        <AccordionSection title="Underlying Lease" defaultOpen>
+          {typeof underlyingLease === 'string' ? (
+            <div style={{
+              fontSize: 14, color: DARK, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+              borderLeft: '3px solid #3b82f6', paddingLeft: 12,
+              wordBreak: 'break-word', overflowWrap: 'break-word',
+            }}>
+              {cleanFieldValue(underlyingLease)}
+            </div>
+          ) : (
+            <FieldRenderer fieldName="underlying_lease" value={underlyingLease} docType={doc?.doc_type} />
+          )}
+        </AccordionSection>
+      )}
+
       {/* Check Stub: Well Revenue (direct, outside section loop) */}
       {checkStubWells && checkStubWells.length > 0 && (
         <AccordionSection title="Well Revenue" count={checkStubWells.length} defaultOpen>
@@ -305,9 +332,19 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
 
       {/* Grouped extracted fields by section */}
       {Array.from(fieldGroups.entries())
-        .filter(([section]) => {
+        .filter(([section, fields]) => {
           // Skip Legal Description for death certs and when units array exists
           if (section === 'Legal Description' && (isDeathCert || hasUnits)) return false;
+          // Skip Underlying Lease section if rendered as standalone block
+          if (section === 'Underlying Lease' && underlyingLease) {
+            const remaining = fields.filter(([k]) => k !== 'underlying_lease');
+            if (remaining.length === 0) return false;
+          }
+          // Skip Notes section if we're rendering extracted notes as a standalone block
+          if (section === 'Notes' && extractedNotes) {
+            const remaining = fields.filter(([k]) => k !== 'notes' && k !== 'extraction_notes' && k !== 'additional_info');
+            if (remaining.length === 0) return false;
+          }
           return true;
         })
         .map(([section, fields]) => (
@@ -322,9 +359,22 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
         ))
       }
 
-      {/* Notes */}
+      {/* Extraction Notes (full-width, like Key Takeaway) */}
+      {extractedNotes && (
+        <AccordionSection title="Extraction Notes" defaultOpen>
+          <div style={{
+            fontSize: 14, color: DARK, lineHeight: 1.6, whiteSpace: 'pre-wrap',
+            borderLeft: `3px solid ${TEAL}`, paddingLeft: 12,
+            wordBreak: 'break-word', overflowWrap: 'break-word',
+          }}>
+            {cleanFieldValue(extractedNotes)}
+          </div>
+        </AccordionSection>
+      )}
+
+      {/* User Notes */}
       <div style={{ marginTop: 14 }}>
-        <label htmlFor="doc-notes" style={{ fontSize: 14, fontWeight: 600, color: DARK, display: 'block', marginBottom: 4 }}>Notes</label>
+        <label htmlFor="doc-notes" style={{ fontSize: 14, fontWeight: 600, color: DARK, display: 'block', marginBottom: 4 }}>Your Notes</label>
         <TextArea
           id="doc-notes"
           value={values.notes as string}

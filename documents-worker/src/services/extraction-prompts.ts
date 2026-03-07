@@ -3920,6 +3920,7 @@ CRITICAL RULES:
 - If the text contains "MINERAL DEED" as a title, classify as mineral_deed.
 - Document type titles in the text ALWAYS outrank formatting patterns (Dear..., Sincerely, letterhead).
 - Only classify as "correspondence" if the document is PURELY a letter with no embedded legal instrument.
+- IRS/tax forms (W-9, W-8, 1099, 1042-S, K-1, 1098) are tax_record — NOT check_stub or correspondence.
 - If the document contains MULTIPLE separate instruments, set is_multi_document to true.
 
 The OKCR instrument type for this document is: {hint}

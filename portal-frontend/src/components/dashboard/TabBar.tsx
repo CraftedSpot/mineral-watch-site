@@ -1,4 +1,5 @@
 import { BORDER, OIL_NAVY, ORANGE } from '../../lib/constants';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface TabBarProps {
   tabs: readonly string[];
@@ -30,15 +31,26 @@ const TAB_CONFIG: Record<string, { label: string; icon: string }> = {
 };
 
 export function TabBar({ tabs, active, onChange }: TabBarProps) {
+  const isMobile = useIsMobile();
+
   return (
     <div style={{
-      padding: '0 24px',
+      padding: isMobile ? '0 12px' : '0 24px',
       fontFamily: "'Inter', 'DM Sans', sans-serif",
     }}>
-      <div style={{
-        maxWidth: 1400, margin: '0 auto',
-        display: 'flex', gap: 4, marginBottom: 0,
-      }}>
+      <div
+        className={isMobile ? 'mobile-tab-bar' : undefined}
+        style={{
+          maxWidth: 1400, margin: '0 auto',
+          display: 'flex', gap: 4, marginBottom: 0,
+          ...(isMobile ? {
+            overflowX: 'auto' as const,
+            overflowY: 'hidden' as const,
+            WebkitOverflowScrolling: 'touch' as const,
+            flexWrap: 'nowrap' as const,
+          } : {}),
+        }}
+      >
         {tabs.map((tab) => {
           const isActive = tab === active;
           const config = TAB_CONFIG[tab];
@@ -47,9 +59,9 @@ export function TabBar({ tabs, active, onChange }: TabBarProps) {
               key={tab}
               onClick={() => onChange(tab)}
               style={{
-                padding: '12px 20px',
+                padding: isMobile ? '10px 14px' : '12px 20px',
                 borderRadius: '6px 6px 0 0',
-                fontSize: 14, fontWeight: 600,
+                fontSize: isMobile ? 13 : 14, fontWeight: 600,
                 color: isActive ? OIL_NAVY : '#94A3B8',
                 background: isActive ? '#fff' : '#f8f9fa',
                 border: isActive
@@ -60,9 +72,12 @@ export function TabBar({ tabs, active, onChange }: TabBarProps) {
                 fontFamily: "'Inter', 'DM Sans', sans-serif",
                 display: 'flex', alignItems: 'center', gap: 8,
                 opacity: isActive ? 1 : 0.9,
+                flexShrink: isMobile ? 0 : undefined,
+                minHeight: isMobile ? 44 : undefined,
+                whiteSpace: 'nowrap',
               }}
             >
-              {config && (
+              {!isMobile && config && (
                 <svg
                   width={16} height={16} viewBox="0 0 24 24"
                   fill="none" stroke="currentColor" strokeWidth={2}

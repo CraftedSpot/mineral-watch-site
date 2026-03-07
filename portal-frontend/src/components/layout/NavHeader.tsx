@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { OIL_NAVY } from '../../lib/constants';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { AuthUser } from '../../hooks/useAuth';
 
 interface NavHeaderProps {
@@ -17,6 +19,11 @@ const NAV_ITEMS = [
 
 export function NavHeader({ user }: NavHeaderProps) {
   const location = useLocation();
+  const isMobile = useIsMobile();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Close menu on navigation
+  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -25,13 +32,71 @@ export function NavHeader({ user }: NavHeaderProps) {
     window.location.href = '/portal/login';
   };
 
+  const isActive = (href: string) =>
+    href === '/portal/react'
+      ? location.pathname === '/portal/react' || location.pathname === '/portal'
+      : location.pathname.startsWith(href);
+
+  const navLinkStyle = (href: string): React.CSSProperties => ({
+    fontSize: isMobile ? 15 : 14,
+    fontWeight: 500,
+    color: isActive(href) ? '#fff' : 'rgba(255,255,255,0.8)',
+    textDecoration: 'none',
+  });
+
+  const renderNavLink = (item: typeof NAV_ITEMS[0]) => {
+    if (item.react) {
+      return (
+        <Link key={item.href} to={item.href}
+          onClick={() => setMenuOpen(false)}
+          style={{
+            ...navLinkStyle(item.href),
+            ...(isMobile ? {
+              display: 'block', padding: '12px 0', minHeight: 44,
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+            } : {}),
+          }}
+        >{item.label}</Link>
+      );
+    }
+    return (
+      <a key={item.href} href={item.href}
+        style={{
+          ...navLinkStyle(item.href),
+          ...(isMobile ? {
+            display: 'block', padding: '12px 0', minHeight: 44,
+            borderBottom: '1px solid rgba(255,255,255,0.08)',
+          } : {}),
+        }}
+      >{item.label}</a>
+    );
+  };
+
+  const adminBtnStyle: React.CSSProperties = {
+    background: 'rgba(239,68,68,0.2)', color: '#fca5a5',
+    border: '1px solid rgba(239,68,68,0.4)', padding: '5px 12px',
+    borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+    textDecoration: 'none',
+  };
+
+  const marketingBtnStyle: React.CSSProperties = {
+    background: 'rgba(139,92,246,0.2)', color: '#c4b5fd',
+    border: '1px solid rgba(139,92,246,0.4)', padding: '5px 12px',
+    borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
+    textDecoration: 'none',
+  };
+
   return (
     <header style={{
       background: OIL_NAVY,
       fontFamily: "'Inter', 'DM Sans', sans-serif",
+      position: isMobile ? 'sticky' : undefined,
+      top: isMobile ? 0 : undefined,
+      zIndex: isMobile ? 1000 : undefined,
     }}>
       <div style={{
-        maxWidth: 1400, margin: '0 auto', padding: '0 24px',
+        maxWidth: 1400, margin: '0 auto',
+        padding: isMobile ? '0 16px' : '0 24px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         height: 56,
       }}>
@@ -42,51 +107,89 @@ export function NavHeader({ user }: NavHeaderProps) {
           Mineral Watch
         </a>
 
-        <nav style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          {NAV_ITEMS.map(({ href, label, react: isReactRoute }) => {
-            const isActive = href === '/portal/react'
-              ? location.pathname === '/portal/react' || location.pathname === '/portal'
-              : location.pathname.startsWith(href);
-            const style: React.CSSProperties = {
-              fontSize: 14, fontWeight: 500,
-              color: isActive ? '#fff' : 'rgba(255,255,255,0.8)',
-              textDecoration: 'none',
-            };
-            if (isReactRoute) {
-              return <Link key={href} to={href} style={style}>{label}</Link>;
-            }
-            return <a key={href} href={href} style={style}>{label}</a>;
-          })}
-        </nav>
+        {!isMobile && (
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+            {NAV_ITEMS.map(renderNavLink)}
+          </nav>
+        )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {user.isSuperAdmin && (
-            <>
-              <a href="/portal/admin" style={{
-                background: 'rgba(239,68,68,0.2)', color: '#fca5a5',
-                border: '1px solid rgba(239,68,68,0.4)', padding: '5px 12px',
-                borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
-                textDecoration: 'none',
-              }}>Admin</a>
-              <a href="/portal/marketing" style={{
-                background: 'rgba(139,92,246,0.2)', color: '#c4b5fd',
-                border: '1px solid rgba(139,92,246,0.4)', padding: '5px 12px',
-                borderRadius: 4, fontSize: 12, fontWeight: 600, letterSpacing: 0.3,
-                textDecoration: 'none',
-              }}>Marketing</a>
-            </>
-          )}
-          <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{user.name}</span>
-          <button onClick={handleLogout} style={{
-            background: 'rgba(255,255,255,0.1)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: 4, padding: '6px 14px', fontSize: 13,
-            color: '#fff', cursor: 'pointer',
-          }}>
-            Log Out
+        {!isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            {user.isSuperAdmin && (
+              <>
+                <a href="/portal/admin" style={adminBtnStyle}>Admin</a>
+                <a href="/portal/marketing" style={marketingBtnStyle}>Marketing</a>
+              </>
+            )}
+            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{user.name}</span>
+            <button onClick={handleLogout} style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: 4, padding: '6px 14px', fontSize: 13,
+              color: '#fff', cursor: 'pointer',
+            }}>Log Out</button>
+          </div>
+        )}
+
+        {isMobile && (
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Menu"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              padding: 8, minWidth: 44, minHeight: 44, color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              {menuOpen
+                ? <path d="M6 6l12 12M6 18L18 6" />
+                : <path d="M4 6h16M4 12h16M4 18h16" />
+              }
+            </svg>
           </button>
-        </div>
+        )}
       </div>
+
+      {/* Mobile dropdown menu */}
+      {isMobile && (
+        <div
+          className={`nav-mobile-menu${menuOpen ? ' open' : ''}`}
+          style={{ background: OIL_NAVY, borderTop: '1px solid rgba(255,255,255,0.1)' }}
+        >
+          <div style={{ padding: '8px 16px' }}>
+            {NAV_ITEMS.map(renderNavLink)}
+
+            {user.isSuperAdmin && (
+              <div style={{ paddingTop: 8, display: 'flex', gap: 8 }}>
+                <a href="/portal/admin" style={adminBtnStyle}>Admin</a>
+                <a href="/portal/marketing" style={marketingBtnStyle}>Marketing</a>
+              </div>
+            )}
+
+            <div style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '12px 0 8px', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 8,
+            }}>
+              <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{user.name}</span>
+              <button onClick={handleLogout} style={{
+                background: 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: 4, padding: '6px 14px', fontSize: 13,
+                color: '#fff', cursor: 'pointer',
+              }}>Log Out</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backdrop to close menu on outside tap */}
+      {isMobile && menuOpen && (
+        <div
+          onClick={() => setMenuOpen(false)}
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: -1 }}
+        />
+      )}
     </header>
   );
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useSearchParams, useOutletContext } from 'react-router-dom';
 import { updateSearchParam } from '../../lib/helpers';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { TabBar } from './TabBar';
 import { DashboardHeader } from './DashboardHeader';
 import { PropertiesTab } from './tabs/PropertiesTab';
@@ -42,6 +43,8 @@ export function DashboardPage() {
     }
   }, [searchParams, toast]);
 
+  const isMobile = useIsMobile();
+
   const setTab = (tab: string) => {
     setSearchParams(updateSearchParam('tab', tab), { replace: true });
   };
@@ -51,7 +54,7 @@ export function DashboardPage() {
       <DashboardHeader activeTab={activeTab} user={user} />
       <TabBar tabs={TABS} active={activeTab} onChange={setTab} />
 
-      <div style={{ padding: '24px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '12px' : '24px', maxWidth: 1400, margin: '0 auto' }}>
         {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'wells' && <WellsTab />}
         {activeTab === 'documents' && <DocumentsTab />}

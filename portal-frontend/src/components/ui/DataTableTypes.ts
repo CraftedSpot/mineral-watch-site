@@ -10,6 +10,8 @@ export interface ColumnDef<T> {
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => string;
   compare?: (a: T, b: T) => number;
+  /** Hide this column on screens narrower than 768px */
+  hideOnMobile?: boolean;
 }
 
 export interface DropdownOption {
@@ -54,6 +56,12 @@ export interface DataTableProps<T> {
   // Extra sort comparators (for sort keys not tied to a visible column)
   customComparators?: Record<string, (a: T, b: T) => number>;
 
+  // Transform data after search+sort but before render (e.g. for grouping)
+  transformData?: (data: T[]) => T[];
+
+  // Custom row style override
+  getRowStyle?: (row: T, index: number) => React.CSSProperties | undefined;
+
   // Empty/loading states
   emptyTitle?: string;
   emptyDescription?: string;
@@ -61,4 +69,7 @@ export interface DataTableProps<T> {
 
   // Bulk actions
   bulkActions?: React.ReactNode;
+
+  // Toolbar actions (rendered at right end of search/filter row)
+  toolbarActions?: React.ReactNode;
 }

@@ -120,6 +120,9 @@ export function ReservationRenderer({ value }: { value: unknown }) {
   }
   const v = value as Record<string, unknown>;
 
+  // Don't render empty yellow box if no displayable fields
+  if (!v.reserved_interest_type && !v.fraction && !v.text) return null;
+
   return (
     <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: 6, padding: 10 }}>
       {v.reserved_interest_type && <div style={{ fontWeight: 600, color: '#92400E' }}>{String(v.reserved_interest_type)}</div>}

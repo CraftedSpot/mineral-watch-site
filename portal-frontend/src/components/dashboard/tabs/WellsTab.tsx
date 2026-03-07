@@ -4,13 +4,14 @@ import { useWells } from '../../../hooks/useWells';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { formatTRS, formatPhone, getWellStatusColor } from '../../../lib/helpers';
 import { formatProdMonth, computeDataHorizon, getProductionStatus } from '../../../lib/production-utils';
 import { WellLinkCounts } from '../../ui/LinkCounts';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { BulkActionBar } from '../../ui/BulkActionBar';
-import { MODAL_TYPES, BORDER, SLATE, DARK } from '../../../lib/constants';
+import { MODAL_TYPES, BORDER, SLATE, DARK, TEAL } from '../../../lib/constants';
 import type { WellRecord } from '../../../types/dashboard';
 
 // Estimated row height for collapsed row (3 lines + padding)
@@ -19,6 +20,7 @@ const VIRTUAL_THRESHOLD = 100;
 
 // CSS grid columns: checkbox | well info | operator | links
 const GRID_COLS = '40px 1fr 1fr 140px';
+const GRID_COLS_MOBILE = '36px 1fr';
 
 // Status filter options (matches vanilla dashboard-shell.html)
 const FILTER_OPTIONS = [
@@ -121,6 +123,7 @@ export function WellsTab() {
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
+  const isMobile = useIsMobile();
 
   const [search, setSearch] = useState('');
   const [filterValue, setFilterValue] = useState('all');
@@ -175,6 +178,12 @@ export function WellsTab() {
     estimateSize: () => ROW_H,
     overscan: 10,
   });
+
+  const handleAddWell = useCallback(() => {
+    modal.open(MODAL_TYPES.ADD_WELL, {
+      onComplete: () => reload(),
+    });
+  }, [modal, reload]);
 
   const openWellModal = useCallback((w: WellRecord) => {
     modal.open(MODAL_TYPES.WELL, {
@@ -235,6 +244,8 @@ export function WellsTab() {
 
   if (loading) return <LoadingSkeleton columns={3} />;
 
+  const gridCols = isMobile ? GRID_COLS_MOBILE : GRID_COLS;
+
   // Build row items — virtual or plain
   const vRows = useVirtual
     ? virtualizer.getVirtualItems()
@@ -243,31 +254,81 @@ export function WellsTab() {
   return (
     <div style={{ fontFamily: "'Inter', 'DM Sans', sans-serif" }}>
       {/* Toolbar */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search wells by name, operator, API, or county..."
-          style={{
-            flex: 1, maxWidth: 320, padding: '8px 12px',
-            border: `1px solid ${BORDER}`, borderRadius: 6,
-            fontSize: 13, outline: 'none',
-            fontFamily: "'Inter', 'DM Sans', sans-serif",
-          }}
-        />
-        <select value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={dropdownStyle}>
-          {FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select value={sortValue} onChange={(e) => setSortValue(e.target.value)} style={dropdownStyle}>
-          {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        {(search || filterValue !== 'all') && (
-          <span style={{ fontSize: 12, color: SLATE }}>
-            {sortedData.length} of {wells.length}
-          </span>
-        )}
-      </div>
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12 }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search wells..."
+            style={{
+              width: '100%', padding: '8px 12px',
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              fontSize: 13, outline: 'none',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+            }}
+          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={filterValue} onChange={(e) => setFilterValue(e.target.value)}
+              style={{ ...dropdownStyle, flex: 1, minWidth: 0 }}>
+              {FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+            <select value={sortValue} onChange={(e) => setSortValue(e.target.value)}
+              style={{ ...dropdownStyle, flex: 1, minWidth: 0 }}>
+              {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: SLATE }}>
+              {(search || filterValue !== 'all') ? `${sortedData.length} of ${wells.length}` : `${wells.length} wells`}
+            </span>
+            <button onClick={handleAddWell} style={{
+              background: TEAL, color: '#fff', border: 'none',
+              borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
+            }}>
+              + Add Well
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search wells by name, operator, API, or county..."
+            style={{
+              flex: 1, maxWidth: 320, padding: '8px 12px',
+              border: `1px solid ${BORDER}`, borderRadius: 6,
+              fontSize: 13, outline: 'none',
+              fontFamily: "'Inter', 'DM Sans', sans-serif",
+            }}
+          />
+          <select value={filterValue} onChange={(e) => setFilterValue(e.target.value)} style={dropdownStyle}>
+            {FILTER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select value={sortValue} onChange={(e) => setSortValue(e.target.value)} style={dropdownStyle}>
+            {SORT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          {(search || filterValue !== 'all') && (
+            <span style={{ fontSize: 12, color: SLATE }}>
+              {sortedData.length} of {wells.length}
+            </span>
+          )}
+          <button
+            onClick={handleAddWell}
+            style={{
+              marginLeft: 'auto', background: TEAL, color: '#fff', border: 'none',
+              borderRadius: 6, padding: '8px 16px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', fontFamily: "'Inter', 'DM Sans', sans-serif",
+              display: 'flex', alignItems: 'center', gap: 4,
+            }}
+          >
+            + Add Well
+          </button>
+        </div>
+      )}
 
       {/* Bulk Actions */}
       {selected.size > 0 && (
@@ -300,7 +361,7 @@ export function WellsTab() {
         >
           {/* Header row */}
           <div style={{
-            display: 'grid', gridTemplateColumns: GRID_COLS,
+            display: 'grid', gridTemplateColumns: gridCols,
             background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1,
             borderBottom: `1px solid ${BORDER}`,
           }}>
@@ -312,9 +373,15 @@ export function WellsTab() {
                 style={{ cursor: 'pointer' }}
               />
             </div>
-            <div style={thStyle}>Well Information</div>
-            <div style={thStyle}>Operator Contact</div>
-            <div style={{ ...thStyle, textAlign: 'right' }}>Links</div>
+            {isMobile ? (
+              <div style={thStyle}>Well</div>
+            ) : (
+              <>
+                <div style={thStyle}>Well Information</div>
+                <div style={thStyle}>Operator Contact</div>
+                <div style={{ ...thStyle, textAlign: 'right' }}>Links</div>
+              </>
+            )}
           </div>
 
           {/* Body */}
@@ -362,9 +429,8 @@ export function WellsTab() {
                     } : {}),
                   }}
                 >
-                  {/* Grid row for the 4 columns */}
                   <div
-                    style={{ display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'start' }}
+                    style={{ display: 'grid', gridTemplateColumns: gridCols, alignItems: 'start' }}
                     onClick={() => openWellModal(w)}
                   >
                     {/* Checkbox */}
@@ -381,52 +447,93 @@ export function WellsTab() {
                       />
                     </div>
 
-                    {/* Well Information */}
-                    <div style={{ padding: '8px 12px', minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                        <strong style={{ color: DARK }}>{w.well_name || 'Unknown'}</strong>
-                        {w.tracking_source === 'discovered' && (
-                          <span style={{
-                            fontSize: 10, background: '#dbeafe', color: '#1e40af',
-                            padding: '1px 6px', borderRadius: 4, fontWeight: 600,
-                          }}>
-                            Auto-discovered
-                          </span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
-                        {w.apiNumber && <><span>{w.apiNumber}</span> &middot; </>}
-                        <span style={{ color: statusColor, fontWeight: 600 }}>{status}</span>
-                        {location && <> &middot; <span>{location}</span></>}
-                      </div>
-                      {extras.length > 0 && (
-                        <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
-                          {extras.map((ex, i) => (
-                            <span key={i}>
-                              {i > 0 && ' \u2022 '}
-                              <span style={ex === 'Horizontal' ? { color: '#2563eb' } : undefined}>{ex}</span>
-                            </span>
-                          ))}
+                    {isMobile ? (
+                      /* Mobile: merged single column */
+                      <div style={{ padding: '10px 12px', minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <strong style={{ color: DARK, fontSize: 14 }}>{w.well_name || 'Unknown'}</strong>
+                          {w.tracking_source === 'discovered' && (
+                            <span style={{
+                              fontSize: 10, background: '#dbeafe', color: '#1e40af',
+                              padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                            }}>Auto</span>
+                          )}
                         </div>
-                      )}
-                    </div>
-
-                    {/* Operator Contact */}
-                    <div style={{ padding: '8px 12px', minWidth: 0 }}>
-                      <strong style={{ color: DARK }}>{w.operator || '\u2014'}</strong>
-                      {(w.operator_phone || w.operator_contact) && (
                         <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
-                          {w.operator_phone && formatPhone(w.operator_phone)}
-                          {w.operator_phone && w.operator_contact && ' \u2022 '}
-                          {w.operator_contact}
+                          {w.apiNumber && <><span>{w.apiNumber}</span> &middot; </>}
+                          <span style={{ color: statusColor, fontWeight: 600 }}>{status}</span>
+                          {location && <> &middot; <span>{location}</span></>}
                         </div>
-                      )}
-                    </div>
+                        {extras.length > 0 && (
+                          <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                            {extras.map((ex, i) => (
+                              <span key={i}>
+                                {i > 0 && ' \u2022 '}
+                                <span style={ex === 'Horizontal' ? { color: '#2563eb' } : undefined}>{ex}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {w.operator && (
+                          <div style={{ fontSize: 12, color: SLATE, marginTop: 3 }}>
+                            Op: <strong style={{ color: DARK }}>{w.operator}</strong>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 4 }}>
+                          <WellLinkCounts counts={w._linkCounts} />
+                        </div>
+                      </div>
+                    ) : (
+                      /* Desktop: 3 separate columns */
+                      <>
+                        {/* Well Information */}
+                        <div style={{ padding: '8px 12px', minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <strong style={{ color: DARK }}>{w.well_name || 'Unknown'}</strong>
+                            {w.tracking_source === 'discovered' && (
+                              <span style={{
+                                fontSize: 10, background: '#dbeafe', color: '#1e40af',
+                                padding: '1px 6px', borderRadius: 4, fontWeight: 600,
+                              }}>
+                                Auto-discovered
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
+                            {w.apiNumber && <><span>{w.apiNumber}</span> &middot; </>}
+                            <span style={{ color: statusColor, fontWeight: 600 }}>{status}</span>
+                            {location && <> &middot; <span>{location}</span></>}
+                          </div>
+                          {extras.length > 0 && (
+                            <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                              {extras.map((ex, i) => (
+                                <span key={i}>
+                                  {i > 0 && ' \u2022 '}
+                                  <span style={ex === 'Horizontal' ? { color: '#2563eb' } : undefined}>{ex}</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
-                    {/* Links */}
-                    <div style={{ padding: '8px 12px', textAlign: 'right' }}>
-                      <WellLinkCounts counts={w._linkCounts} />
-                    </div>
+                        {/* Operator Contact */}
+                        <div style={{ padding: '8px 12px', minWidth: 0 }}>
+                          <strong style={{ color: DARK }}>{w.operator || '\u2014'}</strong>
+                          {(w.operator_phone || w.operator_contact) && (
+                            <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
+                              {w.operator_phone && formatPhone(w.operator_phone)}
+                              {w.operator_phone && w.operator_contact && ' \u2022 '}
+                              {w.operator_contact}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Links */}
+                        <div style={{ padding: '8px 12px', textAlign: 'right' }}>
+                          <WellLinkCounts counts={w._linkCounts} />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               );
