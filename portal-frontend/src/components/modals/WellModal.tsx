@@ -396,7 +396,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                   { key: 'tract_participation', label: 'Tract Participation', server: tractParticipation },
                 ] as const).map((field) => (
                   <div key={field.key}>
-                    <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{field.label}</label>
+                    <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>{field.label}</label>
                     <TextInput type="number" step="any"
                       value={interestEdits[field.key] ?? (field.server != null ? String(field.server) : '')}
                       onChange={(e) => handleInterestChange(field.key, e.target.value)}
