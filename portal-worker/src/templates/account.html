@@ -19,9 +19,16 @@
         .nav-links { display: flex; gap: 25px; }
         .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
         .nav-links a:hover, .nav-links a.active { color: white; }
-        .user-menu { display: flex; align-items: center; gap: 15px; }
-        .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
-        .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        .user-menu { position: relative; display: flex; align-items: center; }
+        .user-menu-trigger { background: none; border: none; color: rgba(255,255,255,0.8); font-size: 14px; font-weight: 500; cursor: pointer; padding: 8px 12px; display: flex; align-items: center; gap: 6px; font-family: inherit; }
+        .user-menu-trigger:hover { color: white; }
+        .user-chevron { font-size: 10px; }
+        .user-menu-dropdown { display: none; position: absolute; right: 0; top: calc(100% + 6px); background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); min-width: 180px; z-index: 1100; padding: 6px 0; }
+        .user-menu-dropdown.open { display: block; }
+        .user-menu-label { padding: 8px 14px; font-size: 13px; color: #64748b; font-weight: 500; }
+        .user-menu-divider { height: 1px; background: #e2e8f0; margin: 4px 0; }
+        .user-menu-item, .user-menu-dropdown a { display: block; width: 100%; padding: 8px 14px; font-size: 13px; font-weight: 500; color: #374151; background: none; border: none; text-align: left; cursor: pointer; text-decoration: none; font-family: inherit; }
+        .user-menu-item:hover, .user-menu-dropdown a:hover { background: #f8fafc; }
         .menu-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; color: white; }
         main { padding: 40px 0; }
         .page-header h1 { font-size: 28px; margin-bottom: 30px; }
@@ -202,11 +209,12 @@
             header { position: relative; z-index: 1000; }
             .menu-toggle { display: block; }
             .header-inner { flex-wrap: wrap; }
-            .nav-links, .user-menu { display: none; width: 100%; }
-            .nav-links.open, .user-menu.open { display: flex; }
+            .nav-links { display: none; width: 100%; }
+            .nav-links.open { display: flex; }
             .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
             .nav-links a { padding: 12px 0; font-size: 15px; }
-            .user-menu.open { padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.1); justify-content: space-between; order: 4; }
+            .user-menu { order: 4; }
+            .user-menu-dropdown { right: auto; left: 0; }
             
             /* Organization section mobile styles */
             .org-header {
@@ -268,13 +276,25 @@
                     <a href="/portal/learn">Learn</a>
                 </nav>
                 <div class="user-menu">
-                    <span class="user-name" id="userName">Loading...</span>
-                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                    <button class="user-menu-trigger" id="userMenuTrigger">
+                        <span class="user-name" id="userName">Loading...</span>
+                        <span class="user-chevron">&#9662;</span>
+                    </button>
+                    <div class="user-menu-dropdown" id="userMenuDropdown">
+                        <div class="user-menu-label" id="userMenuLabel"></div>
+                        <div class="user-menu-divider"></div>
+                        <div id="superAdminLinks"></div>
+                        <button class="user-menu-item" id="logoutBtn">Log Out</button>
+                    </div>
                 </div>
             </div>
         </div>
     </header>
-    <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});</script>
+    <script>
+    document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');});
+    document.getElementById('userMenuTrigger').addEventListener('click',function(e){e.stopPropagation();document.getElementById('userMenuDropdown').classList.toggle('open');});
+    document.addEventListener('click',function(e){var dd=document.getElementById('userMenuDropdown');if(dd&&!dd.contains(e.target))dd.classList.remove('open');});
+    </script>
     <main>
         <div class="container">
             <div class="page-header"><h1>Account Settings</h1></div>

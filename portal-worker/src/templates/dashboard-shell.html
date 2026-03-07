@@ -33,14 +33,29 @@
                     <a href="/portal/learn">Learn</a>
                 </nav>
                 <div class="user-menu">
-                    <span class="user-name" id="userName">Loading...</span>
-                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                    <button class="user-menu-trigger" id="userMenuTrigger">
+                        <span class="user-name" id="userName">Loading...</span>
+                        <span class="user-chevron">&#9662;</span>
+                    </button>
+                    <div class="user-menu-dropdown" id="userMenuDropdown">
+                        <div class="user-menu-label" id="userMenuLabel"></div>
+                        <div class="user-menu-divider"></div>
+                        <div id="superAdminLinks"></div>
+                        <button class="user-menu-item" id="logoutBtn">Log Out</button>
+                    </div>
                 </div>
             </div>
         </div>
     </header>
-    <script>document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');document.querySelector('.user-menu').classList.toggle('open');});
-    document.addEventListener('click',function(){var m=document.getElementById('exportPropertiesMenu');if(m)m.style.display='none';var mm=document.getElementById('matchMenu');if(mm)mm.style.display='none';});</script>
+    <script>
+    document.querySelector('.menu-toggle').addEventListener('click',function(){document.querySelector('.nav-links').classList.toggle('open');});
+    document.getElementById('userMenuTrigger').addEventListener('click',function(e){e.stopPropagation();document.getElementById('userMenuDropdown').classList.toggle('open');});
+    document.addEventListener('click',function(e){
+        var dd=document.getElementById('userMenuDropdown');if(dd&&!dd.contains(e.target))dd.classList.remove('open');
+        var m=document.getElementById('exportPropertiesMenu');if(m)m.style.display='none';
+        var mm=document.getElementById('matchMenu');if(mm)mm.style.display='none';
+    });
+    </script>
     <main id="main-content">
         <div class="container">
             <div class="page-header">
