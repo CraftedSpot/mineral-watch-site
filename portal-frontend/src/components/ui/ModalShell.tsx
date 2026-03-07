@@ -69,8 +69,9 @@ export function ModalShell({
 
   return (
     <div style={{
-      background: '#fff', borderRadius: radius, width: maxWidth, maxWidth: '100%',
-      maxHeight: isMobile ? 'calc(100vh - 16px)' : 'calc(100vh - 20px)',
+      background: '#fff', borderRadius: radius,
+      width: isMobile ? '100%' : maxWidth, maxWidth: '100%',
+      maxHeight: isMobile ? 'calc(100vh - 48px)' : 'calc(100vh - 20px)',
       display: 'flex', flexDirection: 'column',
       boxShadow: '0 8px 30px rgba(0,0,0,0.15)', fontFamily: "'Inter', 'DM Sans', sans-serif",
       overflow: 'hidden', position: 'relative',
@@ -113,7 +114,7 @@ export function ModalShell({
       {/* Footer */}
       {footer && (
         <div style={{
-          padding: isMobile ? '10px 16px' : '14px 24px', borderTop: `1px solid ${BORDER}`,
+          padding: isMobile ? '14px 16px' : '14px 24px', borderTop: `1px solid ${BORDER}`,
           display: 'flex', gap: 10, flexShrink: 0, background: '#fff',
           borderRadius: `0 0 ${radius}px ${radius}px`, alignItems: 'center',
         }}>

@@ -918,6 +918,8 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       .section:has(.monthly-table) { overflow-x: auto; }
       .data-table { font-size: 9px; }
       .data-table th, .data-table td { padding: 4px 6px; }
+      .section:has(.data-table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .header .location { word-break: break-word; overflow-wrap: break-word; }
       .footer { flex-direction: column; gap: 4px; text-align: center; }
       .reporting-status-box { flex-direction: column; align-items: flex-start; }
     }

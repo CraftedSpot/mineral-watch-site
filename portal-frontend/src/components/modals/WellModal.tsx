@@ -3,14 +3,15 @@ import { useModal } from '../../contexts/ModalContext';
 import { useWells } from '../../hooks/useWells';
 import { useToast } from '../../contexts/ToastContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import {
-  fetchWellEnrichment, fetchLinkedProperties, fetchLinkedDocuments, saveWellNotes,
+  fetchWellEnrichment, fetchLinkedProperties, fetchLinkedDocuments, saveWellNotes, saveWellInterests,
 } from '../../api/wells';
 import { AccordionSection } from '../ui/AccordionSection';
 import { Badge } from '../ui/Badge';
 import { ModalShell } from '../ui/ModalShell';
 import { Card } from '../ui/Card';
-import { TextArea } from '../ui/FormField';
+import { TextArea, TextInput } from '../ui/FormField';
 import { SkeletonRows } from '../ui/SkeletonRows';
 import { OTCProductionSection } from '../shared/OTCProductionSection';
 import { OCCFilingsSection } from '../shared/OCCFilingsSection';
@@ -49,6 +50,7 @@ function isHorizontal(name?: string, enrichment?: WellEnrichment | null): boolea
 export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameProp, operator: opProp, county: countyProp, status: statusProp }: Props) {
   const modal = useModal();
   const toast = useToast();
+  const isMobile = useIsMobile();
   const { data: wells } = useWells();
   const [occCountOverride, setOccCountOverride] = useState<number | undefined>(undefined);
   const [completionCount, setCompletionCount] = useState<number | null>(null);
@@ -56,6 +58,9 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   const [notesValue, setNotesValue] = useState<string | null>(null);
   const [notesDirty, setNotesDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Interest editing state — null means "use data from server"
+  const [interestEdits, setInterestEdits] = useState<Record<string, string>>({});
+  const [interestDirty, setInterestDirty] = useState(false);
 
   // Resolve full WellRecord from store
   const wellRecord: WellRecord | null = useMemo(() => {
@@ -128,6 +133,14 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   const hasInterests = riNri != null || wiNri != null || orriNri != null;
   const interestCount = [riNri, wiNri, orriNri].filter((v) => v != null).length;
 
+  // NRI component fields (RI-scoped)
+  const netMineralAcres = w?.net_mineral_acres ?? null;
+  const unitAcres = w?.unit_acres ?? null;
+  const leaseRoyaltyRate = w?.lease_royalty_rate ?? null;
+  const leaseRoyaltyFraction = w?.lease_royalty_fraction ?? null;
+  const tractParticipation = w?.tract_participation ?? null;
+  const hasComponents = netMineralAcres != null || unitAcres != null || leaseRoyaltyRate != null || tractParticipation != null;
+
   // Notes
   const originalNotes = w?.notes || enrichment?.notes || '';
   const currentNotes = notesValue !== null ? notesValue : originalNotes;
@@ -165,22 +178,37 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
     setNotesDirty(e.target.value !== originalNotes);
   }, [originalNotes]);
 
+  const handleInterestChange = useCallback((field: string, value: string) => {
+    setInterestEdits((prev) => ({ ...prev, [field]: value }));
+    setInterestDirty(true);
+  }, []);
+
   const handleSaveAndClose = useCallback(async () => {
-    if (!clientWellId || !notesDirty) {
+    const hasDirty = notesDirty || interestDirty;
+    if (!clientWellId || !hasDirty) {
       onClose();
       return;
     }
     setSaving(true);
     try {
-      await saveWellNotes(clientWellId, currentNotes);
-      toast.success('Notes saved');
+      const saves: Promise<void>[] = [];
+      if (notesDirty) saves.push(saveWellNotes(clientWellId, currentNotes));
+      if (interestDirty) {
+        const payload: Record<string, string | number | null> = {};
+        for (const [k, v] of Object.entries(interestEdits)) {
+          payload[k] = v === '' ? null : v;
+        }
+        saves.push(saveWellInterests(clientWellId, payload));
+      }
+      await Promise.all(saves);
+      toast.success('Saved');
       onClose();
     } catch {
-      toast.error('Failed to save notes');
+      toast.error('Failed to save');
     } finally {
       setSaving(false);
     }
-  }, [clientWellId, notesDirty, currentNotes, onClose, toast]);
+  }, [clientWellId, notesDirty, interestDirty, currentNotes, interestEdits, onClose, toast]);
 
   const handleEstimateRevenue = useCallback(() => {
     toast.info('Revenue Estimator coming in Phase 2d');
@@ -217,55 +245,49 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
       bodyBg="#fff"
       footer={
         <>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, width: '100%' }}>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button onClick={handleEstimateRevenue} style={footerBtnStyle}>Estimate Revenue</button>
-              {mwMapUrl && (
-                <a href={mwMapUrl} target="_blank" rel="noopener noreferrer"
-                  style={{ ...footerBtnStyle, textDecoration: 'none' }}>
-                  MW Map &#8599;
-                </a>
-              )}
-              {occMapLink && occMapLink !== '#' && (
-                <a href={occMapLink} target="_blank" rel="noopener noreferrer"
-                  style={{ ...footerBtnStyle, textDecoration: 'none' }}>
-                  OCC Map &#8599;
-                </a>
-              )}
-            </div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {occRecordsUrl && (
-                <a href={occRecordsUrl} target="_blank" rel="noopener noreferrer" style={{ ...footerBtnStyle, textDecoration: 'none' }}>
-                  Well Records &#8599;
-                </a>
-              )}
-              {resolvedApi && (
-                <a
-                  href={pun ? `/print/unit?pun=${pun}&wellApi=${resolvedApi}` : '#'}
-                  target="_blank" rel="noopener noreferrer"
-                  style={{
-                    ...footerBtnStyle, textDecoration: 'none',
-                    ...(pun ? {} : { opacity: 0.5, pointerEvents: 'none' as const }),
-                  }}
-                >
-                  Unit Report &#8599;
-                </a>
-              )}
-            </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, width: '100%' }}>
+            <button onClick={handleEstimateRevenue} style={{ ...footerBtnStyle, padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110 }}>Revenue</button>
+            {mwMapUrl && (
+              <a href={mwMapUrl} target="_blank" rel="noopener noreferrer"
+                style={{ ...footerBtnStyle, textDecoration: 'none', padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110 }}>
+                Map{!isMobile && ' \u2197'}
+              </a>
+            )}
+            {occRecordsUrl && (
+              <a href={occRecordsUrl} target="_blank" rel="noopener noreferrer" style={{ ...footerBtnStyle, textDecoration: 'none', padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110 }}>
+                Records{!isMobile && ' \u2197'}
+              </a>
+            )}
+            {resolvedApi && (
+              <a
+                href={pun ? `/print/unit?pun=${pun}&wellApi=${resolvedApi}` : '#'}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  ...footerBtnStyle, textDecoration: 'none',
+                  padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110,
+                  ...(pun ? {} : { opacity: 0.5, pointerEvents: 'none' as const }),
+                }}
+              >
+                Unit{!isMobile && ' \u2197'}
+              </a>
+            )}
+            {(notesDirty || interestDirty) && (
+              <button
+                onClick={handleSaveAndClose}
+                disabled={saving}
+                style={{
+                  background: '#059669', color: '#fff', border: 'none',
+                  borderRadius: 6, padding: isMobile ? '8px 14px' : '10px 18px',
+                  fontSize: isMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Inter', 'DM Sans', sans-serif",
+                  marginLeft: 'auto',
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            )}
           </div>
-          {notesDirty && (
-            <button
-              onClick={handleSaveAndClose}
-              disabled={saving}
-              style={{
-                ...footerBtnStyle,
-                marginTop: 10, width: '100%',
-                opacity: saving ? 0.7 : 1,
-              }}
-            >
-              {saving ? 'Saving...' : 'Save & Close'}
-            </button>
-          )}
         </>
       }
     >
@@ -275,7 +297,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
         <>
           {/* Status Row */}
           <div style={{
-            display: 'flex', gap: 24, marginBottom: 20, paddingBottom: 16,
+            display: 'flex', gap: isMobile ? 12 : 24, flexWrap: 'wrap', marginBottom: isMobile ? 12 : 20, paddingBottom: isMobile ? 12 : 16,
             borderBottom: `1px solid ${BORDER}`,
           }}>
             <StatusItem label="Well Type">
@@ -294,7 +316,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
           </div>
 
           {/* Operator / Location */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 16 }}>
             <Card style={{ flex: 1 }}>
               <div style={sectionLabelStyle}>Operator</div>
               <div style={{ fontSize: 15, fontWeight: 500, color: OIL_NAVY, marginBottom: 4 }}>
@@ -323,8 +345,8 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
 
           {/* Key Dates & Specs Row */}
           {hasKeyDates && (
-            <Card bg="#f8fafc" padding="12px 16px" style={{ marginBottom: 16 }}>
-              <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+            <Card bg="#f8fafc" padding={isMobile ? '10px 12px' : '12px 16px'} style={{ marginBottom: isMobile ? 12 : 16 }}>
+              <div style={{ display: 'flex', gap: isMobile ? 12 : 24, flexWrap: 'wrap' }}>
                 {completionDate && <KeyDateItem label="Completed" value={formatDate(completionDate)} />}
                 {firstProdDate && <KeyDateItem label="First Production" value={formatDate(firstProdDate)} />}
                 {totalDepth && <KeyDateItem label="Total Depth" value={`${formatNumber(totalDepth)}\u2032`} />}
@@ -338,24 +360,58 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
           {/* OTC Production */}
           {resolvedApi && <OTCProductionSection apiNumber={resolvedApi} onPunLoaded={setPun} />}
 
-          {/* Decimal Interest */}
-          {hasInterests && (
-            <AccordionSection title="Decimal Interest" count={interestCount} defaultOpen={hasInterests}>
-              <div style={{ paddingTop: 12 }}>
-                <div style={{
-                  fontSize: 11, fontWeight: 600, color: '#059669', textTransform: 'uppercase',
-                  marginBottom: 8, letterSpacing: '0.5px',
-                }}>
-                  Your Interest
+          {/* Decimal Interest — always visible, editable */}
+          <AccordionSection title="Decimal Interest" count={interestCount || undefined}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {([
+                { key: 'ri_nri', label: 'RI NRI', server: riNri },
+                { key: 'wi_nri', label: 'WI NRI', server: wiNri },
+                { key: 'orri_nri', label: 'ORRI NRI', server: orriNri },
+              ] as const).map((field) => (
+                <div key={field.key}>
+                  <label style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 500 }}>{field.label}</label>
+                  <TextInput type="number" step="any"
+                    value={interestEdits[field.key] ?? (field.server != null ? String(field.server) : '')}
+                    onChange={(e) => handleInterestChange(field.key, e.target.value)}
+                    placeholder="0.00000000"
+                    style={{ width: '100%', marginTop: 2 }}
+                  />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {riNri != null && <InterestRow label="Royalty Interest (RI NRI)" value={riNri} />}
-                  {wiNri != null && <InterestRow label="Working Interest (WI NRI)" value={wiNri} />}
-                  {orriNri != null && <InterestRow label="Override (ORRI NRI)" value={orriNri} />}
-                </div>
+              ))}
+            </div>
+            {/* NRI Component Fields (RI-scoped) */}
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px dashed #e2e8f0' }}>
+              <div style={{
+                fontSize: 10, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase',
+                marginBottom: 6, letterSpacing: '0.5px',
+              }}>
+                RI Components
               </div>
-            </AccordionSection>
-          )}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {([
+                  { key: 'net_mineral_acres', label: 'Net Mineral Acres', server: netMineralAcres },
+                  { key: 'unit_acres', label: 'Unit Acres', server: unitAcres },
+                  { key: 'lease_royalty_rate', label: 'Lease Royalty Rate', server: leaseRoyaltyRate },
+                  { key: 'tract_participation', label: 'Tract Participation', server: tractParticipation },
+                ] as const).map((field) => (
+                  <div key={field.key}>
+                    <label style={{ fontSize: 11, color: '#94a3b8', fontWeight: 500 }}>{field.label}</label>
+                    <TextInput type="number" step="any"
+                      value={interestEdits[field.key] ?? (field.server != null ? String(field.server) : '')}
+                      onChange={(e) => handleInterestChange(field.key, e.target.value)}
+                      placeholder="0"
+                      style={{ width: '100%', marginTop: 2 }}
+                    />
+                  </div>
+                ))}
+              </div>
+              {leaseRoyaltyFraction && (
+                <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>
+                  Royalty: {leaseRoyaltyFraction}
+                </div>
+              )}
+            </div>
+          </AccordionSection>
 
           {/* Linked Properties */}
           {clientWellId && (
@@ -507,6 +563,20 @@ function InterestRow({ label, value }: { label: string; value: number }) {
         fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace",
       }}>
         {formatDecimal(value)}
+      </span>
+    </div>
+  );
+}
+
+function ComponentRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+      <span style={{ fontSize: 12, color: '#94a3b8' }}>{label}</span>
+      <span style={{
+        fontSize: 12, color: '#64748b',
+        fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace",
+      }}>
+        {value}
       </span>
     </div>
   );

@@ -24,6 +24,11 @@ export interface WellEnrichment {
   ri_nri?: number | null;
   wi_nri?: number | null;
   orri_nri?: number | null;
+  net_mineral_acres?: number | null;
+  unit_acres?: number | null;
+  lease_royalty_rate?: number | null;
+  lease_royalty_fraction?: string | null;
+  tract_participation?: number | null;
   user_well_code?: string | null;
   occMapLink?: string;
 }

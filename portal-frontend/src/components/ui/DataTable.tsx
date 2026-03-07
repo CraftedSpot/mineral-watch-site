@@ -14,9 +14,10 @@ interface SortState {
 }
 
 /** Build CSS grid-template-columns from column defs + selectable flag */
-function buildGridTemplate<T>(columns: ColumnDef<T>[], selectable: boolean): string {
+function buildGridTemplate<T>(columns: ColumnDef<T>[], selectable: boolean, mobile: boolean): string {
   const colWidths = columns.map((col) => {
-    if (col.width) return typeof col.width === 'number' ? `${col.width}px` : col.width;
+    const w = mobile && col.mobileWidth != null ? col.mobileWidth : col.width;
+    if (w) return typeof w === 'number' ? `${w}px` : w;
     if (col.minWidth) return `minmax(${col.minWidth}px, 1fr)`;
     return '1fr';
   });
@@ -64,7 +65,7 @@ export function DataTable<T>({
     [columns, isMobile]
   );
 
-  const gridTemplate = useMemo(() => buildGridTemplate(visibleColumns, selectable), [visibleColumns, selectable]);
+  const gridTemplate = useMemo(() => buildGridTemplate(visibleColumns, selectable, isMobile), [visibleColumns, selectable, isMobile]);
 
   // Filter — use ALL columns for search (even hidden ones)
   const filteredData = useMemo(() => {
@@ -199,40 +200,36 @@ export function DataTable<T>({
               }}
             />
           )}
-          {(filterDropdown || sortDropdown) && (
-            <div style={{ display: 'flex', gap: 8 }}>
-              {filterDropdown && (
-                <Select
-                  value={filterDropdown.value}
-                  onChange={(e) => filterDropdown.onChange(e.target.value)}
-                  style={{ flex: 1, fontSize: 13 }}
-                >
-                  {filterDropdown.options.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </Select>
-              )}
-              {sortDropdown && (
-                <Select
-                  value={sortDropdown.value}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    sortDropdown.onChange(val);
-                    const dash = val.lastIndexOf('-');
-                    if (dash > 0) {
-                      const key = val.substring(0, dash);
-                      const dir = val.substring(dash + 1) as 'asc' | 'desc';
-                      setSort({ key, direction: dir });
-                    }
-                  }}
-                  style={{ flex: 1, fontSize: 13 }}
-                >
-                  {sortDropdown.options.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </Select>
-              )}
-            </div>
+          {filterDropdown && (
+            <Select
+              value={filterDropdown.value}
+              onChange={(e) => filterDropdown.onChange(e.target.value)}
+              style={{ width: '100%', fontSize: 13 }}
+            >
+              {filterDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          )}
+          {sortDropdown && (
+            <Select
+              value={sortDropdown.value}
+              onChange={(e) => {
+                const val = e.target.value;
+                sortDropdown.onChange(val);
+                const dash = val.lastIndexOf('-');
+                if (dash > 0) {
+                  const key = val.substring(0, dash);
+                  const dir = val.substring(dash + 1) as 'asc' | 'desc';
+                  setSort({ key, direction: dir });
+                }
+              }}
+              style={{ width: '100%', fontSize: 13 }}
+            >
+              {sortDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: 12, color: SLATE, whiteSpace: 'nowrap' }}>

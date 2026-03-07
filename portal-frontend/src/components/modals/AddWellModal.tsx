@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { ModalShell } from '../ui/ModalShell';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { addWell, searchWells } from '../../api/wells';
 import type { SearchWellResult } from '../../api/wells';
 import { TEAL, BORDER, SLATE, DARK, WELL_STATUS_COLORS } from '../../lib/constants';
@@ -43,6 +44,7 @@ function statusLabel(s: string): string {
 
 export function AddWellModal({ onClose, onComplete }: Props) {
   const toast = useToast();
+  const isMobile = useIsMobile();
 
   // Tabs
   const [tab, setTab] = useState<Tab>('api');
@@ -150,12 +152,12 @@ export function AddWellModal({ onClose, onComplete }: Props) {
 
   const tabBar = (
     <div style={{ display: 'flex', gap: 0, borderBottom: `1px solid ${BORDER}`, background: '#fff' }}>
-      {([['api', 'By API Number'], ['search', 'Search Wells'], ['import', 'Import Spreadsheet']] as const).map(([key, label]) => (
+      {([['api', isMobile ? 'API' : 'By API Number'], ['search', 'Search'], ['import', 'Import']] as [Tab, string][]).map(([key, label]) => (
         <button
           key={key}
           onClick={() => { setTab(key); setError(''); }}
           style={{
-            flex: 1, padding: '10px 16px', fontSize: 13, fontWeight: tab === key ? 700 : 500,
+            flex: 1, padding: isMobile ? '10px 8px' : '10px 16px', fontSize: isMobile ? 12 : 13, fontWeight: tab === key ? 700 : 500,
             color: tab === key ? TEAL : SLATE, background: 'none', border: 'none',
             borderBottom: tab === key ? `2px solid ${TEAL}` : '2px solid transparent',
             cursor: 'pointer', transition: 'all 0.15s',
@@ -271,7 +273,7 @@ export function AddWellModal({ onClose, onComplete }: Props) {
         {/* Tab 2: Search */}
         {phase !== 'success' && tab === 'search' && (
           <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 8 : 12, marginBottom: 8 }}>
               <div>
                 <label style={labelStyle}>Well Name</label>
                 <input
@@ -309,7 +311,7 @@ export function AddWellModal({ onClose, onComplete }: Props) {
             </div>
 
             {showAdvanced && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                 <div>
                   <label style={{ ...labelStyle, fontSize: 11 }}>Section</label>
                   <input

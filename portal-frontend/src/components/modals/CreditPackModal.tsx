@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useToast } from '../../contexts/ToastContext';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { CREDIT_PACKS, purchaseCreditPack } from '../../lib/credit-packs';
 import type { CreditPack } from '../../lib/credit-packs';
 import { OIL_NAVY, BORDER, TEXT_MUTED, TEXT_FAINT } from '../../lib/constants';
@@ -13,6 +14,7 @@ interface Props {
 
 export function CreditPackModal({ onClose }: Props) {
   const toast = useToast();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(false);
 
   const handlePurchase = async (pack: CreditPack) => {
@@ -43,8 +45,8 @@ export function CreditPackModal({ onClose }: Props) {
 
       {/* Pack grid */}
       <div style={{
-        display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 16, padding: '24px',
+        display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2, 1fr)',
+        gap: isMobile ? 12 : 16, padding: isMobile ? '16px' : '24px',
         pointerEvents: loading ? 'none' : 'auto',
         opacity: loading ? 0.6 : 1,
         transition: 'opacity 0.2s',

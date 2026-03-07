@@ -161,6 +161,27 @@ const PUN_ALIASES = [
   'PROD_UNIT', 'ProdUnit', 'prod_unit_no', 'OTC PUN', 'Unit Number',
   'Prod Unit No', 'PUN Number', 'PUN#', 'PUN #'
 ];
+// NRI component field aliases (RI-scoped)
+const NET_MINERAL_ACRES_ALIASES = [
+  'net_mineral_acres', 'NMA', 'Net Mineral Acres', 'NET_MINERAL_ACRES',
+  'Net Acres', 'Mineral Acres', 'NMA Acres', 'net_acres'
+];
+const UNIT_ACRES_ALIASES = [
+  'unit_acres', 'Unit Acres', 'UNIT_ACRES', 'Spacing Acres',
+  'Total Unit Acres', 'Unit Size', 'unit_size_acres'
+];
+const LEASE_ROYALTY_RATE_ALIASES = [
+  'lease_royalty_rate', 'Royalty Rate', 'ROYALTY_RATE', 'Lease Royalty',
+  'royalty_rate', 'Royalty', 'Lease Rate', 'lease_rate'
+];
+const LEASE_ROYALTY_FRACTION_ALIASES = [
+  'lease_royalty_fraction', 'Royalty Fraction', 'ROYALTY_FRACTION',
+  'Lease Fraction', 'lease_fraction', 'Fraction'
+];
+const TRACT_PARTICIPATION_ALIASES = [
+  'tract_participation', 'Tract Factor', 'TRACT_PARTICIPATION',
+  'Participation Factor', 'tract_factor', 'Participation', 'TPF'
+];
 
 // API number column aliases — used by findField() for flexible detection
 const API_ALIASES = [
@@ -202,6 +223,20 @@ function findField(row: any, aliases: string[]): any {
     if (fuzzyKey) return row[fuzzyKey];
   }
   return undefined;
+}
+
+/** Parse a fraction string (e.g., "3/16") or decimal string into a number */
+function parseFractionOrDecimal(val: any): number | null {
+  if (val === undefined || val === null || val === '') return null;
+  const str = String(val).trim();
+  const fracMatch = str.match(/^(\d+)\s*\/\s*(\d+)$/);
+  if (fracMatch) {
+    const denom = parseInt(fracMatch[2]);
+    if (denom === 0) return null;
+    return parseInt(fracMatch[1]) / denom;
+  }
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? null : parsed;
 }
 
 // Normalization Helper Functions
@@ -1766,6 +1801,17 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
         const orriNriRaw = findField(orig, ORRI_NRI_ALIASES);
         const punRaw = findField(orig, PUN_ALIASES);
         const punResolved = well.normalized?.punResolved || null;
+        // NRI component fields
+        const netMineralAcresRaw = findField(orig, NET_MINERAL_ACRES_ALIASES);
+        const unitAcresRaw = findField(orig, UNIT_ACRES_ALIASES);
+        const leaseRoyaltyRateRaw = findField(orig, LEASE_ROYALTY_RATE_ALIASES);
+        const leaseRoyaltyFractionRaw = findField(orig, LEASE_ROYALTY_FRACTION_ALIASES);
+        const tractParticipationRaw = findField(orig, TRACT_PARTICIPATION_ALIASES);
+        // Parse lease royalty — supports fraction strings like "3/16"
+        const parsedRoyaltyRate = leaseRoyaltyRateRaw !== undefined ? parseFractionOrDecimal(leaseRoyaltyRateRaw) : null;
+        // Auto-populate fraction display if rate was entered as a fraction
+        const royaltyStr = leaseRoyaltyRateRaw !== undefined ? String(leaseRoyaltyRateRaw).trim() : '';
+        const autoFraction = /^\d+\s*\/\s*\d+$/.test(royaltyStr) ? royaltyStr : null;
         toCreate.push({
           apiNumber,
           wellName,
@@ -1776,7 +1822,13 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           ri_nri: riNriRaw !== undefined ? parseFloat(riNriRaw) || null : null,
           orri_nri: orriNriRaw !== undefined ? parseFloat(orriNriRaw) || null : null,
           // PUN for enrichment
-          pun: punRaw ? String(punRaw).trim() : (punResolved || null)
+          pun: punRaw ? String(punRaw).trim() : (punResolved || null),
+          // NRI component fields (RI-scoped)
+          net_mineral_acres: netMineralAcresRaw !== undefined ? parseFloat(netMineralAcresRaw) || null : null,
+          unit_acres: unitAcresRaw !== undefined ? parseFloat(unitAcresRaw) || null : null,
+          lease_royalty_rate: parsedRoyaltyRate,
+          lease_royalty_fraction: leaseRoyaltyFractionRaw ? String(leaseRoyaltyFractionRaw).trim() : (autoFraction || null),
+          tract_participation: tractParticipationRaw !== undefined ? parseFloat(tractParticipationRaw) || null : null,
         });
       }
     }
@@ -1823,9 +1875,11 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           INSERT INTO client_wells (
             id, api_number, user_id, organization_id,
             well_name, operator, county, section, township, range_val,
-            user_well_code, wi_nri, ri_nri, orri_nri, notes, status, synced_at
+            user_well_code, wi_nri, ri_nri, orri_nri,
+            net_mineral_acres, unit_acres, lease_royalty_rate, lease_royalty_fraction, tract_participation,
+            notes, status, synced_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', CURRENT_TIMESTAMP)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', CURRENT_TIMESTAMP)
           ON CONFLICT(api_number, user_id) DO UPDATE SET
             well_name = COALESCE(excluded.well_name, client_wells.well_name),
             operator = COALESCE(excluded.operator, client_wells.operator),
@@ -1837,6 +1891,11 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
             wi_nri = COALESCE(excluded.wi_nri, client_wells.wi_nri),
             ri_nri = COALESCE(excluded.ri_nri, client_wells.ri_nri),
             orri_nri = COALESCE(excluded.orri_nri, client_wells.orri_nri),
+            net_mineral_acres = COALESCE(excluded.net_mineral_acres, client_wells.net_mineral_acres),
+            unit_acres = COALESCE(excluded.unit_acres, client_wells.unit_acres),
+            lease_royalty_rate = COALESCE(excluded.lease_royalty_rate, client_wells.lease_royalty_rate),
+            lease_royalty_fraction = COALESCE(excluded.lease_royalty_fraction, client_wells.lease_royalty_fraction),
+            tract_participation = COALESCE(excluded.tract_participation, client_wells.tract_participation),
             updated_at = datetime('now')
         `).bind(
           d1Id,
@@ -1853,6 +1912,11 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           well.wi_nri || null,
           well.ri_nri || null,
           well.orri_nri || null,
+          well.net_mineral_acres || null,
+          well.unit_acres || null,
+          well.lease_royalty_rate || null,
+          well.lease_royalty_fraction || null,
+          well.tract_participation || null,
           well.notes || null
         );
       });

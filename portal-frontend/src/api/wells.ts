@@ -68,6 +68,13 @@ export async function saveWellNotes(wellId: string, notes: string): Promise<void
   });
 }
 
+export async function saveWellInterests(wellId: string, data: Record<string, string | number | null>): Promise<void> {
+  await apiFetch(`/api/wells/${wellId}/interests`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
 // --- Add Well ---
 
 export async function addWell(apiNumber: string, notes?: string): Promise<{ id: string; success: true }> {

@@ -42,5 +42,5 @@ export function FocusTrap({ children, active }: FocusTrapProps) {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [active]);
 
-  return <div ref={containerRef}>{children}</div>;
+  return <div ref={containerRef} style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>{children}</div>;
 }

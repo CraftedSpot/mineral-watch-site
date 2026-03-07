@@ -104,7 +104,8 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
                 display: 'flex',
                 alignItems: isMobile ? 'flex-start' : 'center',
                 justifyContent: 'center',
-                paddingTop: isMobile ? 8 : 0,
+                paddingTop: isMobile ? 20 : 0,
+                paddingBottom: isMobile ? 20 : 0,
               }}
             >
               {/* Backdrop */}

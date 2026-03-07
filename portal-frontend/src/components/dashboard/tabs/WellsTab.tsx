@@ -5,7 +5,7 @@ import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { useIsMobile } from '../../../hooks/useIsMobile';
-import { formatTRS, formatPhone, getWellStatusColor } from '../../../lib/helpers';
+import { formatTRS, formatPhone, getWellStatusColor, formatDecimal } from '../../../lib/helpers';
 import { formatProdMonth, computeDataHorizon, getProductionStatus } from '../../../lib/production-utils';
 import { WellLinkCounts } from '../../ui/LinkCounts';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
@@ -43,6 +43,7 @@ const SORT_OPTIONS = [
   { value: 'documents-desc', label: 'Documents' },
   { value: 'filings-desc', label: 'OCC Filings' },
   { value: 'date-desc', label: 'Recently Added' },
+  { value: 'nri-desc', label: 'NRI Decimal' },
 ];
 
 /** Parse township: "09N" → { num: 9, dir: 'n' } */
@@ -113,6 +114,8 @@ function compareWells(a: WellRecord, b: WellRecord, field: string, direction: 'a
       return ((a._linkCounts?.filings || 0) - (b._linkCounts?.filings || 0)) * mul;
     case 'date':
       return ((a.createdTime || '') < (b.createdTime || '') ? -1 : 1) * mul;
+    case 'nri':
+      return ((a.ri_nri || 0) - (b.ri_nri || 0)) * mul;
     default:
       return 0;
   }
@@ -479,6 +482,14 @@ export function WellsTab() {
                             Op: <strong style={{ color: DARK }}>{w.operator}</strong>
                           </div>
                         )}
+                        {w.ri_nri != null && (
+                          <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>
+                            <span style={{ fontWeight: 600 }}>NRI</span>{' '}
+                            <span style={{ fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace", fontSize: 11 }}>
+                              {formatDecimal(w.ri_nri)}
+                            </span>
+                          </div>
+                        )}
                         <div style={{ marginTop: 4 }}>
                           <WellLinkCounts counts={w._linkCounts} />
                         </div>
@@ -512,6 +523,19 @@ export function WellsTab() {
                                   <span style={ex === 'Horizontal' ? { color: '#2563eb' } : undefined}>{ex}</span>
                                 </span>
                               ))}
+                            </div>
+                          )}
+                          {w.ri_nri != null && (
+                            <div style={{ fontSize: 11, color: '#059669', marginTop: 2 }}>
+                              <span style={{ fontWeight: 600 }}>NRI</span>{' '}
+                              <span style={{ fontFamily: "'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace", fontSize: 11 }}>
+                                {formatDecimal(w.ri_nri)}
+                              </span>
+                              {w.wi_nri != null && (
+                                <span style={{ color: '#94a3b8', marginLeft: 6 }}>
+                                  WI {formatDecimal(w.wi_nri)}
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>

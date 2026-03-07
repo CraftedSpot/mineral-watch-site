@@ -12,6 +12,8 @@ export interface ColumnDef<T> {
   compare?: (a: T, b: T) => number;
   /** Hide this column on screens narrower than 768px */
   hideOnMobile?: boolean;
+  /** Override width on mobile (used instead of width when screen < 768px) */
+  mobileWidth?: number | string;
 }
 
 export interface DropdownOption {

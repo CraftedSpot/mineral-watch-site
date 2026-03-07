@@ -3,6 +3,7 @@ import { useModal } from '../../contexts/ModalContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useFormDirty } from '../../hooks/useFormDirty';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { fetchDocumentDetail, saveDocumentNotes } from '../../api/documents';
 import { AccordionSection } from '../ui/AccordionSection';
 import { Badge } from '../ui/Badge';
@@ -39,6 +40,7 @@ const docCloseStyle: React.CSSProperties = {
 export function DocumentDetailModal({ onClose, docId }: Props) {
   const modal = useModal();
   const toast = useToast();
+  const isMobile = useIsMobile();
   const [saving, setSaving] = useState(false);
 
   const { data: doc, loading, error } = useAsyncData<DocumentDetail>(
@@ -154,32 +156,29 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
       }
       bodyBg={BG_MUTED}
       footer={
-        <>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="primary" color={TEAL} size="md" onClick={handleViewPdf}
-              icon={
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
-                </svg>
-              }
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 6 : 8, width: '100%', alignItems: 'center' }}>
+          <Button variant="primary" color={TEAL} size={isMobile ? 'sm' : 'md'} onClick={handleViewPdf}
+            icon={
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+              </svg>
+            }
+          >
+            View
+          </Button>
+          <Button variant="secondary" size={isMobile ? 'sm' : 'md'} onClick={handlePrintSummary}>Print</Button>
+          <Button variant="ghost" size={isMobile ? 'sm' : 'md'} onClick={handleDownload}>Download</Button>
+          <div style={{ flex: 1 }} />
+          {isDirty && (
+            <Button variant="primary" color={TEAL} size={isMobile ? 'sm' : 'md'} onClick={handleSave} disabled={saving}
+              style={{ opacity: saving ? 0.7 : 1 }}
+              icon={saving ? <Spinner size={12} color="#fff" /> : undefined}
             >
-              View Original
+              Save
             </Button>
-            <Button variant="secondary" size="md" onClick={handlePrintSummary}>Print Summary</Button>
-            <Button variant="ghost" size="md" onClick={handleDownload}>Download</Button>
-          </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
-            {isDirty && (
-              <Button variant="primary" color={TEAL} size="md" onClick={handleSave} disabled={saving}
-                style={{ opacity: saving ? 0.7 : 1 }}
-                icon={saving ? <Spinner size={12} color="#fff" /> : undefined}
-              >
-                Save & Close
-              </Button>
-            )}
-            <Button variant="ghost" size="md" onClick={onClose}>Close</Button>
-          </div>
-        </>
+          )}
+          <Button variant="ghost" size={isMobile ? 'sm' : 'md'} onClick={onClose}>Close</Button>
+        </div>
       }
     >
       {/* Children (multi-doc) */}

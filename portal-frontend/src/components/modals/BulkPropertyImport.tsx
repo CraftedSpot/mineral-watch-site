@@ -291,43 +291,76 @@ export function BulkPropertyImport({ onClose, onComplete, onFooterChange, onStep
           </div>
 
           {/* Preview table */}
-          <div style={{ maxHeight: 400, overflowY: 'auto', overflowX: 'auto', margin: '0 20px 16px', border: `1px solid ${BORDER}`, borderRadius: 8, WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, whiteSpace: 'nowrap' }}>
-              <thead>
-                <tr style={{ background: BG_MUTED, position: 'sticky', top: 0, zIndex: 1 }}>
-                  <th style={thStyle}>#</th>
-                  <th style={thStyle}>Section</th>
-                  <th style={thStyle}>Township</th>
-                  <th style={thStyle}>Range</th>
-                  <th style={thStyle}>Meridian</th>
-                  <th style={thStyle}>County</th>
-                  <th style={thStyle}>Group</th>
-                  <th style={thStyle}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validationData.results.map((r, i) => {
-                  const n = r.normalized as Record<string, unknown> | null;
-                  const hasError = r.errors.length > 0;
-                  const bg = r.isDuplicate ? '#f9fafb' : hasError ? '#fef2f2' : '#fff';
-                  const statusColor = r.isDuplicate ? '#6b7280' : hasError ? '#dc2626' : '#16a34a';
-                  const statusText = r.isDuplicate ? 'Duplicate' : hasError ? r.errors[0] : 'Valid';
-                  return (
-                    <tr key={i} style={{ background: bg, borderBottom: `1px solid ${BORDER}` }}>
-                      <td style={tdStyle}>{i + 1}</td>
-                      <td style={tdStyle}>{n?.SEC ?? '-'}</td>
-                      <td style={tdStyle}>{String(n?.TWN ?? '-')}</td>
-                      <td style={tdStyle}>{String(n?.RNG ?? '-')}</td>
-                      <td style={tdStyle}>{String(n?.MERIDIAN ?? '-')}</td>
-                      <td style={tdStyle}>{cleanCounty(String(n?.COUNTY ?? '')) || '-'}</td>
-                      <td style={tdStyle}>{String(n?.GROUP ?? '') || '-'}</td>
-                      <td style={{ ...tdStyle, color: statusColor, fontWeight: 600 }}>{statusText}</td>
+          {(() => {
+            // Detect which optional columns have data to avoid empty columns
+            const results = validationData.results;
+            const hasAcres = results.some((r) => {
+              const n = r.normalized as Record<string, unknown> | null;
+              return n && (Number(n['RI Acres']) > 0 || Number(n['WI Acres']) > 0 || Number(n.total_acres) > 0);
+            });
+            const hasRiDecimal = results.some((r) => {
+              const n = r.normalized as Record<string, unknown> | null;
+              return n && n.ri_decimal != null;
+            });
+            const hasCode = results.some((r) => {
+              const n = r.normalized as Record<string, unknown> | null;
+              return n && n.property_code;
+            });
+            return (
+              <div style={{ maxHeight: 400, overflowY: 'auto', overflowX: 'auto', margin: '0 20px 16px', border: `1px solid ${BORDER}`, borderRadius: 8, WebkitOverflowScrolling: 'touch' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, whiteSpace: 'nowrap' }}>
+                  <thead>
+                    <tr style={{ background: BG_MUTED, position: 'sticky', top: 0, zIndex: 1 }}>
+                      <th style={thStyle}>#</th>
+                      <th style={thStyle}>Section</th>
+                      <th style={thStyle}>Township</th>
+                      <th style={thStyle}>Range</th>
+                      <th style={thStyle}>Meridian</th>
+                      <th style={thStyle}>County</th>
+                      <th style={thStyle}>Group</th>
+                      {hasAcres && <th style={thStyle}>Acres</th>}
+                      {hasRiDecimal && <th style={thStyle}>RI Decimal</th>}
+                      {hasCode && <th style={thStyle}>Code</th>}
+                      <th style={thStyle}>Status</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {results.map((r, i) => {
+                      const n = r.normalized as Record<string, unknown> | null;
+                      const hasError = r.errors.length > 0;
+                      const bg = r.isDuplicate ? '#f9fafb' : hasError ? '#fef2f2' : '#fff';
+                      const statusColor = r.isDuplicate ? '#6b7280' : hasError ? '#dc2626' : '#16a34a';
+                      const statusText = r.isDuplicate ? 'Duplicate' : hasError ? r.errors[0] : 'Valid';
+                      const riAcres = Number(n?.['RI Acres'] ?? 0);
+                      const wiAcres = Number(n?.['WI Acres'] ?? 0);
+                      const acresDisplay = riAcres > 0 && wiAcres > 0
+                        ? `RI: ${riAcres} / WI: ${wiAcres}`
+                        : riAcres > 0 ? String(riAcres) : wiAcres > 0 ? `WI: ${wiAcres}` : '-';
+                      return (
+                        <tr key={i} style={{ background: bg, borderBottom: `1px solid ${BORDER}` }}>
+                          <td style={tdStyle}>{i + 1}</td>
+                          <td style={tdStyle}>{n?.SEC ?? '-'}</td>
+                          <td style={tdStyle}>{String(n?.TWN ?? '-')}</td>
+                          <td style={tdStyle}>{String(n?.RNG ?? '-')}</td>
+                          <td style={tdStyle}>{String(n?.MERIDIAN ?? '-')}</td>
+                          <td style={tdStyle}>{cleanCounty(String(n?.COUNTY ?? '')) || '-'}</td>
+                          <td style={tdStyle}>{String(n?.GROUP ?? '') || '-'}</td>
+                          {hasAcres && <td style={tdStyle}>{acresDisplay}</td>}
+                          {hasRiDecimal && (
+                            <td style={{ ...tdStyle, fontFamily: "'SF Mono', monospace", fontSize: 12 }}>
+                              {n?.ri_decimal != null ? String(n.ri_decimal) : '-'}
+                            </td>
+                          )}
+                          {hasCode && <td style={tdStyle}>{String(n?.property_code ?? '') || '-'}</td>}
+                          <td style={{ ...tdStyle, color: statusColor, fontWeight: 600 }}>{statusText}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
         </div>
       )}
 

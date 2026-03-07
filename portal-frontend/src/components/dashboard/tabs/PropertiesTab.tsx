@@ -3,6 +3,7 @@ import { useProperties } from '../../../hooks/useProperties';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { formatTRS } from '../../../lib/helpers';
 import { getEntityColor } from '../../../lib/entity-colors';
 import { PropertyLinkCounts } from '../../ui/LinkCounts';
@@ -66,108 +67,120 @@ const SORT_OPTIONS = [
   { value: 'filings-desc', label: 'OCC Filings' },
 ];
 
-// Column definitions
-const columns: ColumnDef<PropertyRecord>[] = [
-  {
-    key: 'county',
-    label: 'County',
-    width: '10%',
-    sortable: true,
-    searchable: true,
-    hideOnMobile: true,
-    getValue: (p) => cleanCounty(p.fields.COUNTY),
-    compare: (a, b) => cleanCounty(a.fields.COUNTY).localeCompare(cleanCounty(b.fields.COUNTY)),
-    render: (p) => <span>{cleanCounty(p.fields.COUNTY)}</span>,
-  },
-  {
-    key: 'legal',
-    label: 'Legal',
-    width: '12%',
-    sortable: true,
-    searchable: true,
-    getValue: (p) => {
-      const f = p.fields;
-      // Search also matches "TWN-RNG-SEC" combined and individual parts
-      return [f.COUNTY, f.SEC, f.TWN, f.RNG, f.Meridian, f.property_code,
-        (f.TWN || '') + '-' + (f.RNG || '') + '-' + (f.SEC || '')].filter(Boolean).join(' ');
-    },
-    compare: compareLegal,
-    render: (p) => (
-      <strong style={{ color: ORANGE, fontFamily: "'IBM Plex Mono', monospace" }}>
-        {formatTRS(p.fields.SEC as string, p.fields.TWN as string, p.fields.RNG as string)}
-      </strong>
-    ),
-  },
-  {
-    key: 'group',
-    label: 'Group',
-    width: '10%',
-    searchable: true,
-    hideOnMobile: true,
-    getValue: (p) => String(p.fields.Group || p.fields.entity_name || ''),
-    render: (p) => {
-      const group = String(p.fields.Group || p.fields.entity_name || '');
-      if (!group) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
-      const ec = getEntityColor(group);
-      return (
-        <Badge bg={ec.bg} color={ec.text} shape="pill">{group}</Badge>
-      );
-    },
-  },
-  {
-    key: 'acres',
-    label: 'Acres',
-    width: '8%',
-    headerAlign: 'right',
-    sortable: true,
-    hideOnMobile: true,
-    compare: (a, b) => totalAcres(a) - totalAcres(b),
-    render: (p) => {
-      const t = totalAcres(p);
-      return (
-        <span style={{ textAlign: 'right', display: 'block' }}>
-          {t > 0 ? t.toFixed(2) : <em style={{ color: '#A0AEC0' }}>&mdash;</em>}
-        </span>
-      );
-    },
-  },
-  {
-    key: 'notes',
-    label: 'Notes',
-    width: '1fr',
-    searchable: true,
-    hideOnMobile: true,
-    getValue: (p) => String(p.fields.Notes || ''),
-    render: (p) => {
-      const notes = String(p.fields.Notes || '');
-      if (!notes) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
-      return (
-        <span style={{ color: SLATE, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
-          {notes}
-        </span>
-      );
-    },
-  },
-  {
-    key: 'links',
-    label: 'Links',
-    width: '15%',
-    headerAlign: 'right',
-    render: (p) => {
-      const counts = (p as unknown as Record<string, unknown>)._linkCounts as
-        { wells: number; documents: number; filings: number } | undefined;
-      return <PropertyLinkCounts counts={counts} />;
-    },
-  },
-];
-
 export function PropertiesTab() {
   const { data: properties, loading, reload } = useProperties();
+  const isMobile = useIsMobile();
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortValue, setSortValue] = useState('legal-asc');
+
+  // Column definitions (inside component so render can use isMobile)
+  const columns: ColumnDef<PropertyRecord>[] = useMemo(() => [
+    {
+      key: 'county',
+      label: 'County',
+      width: '10%',
+      sortable: true,
+      searchable: true,
+      hideOnMobile: true,
+      getValue: (p) => cleanCounty(p.fields.COUNTY),
+      compare: (a, b) => cleanCounty(a.fields.COUNTY).localeCompare(cleanCounty(b.fields.COUNTY)),
+      render: (p) => <span>{cleanCounty(p.fields.COUNTY)}</span>,
+    },
+    {
+      key: 'legal',
+      label: 'Legal',
+      width: '12%',
+      mobileWidth: '1fr',
+      sortable: true,
+      searchable: true,
+      getValue: (p) => {
+        const f = p.fields;
+        return [f.COUNTY, f.SEC, f.TWN, f.RNG, f.Meridian, f.property_code,
+          (f.TWN || '') + '-' + (f.RNG || '') + '-' + (f.SEC || '')].filter(Boolean).join(' ');
+      },
+      compare: compareLegal,
+      render: (p) => (
+        <div>
+          <strong style={{ color: ORANGE, fontFamily: "'IBM Plex Mono', monospace" }}>
+            {formatTRS(p.fields.SEC as string, p.fields.TWN as string, p.fields.RNG as string)}
+          </strong>
+          {isMobile && (
+            <div style={{ fontSize: 11, color: SLATE, marginTop: 1 }}>
+              {cleanCounty(p.fields.COUNTY)}
+              {(p.fields.Group || p.fields.entity_name) && (
+                <> &middot; {String(p.fields.Group || p.fields.entity_name)}</>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'group',
+      label: 'Group',
+      width: '10%',
+      searchable: true,
+      hideOnMobile: true,
+      getValue: (p) => String(p.fields.Group || p.fields.entity_name || ''),
+      render: (p) => {
+        const group = String(p.fields.Group || p.fields.entity_name || '');
+        if (!group) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
+        const ec = getEntityColor(group);
+        return (
+          <Badge bg={ec.bg} color={ec.text} shape="pill">{group}</Badge>
+        );
+      },
+    },
+    {
+      key: 'acres',
+      label: 'Acres',
+      width: '8%',
+      headerAlign: 'right',
+      sortable: true,
+      hideOnMobile: true,
+      compare: (a, b) => totalAcres(a) - totalAcres(b),
+      render: (p) => {
+        const t = totalAcres(p);
+        return (
+          <span style={{ textAlign: 'right', display: 'block' }}>
+            {t > 0 ? t.toFixed(2) : <em style={{ color: '#A0AEC0' }}>&mdash;</em>}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'notes',
+      label: 'Notes',
+      width: '1fr',
+      searchable: true,
+      hideOnMobile: true,
+      getValue: (p) => String(p.fields.Notes || ''),
+      render: (p) => {
+        const notes = String(p.fields.Notes || '');
+        if (!notes) return <em style={{ color: '#A0AEC0' }}>&mdash;</em>;
+        return (
+          <span style={{ color: SLATE, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>
+            {notes}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'links',
+      label: 'Links',
+      width: '15%',
+      mobileWidth: 'auto',
+      headerAlign: 'right',
+      render: (p) => {
+        const counts = (p as unknown as Record<string, unknown>)._linkCounts as
+          { wells: number; documents: number; filings: number } | undefined;
+        return <PropertyLinkCounts counts={counts} />;
+      },
+    },
+  ], [isMobile]);
 
   // Parse sort dropdown into DataTable defaultSort
   const defaultSort = useMemo(() => {

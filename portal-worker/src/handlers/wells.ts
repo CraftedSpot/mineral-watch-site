@@ -674,6 +674,13 @@ export async function handleListWellsV2(request: Request, env: Env) {
       orri_nri_source_doc_id: row.orri_nri_source_doc_id || null,
       orri_nri_source_date: row.orri_nri_source_date || null,
 
+      // NRI component fields (RI-scoped, for audit/provenance)
+      net_mineral_acres: row.net_mineral_acres ?? null,
+      unit_acres: row.unit_acres ?? null,
+      lease_royalty_rate: row.lease_royalty_rate ?? null,
+      lease_royalty_fraction: row.lease_royalty_fraction || null,
+      tract_participation: row.tract_participation ?? null,
+
       // Risk profile data from well_risk_profiles
       risk_profile_name: row.risk_profile_name || null,
       half_cycle_breakeven: row.half_cycle_breakeven != null ? row.half_cycle_breakeven : null,
@@ -1021,6 +1028,32 @@ export async function handleUpdateWellInterests(wellId: string, request: Request
     const val = body.orri_nri !== null && body.orri_nri !== '' ? parseFloat(body.orri_nri) : null;
     updates.push('orri_nri = ?', 'orri_nri_source = ?', 'orri_nri_source_doc_id = ?', 'orri_nri_source_date = ?');
     binds.push(val, val !== null ? 'manual_entry' : null, null, val !== null ? new Date().toISOString() : null);
+  }
+
+  // NRI component fields (RI-scoped, for audit/provenance)
+  if (body.net_mineral_acres !== undefined) {
+    const val = body.net_mineral_acres !== null && body.net_mineral_acres !== '' ? parseFloat(body.net_mineral_acres) : null;
+    updates.push('net_mineral_acres = ?');
+    binds.push(val);
+  }
+  if (body.unit_acres !== undefined) {
+    const val = body.unit_acres !== null && body.unit_acres !== '' ? parseFloat(body.unit_acres) : null;
+    updates.push('unit_acres = ?');
+    binds.push(val);
+  }
+  if (body.lease_royalty_rate !== undefined) {
+    const val = body.lease_royalty_rate !== null && body.lease_royalty_rate !== '' ? parseFloat(body.lease_royalty_rate) : null;
+    updates.push('lease_royalty_rate = ?');
+    binds.push(val);
+  }
+  if (body.lease_royalty_fraction !== undefined) {
+    updates.push('lease_royalty_fraction = ?');
+    binds.push(body.lease_royalty_fraction || null);
+  }
+  if (body.tract_participation !== undefined) {
+    const val = body.tract_participation !== null && body.tract_participation !== '' ? parseFloat(body.tract_participation) : null;
+    updates.push('tract_participation = ?');
+    binds.push(val);
   }
 
   if (updates.length > 0 && env.WELLS_DB) {

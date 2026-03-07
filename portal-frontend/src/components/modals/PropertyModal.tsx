@@ -5,6 +5,7 @@ import { useConfirm } from '../../contexts/ConfirmContext';
 import { useProperties } from '../../hooks/useProperties';
 import { useAsyncData } from '../../hooks/useAsyncData';
 import { useFormDirty } from '../../hooks/useFormDirty';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { fetchLinkedWells, fetchLinkedDocuments, saveProperty, unlinkWell, relinkWell } from '../../api/properties';
 import { AccordionSection } from '../ui/AccordionSection';
 import { Badge } from '../ui/Badge';
@@ -63,6 +64,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
+  const isMobile = useIsMobile();
   const { data: properties, reload: reloadProperties } = useProperties();
   const [saving, setSaving] = useState(false);
   const [meridian, setMeridian] = useState('IM');
@@ -199,27 +201,27 @@ export function PropertyModal({ onClose, propertyId }: Props) {
       }
       bodyBg="#f1f5f9"
       footer={
-        <>
-          <a href={`/portal/title?property=${propertyId}`} style={{ ...actionBtnStyle, background: 'linear-gradient(135deg, #1e3a5f, #0f172a)', textDecoration: 'none' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 6 : 8, width: '100%' }}>
+          <a href={`/portal/title?property=${propertyId}`} style={{ ...actionBtnStyle, background: 'linear-gradient(135deg, #1e3a5f, #0f172a)', textDecoration: 'none', padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
             Title Chain
           </a>
           <button onClick={() => { onClose(); window.location.search = '?tab=tools'; }}
-            style={{ ...actionBtnStyle, background: ORANGE }}>
-            Estimate Revenue
+            style={{ ...actionBtnStyle, background: ORANGE, padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
+            Revenue
           </button>
           <a href={`/portal/map?county=${county}&sec=${f.SEC}&twn=${f.TWN}&rng=${f.RNG}`}
             target="_blank" rel="noopener noreferrer"
-            style={{ ...actionBtnStyle, background: ORANGE, textDecoration: 'none' }}>
-            MW Map &#x2197;
+            style={{ ...actionBtnStyle, background: ORANGE, textDecoration: 'none', padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
+            Map
           </a>
           {isDirty && (
             <button onClick={handleSave} disabled={saving}
-              style={{ ...actionBtnStyle, background: ORANGE, opacity: saving ? 0.7 : 1 }}>
+              style={{ ...actionBtnStyle, background: ORANGE, opacity: saving ? 0.7 : 1, padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
               {saving && <Spinner size={14} color="#fff" />}
-              Save &amp; Close
+              Save
             </button>
           )}
-        </>
+        </div>
       }
     >
       {/* Details Grid */}

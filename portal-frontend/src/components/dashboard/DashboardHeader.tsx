@@ -67,22 +67,35 @@ export function DashboardHeader({ activeTab, user }: Props) {
           {user.plan || 'Free'}
         </Badge>
 
-        <div style={{
-          display: 'flex', gap: isMobile ? 12 : 20, alignItems: 'center',
-          fontSize: isMobile ? 13 : 14, color: SLATE_BLUE, flexWrap: 'wrap',
-        }}>
-          <UsageStat count={propertyCount} limit={limits.properties} label="Properties" />
-          {!isMobile && <span style={{ color: SLATE_BLUE }}>|</span>}
-          <UsageStat count={counts?.wells ?? 0} limit={limits.wells} label="Wells" />
-          {counts?.documents != null && (
-            <>
-              {!isMobile && <span style={{ color: SLATE_BLUE }}>|</span>}
-              <span>
-                <span style={{ fontWeight: 700, color: OIL_NAVY }}>{counts.documents}</span> Documents
-              </span>
-            </>
-          )}
-        </div>
+        {isMobile ? (
+          <div style={{
+            display: 'grid', gridTemplateColumns: counts?.documents != null ? 'repeat(3, 1fr)' : 'repeat(2, 1fr)',
+            gap: 0, width: '100%',
+          }}>
+            <MobileStat count={propertyCount} label="Properties" />
+            <MobileStat count={counts?.wells ?? 0} label="Wells" />
+            {counts?.documents != null && (
+              <MobileStat count={counts.documents} label="Documents" />
+            )}
+          </div>
+        ) : (
+          <div style={{
+            display: 'flex', gap: 20, alignItems: 'center',
+            fontSize: 14, color: SLATE_BLUE, flexWrap: 'wrap',
+          }}>
+            <UsageStat count={propertyCount} limit={limits.properties} label="Properties" />
+            <span style={{ color: SLATE_BLUE }}>|</span>
+            <UsageStat count={counts?.wells ?? 0} limit={limits.wells} label="Wells" />
+            {counts?.documents != null && (
+              <>
+                <span style={{ color: SLATE_BLUE }}>|</span>
+                <span>
+                  <span style={{ fontWeight: 700, color: OIL_NAVY }}>{counts.documents}</span> Documents
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         {!['Business', 'Enterprise 1K'].includes(user.plan) && (
           <a href="/portal/upgrade" style={{
@@ -95,31 +108,52 @@ export function DashboardHeader({ activeTab, user }: Props) {
       </div>
 
       {/* Thin stats bar */}
-      <div style={{
-        background: '#fff', borderRadius: 8,
-        padding: isMobile ? '8px 14px' : '8px 24px', marginBottom: isMobile ? 12 : 20,
-        display: 'flex', alignItems: 'center',
-        justifyContent: isMobile ? 'flex-start' : 'center',
-        gap: isMobile ? 16 : 32,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        height: isMobile ? 'auto' : 40,
-        flexWrap: 'wrap',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={statLabelStyle}>Last Alert</span>
-          <span style={statValueStyle}>{activityStats ? formatLastAlert(activityStats.lastAlert) : '\u2014'}</span>
+      {isMobile ? (
+        <div style={{
+          background: '#fff', borderRadius: 8,
+          padding: '8px 14px', marginBottom: 12,
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={statLabelStyle}>Last Alert</span>
+            <span style={statValueStyle}>{activityStats ? formatLastAlert(activityStats.lastAlert) : '\u2014'}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={statLabelStyle}>This Month</span>
+              <span style={statValueStyle}>{activityStats?.thisMonth ?? '\u2014'}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={statLabelStyle}>This Year</span>
+              <span style={statValueStyle}>{activityStats?.thisYear ?? '\u2014'}</span>
+            </div>
+          </div>
         </div>
-        {!isMobile && <div style={{ width: 1, height: 20, background: BORDER }} />}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={statLabelStyle}>This Month</span>
-          <span style={statValueStyle}>{activityStats?.thisMonth ?? '\u2014'}</span>
+      ) : (
+        <div style={{
+          background: '#fff', borderRadius: 8,
+          padding: '8px 24px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          height: 40,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={statLabelStyle}>Last Alert</span>
+            <span style={statValueStyle}>{activityStats ? formatLastAlert(activityStats.lastAlert) : '\u2014'}</span>
+          </div>
+          <div style={{ width: 1, height: 20, background: BORDER }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={statLabelStyle}>This Month</span>
+            <span style={statValueStyle}>{activityStats?.thisMonth ?? '\u2014'}</span>
+          </div>
+          <div style={{ width: 1, height: 20, background: BORDER }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={statLabelStyle}>This Year</span>
+            <span style={statValueStyle}>{activityStats?.thisYear ?? '\u2014'}</span>
+          </div>
         </div>
-        {!isMobile && <div style={{ width: 1, height: 20, background: BORDER }} />}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={statLabelStyle}>This Year</span>
-          <span style={statValueStyle}>{activityStats?.thisYear ?? '\u2014'}</span>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -131,6 +165,15 @@ function UsageStat({ count, limit, label }: { count: number; limit: number; labe
       <span style={{ color: SLATE_BLUE }}> / {limit === Infinity ? '\u221E' : limit}</span>
       {' '}{label}
     </span>
+  );
+}
+
+function MobileStat({ count, label }: { count: number; label: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+      <span style={{ fontSize: 22, fontWeight: 700, color: OIL_NAVY, lineHeight: 1 }}>{count}</span>
+      <span style={{ fontSize: 10, color: SLATE_BLUE, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</span>
+    </div>
   );
 }
 

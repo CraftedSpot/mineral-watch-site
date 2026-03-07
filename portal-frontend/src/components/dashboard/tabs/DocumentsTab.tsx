@@ -5,6 +5,7 @@ import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
 import { fetchUsageStats } from '../../../api/documents';
 import type { UsageResponse } from '../../../api/documents';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { DOCUMENT_CATEGORIES, BASE_SORT_OPTIONS, CATEGORY_SORT_OPTIONS } from '../../../lib/document-categories';
 import { MODAL_TYPES, BORDER, SLATE, DOC_STATUS_COLORS, TEAL } from '../../../lib/constants';
 import { DataTable } from '../../ui/DataTable';
@@ -225,12 +226,13 @@ function getDocDisplayName(d: DocumentRecord): string {
 }
 
 /** Build column defs — needs toggleParent for group row chevron clicks */
-function buildColumns(toggleParent: (id: string) => void): ColumnDef<DisplayRow>[] {
+function buildColumns(toggleParent: (id: string) => void, mobile: boolean): ColumnDef<DisplayRow>[] {
   return [
     {
       key: 'filename',
       label: 'Document',
       width: '3fr',
+      mobileWidth: '1fr',
       searchable: true,
       sortable: true,
       getValue: (d) => `${d.display_name || ''} ${d.filename || ''}`,
@@ -262,11 +264,24 @@ function buildColumns(toggleParent: (id: string) => void): ColumnDef<DisplayRow>
         // Child row — indented
         const indent = (d as DisplayRow)._isChildRow;
         const name = getDocDisplayName(d);
+        const { text: statusText, color: statusColor } = getStatusDisplay(d.status);
+        const isPulsing = d.status === 'processing' || d.status === 'pending' || d.status === 'pending_prescan';
         return (
           <div style={{ overflow: 'hidden', paddingLeft: indent ? 22 : 0 }}>
             <strong style={{ color: '#1a2332', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</strong>
             {d.display_name && d.filename && (
               <div style={{ fontSize: 11, color: SLATE, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.filename}</div>
+            )}
+            {mobile && (
+              <div style={{ marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Badge bg={statusColor + '20'} color={statusColor} shape="pill" size="sm"
+                  style={isPulsing ? { animation: 'pulse 1.5s ease-in-out infinite' } : undefined}>
+                  {statusText}
+                </Badge>
+                {d.doc_type && (
+                  <span style={{ fontSize: 11, color: SLATE }}>{formatDocType(d.doc_type)}</span>
+                )}
+              </div>
             )}
           </div>
         );
@@ -323,6 +338,7 @@ function buildColumns(toggleParent: (id: string) => void): ColumnDef<DisplayRow>
       label: 'Status',
       width: '120px',
       sortable: true,
+      hideOnMobile: true,
       compare: (a, b) => (a.status || '').localeCompare(b.status || ''),
       render: (d) => {
         // Group header: show aggregated status badges
@@ -375,6 +391,7 @@ export function DocumentsTab() {
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
+  const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [category, setCategory] = useState('all');
   const [sortValue, setSortValue] = useState('date-desc');
@@ -481,7 +498,7 @@ export function DocumentsTab() {
     });
   }, []);
 
-  const columns = useMemo(() => buildColumns(toggleParent), [toggleParent]);
+  const columns = useMemo(() => buildColumns(toggleParent, isMobile), [toggleParent, isMobile]);
 
   // Group documents into parent/child folders (only when no filter/search active)
   const transformData = useCallback((sorted: DisplayRow[]): DisplayRow[] => {
