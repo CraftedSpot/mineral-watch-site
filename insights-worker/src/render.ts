@@ -321,14 +321,14 @@ export function renderInsightsHub(): string {
                 <div class="section-label">Featured</div>
                 <div class="featured-card">
                     <div class="featured-image">
-                        <img src="/assets/insights/pooling-orders-guide.jpg" alt="Pooling order documents and production data on a desk — representing the complexity of OCC filings for Oklahoma mineral owners" width="896" height="597" loading="eager">
+                        <img src="/assets/insights/lease-negotiation-guide.jpg" alt="Conference room meeting with people reviewing geological maps and lease documents, Oklahoma City skyline visible through windows" width="1376" height="750" loading="eager">
                     </div>
                     <div class="featured-content">
                         <span class="tag tag-guide">Guide</span>
-                        <h2><a href="/insights/guides/understanding-pooling-orders">Understanding Pooling Orders: What Oklahoma Mineral Owners Need to Know</a></h2>
-                        <p class="featured-excerpt">You just received a letter from the OCC about a pooling order on your section. You have 20 days to respond. Here&rsquo;s what it means, what your options are, and how to protect your interests.</p>
-                        <div class="featured-meta">15 min read &middot; Updated Feb 2026</div>
-                        <a href="/insights/guides/understanding-pooling-orders" class="read-link">Read the guide &rarr;</a>
+                        <h2><a href="/insights/guides/lease-negotiation">The Mineral Owner&rsquo;s Guide to Lease Negotiations</a></h2>
+                        <p class="featured-excerpt">That lease offer in your mailbox was written by the operator&rsquo;s lawyers. Here&rsquo;s how to read it, create leverage, and negotiate the terms that actually matter &mdash; from royalty rates to Pugh clauses.</p>
+                        <div class="featured-meta">18 min read &middot; Updated Mar 2026</div>
+                        <a href="/insights/guides/lease-negotiation" class="read-link">Read the guide &rarr;</a>
                     </div>
                 </div>
             </div>
@@ -341,6 +341,16 @@ export function renderInsightsHub(): string {
                     <h2>Essential Guides</h2>
                 </div>
                 <div class="guides-grid">
+
+                    <a href="/insights/guides/understanding-pooling-orders" class="guide-card">
+                        <div class="guide-card-icon">${iconLg('clipboard')}</div>
+                        <div class="guide-card-body">
+                            <span class="tag tag-guide">Guide</span>
+                            <h3>Understanding Pooling Orders</h3>
+                            <p>You received a letter from the OCC about a pooling order. You have 20 days to respond. Here&rsquo;s what it means and how to protect your interests.</p>
+                            <span class="read-link">Read guide &rarr;</span>
+                        </div>
+                    </a>
 
                     <a href="/insights/guides/occ-filing-types" class="guide-card">
                         <div class="guide-card-icon">${iconLg('scale')}</div>
@@ -398,16 +408,6 @@ export function renderInsightsHub(): string {
                             <span class="tag tag-analysis">Analysis</span>
                             <h3>SCOOP &amp; STACK Play Overview for Mineral Owners</h3>
                             <p>What the SCOOP and STACK plays mean for your minerals, which counties are affected, and what kind of activity to expect.</p>
-                            <span class="read-link">Read guide &rarr;</span>
-                        </div>
-                    </a>
-
-                    <a href="/insights/guides/lease-negotiation" class="guide-card">
-                        <div class="guide-card-icon">${iconLg('shield')}</div>
-                        <div class="guide-card-body">
-                            <span class="tag tag-guide">Guide</span>
-                            <h3>The Mineral Owner&rsquo;s Guide to Lease Negotiations</h3>
-                            <p>That lease offer was written by the operator&rsquo;s lawyers. Here&rsquo;s how to read it, create leverage, and fight back on every clause.</p>
                             <span class="read-link">Read guide &rarr;</span>
                         </div>
                     </a>
