@@ -4105,7 +4105,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <p>Remember: <strong>the first draft is never the best draft.</strong> It is a contract designed by their lawyers to protect their interests, not yours. To maximize your value, you need to look beyond the bonus check and focus on your Net Revenue Interest (NRI) and your legal protections.</p>
 
-<p>Your NRI is the decimal share of production that actually flows to you as royalty income. It&rsquo;s calculated as your net mineral acres divided by the total acres in the production unit, multiplied by your royalty fraction. For example, if you own 10 net mineral acres in a 640-acre unit at a &frac14;th royalty, your NRI is 10 &divide; 640 &times; 0.25 &asymp; 0.00390625 (about 0.39% of the well). Every clause in this guide either protects that number or determines what gets deducted from it.</p>
+<p>Your NRI is the decimal share of production that actually flows to you as royalty income. It&rsquo;s calculated as your net mineral acres divided by the total acres in the production unit, multiplied by your royalty fraction. For example, if you own 10 net mineral acres in a 640-acre unit at a &frac14;th royalty, your NRI is 10 &divide; 640 &times; 0.25 &asymp; 0.00390625 (about 0.39% of the well). Every clause in this guide either protects that number or determines what gets deducted from it. (You can run your own numbers with our <a href="/tools/mineral-calculator" style="color: var(--red-dirt); font-weight: 600;">free NRI calculator</a>.)</p>
 
 <div class="callout callout-tip">
     <div class="callout-title">Note</div>
