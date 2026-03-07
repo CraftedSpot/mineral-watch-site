@@ -1088,7 +1088,7 @@ const ARTICLES: Record<string, Article> = {
     },
     toc: [
       { id: 'leverage', label: 'Creating Leverage' },
-      { id: 'big-three', label: 'The Big Three Terms' },
+      { id: 'big-three', label: 'The Big-Ticket Terms' },
       { id: 'protective-clauses', label: 'Protective Clauses' },
       { id: 'red-flags', label: 'Red Flags' },
       { id: 'after-signing', label: 'After the Ink Dries' },
@@ -4103,7 +4103,9 @@ const LEASE_NEGOTIATION_BODY = `
 
 <p>This guide walks through the full negotiation landscape: how to create leverage before you respond, which specific terms to fight for, which protective clauses are non-negotiable, and which phrases in the &ldquo;standard&rdquo; lease are quietly designed to cost you money over the life of the well.</p>
 
-<p>Remember: <strong>the first draft is never the best draft.</strong> It is a contract designed by their lawyers to protect their interests, not yours. To maximize your value, you need to look beyond the bonus check and focus on the Net Revenue Interest (NRI) and your legal protections.</p>
+<p>Remember: <strong>the first draft is never the best draft.</strong> It is a contract designed by their lawyers to protect their interests, not yours. To maximize your value, you need to look beyond the bonus check and focus on your Net Revenue Interest (NRI) and your legal protections.</p>
+
+<p>Your NRI is the decimal share of production that actually flows to you as royalty income. It&rsquo;s calculated as your net mineral acres divided by the total acres in the production unit, multiplied by your royalty fraction. For example, if you own 10 net mineral acres in a 640-acre unit at a &frac14;th royalty, your NRI is 10 &divide; 640 &times; 0.25 &asymp; 0.00390625 (about 0.39% of the well). Every clause in this guide either protects that number or determines what gets deducted from it.</p>
 
 <div class="callout callout-tip">
     <div class="callout-title">Note</div>
@@ -4155,9 +4157,9 @@ const LEASE_NEGOTIATION_BODY = `
     <p>Even if competing operators don&rsquo;t offer more money, having a second offer &mdash; or even the possibility of one &mdash; stops the first landman from telling you &ldquo;This is a take-it-or-leave-it deal.&rdquo; The psychology of competition is the point.</p>
 </div>
 
-<h2 id="big-three">2. The &ldquo;Big Three&rdquo; Negotiation Points</h2>
+<h2 id="big-three">2. The Big-Ticket Terms</h2>
 
-<p>Most owners negotiate only on the bonus. Experienced mineral owners negotiate on all three of the following dimensions simultaneously &mdash; and they know that royalty rate and lease term will almost always matter more than the upfront check.</p>
+<p>Most owners negotiate only on the bonus. Experienced mineral owners negotiate on multiple dimensions simultaneously. The three core economic levers are <strong>royalty rate</strong>, <strong>bonus amount</strong>, and <strong>primary term</strong> &mdash; and they know the first and third will almost always matter more than the upfront check. Beyond those, depth limitations and acreage-release clauses are structural levers that protect your future optionality.</p>
 
 <div class="compare-wrap">
     <table class="compare-table">
@@ -4181,7 +4183,7 @@ const LEASE_NEGOTIATION_BODY = `
             </tr>
             <tr>
                 <td>Primary Lease Term</td>
-                <td>5&ndash;10 years + option to extend</td>
+                <td>3&ndash;5 years is common; many forms ask 5+ years with option to extend</td>
                 <td>3 years, no extension option &mdash; keeps reversionary interest near</td>
             </tr>
             <tr>
@@ -4198,7 +4200,7 @@ const LEASE_NEGOTIATION_BODY = `
     </table>
 </div>
 
-<p>The difference between a &frac18;th (12.5%) and a &frac14;th (25%) royalty might seem like a negotiating detail &mdash; until you do the math on a productive well. On a horizontal well with an initial production rate of 600 barrels of oil per day at $70/bbl, the difference in royalty income over just the first year is roughly <strong>$150,000 per net royalty acre</strong>. That&rsquo;s why operators offer &frac18;th as the default &mdash; and why pushing for 3/16ths or &frac14;th is worth the negotiating discomfort.</p>
+<p>The difference between a &frac18;th (12.5%) and a &frac14;th (25%) royalty might seem like a negotiating detail &mdash; until you do the math on a productive well. On a horizontal well with an initial production rate of 600 barrels of oil per day at $70/bbl, the difference between those two royalty rates can exceed <strong>$1.9 million over just the first year</strong> for the entire well, depending on decline and unit size. On a typical 640-acre unit, that&rsquo;s roughly <strong>$3,000 more per net royalty acre</strong> in year one alone. That&rsquo;s why operators offer &frac18;th as the default &mdash; and why pushing for 3/16ths or &frac14;th is worth the negotiating discomfort.</p>
 
 <div class="callout">
     <div class="callout-title">On Lease Terms</div>
@@ -4211,7 +4213,7 @@ const LEASE_NEGOTIATION_BODY = `
 
 <h2 id="protective-clauses">3. Critical &ldquo;Protective&rdquo; Clauses</h2>
 
-<p>Do not sign a lease without these addendums. Operators will frequently tell you these clauses are &ldquo;non-standard&rdquo; or that they &ldquo;don&rsquo;t use that language.&rdquo; Push anyway. These often matter more than the bonus check over the life of a well.</p>
+<p>Think very carefully before signing a lease that does not include these protections, especially for higher-value tracts. Operators will frequently tell you these clauses are &ldquo;non-standard&rdquo; or that they &ldquo;don&rsquo;t use that language.&rdquo; Push anyway. These often matter more than the bonus check over the life of a well.</p>
 
 <div class="clause-card">
     <div class="clause-card-header">
@@ -4222,8 +4224,8 @@ const LEASE_NEGOTIATION_BODY = `
         </div>
     </div>
     <div class="clause-card-body">
-        <p>This is the single most financially impactful clause in your lease. By default, operators are often permitted to deduct &ldquo;post-production costs&rdquo; &mdash; transportation, compression, dehydration, and processing fees &mdash; from your royalty before calculating your check. On some wells, these deductions can reduce your effective royalty by 30&ndash;50% or more.</p>
-        <p>A Gross Proceeds clause requires the operator to calculate your royalty based on the gross price received for oil or gas &mdash; before any of those deductions are applied. If the crude sells for $70/bbl, your &frac14;th royalty is calculated at $70, not $70 minus $12 in pipeline fees.</p>
+        <p>A well-drafted gross proceeds clause is one of the most financially impactful protections in your lease. By default, operators are often permitted to deduct &ldquo;post-production costs&rdquo; &mdash; transportation, compression, dehydration, and processing fees &mdash; from your royalty before calculating your check. On some wells, these deductions can reduce your effective royalty by 30&ndash;50% or more.</p>
+        <p>A Gross Proceeds clause can significantly limit those post-production deductions by requiring the operator to calculate your royalty based on the gross price received for oil or gas. If the crude sells for $70/bbl, your &frac14;th royalty is calculated at $70, not $70 minus $12 in pipeline fees. Actual enforceability depends on your full lease language and Oklahoma case law, so have an attorney review the clause for larger interests.</p>
         <div class="code-comparison">
             <span class="bad">&#10007; Avoid: &ldquo;Lessee shall pay royalty on the market value at the wellhead, less reasonable post-production costs...&rdquo;</span><br><br>
             <span class="good">&#10003; Seek: &ldquo;Royalty shall be calculated on the gross proceeds received by Lessee from the sale of oil and gas, without deduction for any post-production costs, including but not limited to costs of transportation, compression, dehydration, treatment, or marketing.&rdquo;</span>
@@ -4243,7 +4245,8 @@ const LEASE_NEGOTIATION_BODY = `
         <p>Without a Pugh Clause, a single producing well on a corner of your 160-acre tract can hold your <em>entire</em> acreage &mdash; and all depths &mdash; under lease for as long as that well produces, which could be 30+ years. The Pugh Clause is the antidote.</p>
         <p><strong>The Horizontal Pugh Clause</strong> releases any acreage not within the defined producing unit once the primary lease term expires. So if a well is drilled on 40 of your 160 acres, the other 120 acres are released back to you to re-lease.</p>
         <p><strong>The Vertical Pugh Clause</strong> releases any depths or formations not being actively developed. If the operator is producing from the Woodford at 10,000 feet, formations above and below that depth revert to you after the primary term.</p>
-        <p>Ideally, negotiate both. In practice, operators are more resistant to the vertical version. Start there in negotiations &mdash; you&rsquo;ll often land at least the horizontal Pugh as a concession.</p>
+        <p>(Some attorneys use &ldquo;horizontal&rdquo; and &ldquo;vertical&rdquo; differently in technical writing; the key is that one releases undrilled acreage and the other releases undrilled depths.)</p>
+        <p>Ideally, negotiate both. In practice, operators are more resistant to the vertical version. Start there in negotiations &mdash; you&rsquo;ll often land at least the horizontal Pugh as a concession. Note that Oklahoma&rsquo;s pooling and spacing statutes (52 O.S. &sect;87.1) can provide some vertical severance by default, but a negotiated Pugh clause still gives you clearer and often better protection.</p>
     </div>
 </div>
 
@@ -4271,7 +4274,7 @@ const LEASE_NEGOTIATION_BODY = `
     </div>
     <div class="clause-card-body">
         <p>Standard leases contain a &ldquo;habendum clause&rdquo; keeping the lease in force &ldquo;for so long as oil and gas is produced.&rdquo; Without clear language, operators may argue the lease is still &ldquo;held by production&rdquo; during long interruptions for workovers, equipment failures, or market shut-ins.</p>
-        <p>A well-drafted Continuous Development Clause specifies the maximum permissible shut-in or cessation period (typically 90&ndash;180 days) and requires the operator to demonstrate ongoing development or the lease terminates. Also negotiate the <strong>shut-in royalty</strong>: if a well is capable of production but shut in for market reasons, you should receive a nominal per-acre payment. Without this, an operator can shut a well in indefinitely without paying you a dime.</p>
+        <p>A well-drafted Continuous Development Clause specifies the maximum permissible shut-in or cessation period (typically 90&ndash;180 days) and requires the operator to demonstrate ongoing development or the lease terminates. Also negotiate the <strong>shut-in royalty</strong>: if a well is capable of production but shut in for market reasons, you should receive a nominal per-acre payment. Without this, an operator can shut a well in indefinitely without paying you a dime. Courts interpret these clauses in light of the full lease and Oklahoma law, so precise drafting matters &mdash; another reason to involve an attorney on higher-value tracts.</p>
     </div>
 </div>
 
@@ -4284,7 +4287,7 @@ const LEASE_NEGOTIATION_BODY = `
         <div class="flag-dot">!</div>
         <div class="flag-content">
             <h4>Warranty of Title</h4>
-            <p>Never warrant your title. A warranty makes you financially responsible to the oil company if a title defect &mdash; even one dating back decades before you ever owned the land &mdash; surfaces in the future. Chain-of-title issues in Oklahoma mineral records are common and can originate from 1920s-era errors, probate oversights, or partition suits your grandfather&rsquo;s estate never properly resolved.</p>
+            <p>In most cases, individual mineral owners should not warrant title. A warranty makes you financially responsible to the oil company if a title defect &mdash; even one dating back decades before you ever owned the land &mdash; surfaces in the future. Chain-of-title issues in Oklahoma mineral records are common, especially with inherited or older interests, and can originate from 1920s-era errors, probate oversights, or partition suits your grandfather&rsquo;s estate never properly resolved.</p>
             <div class="code-fix">
                 <span class="x">&#10007; Remove: &ldquo;Lessor warrants and agrees to defend title to said lands...&rdquo;</span><br>
                 <span class="check">&#10003; Replace with: &ldquo;Lessor conveys WITHOUT warranty of title, express or implied, and without recourse.&rdquo;</span>
@@ -4295,10 +4298,10 @@ const LEASE_NEGOTIATION_BODY = `
         <div class="flag-dot">!</div>
         <div class="flag-content">
             <h4>The Unpaid Option to Extend</h4>
-            <p>If the operator wants the right to extend a 3-year primary term by 1&ndash;2 additional years, that option has real value &mdash; and they should pay for it now or at a significantly higher rate when exercised. An extension clause that requires no additional payment gives the operator a free call option on your acreage at your expense.</p>
+            <p>If the operator wants the right to extend a 3-year primary term by 1&ndash;2 additional years, that option has real value &mdash; and they should pay for it now or at a significantly higher rate when exercised. An extension clause that requires no additional payment gives the operator a free call option on your acreage at your expense. If you can&rsquo;t strike the option entirely, price it above the original bonus &mdash; many practitioners recommend 125&ndash;150% of the original per-acre rate.</p>
             <div class="code-fix">
                 <span class="x">&#10007; &ldquo;Lessee may extend this lease for [X] additional years upon written notice...&rdquo;</span><br>
-                <span class="check">&#10003; Require a specified extension bonus (at minimum, the same per-acre rate as the original) payable at time of exercise.</span>
+                <span class="check">&#10003; Require a specified extension bonus (at minimum 125% of the original per-acre rate) payable at time of exercise.</span>
             </div>
         </div>
     </li>
@@ -4313,7 +4316,7 @@ const LEASE_NEGOTIATION_BODY = `
         <div class="flag-dot">!</div>
         <div class="flag-content">
             <h4>The Free-Use Clause</h4>
-            <p>Many standard lease forms permit the operator to use oil, gas, or water from your property free of royalty for drilling and operating purposes. Gas from your well could be consumed in field operations &mdash; generating no royalty for you &mdash; while the operator credits it as a cost reduction. Strike or negotiate a cap on the volume that can be used royalty-free.</p>
+            <p>Depending on your lease language and applicable law, free-use provisions can allow operators to use oil, gas, or water from your property without paying royalty for drilling and operating purposes. Gas from your well could be consumed in field operations &mdash; generating no royalty for you &mdash; while the operator credits it as a cost reduction. Strike or negotiate a cap on the volume that can be used royalty-free.</p>
         </div>
     </li>
     <li class="flag-item">

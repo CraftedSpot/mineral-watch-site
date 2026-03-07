@@ -206,7 +206,7 @@ export function AddWellModal({ onClose, onComplete }: Props) {
       title="Add Well"
       subtitle="Track a well by API number or search the statewide database"
       headerBg={TEAL}
-      maxWidth={tab === 'import' && importStep !== 'upload' ? 640 : 560}
+      maxWidth={isMobile ? '100%' : tab === 'import' && importStep !== 'upload' ? 640 : 560}
       footer={footer}
     >
       {tabBar}
