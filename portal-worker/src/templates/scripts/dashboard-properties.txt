@@ -306,7 +306,7 @@
                 <td><strong>${str}</strong></td>
                 <td class="col-prop-group">${group}</td>
                 <td style="text-align: right;">${acresDisplay}</td>
-                <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell">${notes}</td>
+                <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell notes-cell">${notes}</td>
                 <td>
                     <div class="links-cell">
                         <div class="link-breakdown">
