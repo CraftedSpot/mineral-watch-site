@@ -182,5 +182,5 @@ const statLabelStyle: React.CSSProperties = {
 };
 
 const statValueStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, color: ORANGE, fontFamily: "'Merriweather', serif",
+  fontSize: 15, fontWeight: 700, color: ORANGE,
 };

@@ -246,7 +246,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
         {/* Total Acres */}
         <div style={detailsRowStyle}>
           <span style={labelStyle}>Total Acres</span>
-          <span style={{ ...valueStyle, fontWeight: 500 }}>{totalAcres > 0 ? totalAcres.toFixed(2) : '\u2014'}</span>
+          <span style={{ ...valueStyle, fontWeight: 400 }}>{totalAcres > 0 ? totalAcres.toFixed(2) : '\u2014'}</span>
         </div>
 
         {/* RI Acres */}
@@ -269,7 +269,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {interestFields.map((field) => (
             <div key={field.key}>
-              <label style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 500 }}>{field.label}</label>
+              <label style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 400 }}>{field.label}</label>
               <TextInput type="number" step="any"
                 value={values[field.key as keyof typeof values]}
                 onChange={(e) => setValue(field.key as keyof typeof values, e.target.value)}
@@ -344,7 +344,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
               <div key={d.id} style={{ padding: '6px 0', borderBottom: `1px solid ${BORDER}` }}>
                 <span
                   onClick={() => modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId: d.id })}
-                  style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 500, fontSize: 13 }}
+                  style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
                 >
                   {d.displayName}
                 </span>
@@ -404,11 +404,11 @@ const detailsRowStyle: React.CSSProperties = {
 };
 
 const labelStyle: React.CSSProperties = {
-  fontSize: 13, color: SLATE_BLUE, fontWeight: 500,
+  fontSize: 13, color: SLATE_BLUE, fontWeight: 400,
 };
 
 const valueStyle: React.CSSProperties = {
-  fontSize: 14, color: OIL_NAVY, fontWeight: 500,
+  fontSize: 14, color: OIL_NAVY, fontWeight: 400,
 };
 
 const actionBtnStyle: React.CSSProperties = {

@@ -320,7 +320,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 16 }}>
             <Card style={{ flex: 1 }}>
               <div style={sectionLabelStyle}>Operator</div>
-              <div style={{ fontSize: 15, fontWeight: 500, color: OIL_NAVY, marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: OIL_NAVY, marginBottom: 4 }}>
                 {operator || '\u2014'}
               </div>
               {(opPhone || opContact) && (
@@ -337,7 +337,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
             </Card>
             <Card style={{ flex: 1 }}>
               <div style={sectionLabelStyle}>Location</div>
-              <div style={{ fontSize: 15, fontWeight: 500, color: OIL_NAVY, marginBottom: 4 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: OIL_NAVY, marginBottom: 4 }}>
                 {formatTRS(section, township, range) || '\u2014'}
               </div>
               {county && <div style={{ fontSize: 13, color: '#64748b' }}>{cleanCounty(county)} County</div>}
@@ -370,7 +370,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                 { key: 'orri_nri', label: 'ORRI NRI', server: orriNri },
               ] as const).map((field) => (
                 <div key={field.key}>
-                  <label style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 500 }}>{field.label}</label>
+                  <label style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 400 }}>{field.label}</label>
                   <TextInput type="number" step="any"
                     value={interestEdits[field.key] ?? (field.server != null ? String(field.server) : '')}
                     onChange={(e) => handleInterestChange(field.key, e.target.value)}
@@ -427,7 +427,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                       <div>
                         <span
                           onClick={() => modal.open(MODAL_TYPES.PROPERTY, { propertyId: p.propertyId })}
-                          style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 500, fontSize: 14 }}
+                          style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
                         >
                           {p.location || 'Property'}
                         </span>
@@ -463,7 +463,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                   }}>
                     <span
                       onClick={() => modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId: doc.id })}
-                      style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 500, fontSize: 14 }}
+                      style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}
                     >
                       {doc.displayName || 'Untitled Document'}
                     </span>

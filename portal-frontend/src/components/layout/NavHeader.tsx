@@ -21,9 +21,21 @@ export function NavHeader({ user }: NavHeaderProps) {
   const location = useLocation();
   const isMobile = useIsMobile();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
-  // Close menu on navigation
-  useEffect(() => { setMenuOpen(false); }, [location.pathname]);
+  // Close menus on navigation
+  useEffect(() => { setMenuOpen(false); setUserMenuOpen(false); }, [location.pathname]);
+
+  // Close user dropdown on outside click
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-user-menu]')) setUserMenuOpen(false);
+    };
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [userMenuOpen]);
 
   const handleLogout = async () => {
     try {
@@ -39,7 +51,7 @@ export function NavHeader({ user }: NavHeaderProps) {
 
   const navLinkStyle = (href: string): React.CSSProperties => ({
     fontSize: isMobile ? 15 : 14,
-    fontWeight: 500,
+    fontWeight: 400,
     color: isActive(href) ? '#fff' : 'rgba(255,255,255,0.8)',
     textDecoration: 'none',
   });
@@ -101,7 +113,7 @@ export function NavHeader({ user }: NavHeaderProps) {
         height: 56,
       }}>
         <a href="/" style={{
-          fontFamily: "'Merriweather', serif", fontWeight: 900,
+          fontFamily: "'Merriweather', serif", fontWeight: 700,
           fontSize: 20, color: '#fff', textDecoration: 'none',
         }}>
           Mineral Watch
@@ -114,20 +126,40 @@ export function NavHeader({ user }: NavHeaderProps) {
         )}
 
         {!isMobile && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            {user.isSuperAdmin && (
-              <>
-                <a href="/portal/admin" style={adminBtnStyle}>Admin</a>
-                <a href="/portal/marketing" style={marketingBtnStyle}>Marketing</a>
-              </>
+          <div data-user-menu style={{ position: 'relative' }}>
+            <button
+              onClick={() => setUserMenuOpen(!userMenuOpen)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 14, color: 'rgba(255,255,255,0.8)',
+                display: 'flex', alignItems: 'center', gap: 4,
+                padding: '6px 0',
+              }}
+            >
+              {user.name} <span style={{ fontSize: 10, opacity: 0.7 }}>{userMenuOpen ? '\u25B4' : '\u25BE'}</span>
+            </button>
+            {userMenuOpen && (
+              <div style={{
+                position: 'absolute', right: 0, top: '100%', marginTop: 4,
+                background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+                minWidth: 180, overflow: 'hidden', zIndex: 100,
+              }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #e5e7eb', fontSize: 14, color: '#374151', fontWeight: 600 }}>
+                  {user.name}
+                </div>
+                {user.isSuperAdmin && (
+                  <>
+                    <a href="/portal/admin" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#dc2626', textDecoration: 'none' }}>Admin</a>
+                    <a href="/portal/marketing" style={{ display: 'block', padding: '10px 16px', fontSize: 14, color: '#7c3aed', textDecoration: 'none', borderBottom: '1px solid #e5e7eb' }}>Marketing</a>
+                  </>
+                )}
+                <button onClick={handleLogout} style={{
+                  display: 'block', width: '100%', padding: '10px 16px', fontSize: 14,
+                  background: 'none', border: 'none', textAlign: 'left', cursor: 'pointer',
+                  color: '#374151', fontFamily: 'inherit',
+                }}>Log Out</button>
+              </div>
             )}
-            <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>{user.name}</span>
-            <button onClick={handleLogout} style={{
-              background: 'rgba(255,255,255,0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: 4, padding: '6px 14px', fontSize: 13,
-              color: '#fff', cursor: 'pointer',
-            }}>Log Out</button>
           </div>
         )}
 

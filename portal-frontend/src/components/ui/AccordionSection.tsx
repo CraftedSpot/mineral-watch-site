@@ -39,7 +39,7 @@ export function AccordionSection({ title, count, defaultOpen = false, maxHeight,
           }}>
             &#9654;
           </span>
-          <span style={{ fontWeight: 500, fontSize: 14 }}>{title}</span>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>{title}</span>
         </div>
         {count !== undefined && (
           count === null ? (

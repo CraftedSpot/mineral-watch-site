@@ -56,13 +56,13 @@ export function CreditDisplay({ usage, compact }: CreditDisplayProps) {
     <>
       {/* Heading row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
-        <span style={{ fontWeight: 500, color: TEXT_DARK }}>Credits:</span>
+        <span style={{ fontWeight: 400, color: TEXT_DARK }}>Credits:</span>
         <span style={{ fontWeight: 700, color: u.total_available > 0 ? '#059669' : '#DC2626', fontSize: 16 }}>
           {u.total_available.toLocaleString()}
         </span>
         <span style={{ color: TEXT_MUTED }}>available</span>
         <a href="/portal/account#credits" style={{
-          color: '#3b82f6', fontSize: 12, textDecoration: 'none', fontWeight: 500, marginLeft: 4,
+          color: '#3b82f6', fontSize: 12, textDecoration: 'none', fontWeight: 400, marginLeft: 4,
         }}>
           View details
         </a>
@@ -131,7 +131,7 @@ const rowStyle: React.CSSProperties = {
 
 const rowLabelStyle: React.CSSProperties = {
   color: TEXT_MUTED,
-  fontWeight: 500,
+  fontWeight: 400,
 };
 
 const barTrackStyle: React.CSSProperties = {

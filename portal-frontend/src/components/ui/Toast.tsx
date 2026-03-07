@@ -44,7 +44,7 @@ export function Toast({ message, type, onDismiss }: ToastProps) {
         cursor: 'pointer',
         fontFamily: "'Inter', 'DM Sans', sans-serif",
         fontSize: 13,
-        fontWeight: 500,
+        fontWeight: 400,
         color: '#1a2332',
         maxWidth: 400,
         animation: 'toastSlideIn 0.25s ease-out',

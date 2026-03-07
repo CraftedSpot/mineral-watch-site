@@ -191,7 +191,7 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
             <div key={child.id} style={{ marginTop: 4 }}>
               <span
                 onClick={() => modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId: child.id })}
-                style={{ color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}
+                style={{ color: '#3b82f6', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
               >
                 {child.display_name || formatDocType(child.doc_type)}
                 {child.page_range && <span style={{ color: SLATE }}> (pp. {child.page_range})</span>}
@@ -230,7 +230,7 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
               <div key={p.id} style={{ padding: '6px 0', borderBottom: `1px solid ${BORDER}` }}>
                 <span
                   onClick={() => modal.open(MODAL_TYPES.PROPERTY, { propertyId: p.id })}
-                  style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 500, fontSize: 13 }}
+                  style={{ color: '#3b82f6', cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
                 >
                   {loc}
                 </span>
