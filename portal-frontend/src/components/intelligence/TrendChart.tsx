@@ -89,27 +89,50 @@ export function TrendChart({
         ctx.fillRect(x, Math.min(y, zeroY), barW, barH || 1);
       });
     } else {
-      // Line chart
+      // Line chart with 3-month moving average trend line
+
+      const getX = (i: number) => padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+
+      // 3-month moving average trend line (behind, thick, semi-transparent)
+      ctx.strokeStyle = color + '40'; // 25% opacity
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      values.forEach((_, i) => {
+        const start = Math.max(0, i - 1);
+        const end = Math.min(values.length, i + 2);
+        const window = values.slice(start, end);
+        const avg = window.reduce((sum, v) => sum + v, 0) / window.length;
+        const x = getX(i);
+        const y = getY(avg);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Main data line
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
 
       data.forEach((d, i) => {
-        const x = padding.left + (i / Math.max(data.length - 1, 1)) * chartW;
+        const x = getX(i);
         const y = getY(d.value);
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       });
       ctx.stroke();
 
-      // Fill area under line
-      const lastX = padding.left + chartW;
-      ctx.lineTo(lastX, getY(minVal));
-      ctx.lineTo(padding.left, getY(minVal));
-      ctx.closePath();
-      ctx.fillStyle = color + '15';
-      ctx.fill();
+      // Data point dots
+      ctx.fillStyle = color;
+      data.forEach((d, i) => {
+        ctx.beginPath();
+        ctx.arc(getX(i), getY(d.value), 3, 0, Math.PI * 2);
+        ctx.fill();
+      });
     }
 
     // X-axis labels (show ~6 labels max)
