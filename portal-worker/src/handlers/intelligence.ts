@@ -2867,8 +2867,8 @@ interface DeclineWell {
   wellType: string;
   isHorizontal: boolean;
   lastReportedMonth: string;
-  recentOilBBL: number;
-  recentGasMCF: number;
+  recentOilBBL: number | null;
+  recentGasMCF: number | null;
   recentBOE: number;
   yoyChangePct: number | null;
   status: 'active' | 'idle';
@@ -2952,16 +2952,28 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
         JOIN puns p ON p.base_pun = wpl.base_pun
         WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
         GROUP BY wpl.api_number
+      ),
+      last_month_prod AS (
+        SELECT wpl.api_number,
+               SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as last_oil,
+               SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as last_gas
+        FROM lifetime lt2
+        JOIN well_pun_links wpl ON wpl.api_number = lt2.api_number
+        JOIN otc_production op ON op.base_pun = wpl.base_pun AND op.year_month = lt2.last_prod_month
+        WHERE lt2.last_prod_month < ?
+        GROUP BY wpl.api_number
       )
-      SELECT uw.*, p.year_month, p.oil, p.gas, lt.last_prod_month
+      SELECT uw.*, p.year_month, p.oil, p.gas, lt.last_prod_month,
+             lmp.last_oil, lmp.last_gas
       FROM user_wells uw
       LEFT JOIN production p ON p.api_number = uw.api_number
       LEFT JOIN lifetime lt ON lt.api_number = uw.api_number
+      LEFT JOIN last_month_prod lmp ON lmp.api_number = uw.api_number
       ORDER BY uw.well_name, p.year_month DESC
     `;
 
     const result = await env.WELLS_DB.prepare(query)
-      .bind(...cteParams, twentyFourMonthsAgo)
+      .bind(...cteParams, twentyFourMonthsAgo, twentyFourMonthsAgo)
       .all();
 
     const rows = result.results as Array<{
@@ -2978,7 +2990,10 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
       oil: number | null;
       gas: number | null;
       last_prod_month: string | null;
+      last_oil: number | null;
+      last_gas: number | null;
     }>;
+
 
     // Step 2: Group rows by well and compute metrics
     const wellMap = new Map<string, {
@@ -2992,6 +3007,8 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
       wellType: string;
       isHorizontal: boolean;
       lastProdMonth: string | null;
+      lastOil: number | null;
+      lastGas: number | null;
       monthlyData: Array<{ yearMonth: string; oil: number; gas: number; boe: number }>;
     }>();
 
@@ -3013,6 +3030,8 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
           wellType: row.well_type || 'Unknown',
           isHorizontal: row.is_horizontal === 1,
           lastProdMonth: row.last_prod_month || null,
+          lastOil: row.last_oil ?? null,
+          lastGas: row.last_gas ?? null,
           monthlyData: []
         });
       }
@@ -3059,12 +3078,12 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
       // Sort monthly data descending (newest first)
       wellData.monthlyData.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
 
-      // Find most recent month with production
-      const recentData = wellData.monthlyData.find(m => m.oil > 0 || m.gas > 0);
+      // Find most recent month with meaningful production (rounds to >= 1 BBL oil or >= 1 MCF gas)
+      const recentData = wellData.monthlyData.find(m => Math.round(m.oil) > 0 || Math.round(m.gas) > 0);
 
       let lastReportedMonth = '';
-      let recentOil = 0;
-      let recentGas = 0;
+      let recentOil: number | null = null;
+      let recentGas: number | null = null;
       let recentBOE = 0;
       let yoyChangePct: number | null = null;
       let status: 'active' | 'idle' = 'idle';
@@ -3078,38 +3097,53 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
         // Determine status based on last reported month
         status = lastReportedMonth >= activeThreshold ? 'active' : 'idle';
       } else if (wellData.lastProdMonth) {
-        // No production in 24-month window, but we know the lifetime last prod month from puns table
+        // No production in 24-month window — show last known production from that month
         lastReportedMonth = wellData.lastProdMonth;
+        recentOil = wellData.lastOil != null ? Math.round(wellData.lastOil) : null;
+        recentGas = wellData.lastGas != null ? Math.round(wellData.lastGas) : null;
+        recentBOE = Math.round((wellData.lastOil || 0) + (wellData.lastGas || 0) / 6);
         status = 'idle';
+      } else {
+        // No PUN link or no production data at all — skip this well entirely
+        continue;
+      }
 
-        // Calculate YoY (compare to same month last year)
+      // Add to portfolio totals (most recent month only for active wells)
+      if (status === 'active') {
+        activeCount++;
+        portfolioOil += recentOil || 0;
+        portfolioGas += recentGas || 0;
+      } else {
+        idleCount++;
+      }
+
+      // Count decliners (only wells with recent production can have YoY)
+      if (recentData) {
+        // Calculate YoY — find closest month ~12 months prior (±3 month window)
+        // Many wells have sparse/irregular reporting, so exact month match often fails
         const recentYear = parseInt(lastReportedMonth.substring(0, 4));
         const recentMonth = parseInt(lastReportedMonth.substring(4, 6));
-        const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
+        const targetMonths = recentYear * 12 + recentMonth - 12; // 12 months prior in absolute months
 
-        // Find same month last year (or nearby month)
-        const priorData = wellData.monthlyData.find(m => m.yearMonth === priorYearMonth) ||
-          wellData.monthlyData.find(m => {
-            const mYear = parseInt(m.yearMonth.substring(0, 4));
-            const mMonth = parseInt(m.yearMonth.substring(4, 6));
-            return mYear === recentYear - 1 && Math.abs(mMonth - recentMonth) <= 1;
-          });
+        let priorData: typeof recentData | undefined;
+        let bestDist = Infinity;
+        for (const m of wellData.monthlyData) {
+          const mYear = parseInt(m.yearMonth.substring(0, 4));
+          const mMonth = parseInt(m.yearMonth.substring(4, 6));
+          const mAbsMonths = mYear * 12 + mMonth;
+          const dist = Math.abs(mAbsMonths - targetMonths);
+          // Within ±3 months of the target and has meaningful production
+          if (dist <= 3 && dist < bestDist && (Math.round(m.oil) > 0 || Math.round(m.gas) > 0)) {
+            bestDist = dist;
+            priorData = m;
+          }
+        }
 
         if (priorData && priorData.boe > 0) {
           yoyChangePct = Math.round(((recentBOE - priorData.boe) / priorData.boe) * 100);
         }
       }
 
-      // Add to portfolio totals (most recent month only for active wells)
-      if (status === 'active') {
-        activeCount++;
-        portfolioOil += recentOil;
-        portfolioGas += recentGas;
-      } else {
-        idleCount++;
-      }
-
-      // Count decliners
       if (yoyChangePct !== null && yoyChangePct < 0) {
         decliningCount++;
         if (yoyChangePct < -20) {

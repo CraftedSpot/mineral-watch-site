@@ -6,7 +6,8 @@ import { SortableTable } from '../SortableTable';
 import { TrendChart } from '../TrendChart';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { Badge } from '../../ui/Badge';
-import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/constants';
+import { useModal } from '../../../contexts/ModalContext';
 import type { Column } from '../SortableTable';
 import type { IntelligenceTier, DeclineWell, DeclineCountyAggregate } from '../../../types/intelligence';
 
@@ -102,6 +103,8 @@ export function ProductionDeclineReport({ tier }: Props) {
 }
 
 function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyTotals?: Array<{ yearMonth: string; totalOil: number; totalGas: number; totalBoe: number }> }) {
+  const modal = useModal();
+
   // Build portfolio trend data for chart from pre-aggregated monthlyTotals
   const chartData = useMemo(() => {
     if (!monthlyTotals || monthlyTotals.length === 0) return [];
@@ -115,7 +118,23 @@ function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyT
   const columns: Column<DeclineWell>[] = useMemo(() => [
     {
       key: 'wellName', label: 'Well', sortType: 'string', width: 'minmax(100px, 1.5fr)',
-      render: (row) => <span style={{ fontWeight: 500 }}>{row.wellName}</span>,
+      render: (row) => (
+        <span
+          style={{ fontWeight: 500, color: '#7c3aed', cursor: 'pointer' }}
+          onClick={(e) => {
+            e.stopPropagation();
+            modal.open(MODAL_TYPES.WELL, {
+              wellId: row.wellId,
+              apiNumber: row.apiNumber,
+              wellName: row.wellName,
+              operator: row.operator,
+              county: row.county,
+            });
+          }}
+        >
+          {row.wellName}
+        </span>
+      ),
     },
     {
       key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)',

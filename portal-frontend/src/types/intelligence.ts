@@ -159,8 +159,8 @@ export interface DeclineWell {
   isHorizontal: boolean;
   status: 'active' | 'declining' | 'steep_decline' | 'idle';
   lastReportedMonth: string | null;
-  recentOilBBL: number;
-  recentGasMCF: number;
+  recentOilBBL: number | null;
+  recentGasMCF: number | null;
   recentBOE: number;
   yoyChangePct: number | null;
 }
