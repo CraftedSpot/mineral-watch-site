@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/queryClient';
 import { ToastProvider } from './contexts/ToastContext';
 import { ConfirmProvider } from './contexts/ConfirmContext';
 import { ModalProvider } from './contexts/ModalContext';
@@ -12,6 +14,7 @@ import { IntelligencePage } from './components/intelligence/IntelligencePage';
 
 export function App() {
   return (
+    <QueryClientProvider client={queryClient}>
     <ToastProvider>
       <ConfirmProvider>
         <DashboardDataProvider>
@@ -31,5 +34,6 @@ export function App() {
         </DashboardDataProvider>
       </ConfirmProvider>
     </ToastProvider>
+    </QueryClientProvider>
   );
 }

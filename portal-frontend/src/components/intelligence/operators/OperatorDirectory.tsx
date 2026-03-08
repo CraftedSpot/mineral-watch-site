@@ -14,7 +14,7 @@ export function OperatorDirectory() {
   const [minWells, setMinWells] = useState(20);
   const [selectedOp, setSelectedOp] = useState<OperatorDirectoryEntry | null>(null);
   const fetchFn = useCallback(() => fetchOperatorDirectory(minWells), [minWells]);
-  const { data, loading, error, refetch } = useReportData(fetchFn, { deps: [minWells] });
+  const { data, loading, error, refetch } = useReportData(fetchFn, { key: 'operator-directory', deps: [minWells] });
 
   const filtered = useMemo(() => {
     if (!data) return [];

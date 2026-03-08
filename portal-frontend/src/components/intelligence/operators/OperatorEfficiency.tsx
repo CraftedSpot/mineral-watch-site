@@ -18,7 +18,7 @@ export function OperatorEfficiency() {
   const [search, setSearch] = useState('');
   const [minWells, setMinWells] = useState(10);
   const fetchFn = useCallback(() => fetchOperatorEfficiency(minWells), [minWells]);
-  const { data, loading, error, refetch } = useReportData(fetchFn, { deps: [minWells] });
+  const { data, loading, error, refetch } = useReportData(fetchFn, { key: 'operator-efficiency', deps: [minWells] });
 
   const filtered = useMemo(() => {
     if (!data) return [];

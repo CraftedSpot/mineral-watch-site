@@ -1,9 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface UseReportDataOptions {
   enabled?: boolean;
-  /** When any value in this array changes, data is re-fetched. */
+  /** When any value in this array changes, data is re-fetched (included in query key). */
   deps?: unknown[];
+  /** Explicit query key segment. Auto-derived from fetchFn.name if omitted. */
+  key?: string;
 }
 
 interface UseReportDataResult<T> {
@@ -14,57 +16,32 @@ interface UseReportDataResult<T> {
 }
 
 /**
- * Generic hook for fetching report data.
+ * Generic hook for fetching report data, backed by TanStack Query.
  *
- * @param fetchFn  Async function that returns the report data.
- * @param options  `enabled` gates the fetch — won't fire until true (default true).
- *                 `deps` triggers a re-fetch when any value changes (e.g. filter state).
+ * - Caches results for 5 minutes (stale-while-revalidate)
+ * - Retries failed requests twice
+ * - `enabled` gates the fetch — won't fire until true (default true)
+ * - `deps` are included in the query key so changes trigger re-fetch
+ * - `key` overrides the auto-derived query key segment (needed for anonymous fns)
  */
 export function useReportData<T>(
   fetchFn: () => Promise<T>,
   options: UseReportDataOptions = {},
 ): UseReportDataResult<T> {
-  const { enabled = true, deps } = options;
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fetchRef = useRef(fetchFn);
-  fetchRef.current = fetchFn;
+  const { enabled = true, deps, key } = options;
+  const queryKey = ['intelligence', key || fetchFn.name || 'report', ...(deps || [])];
 
-  const load = useCallback(async () => {
-    if (!enabled) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchRef.current();
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load report');
-    } finally {
-      setLoading(false);
-    }
-  }, [enabled]);
+  const { data, isLoading, error, refetch } = useQuery({
+    queryKey,
+    queryFn: fetchFn,
+    enabled,
+    staleTime: 30 * 60 * 1000,  // 30 min — intelligence data only changes on daily cron
+  });
 
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const result = await fetchRef.current();
-        if (!cancelled) setData(result);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load report');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, ...(deps || [])]);
-
-  return { data, loading, error, refetch: load };
+  return {
+    data: data ?? null,
+    loading: isLoading,
+    error: error ? (error instanceof Error ? error.message : 'Failed to load report') : null,
+    refetch: () => { refetch(); },
+  };
 }

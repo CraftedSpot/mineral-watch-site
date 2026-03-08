@@ -106,28 +106,26 @@ export interface DeductionReportData {
 
 export interface OperatorComparisonEntry {
   operator_number: string;
-  company_name: string;
-  well_count: number;
+  operator_name: string;
+  your_wells: number;
+  total_wells: number;
   total_gross: number;
+  residue_deductions: number;
+  liquids_returned: number;
   deduction_ratio: number;
-  ngl_recovery_ratio: number;
-  purchaser_id: string | null;
-  purchaser_name: string | null;
+  ngl_recovery_ratio: number | null;
+  is_affiliated: boolean;
   gas_profile: 'lean' | 'rich' | null;
-  gor: number | null;
-  userWellCount: number;
 }
 
 export interface OperatorComparisonData {
   operators: OperatorComparisonEntry[];
   statewide: {
-    avg_deduction_ratio: number;
-    avg_ngl_recovery_ratio: number;
+    operator_count: number;
+    deduction_ratio: number;
+    ngl_recovery_ratio: number | null;
   } | null;
-  summary: {
-    totalOperators: number;
-    userOperators: number;
-  };
+  analysis_period: string;
 }
 
 // ── Deduction Research ──

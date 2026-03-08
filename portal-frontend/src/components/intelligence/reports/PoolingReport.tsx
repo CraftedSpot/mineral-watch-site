@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useReportData } from '../../../hooks/useReportData';
 import { fetchPoolingReport, fetchOperatorLookup } from '../../../api/intelligence';
+import { useToast } from '../../../contexts/ToastContext';
 import { TabNav } from '../TabNav';
 import { SortableTable } from '../SortableTable';
 import { OperatorModal } from '../operators/OperatorModal';
@@ -9,6 +10,30 @@ import { Badge } from '../../ui/Badge';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
 import type { Column } from '../SortableTable';
 import type { PoolingPropertyGroup, PoolingNearbyOrder, PoolingCountyAvg, PoolingReportData } from '../../../types/intelligence';
+
+function csvEscape(s: string | null | undefined): string {
+  if (!s) return '';
+  if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function downloadCsv(content: string, filename: string) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+const exportBtnStyle: React.CSSProperties = {
+  padding: '6px 14px', borderRadius: 6, border: `1px solid ${BORDER}`,
+  fontSize: 12, fontWeight: 600, color: TEXT_DARK, background: '#fff',
+  cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+};
 
 function formatCurrency(v: number | null): string {
   if (v == null) return '—';
@@ -142,6 +167,7 @@ export function PoolingReport() {
 }
 
 function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingPropertyGroup[]; onOperatorClick: (name: string) => void }) {
+  const toast = useToast();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
   const [countyFilter, setCountyFilter] = useState('');
@@ -200,6 +226,39 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
       return next;
     });
   };
+
+  const exportCsv = useCallback(() => {
+    const header = 'Property,Property County,Order Date,Operator,Formation,Order Location,Distance,Max Bonus/Acre,Royalty Options,Case Number,Response Deadline';
+    const rows: string[] = [];
+    for (const prop of filtered) {
+      for (const order of prop.nearbyOrders) {
+        let maxBonus: number | null = null;
+        const royaltyOpts: string[] = [];
+        if (order.electionOptions?.length) {
+          for (const opt of order.electionOptions) {
+            if (opt.bonusPerAcre != null && (maxBonus === null || opt.bonusPerAcre > maxBonus)) maxBonus = opt.bonusPerAcre;
+            if (opt.royaltyFraction) royaltyOpts.push(opt.royaltyFraction);
+          }
+        }
+        const formations = (order.formations || []).map(f => formationName(f)).join('; ');
+        rows.push([
+          csvEscape(prop.propertyName),
+          csvEscape(prop.county || ''),
+          order.orderDate || '',
+          csvEscape(order.operator || order.applicant || ''),
+          csvEscape(formations),
+          `${order.township}-${order.range}-${order.section}`,
+          csvEscape(order.distanceDescription || ''),
+          maxBonus != null ? String(maxBonus) : '',
+          csvEscape([...new Set(royaltyOpts)].join('; ')),
+          csvEscape(order.caseNumber || ''),
+          order.responseDeadline || '',
+        ].join(','));
+      }
+    }
+    downloadCsv([header, ...rows].join('\n'), `pooling-rates-${new Date().toISOString().substring(0, 10)}.csv`);
+    toast.success('CSV downloaded');
+  }, [filtered, toast]);
 
   if (properties.length === 0) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No nearby pooling orders found.</div>;
@@ -304,8 +363,9 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
           <option value="county">By County</option>
         </select>
 
-        <div style={{ fontSize: 12, color: SLATE, marginLeft: 'auto' }}>
-          {filtered.length} of {properties.length} properties
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 12, color: SLATE }}>{filtered.length} of {properties.length} properties</span>
+          <button onClick={exportCsv} style={exportBtnStyle}>&#8615; Export CSV</button>
         </div>
       </div>
 
@@ -476,6 +536,24 @@ function OrdersTable({ orders, onOperatorClick }: { orders: PoolingNearbyOrder[]
 }
 
 function MarketsTab({ counties, onOperatorClick }: { counties: PoolingCountyAvg[]; onOperatorClick: (name: string) => void }) {
+  const toast = useToast();
+
+  const exportCsv = useCallback(() => {
+    const header = 'County,Orders,Avg Bonus/Acre,Min Bonus,Max Bonus,Most Active Operator,Dominant Royalty,Formations';
+    const rows = counties.map(ca => [
+      csvEscape(ca.county),
+      ca.orderCount || 0,
+      ca.avgBonus != null ? ca.avgBonus : '',
+      ca.minBonus != null ? ca.minBonus : '',
+      ca.maxBonus != null ? ca.maxBonus : '',
+      csvEscape(ca.mostActiveOperator || ''),
+      csvEscape(ca.dominantRoyalty || ''),
+      csvEscape((ca.formations || []).join('; ')),
+    ].join(','));
+    downloadCsv([header, ...rows].join('\n'), `pooling-markets-${new Date().toISOString().substring(0, 10)}.csv`);
+    toast.success('CSV downloaded');
+  }, [counties, toast]);
+
   if (counties.length === 0) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No county pooling data available.</div>;
   }
@@ -487,6 +565,10 @@ function MarketsTab({ counties, onOperatorClick }: { counties: PoolingCountyAvg[
   const globalRange = globalMax - globalMin || 1;
 
   return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={exportCsv} style={exportBtnStyle}>&#8615; Export CSV</button>
+      </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
       {counties.map((c) => {
         const rangeStart = c.minBonus != null ? ((c.minBonus - globalMin) / globalRange * 100) : 0;
@@ -577,15 +659,39 @@ function MarketsTab({ counties, onOperatorClick }: { counties: PoolingCountyAvg[
         );
       })}
     </div>
+    </div>
   );
 }
 
 function ResearchTab({ data, onOperatorClick }: { data: PoolingReportData['marketResearch'] | undefined; onOperatorClick: (name: string) => void }) {
+  const toast = useToast();
+
+  const exportCsv = useCallback(() => {
+    if (!data) return;
+    const header = 'Category,Name,Value,Detail';
+    const rows: string[] = [];
+    for (const f of (data.topFormations || [])) {
+      rows.push(['Top Formation', csvEscape(f.name), String(f.avgBonus), 'Avg Bonus/Acre'].join(','));
+    }
+    for (const op of (data.topPayingOperators || [])) {
+      rows.push(['Top Operator', csvEscape(op.name), String(op.avgBonus), `${op.orderCount} orders`].join(','));
+    }
+    for (const c of (data.hottestCounties || [])) {
+      rows.push(['Hottest County', csvEscape(c.county), String(c.orderCount), 'orders (last 90 days)'].join(','));
+    }
+    downloadCsv([header, ...rows].join('\n'), `pooling-research-${new Date().toISOString().substring(0, 10)}.csv`);
+    toast.success('CSV downloaded');
+  }, [data, toast]);
+
   if (!data) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No statewide research data available.</div>;
   }
 
   return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={exportCsv} style={exportBtnStyle}>&#8615; Export CSV</button>
+      </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
       {/* Top formations */}
       {data.topFormations?.length > 0 && (
@@ -633,6 +739,7 @@ function ResearchTab({ data, onOperatorClick }: { data: PoolingReportData['marke
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }

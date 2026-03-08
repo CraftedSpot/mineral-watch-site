@@ -325,6 +325,13 @@ function PortfolioTab({ data }: { data: DeductionReportData }) {
 
 // ── Markets Tab ──
 
+function formatCurrencyShort(v: number): string {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return (v < 0 ? '-' : '') + '$' + (abs / 1_000_000).toFixed(1) + 'M';
+  if (abs >= 1_000) return (v < 0 ? '-' : '') + '$' + Math.round(abs / 1_000).toLocaleString() + 'K';
+  return '$' + Math.round(v).toLocaleString();
+}
+
 function MarketsTab({ data, tier }: { data: OperatorComparisonData | null; tier: IntelligenceTier }) {
   if (tier !== 'full') {
     return (
@@ -337,36 +344,87 @@ function MarketsTab({ data, tier }: { data: OperatorComparisonData | null; tier:
 
   if (!data) return <LoadingSkeleton columns={4} rows={4} />;
 
+  const { operators, statewide } = data;
+  const criticalOps = operators.filter(op => op.deduction_ratio > 40 && op.your_wells > 20);
+  const criticalNames = new Set(criticalOps.map(op => op.operator_name));
+
   const columns: Column<OperatorComparisonEntry>[] = [
-    { key: 'company_name', label: 'Operator', sortType: 'string', width: 180 },
     {
-      key: 'deduction_ratio', label: 'Deduction %', sortType: 'number', width: 100,
-      render: (row) => <span style={{ color: deductionColor(row.deduction_ratio) }}>{row.deduction_ratio.toFixed(1)}%</span>,
+      key: 'operator_name', label: 'Operator', sortType: 'string', width: 'minmax(140px, 2fr)',
+      render: (row) => (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 500 }}>{row.operator_name}</span>
+          {criticalNames.has(row.operator_name) && (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: '#fef2f2', color: '#dc2626' }}>High Impact</span>
+          )}
+          {row.is_affiliated ? (
+            <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 3, background: '#fef3c7', color: '#92400e' }}>Affiliated</span>
+          ) : (
+            <span style={{ fontSize: 10, fontWeight: 500, padding: '1px 5px', borderRadius: 3, background: '#f1f5f9', color: SLATE }}>Third Party</span>
+          )}
+        </span>
+      ),
     },
     {
-      key: 'ngl_recovery_ratio', label: 'NGL Recovery', sortType: 'number', width: 110,
-      render: (row) => <span>{row.ngl_recovery_ratio.toFixed(1)}%</span>,
+      key: 'your_wells', label: 'Your Wells', sortType: 'number', width: 85,
+      render: (row) => <span style={{ fontWeight: row.your_wells > 0 ? 600 : 400 }}>{row.your_wells}</span>,
     },
     {
-      key: 'well_count', label: 'Wells', sortType: 'number', width: 70,
-      render: (row) => <span>{row.well_count}</span>,
+      key: 'total_wells', label: 'Total Wells', sortType: 'number', width: 85,
+      render: (row) => <span>{row.total_wells}</span>,
     },
     {
-      key: 'userWellCount', label: 'Your Wells', sortType: 'number', width: 90,
-      render: (row) => <span style={{ fontWeight: row.userWellCount > 0 ? 600 : 400 }}>{row.userWellCount}</span>,
+      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 100,
+      render: (row) => <span>{formatCurrency(row.total_gross)}</span>,
     },
     {
-      key: 'gas_profile', label: 'Gas Profile', sortType: 'string', width: 100,
+      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 100,
+      render: (row) => <span>{formatCurrency(row.residue_deductions)}</span>,
+    },
+    {
+      key: 'deduction_ratio', label: 'Ded %', sortType: 'number', width: 75,
       render: (row) => {
-        if (!row.gas_profile) return <span style={{ color: SLATE }}>—</span>;
-        const colors: Record<string, { bg: string; color: string }> = {
-          lean: { bg: '#dbeafe', color: '#1e40af' },
-          rich: { bg: '#dcfce7', color: '#166534' },
+        const v = row.deduction_ratio;
+        if (v == null) return <span style={{ color: SLATE }}>—</span>;
+        return <span style={{ color: deductionColor(v), fontWeight: 600 }}>{v.toFixed(1)}%</span>;
+      },
+    },
+    {
+      key: 'liquids_returned', label: 'NGL Returned', sortType: 'number', width: 100,
+      render: (row) => <span>{formatCurrency(row.liquids_returned)}</span>,
+    },
+    {
+      key: '_net_return', label: 'Net Return', sortType: 'number', width: 100,
+      getValue: (row) => (row.liquids_returned || 0) - (row.residue_deductions || 0),
+      render: (row) => {
+        const net = (row.liquids_returned || 0) - (row.residue_deductions || 0);
+        const color = net <= -5_000_000 ? '#ef4444' : net <= -1_000_000 ? '#f97316' : net >= 0 ? '#16a34a' : TEXT_DARK;
+        return <span style={{ color, fontWeight: 600 }}>{formatCurrencyShort(net)}</span>;
+      },
+    },
+    {
+      key: '_pcrr', label: 'PCRR', sortType: 'number', width: 70,
+      title: 'Post-Production Cost Recovery Ratio: NGL ÷ Deductions',
+      getValue: (row) => row.residue_deductions > 0 ? Math.round((row.liquids_returned / row.residue_deductions) * 1000) / 10 : -Infinity,
+      render: (row) => {
+        const pcrr = row.residue_deductions > 0 ? Math.round((row.liquids_returned / row.residue_deductions) * 1000) / 10 : null;
+        if (pcrr == null) return <span style={{ color: SLATE }}>—</span>;
+        const color = pcrr >= 100 ? '#16a34a' : pcrr >= 30 ? TEXT_DARK : '#f59e0b';
+        return <span style={{ color }}>{pcrr}%</span>;
+      },
+    },
+    {
+      key: 'gas_profile', label: 'Gas Profile', sortType: 'string', width: 90,
+      render: (row) => {
+        if (!row.gas_profile) return <span style={{ color: SLATE }}>Mixed</span>;
+        const colors: Record<string, { bg: string; color: string; label: string }> = {
+          lean: { bg: '#dbeafe', color: '#1e40af', label: 'Lean Gas' },
+          rich: { bg: '#dcfce7', color: '#166534', label: 'Rich Gas' },
         };
-        const c = colors[row.gas_profile] || { bg: '#f3f4f6', color: '#374151' };
+        const c = colors[row.gas_profile] || { bg: '#f3f4f6', color: '#374151', label: 'Mixed' };
         return (
           <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 3, background: c.bg, color: c.color }}>
-            {row.gas_profile === 'lean' ? 'Lean Gas' : 'Rich Gas'}
+            {c.label}
           </span>
         );
       },
@@ -375,19 +433,80 @@ function MarketsTab({ data, tier }: { data: OperatorComparisonData | null; tier:
 
   return (
     <div>
-      {data.statewide && (
-        <div style={{ padding: 12, background: BG_MUTED, borderRadius: 8, border: `1px solid ${BORDER}`, marginBottom: 16, fontSize: 13, color: SLATE }}>
-          Statewide average: <strong style={{ color: TEXT_DARK }}>{data.statewide.avg_deduction_ratio.toFixed(1)}%</strong> deduction
-          {' / '}<strong style={{ color: TEXT_DARK }}>{data.statewide.avg_ngl_recovery_ratio.toFixed(1)}%</strong> NGL recovery
+      {/* High-Impact Operator callout */}
+      {criticalOps.length > 0 && (
+        <div style={{
+          padding: 16, marginBottom: 16, borderRadius: 8,
+          background: '#fef2f2', borderLeft: '4px solid #dc2626',
+        }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#dc2626', margin: '0 0 8px' }}>
+            High-Impact Operator{criticalOps.length > 1 ? 's' : ''} Detected
+          </h3>
+          <p style={{ fontSize: 13, color: TEXT_DARK, margin: 0, lineHeight: 1.7 }}>
+            {criticalOps.map((op, i) => {
+              const net = (op.liquids_returned || 0) - (op.residue_deductions || 0);
+              const pcrr = op.residue_deductions > 0 ? Math.round((op.liquids_returned / op.residue_deductions) * 1000) / 10 : null;
+              const aboveAvg = statewide?.deduction_ratio != null ? ` — significantly above the statewide average of ${statewide.deduction_ratio}%` : '';
+              const dollarDetail = op.residue_deductions > 0
+                ? `. Across all their wells, deductions totaled ${formatCurrencyShort(op.residue_deductions)} with ${formatCurrencyShort(op.liquids_returned)} in NGL returned${pcrr != null ? ` (${pcrr}% PCRR)` : ''}`
+                : '';
+              return (
+                <span key={op.operator_number}>
+                  {i > 0 && '. '}
+                  <strong>{op.operator_name}</strong> manages {op.your_wells} of your wells with a {op.deduction_ratio}% deduction ratio{aboveAvg}{dollarDetail}
+                </span>
+              );
+            })}
+            . Operators with high deduction ratios across a large number of your wells have an outsized impact on your net revenue. Consider reviewing these deductions closely.
+            {criticalOps.some(op => op.is_affiliated) && (
+              <span> {criticalOps.filter(op => op.is_affiliated).map(op => `${op.operator_name} pays processing deductions to affiliated companies.`).join(' ')}</span>
+            )}
+          </p>
         </div>
       )}
+
+      {/* About This Data */}
+      <div style={{
+        padding: 16, marginBottom: 16, borderRadius: 8,
+        background: BG_MUTED, border: `1px solid ${BORDER}`,
+      }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: TEXT_DARK, margin: '0 0 6px' }}>About This Data</h3>
+        <p style={{ fontSize: 13, color: SLATE, margin: 0, lineHeight: 1.7 }}>
+          This report shows deduction ratios and NGL recovery ratios for operators associated with your wells.{' '}
+          <strong>Deduction Ratio</strong> = Residue Gas deductions as a percentage of total gross value.{' '}
+          <strong>NGL Recovery Ratio</strong> = NGL/Casinghead value returned as a percentage of Residue Gas deductions.{' '}
+          Higher NGL recovery means more value returned relative to processing costs.{' '}
+          NGL Recovery Ratios above 100% indicate the operator is returning more NGL value than they are deducting in processing costs, which is a positive outcome.
+        </p>
+      </div>
+
+      {/* Statewide context */}
+      {statewide && (
+        <div style={{ padding: 12, background: BG_MUTED, borderRadius: 8, border: `1px solid ${BORDER}`, marginBottom: 16, fontSize: 13, color: SLATE }}>
+          Statewide average: <strong style={{ color: TEXT_DARK }}>{statewide.deduction_ratio?.toFixed(1) ?? '—'}%</strong> deduction
+          {' / '}<strong style={{ color: TEXT_DARK }}>{statewide.ngl_recovery_ratio?.toFixed(1) ?? '—'}%</strong> NGL recovery
+          <span style={{ marginLeft: 8, fontSize: 12 }}>({statewide.operator_count} operators)</span>
+        </div>
+      )}
+
       <SortableTable
         columns={columns}
-        data={data.operators}
+        data={operators}
         defaultSort={{ key: 'deduction_ratio', dir: 'desc' }}
         rowKey={(row) => row.operator_number}
         emptyMessage="No operator data available"
       />
+
+      {/* Gas profile classification footnote */}
+      <div style={{ fontSize: 12, color: SLATE, marginTop: 20, lineHeight: 1.7, maxWidth: 900 }}>
+        <strong style={{ color: TEXT_DARK }}>&#9432; About gas profile classifications</strong><br />
+        Each operator is classified by the Gas-Oil Ratio (GOR) of their well portfolio:{' '}
+        <strong>Lean Gas</strong> (&gt;70% of wells GOR &gt;15,000) = low NGL expected;{' '}
+        <strong>Rich Gas</strong> (&gt;70% of wells GOR &lt;3,000) = NGL recovery expected;{' '}
+        <strong>Mixed</strong> = transitional portfolio.{' '}
+        Operators tagged "Primarily Lean Gas" may legitimately show high deductions with low PCRR.{' '}
+        Operators tagged "Primarily Rich Gas" with low PCRR may warrant closer review.
+      </div>
     </div>
   );
 }
@@ -408,8 +527,8 @@ function ResearchTab({ data, loading }: { data: DeductionResearchData | null; lo
         {(data.topDeductionCounties || []).map((c, i) => (
           <div key={i} style={{ padding: '8px 14px', borderBottom: `1px solid ${BORDER}`, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: TEXT_DARK }}>{cleanCounty(c.county)}</span>
-            <span style={{ color: deductionColor(c.avg_deduction_pct), fontWeight: 600 }}>
-              {c.avg_deduction_pct.toFixed(1)}% <span style={{ color: SLATE, fontWeight: 400 }}>({c.well_count} wells)</span>
+            <span style={{ color: deductionColor(c.avg_deduction_pct ?? 0), fontWeight: 600 }}>
+              {c.avg_deduction_pct?.toFixed(1) ?? '—'}% <span style={{ color: SLATE, fontWeight: 400 }}>({c.well_count} wells)</span>
             </span>
           </div>
         ))}
@@ -424,7 +543,7 @@ function ResearchTab({ data, loading }: { data: DeductionResearchData | null; lo
           <div key={i} style={{ padding: '8px 14px', borderBottom: `1px solid ${BORDER}`, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ color: TEXT_DARK }}>{op.operator_name}</span>
             <span style={{ color: '#16a34a', fontWeight: 600 }}>
-              {op.pcrr.toFixed(0)}% <span style={{ color: SLATE, fontWeight: 400 }}>({op.well_count} wells)</span>
+              {op.pcrr?.toFixed(0) ?? '—'}% <span style={{ color: SLATE, fontWeight: 400 }}>({op.well_count} wells)</span>
             </span>
           </div>
         ))}

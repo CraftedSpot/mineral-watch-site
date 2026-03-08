@@ -35,6 +35,7 @@ const PRINT_URLS: Partial<Record<ReportType, string>> = {
   'deduction': '/print/intelligence/deduction-audit',
   'production-decline': '/print/intelligence/production-decline',
   'shut-in': '/print/intelligence/shut-in-detector',
+  'pooling': '/print/intelligence/pooling',
 };
 
 export function IntelligencePage() {

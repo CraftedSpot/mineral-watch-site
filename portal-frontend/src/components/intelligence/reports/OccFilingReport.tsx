@@ -476,6 +476,11 @@ function ResearchTab({ data }: { data: OccFilingData['marketResearch'] }) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No statewide research data available.</div>;
   }
 
+  const maxCounty = Math.max(...(data.hottestCounties || []).map(c => c.count), 1);
+  const maxFiler = Math.max(...(data.topFilers || []).map(f => f.count), 1);
+  const filingTypes = Object.entries(data.filingTypeBreakdown || {}).sort(([, a], [, b]) => b - a);
+  const maxType = filingTypes.length > 0 ? filingTypes[0][1] : 1;
+
   return (
     <div>
       {data.totalStatewideFilings90d > 0 && (
@@ -483,48 +488,75 @@ function ResearchTab({ data }: { data: OccFilingData['marketResearch'] }) {
           {data.totalStatewideFilings90d.toLocaleString()} statewide filings in the last 90 days
         </div>
       )}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {/* Hottest counties */}
         {data.hottestCounties?.length > 0 && (
-          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, padding: 16, background: '#fff' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: TEXT_DARK, margin: '0 0 12px' }}>Hottest Counties (90 days)</h3>
+          <ResearchCard accent="#f59e0b" title="Hottest Counties" subtitle="90 days" col1="County" col2="Filings">
             {data.hottestCounties.map((c, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < data.hottestCounties.length - 1 ? `1px solid ${BORDER}` : 'none', fontSize: 13 }}>
-                <span style={{ color: TEXT_DARK }}>{c.county}</span>
-                <span style={{ fontWeight: 600, color: SLATE }}>{c.count} filings</span>
-              </div>
+              <ResearchRow key={i} label={c.county} value={c.count} max={maxCounty} color="#f59e0b" />
             ))}
-          </div>
+          </ResearchCard>
         )}
 
         {/* Top filers */}
         {data.topFilers?.length > 0 && (
-          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, padding: 16, background: '#fff' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: TEXT_DARK, margin: '0 0 12px' }}>Most Active Filers (90 days)</h3>
+          <ResearchCard accent="#3b82f6" title="Most Active Filers" subtitle="90 days" col1="Operator" col2="Filings">
             {data.topFilers.map((f, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: i < data.topFilers.length - 1 ? `1px solid ${BORDER}` : 'none', fontSize: 13 }}>
-                <span style={{ color: TEXT_DARK }}>{f.applicant}</span>
-                <span style={{ fontWeight: 600, color: SLATE }}>{f.count} filings</span>
-              </div>
+              <ResearchRow key={i} label={f.applicant} value={f.count} max={maxFiler} color="#3b82f6" />
             ))}
-          </div>
+          </ResearchCard>
         )}
 
         {/* Filing type breakdown */}
-        {data.filingTypeBreakdown && Object.keys(data.filingTypeBreakdown).length > 0 && (
-          <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, padding: 16, background: '#fff' }}>
-            <h3 style={{ fontSize: 14, fontWeight: 600, color: TEXT_DARK, margin: '0 0 12px' }}>Filing Types (90 days)</h3>
-            {Object.entries(data.filingTypeBreakdown).sort(([, a], [, b]) => b - a).map(([type, count], i, arr) => {
+        {filingTypes.length > 0 && (
+          <ResearchCard accent="#8b5cf6" title="Filing Types" subtitle="90 days" col1="Type" col2="Count">
+            {filingTypes.map(([type, count]) => {
               const pct = data.totalStatewideFilings90d > 0 ? Math.round(count / data.totalStatewideFilings90d * 100) : 0;
-              return (
-                <div key={type} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: i < arr.length - 1 ? `1px solid ${BORDER}` : 'none', fontSize: 13 }}>
-                  <span style={{ color: TEXT_DARK }}>{type}</span>
-                  <span style={{ fontWeight: 600, color: SLATE }}>{count} <span style={{ fontWeight: 400, fontSize: 11 }}>({pct}%)</span></span>
-                </div>
-              );
+              return <ResearchRow key={type} label={type} value={count} max={maxType} color="#8b5cf6" suffix={`${pct}%`} />;
             })}
-          </div>
+          </ResearchCard>
         )}
+      </div>
+    </div>
+  );
+}
+
+function ResearchCard({ accent, title, subtitle, col1, col2, children }: {
+  accent: string; title: string; subtitle: string; col1: string; col2: string; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, background: '#fff', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 16px', borderBottom: `1px solid ${BORDER}`, background: `linear-gradient(135deg, ${accent}08, ${accent}04)` }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: accent, margin: 0 }}>{title}</h3>
+        <span style={{ fontSize: 11, color: SLATE }}>{subtitle}</span>
+      </div>
+      <div style={{ padding: '0 16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 6px', borderBottom: `1px solid ${BORDER}` }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: SLATE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col1}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: SLATE, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{col2}</span>
+        </div>
+        {children}
+      </div>
+      <div style={{ height: 8 }} />
+    </div>
+  );
+}
+
+function ResearchRow({ label, value, max, color, suffix }: {
+  label: string; value: number; max: number; color: string; suffix?: string;
+}) {
+  const pct = Math.round((value / max) * 100);
+  return (
+    <div style={{ padding: '8px 0', borderBottom: `1px solid ${BORDER}` }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 13, color: TEXT_DARK }}>{label}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'monospace', color: TEXT_DARK }}>
+          {value.toLocaleString()}
+          {suffix && <span style={{ fontWeight: 400, fontSize: 11, color: SLATE, marginLeft: 4 }}>{suffix}</span>}
+        </span>
+      </div>
+      <div style={{ height: 4, background: '#f1f5f9', borderRadius: 2, overflow: 'hidden' }}>
+        <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 2, opacity: 0.5, transition: 'width 0.3s' }} />
       </div>
     </div>
   );

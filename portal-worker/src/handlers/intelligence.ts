@@ -159,6 +159,16 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       });
     }
 
+    // KV cache — summary data only changes on daily cron, 1h TTL
+    const cacheId = userOrgId || authUser.id;
+    const skipCache = new URL(request.url).searchParams.has('bust');
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`intelligence-summary:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (_) {}
+    }
+
     // Pre-resolve org member IDs (one query, reused below)
     const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
     const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
@@ -332,7 +342,7 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
     shutInWells = shutInCount;
     wellsAnalyzed = analyzedCount;
 
-    return jsonResponse({
+    const response = {
       activeWells,
       countyCount: counties.size,
       estimatedRevenue,
@@ -344,7 +354,14 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       actionItems: 0,
       nearestDeadline: null,
       _intelligence_tier: getIntelligenceTier(userPlan)
-    });
+    };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try { await env.OCC_CACHE.put(`intelligence-summary:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 }); } catch (_) {}
+    }
+
+    return jsonResponse(response);
 
   } catch (error) {
     console.error('[Intelligence Summary] Error:', error instanceof Error ? error.message : error);
@@ -380,6 +397,16 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
           description: 'Advanced deduction analysis and operator comparisons will be available in an upcoming release.'
         }]
       });
+    }
+
+    // KV cache — insights only change on daily cron, 1h TTL
+    const cacheId = userOrgId || authUser.id;
+    const skipCache = new URL(request.url).searchParams.has('bust');
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`intelligence-insights:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (_) {}
     }
 
     // Pre-resolve org member IDs (one query, reused below)
@@ -569,7 +596,14 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       });
     }
 
-    return jsonResponse({ insights });
+    const response = { insights };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try { await env.OCC_CACHE.put(`intelligence-insights:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 }); } catch (_) {}
+    }
+
+    return jsonResponse(response);
 
   } catch (error) {
     console.error('[Intelligence Insights] Error:', error instanceof Error ? error.message : error);

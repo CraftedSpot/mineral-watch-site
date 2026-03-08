@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fetchSummary, fetchInsights } from '../api/intelligence';
 import type { SummaryData, Insight, IntelligenceTier } from '../types/intelligence';
 
@@ -11,45 +11,28 @@ interface IntelligenceDataState {
 }
 
 export function useIntelligenceData(): IntelligenceDataState {
-  const [summary, setSummary] = useState<SummaryData | null>(null);
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [tier, setTier] = useState<IntelligenceTier>('none');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const summaryQuery = useQuery({
+    queryKey: ['intelligence', 'summary'],
+    queryFn: fetchSummary,
+    staleTime: 30 * 60 * 1000,  // 30 min — only changes on daily cron
+  });
 
-  useEffect(() => {
-    let cancelled = false;
+  const insightsQuery = useQuery({
+    queryKey: ['intelligence', 'insights'],
+    queryFn: () => fetchInsights().then(r => r.insights),
+    staleTime: 30 * 60 * 1000,
+  });
 
-    async function load() {
-      try {
-        // Fire both in parallel — each renders independently as it resolves
-        const [summaryResult, insightsResult] = await Promise.allSettled([
-          fetchSummary(),
-          fetchInsights(),
-        ]);
+  const summary = summaryQuery.data ?? null;
+  const tier: IntelligenceTier = summary?._intelligence_tier || 'none';
 
-        if (cancelled) return;
-
-        if (summaryResult.status === 'fulfilled') {
-          setSummary(summaryResult.value);
-          setTier(summaryResult.value._intelligence_tier || 'none');
-        } else {
-          setError('Failed to load intelligence data');
-        }
-
-        if (insightsResult.status === 'fulfilled') {
-          setInsights(insightsResult.value.insights || []);
-        }
-      } catch {
-        if (!cancelled) setError('Failed to load intelligence data');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  return { summary, insights, tier, loading, error };
+  return {
+    summary,
+    insights: insightsQuery.data ?? [],
+    tier,
+    loading: summaryQuery.isLoading,
+    error: summaryQuery.error
+      ? (summaryQuery.error instanceof Error ? summaryQuery.error.message : 'Failed to load intelligence data')
+      : null,
+  };
 }
