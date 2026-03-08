@@ -2926,7 +2926,11 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
     const query = `
       WITH user_wells AS (
         SELECT cw.id as client_well_id, cw.api_number,
-               w.id as well_id, w.well_name, w.operator, w.county,
+               w.id as well_id,
+               CASE WHEN w.well_number IS NOT NULL AND w.well_number != ''
+                    THEN w.well_name || ' ' || w.well_number
+                    ELSE w.well_name END as well_name,
+               w.operator, w.county,
                w.formation_name, w.well_type, w.is_horizontal
         FROM client_wells cw
         JOIN wells w ON w.api_number = cw.api_number
@@ -2941,10 +2945,18 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
         WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
           AND op.year_month >= ?
         GROUP BY wpl.api_number, op.year_month
+      ),
+      lifetime AS (
+        SELECT wpl.api_number, MAX(p.last_prod_month) as last_prod_month
+        FROM well_pun_links wpl
+        JOIN puns p ON p.base_pun = wpl.base_pun
+        WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
+        GROUP BY wpl.api_number
       )
-      SELECT uw.*, p.year_month, p.oil, p.gas
+      SELECT uw.*, p.year_month, p.oil, p.gas, lt.last_prod_month
       FROM user_wells uw
       LEFT JOIN production p ON p.api_number = uw.api_number
+      LEFT JOIN lifetime lt ON lt.api_number = uw.api_number
       ORDER BY uw.well_name, p.year_month DESC
     `;
 
@@ -2965,6 +2977,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
       year_month: string | null;
       oil: number | null;
       gas: number | null;
+      last_prod_month: string | null;
     }>;
 
     // Step 2: Group rows by well and compute metrics
@@ -2978,6 +2991,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
       formation: string;
       wellType: string;
       isHorizontal: boolean;
+      lastProdMonth: string | null;
       monthlyData: Array<{ yearMonth: string; oil: number; gas: number; boe: number }>;
     }>();
 
@@ -2998,6 +3012,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
           formation: row.formation_name || 'Unknown',
           wellType: row.well_type || 'Unknown',
           isHorizontal: row.is_horizontal === 1,
+          lastProdMonth: row.last_prod_month || null,
           monthlyData: []
         });
       }
@@ -3062,6 +3077,10 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
 
         // Determine status based on last reported month
         status = lastReportedMonth >= activeThreshold ? 'active' : 'idle';
+      } else if (wellData.lastProdMonth) {
+        // No production in 24-month window, but we know the lifetime last prod month from puns table
+        lastReportedMonth = wellData.lastProdMonth;
+        status = 'idle';
 
         // Calculate YoY (compare to same month last year)
         const recentYear = parseInt(lastReportedMonth.substring(0, 4));
