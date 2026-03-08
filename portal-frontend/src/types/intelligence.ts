@@ -221,53 +221,127 @@ export interface DeclineMarketsData {
 
 // ── Decline Research ──
 
+export interface DeclineResearchOperator {
+  operator: string;
+  operatorNumber: string | null;
+  activeWells: number;
+  avgDecline: number;
+}
+
+export interface DeclineResearchCounty {
+  county: string;
+  activeWells: number;
+  avgDecline: number;
+  decliningWells: number;
+  growingWells: number;
+}
+
 export interface DeclineResearchData {
-  topDeclineCounties?: Array<{ county: string; avg_decline_pct: number; well_count: number }>;
-  topOperators?: Array<{ operator_name: string; avg_decline_pct: number; well_count: number }>;
-  [key: string]: unknown;
+  summary: {
+    totalPuns: number;
+    activePuns: number;
+    avgDecline: number;
+    steepDecline: number;
+    flatWells: number;
+    growingWells: number;
+    dataHorizon: string;
+  };
+  operatorsByDecline: DeclineResearchOperator[];
+  operatorsByGrowth: DeclineResearchOperator[];
+  counties: DeclineResearchCounty[];
 }
 
 // ── Shut-In Detector ──
 
-export interface ShutInOperatorPattern {
-  operator: string;
-  wellCount: number;
-  idleCount: number;
-  idleRate: number;
-  flag: boolean;
-}
-
 export interface ShutInWell {
+  clientWellId: string;
   apiNumber: string;
   wellName: string;
   operator: string;
+  operatorNumber: string | null;
   county: string;
   wellType: string;
-  spudDate: string | null;
-  completionDate: string | null;
-  monthsSinceProduction: number | null;
-  firstProdMonth: string | null;
+  pun: string | null;
+  status: 'recently_idle' | 'extended_idle' | 'no_recent_production' | 'no_data';
+  monthsIdle: number;
   lastProdMonth: string | null;
+  firstProdMonth: string | null;
   peakMonth: string | null;
   declineRate12m: number | null;
-  idleReason: string;
-  hbpExpiredFlag: boolean;
-  suddenStopFlag: boolean;
-  flaggedOperatorFlag: boolean;
-  taxPeriodStatus: string | null;
+  riskFlags: string[];
+  taxPeriodStart: string | null;
+  taxPeriodEnd: string | null;
+  taxPeriodActive: boolean | null;
 }
 
 export interface ShutInDetectorData {
   summary: {
+    totalIdle: number;
+    hbpRisk: number;
+    recentlyIdle: number;
+    extendedIdle: number;
+    noRecentProd: number;
+    noData: number;
+  };
+  wells: ShutInWell[];
+  generatedAt: string;
+}
+
+export interface ShutInMarketCounty {
+  county: string;
+  countyCode: string;
+  totalWells: number;
+  idleWells: number;
+  idleRate: number;
+  userWellCount: number;
+  userIdleWells: number;
+  userIdleRate: number;
+  userVsCountyDelta: number | null;
+  topOperators: Array<{
+    operator: string;
     totalWells: number;
     idleWells: number;
+    idleRate: number;
+  }>;
+}
+
+export interface ShutInMarketsData {
+  counties: ShutInMarketCounty[];
+}
+
+export interface ShutInResearchOperator {
+  operator: string;
+  operatorNumber: string | null;
+  totalWells: number;
+  idleWells: number;
+  recentlyIdle: number;
+  idleRatePct: number;
+}
+
+export interface ShutInResearchCounty {
+  county: string;
+  totalWells: number;
+  idleWells: number;
+  idleRatePct: number;
+  topIdleOperator: string | null;
+  topIdleOperatorNumber: string | null;
+}
+
+export interface ShutInResearchData {
+  summary: {
+    totalPuns: number;
+    activePuns: number;
+    idlePuns: number;
+    idleRatePct: number;
     recentlyIdle: number;
-    flaggedOperators: number;
-    hbpRiskWells: number;
-    suddenStopWells: number;
+    longTermIdle: number;
+    newlyIdle6mo: number;
+    unassignedWells: number;
+    dataHorizon: string;
   };
-  operatorPatterns: ShutInOperatorPattern[];
-  idleWells: ShutInWell[];
+  operatorsByCount: ShutInResearchOperator[];
+  operatorsByRate: ShutInResearchOperator[];
+  counties: ShutInResearchCounty[];
 }
 
 // ── Pooling Report ──

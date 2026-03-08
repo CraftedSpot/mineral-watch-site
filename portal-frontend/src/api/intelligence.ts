@@ -61,11 +61,11 @@ export function fetchShutInDetector(): Promise<ShutInDetectorData> {
   return apiFetch('/api/intelligence/shut-in-detector');
 }
 
-export function fetchShutInMarkets() {
+export function fetchShutInMarkets(): Promise<ShutInMarketsData> {
   return apiFetch('/api/intelligence/shut-in-detector/markets');
 }
 
-export function fetchShutInResearch() {
+export function fetchShutInResearch(): Promise<ShutInResearchData> {
   return apiFetch('/api/intelligence/shut-in-detector/research');
 }
 

@@ -10,7 +10,7 @@ import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/co
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import type { Column } from '../SortableTable';
-import type { IntelligenceTier, DeclineWell, DeclineCountyAggregate } from '../../../types/intelligence';
+import type { IntelligenceTier, DeclineWell, DeclineCountyAggregate, DeclineResearchData } from '../../../types/intelligence';
 
 interface Props {
   tier: IntelligenceTier;
@@ -86,12 +86,7 @@ export function ProductionDeclineReport({ tier }: Props) {
 
       {activeTab === 'portfolio' && <PortfolioTab wells={wells} monthlyTotals={data.monthlyTotals} />}
       {activeTab === 'markets' && <MarketsTab data={marketsData} loading={marketsLoading} />}
-      {activeTab === 'research' && (
-        researchLoading ? <LoadingSkeleton columns={3} rows={5} />
-        : <div style={{ padding: 24, color: SLATE, textAlign: 'center', fontSize: 14 }}>
-            {researchData ? 'Statewide research data loaded.' : 'No research data available.'}
-          </div>
-      )}
+      {activeTab === 'research' && <ResearchTab data={researchData} loading={researchLoading} />}
     </div>
   );
 }
@@ -530,6 +525,211 @@ function StatRow({ label, value, valueColor, subtle }: { label: string; value: s
     }}>
       <span style={{ fontSize: 12, color: SLATE }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 600, color: valueColor || TEXT_DARK, fontFamily: 'monospace' }}>{value}</span>
+    </div>
+  );
+}
+
+// ── Research Tab ──
+
+function declineColor(rate: number): string {
+  if (rate > -10) return '#10b981';
+  if (rate > -35) return '#f59e0b';
+  if (rate > -60) return '#f97316';
+  return '#ef4444';
+}
+
+function ResearchTab({ data, loading }: { data: DeclineResearchData | null; loading: boolean }) {
+  const toast = useToast();
+  const [view, setView] = useState<'decliners' | 'growers' | 'counties'>('decliners');
+  const [countySort, setCountySort] = useState<'rate' | 'count' | 'name'>('rate');
+
+  if (loading) return <LoadingSkeleton columns={3} rows={6} />;
+  if (!data) return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No research data available.</div>;
+
+  const { summary: s, operatorsByDecline, operatorsByGrowth, counties } = data;
+
+  // Sort counties
+  const sortedCounties = [...counties].sort((a, b) => {
+    if (countySort === 'rate') return a.avgDecline - b.avgDecline;
+    if (countySort === 'count') return b.activeWells - a.activeWells;
+    return a.county.localeCompare(b.county);
+  });
+
+  // CSV export
+  const exportCsv = () => {
+    const esc = (str: string) => str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
+    const lines: string[] = ['Section,Rank,Name,Active Wells,Avg Decline %'];
+    operatorsByDecline.forEach((op, i) => {
+      lines.push(`Steepest Decliners,${i + 1},${esc(op.operator)},${op.activeWells},${op.avgDecline}`);
+    });
+    operatorsByGrowth.forEach((op, i) => {
+      lines.push(`Top Growers,${i + 1},${esc(op.operator)},${op.activeWells},${op.avgDecline}`);
+    });
+    lines.push('');
+    lines.push('County,Active Wells,Avg Decline %,Declining Wells,Growing Wells');
+    counties.forEach((c) => {
+      lines.push(`${esc(c.county)},${c.activeWells},${c.avgDecline},${c.decliningWells},${c.growingWells}`);
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `decline-research-${new Date().toISOString().substring(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success('CSV downloaded');
+  };
+
+  const viewBtnStyle = (active: boolean): React.CSSProperties => ({
+    padding: '6px 14px', borderRadius: 6, border: `1px solid ${BORDER}`,
+    fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+    background: active ? TEXT_DARK : '#fff', color: active ? '#fff' : TEXT_DARK,
+  });
+
+  return (
+    <div>
+      {/* Intro + export */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <span style={{ fontSize: 13, color: SLATE }}>Statewide production decline intelligence using BOE-equivalent year-over-year analysis.</span>
+        <button onClick={exportCsv} style={{
+          padding: '6px 14px', borderRadius: 6, border: `1px solid ${BORDER}`,
+          fontSize: 12, fontWeight: 600, color: TEXT_DARK, background: '#fff',
+          cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+        }}>&#8615; Export CSV</button>
+      </div>
+
+      {/* HUD summary cards */}
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+        <HudBadge
+          value={`${s.avgDecline}%`}
+          label="Statewide Avg Decline"
+          detail={`${(s.activePuns ?? 0).toLocaleString()} active PUNs`}
+          valueColor={declineColor(s.avgDecline)}
+        />
+        <HudBadge
+          value={String(s.steepDecline ?? 0)}
+          label="Steep Decline (>25%)"
+          detail="Wells declining rapidly"
+          valueColor="#f97316"
+        />
+        <HudBadge
+          value={String(s.growingWells ?? 0)}
+          label="Growing Production"
+          detail={`${s.flatWells ?? 0} flat wells`}
+          valueColor="#10b981"
+        />
+      </div>
+
+      {/* Data attribution */}
+      <div style={{ fontSize: 11, color: SLATE, fontStyle: 'italic', marginBottom: 16, lineHeight: 1.6 }}>
+        {s.dataHorizon && <>Data through {formatMonth(s.dataHorizon)}. </>}
+        BOE year-over-year change comparing 3-month windows. Active wells only (produced within 3 months of data horizon).
+        Min 20 wells per operator. Operators listed as "OTC/OCC NOT ASSIGNED" are excluded.
+      </div>
+
+      {/* View toggle */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
+        <button style={viewBtnStyle(view === 'decliners')} onClick={() => setView('decliners')}>Steepest Declining Operators</button>
+        <button style={viewBtnStyle(view === 'growers')} onClick={() => setView('growers')}>Top Growing Operators</button>
+        <button style={viewBtnStyle(view === 'counties')} onClick={() => setView('counties')}>County Production Trends</button>
+      </div>
+
+      {/* Views */}
+      {view === 'decliners' && (
+        <div>
+          <div style={{ fontSize: 12, color: SLATE, marginBottom: 10 }}>Operators with steepest average production decline (minimum 20 active wells)</div>
+          <OperatorDeclineTable operators={operatorsByDecline} />
+        </div>
+      )}
+
+      {view === 'growers' && (
+        <div>
+          <div style={{ fontSize: 12, color: SLATE, marginBottom: 10 }}>Operators maintaining or growing production (minimum 20 active wells)</div>
+          <OperatorDeclineTable operators={operatorsByGrowth} />
+        </div>
+      )}
+
+      {view === 'counties' && (
+        <div>
+          <div style={{ fontSize: 12, color: SLATE, marginBottom: 10 }}>Average decline rates across Oklahoma counties (minimum 10 active wells)</div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 12 }}>
+            <span style={{ fontSize: 12, color: SLATE }}>Sort:</span>
+            {(['rate', 'count', 'name'] as const).map((s) => (
+              <button key={s} onClick={() => setCountySort(s)} style={{
+                padding: '4px 10px', borderRadius: 6, border: `1px solid ${BORDER}`,
+                fontSize: 12, cursor: 'pointer', fontFamily: 'inherit',
+                background: countySort === s ? TEXT_DARK : '#fff',
+                color: countySort === s ? '#fff' : TEXT_DARK,
+              }}>
+                {s === 'rate' ? 'Decline Rate' : s === 'count' ? 'Well Count' : 'Name'}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+            {sortedCounties.map((c) => {
+              const total = c.decliningWells + c.growingWells;
+              const growPct = total > 0 ? Math.round(100 * c.growingWells / total) : 0;
+              return (
+                <div key={c.county} style={{
+                  border: `1px solid ${BORDER}`, borderRadius: 8, padding: 12, background: '#fff',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: TEXT_DARK }}>{c.county}</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: declineColor(c.avgDecline) }}>{c.avgDecline > 0 ? '+' : ''}{c.avgDecline}%</span>
+                  </div>
+                  <div style={{ fontSize: 11, color: SLATE, marginBottom: 6 }}>{c.activeWells} active wells</div>
+                  {/* Stacked bar */}
+                  <div style={{ height: 4, borderRadius: 2, background: '#fee2e2', overflow: 'hidden', marginBottom: 4 }}>
+                    <div style={{ height: '100%', width: `${growPct}%`, background: '#bbf7d0', borderRadius: 2 }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: SLATE }}>
+                    <span>{c.growingWells} growing</span>
+                    <span>{c.decliningWells} declining</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OperatorDeclineTable({ operators }: { operators: DeclineResearchData['operatorsByDecline'] }) {
+  if (operators.length === 0) return <div style={{ padding: 24, color: SLATE, textAlign: 'center', fontSize: 13 }}>No operators meet the minimum well threshold.</div>;
+
+  return (
+    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+      {/* Header */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 140px', background: BG_MUTED, borderBottom: `1px solid ${BORDER}`, padding: '8px 12px' }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: SLATE }}>Operator</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: SLATE, textAlign: 'right' }}>Active Wells</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: SLATE, textAlign: 'right' }}>Avg Decline (YoY)</span>
+      </div>
+      {/* Rows */}
+      {operators.map((op, i) => {
+        const barWidth = Math.min(Math.abs(op.avgDecline), 100);
+        const color = declineColor(op.avgDecline);
+        const sign = op.avgDecline >= 0 ? '+' : '';
+        return (
+          <div key={i} style={{
+            display: 'grid', gridTemplateColumns: '1fr 100px 140px',
+            padding: '8px 12px', borderBottom: `1px solid ${BORDER}`, alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 13, color: TEXT_DARK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.operator}</span>
+            <span style={{ fontSize: 13, color: TEXT_DARK, textAlign: 'right' }}>{op.activeWells.toLocaleString()}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+              <div style={{ width: 60, height: 8, borderRadius: 4, background: '#f3f4f6', overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${barWidth}%`, background: color, borderRadius: 4 }} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 600, color, minWidth: 48, textAlign: 'right', fontFamily: 'monospace' }}>{sign}{op.avgDecline}%</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
