@@ -13,6 +13,7 @@ import { WellLinkCounts } from '../../ui/LinkCounts';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { BulkActionBar } from '../../ui/BulkActionBar';
+import { OperatorLink } from '../../ui/OperatorLink';
 import { MODAL_TYPES, BORDER, SLATE, DARK, TEAL } from '../../../lib/constants';
 import type { WellRecord } from '../../../types/dashboard';
 import type { DiscoverWellsPreviewResponse } from '../../../api/matching';
@@ -564,7 +565,7 @@ export function WellsTab() {
                         )}
                         {w.operator && (
                           <div style={{ fontSize: 12, color: SLATE, marginTop: 3 }}>
-                            Op: <strong style={{ color: DARK }}>{w.operator}</strong>
+                            Op: <OperatorLink name={w.operator} fontSize={12} fontWeight={600} />
                           </div>
                         )}
                         {w.ri_nri != null && (
@@ -627,7 +628,7 @@ export function WellsTab() {
 
                         {/* Operator Contact */}
                         <div style={{ padding: '8px 12px', minWidth: 0 }}>
-                          <strong style={{ color: DARK }}>{w.operator || '\u2014'}</strong>
+                          <OperatorLink name={w.operator} fontWeight={600} />
                           {(w.operator_phone || w.operator_contact) && (
                             <div style={{ fontSize: 12, color: SLATE, marginTop: 2 }}>
                               {w.operator_phone && formatPhone(w.operator_phone)}

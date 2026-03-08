@@ -35,13 +35,13 @@ export function TabBar({ tabs, active, onChange }: TabBarProps) {
 
   return (
     <div style={{
-      padding: isMobile ? '0 12px' : '0 24px',
       fontFamily: "'Inter', 'DM Sans', sans-serif",
     }}>
       <div
         className={isMobile ? 'mobile-tab-bar' : undefined}
         style={{
-          maxWidth: 1400, margin: '0 auto',
+          maxWidth: 1600, margin: '0 auto',
+          padding: isMobile ? '0 12px' : '0 24px',
           display: 'flex', gap: 4, marginBottom: 0,
           ...(isMobile ? {
             overflowX: 'auto' as const,

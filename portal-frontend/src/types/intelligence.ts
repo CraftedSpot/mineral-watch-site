@@ -77,7 +77,7 @@ export interface DeductionWell {
   purchaser_id: string | null;
   purchaser_name: string | null;
   is_affiliated: boolean;
-  gas_profile: 'lean' | 'rich' | null;
+  gas_profile: 'lean' | 'rich' | 'mixed' | null;
   gor: number | null;
   lean_gas_expected: boolean;
   oil_only_verify: boolean;
@@ -132,8 +132,8 @@ export interface OperatorComparisonData {
 
 export interface DeductionResearchData {
   topDeductionCounties: Array<{ county: string; avg_deduction_pct: number; well_count: number }>;
-  topOperatorsByPcrr: Array<{ operator_name: string; pcrr: number; well_count: number }>;
-  topOperatorsByNetReturn: Array<{ operator_name: string; net_value_return: number; well_count: number }>;
+  topPcrrOperators: Array<{ operator_name: string; pcrr: number; well_count: number }>;
+  topNetReturnOperators: Array<{ operator_name: string; net_value_return: number; well_count: number }>;
 }
 
 // ── Production Decline ──

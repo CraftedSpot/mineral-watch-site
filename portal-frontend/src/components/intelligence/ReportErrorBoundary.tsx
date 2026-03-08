@@ -26,12 +26,23 @@ export class ReportErrorBoundary extends Component<Props, State> {
     console.error(`Report "${this.props.reportName}" failed to load:`, error, info);
   }
 
+  isChunkLoadError(): boolean {
+    const msg = this.state.error || '';
+    return msg.includes('dynamically imported module') || msg.includes('Loading chunk') || msg.includes('Failed to fetch');
+  }
+
   handleRetry = () => {
+    if (this.isChunkLoadError()) {
+      // Stale chunk after deploy — full reload fetches the new index.js with correct chunk names
+      window.location.reload();
+      return;
+    }
     this.setState({ hasError: false, error: null });
   };
 
   render() {
     if (this.state.hasError) {
+      const isChunk = this.isChunkLoadError();
       return (
         <div style={{
           padding: 40, textAlign: 'center',
@@ -42,7 +53,9 @@ export class ReportErrorBoundary extends Component<Props, State> {
             Failed to load {this.props.reportName}
           </h3>
           <p style={{ fontSize: 13, color: SLATE, margin: '0 0 16px' }}>
-            {this.state.error || 'An unexpected error occurred. This might be a network issue.'}
+            {isChunk
+              ? 'A new version was deployed. Click reload to get the latest.'
+              : (this.state.error || 'An unexpected error occurred. This might be a network issue.')}
           </p>
           <button
             onClick={this.handleRetry}
@@ -52,7 +65,7 @@ export class ReportErrorBoundary extends Component<Props, State> {
               fontFamily: 'inherit',
             }}
           >
-            Retry
+            {isChunk ? 'Reload Page' : 'Retry'}
           </button>
         </div>
       );

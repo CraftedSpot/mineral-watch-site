@@ -51,7 +51,7 @@ export function NavHeader({ user }: NavHeaderProps) {
 
   const navLinkStyle = (href: string): React.CSSProperties => ({
     fontSize: isMobile ? 15 : 14,
-    fontWeight: 400,
+    fontWeight: 500,
     color: isActive(href) ? '#fff' : 'rgba(255,255,255,0.8)',
     textDecoration: 'none',
   });
@@ -107,7 +107,7 @@ export function NavHeader({ user }: NavHeaderProps) {
       zIndex: isMobile ? 1000 : undefined,
     }}>
       <div style={{
-        maxWidth: 1400, margin: '0 auto',
+        maxWidth: 1600, margin: '0 auto',
         padding: isMobile ? '0 16px' : '0 24px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         height: 56,

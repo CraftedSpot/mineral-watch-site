@@ -54,7 +54,7 @@ export function DashboardPage() {
       <DashboardHeader activeTab={activeTab} user={user} />
       <TabBar tabs={TABS} active={activeTab} onChange={setTab} />
 
-      <div style={{ padding: isMobile ? '12px' : '24px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '12px' : '24px', maxWidth: 1600, margin: '0 auto' }}>
         {activeTab === 'properties' && <PropertiesTab />}
         {activeTab === 'wells' && <WellsTab />}
         {activeTab === 'documents' && <DocumentsTab />}

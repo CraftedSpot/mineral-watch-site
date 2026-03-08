@@ -20,6 +20,7 @@ import { OCCFilingsSection } from '../shared/OCCFilingsSection';
 import { CompletionReportsSection } from '../shared/CompletionReportsSection';
 import { MODAL_TYPES, BORDER, SLATE, ORANGE, ORANGE_DARK } from '../../lib/constants';
 import { getMatchStyle } from '../../lib/match-styles';
+import { OperatorLink } from '../ui/OperatorLink';
 import type { LinkedWell, LinkedDocument } from '../../types/property-detail';
 
 // Vanilla CSS variables
@@ -301,7 +302,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
                         {w.wellName}
                       </span>
                       <div style={{ fontSize: 11, color: SLATE_BLUE, marginTop: 2 }}>
-                        {w.operator} &middot; {w.county}
+                        <OperatorLink name={w.operator} fontSize={11} fontWeight={500} /> &middot; {w.county}
                       </div>
                       {interests.length > 0 && (
                         <div style={{ fontSize: 11, color: OIL_NAVY, fontFamily: 'monospace', marginTop: 2 }}>

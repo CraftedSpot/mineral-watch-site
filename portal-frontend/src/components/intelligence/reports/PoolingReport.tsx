@@ -108,7 +108,7 @@ export function PoolingReport() {
     }).catch(() => {});
   }, []);
 
-  if (loading) return <LoadingSkeleton columns={5} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={5} rows={6} label="Pooling Rates" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>

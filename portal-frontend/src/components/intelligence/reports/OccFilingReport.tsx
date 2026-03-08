@@ -57,7 +57,7 @@ export function OccFilingReport() {
   const [activeTab, setActiveTab] = useState('properties');
   const { data, loading, error, refetch } = useReportData(fetchOccFilingActivity);
 
-  if (loading) return <LoadingSkeleton columns={5} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={5} rows={6} label="OCC Filing Activity" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -422,7 +422,32 @@ function CountiesTab({ counties }: { counties: OccFilingData['byCounty'] }) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No county data available.</div>;
   }
 
+  const exportCsv = () => {
+    const rows: string[][] = [];
+    rows.push(['County', 'Filings', 'Latest Date', 'Top Filers', 'Filing Types']);
+    for (const c of counties) {
+      const filers = (c.topApplicants || []).map(a => `${a.name} (${a.count})`).join('; ');
+      const types = Object.entries(c.filingTypes || {}).sort(([, a], [, b]) => b - a).map(([t, n]) => `${t} (${n})`).join('; ');
+      rows.push([c.county, String(c.filingCount), c.latestDate || '', filers, types]);
+    }
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'occ-filings-by-county.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={exportCsv} style={{
+          padding: '6px 14px', border: `1px solid ${BORDER}`, borderRadius: 6,
+          fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit',
+        }}>Export CSV</button>
+      </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
       {counties.map((c) => {
         const topTypes = Object.entries(c.filingTypes || {}).sort(([, a], [, b]) => b - a).slice(0, 4);
@@ -468,6 +493,7 @@ function CountiesTab({ counties }: { counties: OccFilingData['byCounty'] }) {
         );
       })}
     </div>
+    </div>
   );
 }
 
@@ -481,13 +507,42 @@ function ResearchTab({ data }: { data: OccFilingData['marketResearch'] }) {
   const filingTypes = Object.entries(data.filingTypeBreakdown || {}).sort(([, a], [, b]) => b - a);
   const maxType = filingTypes.length > 0 ? filingTypes[0][1] : 1;
 
+  const exportCsv = () => {
+    const rows: string[][] = [];
+    rows.push(['Category', 'Name', 'Count', 'Percentage']);
+    for (const c of (data.hottestCounties || [])) {
+      rows.push(['Hottest County', c.county, String(c.count), '']);
+    }
+    for (const f of (data.topFilers || [])) {
+      rows.push(['Top Filer', f.applicant, String(f.count), '']);
+    }
+    for (const [type, count] of filingTypes) {
+      const pct = data.totalStatewideFilings90d > 0 ? (count / data.totalStatewideFilings90d * 100).toFixed(1) + '%' : '';
+      rows.push(['Filing Type', type, String(count), pct]);
+    }
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'occ-filings-research.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div>
-      {data.totalStatewideFilings90d > 0 && (
-        <div style={{ fontSize: 13, color: SLATE, marginBottom: 16 }}>
-          {data.totalStatewideFilings90d.toLocaleString()} statewide filings in the last 90 days
-        </div>
-      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        {data.totalStatewideFilings90d > 0 && (
+          <span style={{ fontSize: 13, color: SLATE }}>
+            {data.totalStatewideFilings90d.toLocaleString()} statewide filings in the last 90 days
+          </span>
+        )}
+        <button onClick={exportCsv} style={{
+          padding: '6px 14px', border: `1px solid ${BORDER}`, borderRadius: 6,
+          fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit', marginLeft: 'auto',
+        }}>Export CSV</button>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {/* Hottest counties */}
         {data.hottestCounties?.length > 0 && (

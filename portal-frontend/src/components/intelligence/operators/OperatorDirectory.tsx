@@ -44,7 +44,7 @@ export function OperatorDirectory() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <LoadingSkeleton columns={4} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={4} rows={6} label="Operator Directory" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>

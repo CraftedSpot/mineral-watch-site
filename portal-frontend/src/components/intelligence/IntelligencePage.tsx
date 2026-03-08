@@ -74,7 +74,7 @@ export function IntelligencePage() {
       <div>
         {/* Report header */}
         <div style={{ background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px' : '16px 24px' }}>
+          <div style={{ maxWidth: 1600, margin: '0 auto', padding: isMobile ? '16px' : '16px 24px' }}>
             {/* Breadcrumb */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, fontSize: 13 }}>
               <button
@@ -128,7 +128,7 @@ export function IntelligencePage() {
         </div>
 
         {/* Report content */}
-        <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '16px' : '20px 24px' }}>
+        <div style={{ maxWidth: 1600, margin: '0 auto', padding: isMobile ? '16px' : '20px 24px' }}>
           <ReportErrorBoundary reportName={title}>
             <Suspense fallback={<LoadingSkeleton columns={4} rows={6} />}>
               {activeReport === 'deduction' && <DeductionReport tier={tier} initialTab={initialTab} />}
@@ -157,7 +157,7 @@ export function IntelligencePage() {
         onScrollToInsights={scrollToInsights}
       />
 
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '20px 16px' : '24px 24px' }}>
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: isMobile ? '20px 16px' : '24px 24px' }}>
         {error && (
           <div style={{
             padding: 16, marginBottom: 16, borderRadius: 8,

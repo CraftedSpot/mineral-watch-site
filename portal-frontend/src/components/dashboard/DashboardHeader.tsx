@@ -44,7 +44,7 @@ export function DashboardHeader({ activeTab, user }: Props) {
   }, []);
 
   return (
-    <div style={{ padding: isMobile ? '16px 16px 0' : '24px 24px 0', maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 16px 0' : '24px 24px 0', maxWidth: 1600, margin: '0 auto' }}>
       {/* Title row */}
       <div style={{ marginBottom: isMobile ? 12 : 16 }}>
         <h1 style={{

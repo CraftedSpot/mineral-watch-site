@@ -90,7 +90,7 @@ export function SummaryCards({ data, insightCount, loading, onOpenReport, onScro
 
   return (
     <div style={{ background: OIL_NAVY, padding: '32px 0 28px' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
+      <div style={{ maxWidth: 1600, margin: '0 auto', padding: isMobile ? '0 16px' : '0 24px' }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#fff', margin: '0 0 4px' }}>Intelligence</h1>
         <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', margin: '0 0 20px' }}>
           Insights and analysis across your mineral portfolio

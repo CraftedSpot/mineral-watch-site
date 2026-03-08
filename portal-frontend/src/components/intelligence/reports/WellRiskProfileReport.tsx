@@ -7,6 +7,7 @@ import { DonutChart } from '../DonutChart';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { Badge } from '../../ui/Badge';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { OperatorLink } from '../../ui/OperatorLink';
 import type { Column } from '../SortableTable';
 import type { RiskProfileWell } from '../../../types/intelligence';
 
@@ -49,7 +50,7 @@ export function WellRiskProfileReport() {
   const [activeTab, setActiveTab] = useState('overview');
   const { data, loading, error, refetch } = useReportData(fetchWellRiskProfile);
 
-  if (loading) return <LoadingSkeleton columns={5} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={5} rows={6} label="Well Risk Profiles" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -151,12 +152,36 @@ export function WellRiskProfileReport() {
 const RISK_ORDER: Record<string, number> = { comfortable: 0, adequate: 1, tight: 2, at_risk: 3 };
 
 function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?: number }) {
+  const exportCsv = () => {
+    const headers = ['Well', 'API Number', 'Operator', 'Formation', 'Breakeven', 'Deductions %', 'Deduction Source', 'Deduction Detail', 'Net-Back', 'Risk Level', 'Stressed At', 'Critical At'];
+    const rows = wells.map(w => [
+      `"${(w.wellName || '').replace(/"/g, '""')}"`,
+      w.apiNumber || '', `"${(w.operator || '').replace(/"/g, '""')}"`,
+      w.formationGroup || '', w.halfCycleBreakeven ?? '',
+      w.totalDiscountPct ?? '', w.deductionSource || '',
+      `"${(w.deductionSourceDetail || '').replace(/"/g, '""')}"`,
+      w.netBackPrice ?? '', w.riskLevel || '',
+      w.stressedAtWti ?? '', w.criticalAtWti ?? '',
+    ].join(','));
+    const csv = headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'well-risk-profiles.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const columns: Column<RiskProfileWell>[] = useMemo(() => [
     {
       key: 'wellName', label: 'Well', sortType: 'string', width: 'minmax(100px, 1.5fr)',
       render: (row) => <span style={{ fontWeight: 500 }}>{row.wellName}</span>,
     },
-    { key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)' },
+    {
+      key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)',
+      render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
+    },
     {
       key: 'formationGroup', label: 'Formation', sortType: 'string', width: 'minmax(80px, 1fr)',
       render: (row) => <span style={{ fontSize: 12 }}>{row.formationGroup || '—'}</span>,
@@ -212,13 +237,21 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
   ], [wtiPrice]);
 
   return (
-    <SortableTable
-      columns={columns}
-      data={wells}
-      defaultSort={{ key: 'riskLevel', dir: 'desc' }}
-      rowKey={(row) => row.clientWellId || row.apiNumber}
-      emptyMessage="No wells to analyze"
-    />
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={exportCsv} style={{
+          padding: '6px 14px', border: `1px solid ${BORDER}`, borderRadius: 6,
+          fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit',
+        }}>Export CSV</button>
+      </div>
+      <SortableTable
+        columns={columns}
+        data={wells}
+        defaultSort={{ key: 'riskLevel', dir: 'desc' }}
+        rowKey={(row) => row.clientWellId || row.apiNumber}
+        emptyMessage="No wells to analyze"
+      />
+    </div>
   );
 }
 
@@ -226,6 +259,24 @@ function FormationTab({ formations }: { formations: Array<{ formationGroup: stri
   if (!formations || formations.length === 0) {
     return <div style={{ padding: 32, textAlign: 'center', color: SLATE, fontSize: 14 }}>No formation data available.</div>;
   }
+
+  const exportCsv = () => {
+    const headers = ['Formation', 'Wells', 'Avg Breakeven', 'At Risk', 'Profile Distribution'];
+    const rows = formations.map(f => [
+      `"${(f.formationGroup || 'Unknown').replace(/"/g, '""')}"`,
+      f.wellCount, f.avgBreakeven != null ? f.avgBreakeven.toFixed(2) : '',
+      f.atRiskCount,
+      `"${Object.entries(f.profileDistribution || {}).map(([k, v]) => `${k.replace(/-/g, ' ')}: ${v}`).join('; ')}"`,
+    ].join(','));
+    const csv = headers.join(',') + '\n' + rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'well-risk-by-formation.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const profileColors: Record<string, string> = {
     'scoop-stack-hz': '#3b82f6',
@@ -237,6 +288,13 @@ function FormationTab({ formations }: { formations: Array<{ formationGroup: stri
   };
 
   return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button onClick={exportCsv} style={{
+          padding: '6px 14px', border: `1px solid ${BORDER}`, borderRadius: 6,
+          fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit',
+        }}>Export CSV</button>
+      </div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
       {formations.map((f) => {
         const total = f.wellCount || 1;
@@ -284,6 +342,7 @@ function FormationTab({ formations }: { formations: Array<{ formationGroup: stri
           </div>
         );
       })}
+    </div>
     </div>
   );
 }

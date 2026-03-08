@@ -9,6 +9,7 @@ import { Badge } from '../../ui/Badge';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/constants';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
+import { OperatorLink } from '../../ui/OperatorLink';
 import type { Column } from '../SortableTable';
 import type {
   IntelligenceTier,
@@ -86,7 +87,7 @@ export function ShutInDetectorReport({ tier }: Props) {
   const { data: marketsData, loading: marketsLoading } = useReportData(fetchShutInMarkets, { enabled: activeTab === 'markets' });
   const { data: researchData, loading: researchLoading } = useReportData(fetchShutInResearch, { enabled: activeTab === 'research' });
 
-  if (loading) return <LoadingSkeleton columns={5} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={5} rows={6} label="Shut-In Detector" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -239,7 +240,10 @@ function PortfolioTab({ idleWells, noDataWells }: { idleWells: ShutInWell[]; noD
         </span>
       ),
     },
-    { key: 'operator', label: 'Operator', sortType: 'string', width: '18%' },
+    {
+      key: 'operator', label: 'Operator', sortType: 'string', width: '18%',
+      render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
+    },
     { key: 'county', label: 'County', sortType: 'string', width: '11%' },
     {
       key: 'status', label: 'Status', width: '13%',
@@ -341,7 +345,10 @@ function NoDataSection({ wells, onOpenWell }: { wells: ShutInWell[]; onOpenWell:
         </span>
       ),
     },
-    { key: 'operator', label: 'Operator', sortType: 'string', width: '20%' },
+    {
+      key: 'operator', label: 'Operator', sortType: 'string', width: '20%',
+      render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
+    },
     { key: 'county', label: 'County', sortType: 'string', width: '15%' },
     {
       key: '_noDataStatus', label: 'Status', width: '25%',
@@ -549,7 +556,7 @@ function MarketCountyCard({ county: c }: { county: ShutInMarketCounty }) {
                   fontSize: 11, padding: '2px 8px', borderRadius: 4,
                   background: opBg, color: opColor, fontWeight: 500,
                 }}>
-                  {op.operator} {op.idleWells}/{op.totalWells} ({Math.round(op.idleRate)}%)
+                  <OperatorLink name={op.operator} fontSize={11} fontWeight={500} style={{ color: opColor }} /> {op.idleWells}/{op.totalWells} ({Math.round(op.idleRate)}%)
                 </span>
               );
             })}
@@ -712,7 +719,10 @@ function HudCard({ value, valueColor, label, detail }: { value: string; valueCol
 
 function OperatorTable({ operators }: { operators: ShutInResearchOperator[] }) {
   const columns: Column<ShutInResearchOperator>[] = useMemo(() => [
-    { key: 'operator', label: 'Operator', sortType: 'string', width: '28%' },
+    {
+      key: 'operator', label: 'Operator', sortType: 'string', width: '28%',
+      render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
+    },
     {
       key: 'totalWells', label: 'Total', sortType: 'number', width: '12%',
       render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.totalWells.toLocaleString()}</span>,
@@ -794,7 +804,7 @@ function ResearchCountyCard({ county: c }: { county: ShutInResearchCounty }) {
       </div>
       {c.topIdleOperator && (
         <div style={{ fontSize: 11, color: SLATE }}>
-          Top idle: <span style={{ fontWeight: 500, color: TEXT_DARK }}>{c.topIdleOperator}</span>
+          Top idle: <OperatorLink name={c.topIdleOperator} fontSize={11} fontWeight={500} />
         </div>
       )}
     </div>

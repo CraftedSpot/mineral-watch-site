@@ -21,6 +21,7 @@ import { DrillingPermitsSection } from '../shared/DrillingPermitsSection';
 import {
   titleCase, formatTRS, getWellStatusColor, formatPhone, formatNumber, formatDate, formatDecimal,
 } from '../../lib/helpers';
+import { OperatorLink } from '../ui/OperatorLink';
 import { MODAL_TYPES, BORDER } from '../../lib/constants';
 import type { WellEnrichment, LinkedProperty, LinkedDocument } from '../../types/well-detail';
 import type { WellRecord } from '../../types/dashboard';
@@ -320,8 +321,8 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12, marginBottom: isMobile ? 12 : 16 }}>
             <Card style={{ flex: 1 }}>
               <div style={sectionLabelStyle}>Operator</div>
-              <div style={{ fontSize: 15, fontWeight: 600, color: OIL_NAVY, marginBottom: 4 }}>
-                {operator || '\u2014'}
+              <div style={{ fontSize: 15, marginBottom: 4 }}>
+                <OperatorLink name={operator} fontWeight={600} fontSize={15} />
               </div>
               {(opPhone || opContact) && (
                 <div style={{ fontSize: 13, color: '#64748b' }}>

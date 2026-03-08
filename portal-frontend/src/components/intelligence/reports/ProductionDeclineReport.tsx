@@ -9,6 +9,7 @@ import { Badge } from '../../ui/Badge';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/constants';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
+import { OperatorLink } from '../../ui/OperatorLink';
 import type { Column } from '../SortableTable';
 import type { IntelligenceTier, DeclineWell, DeclineCountyAggregate, DeclineResearchData } from '../../../types/intelligence';
 
@@ -48,7 +49,7 @@ export function ProductionDeclineReport({ tier }: Props) {
   const { data: marketsData, loading: marketsLoading } = useReportData(fetchDeclineMarkets, { enabled: activeTab === 'markets' });
   const { data: researchData, loading: researchLoading } = useReportData(fetchDeclineResearch, { enabled: activeTab === 'research' });
 
-  if (loading) return <LoadingSkeleton columns={5} rows={6} />;
+  if (loading) return <LoadingSkeleton columns={5} rows={6} label="Production Decline Analysis" />;
   if (error || !data) {
     return (
       <div style={{ padding: 32, textAlign: 'center' }}>
@@ -198,7 +199,7 @@ function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyT
     },
     {
       key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)',
-      render: (row) => <span title={row.operator}>{row.operator || '—'}</span>,
+      render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
     },
     {
       key: 'county', label: 'County', sortType: 'string', width: 'minmax(80px, 1fr)',
@@ -719,7 +720,9 @@ function OperatorDeclineTable({ operators }: { operators: DeclineResearchData['o
             display: 'grid', gridTemplateColumns: '1fr 100px 140px',
             padding: '8px 12px', borderBottom: `1px solid ${BORDER}`, alignItems: 'center',
           }}>
-            <span style={{ fontSize: 13, color: TEXT_DARK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{op.operator}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <OperatorLink name={op.operator} fontSize={13} />
+            </span>
             <span style={{ fontSize: 13, color: TEXT_DARK, textAlign: 'right' }}>{op.activeWells.toLocaleString()}</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
               <div style={{ width: 60, height: 8, borderRadius: 4, background: '#f3f4f6', overflow: 'hidden' }}>
