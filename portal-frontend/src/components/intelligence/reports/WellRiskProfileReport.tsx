@@ -147,23 +147,26 @@ export function WellRiskProfileReport() {
   );
 }
 
+// Map risk levels to numeric order: comfortable(best)=0 → at_risk(worst)=3
+const RISK_ORDER: Record<string, number> = { comfortable: 0, adequate: 1, tight: 2, at_risk: 3 };
+
 function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?: number }) {
   const columns: Column<RiskProfileWell>[] = useMemo(() => [
     {
-      key: 'wellName', label: 'Well', sortType: 'string', width: 170,
+      key: 'wellName', label: 'Well', sortType: 'string', width: 'minmax(100px, 1.5fr)',
       render: (row) => <span style={{ fontWeight: 500 }}>{row.wellName}</span>,
     },
-    { key: 'operator', label: 'Operator', sortType: 'string', width: 120 },
+    { key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)' },
     {
-      key: 'formationGroup', label: 'Formation', sortType: 'string', width: 100,
+      key: 'formationGroup', label: 'Formation', sortType: 'string', width: 'minmax(80px, 1fr)',
       render: (row) => <span style={{ fontSize: 12 }}>{row.formationGroup || '—'}</span>,
     },
     {
-      key: 'halfCycleBreakeven', label: 'Breakeven', sortType: 'number', width: 80,
+      key: 'halfCycleBreakeven', label: 'Breakeven', sortType: 'number', width: 'minmax(70px, 0.8fr)',
       render: (row) => <span style={{ fontSize: 12, fontWeight: 600 }}>{formatPrice(row.halfCycleBreakeven)}</span>,
     },
     {
-      key: 'totalDiscountPct', label: 'Deductions', sortType: 'number', width: 100,
+      key: 'totalDiscountPct', label: 'Deductions', sortType: 'number', width: 'minmax(90px, 1fr)',
       render: (row) => {
         const isStub = row.deductionSource === 'check_stub';
         const isEstimate = row.deductionSource === 'county_avg' || row.deductionSource === 'default' || row.deductionSource === 'otc';
@@ -182,15 +185,16 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
       },
     },
     {
-      key: 'netBackPrice', label: 'Net-Back', sortType: 'number', width: 80,
+      key: 'netBackPrice', label: 'Net-Back', sortType: 'number', width: 'minmax(70px, 0.8fr)',
       render: (row) => <span style={{ fontSize: 12, fontWeight: 600, color: row.riskLevel === 'at_risk' ? '#ef4444' : TEXT_DARK }}>{formatPrice(row.netBackPrice)}</span>,
     },
     {
-      key: 'riskLevel', label: 'Status', sortType: 'string', width: 100,
+      key: 'riskLevel', label: 'Status', width: 'minmax(80px, 0.9fr)',
+      getValue: (row) => RISK_ORDER[row.riskLevel] ?? 2,
       render: (row) => riskBadge(row.riskLevel),
     },
     {
-      key: 'stressedAtWti', label: 'Stressed At', sortType: 'number', width: 80,
+      key: 'stressedAtWti', label: 'Stressed At', sortType: 'number', width: 'minmax(70px, 0.8fr)',
       render: (row) => {
         if (row.stressedAtWti == null) return <span style={{ color: SLATE }}>—</span>;
         const isNear = wtiPrice && row.stressedAtWti >= wtiPrice - 15;
@@ -198,7 +202,7 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
       },
     },
     {
-      key: 'criticalAtWti', label: 'Critical At', sortType: 'number', width: 80,
+      key: 'criticalAtWti', label: 'Critical At', sortType: 'number', width: 'minmax(70px, 0.8fr)',
       render: (row) => {
         if (row.criticalAtWti == null) return <span style={{ color: SLATE }}>—</span>;
         const isNear = wtiPrice && row.criticalAtWti >= wtiPrice - 10;

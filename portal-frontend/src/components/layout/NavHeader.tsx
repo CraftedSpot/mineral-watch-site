@@ -115,8 +115,15 @@ export function NavHeader({ user }: NavHeaderProps) {
         <a href="/" style={{
           fontFamily: "'Merriweather', serif", fontWeight: 700,
           fontSize: 20, color: '#fff', textDecoration: 'none',
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
           Mineral Watch
+          <span style={{
+            fontSize: 9, fontWeight: 700, fontFamily: "'Inter', sans-serif",
+            background: 'rgba(59,130,246,0.25)', color: '#93c5fd',
+            padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5,
+            lineHeight: 1.2,
+          }}>REACT</span>
         </a>
 
         {!isMobile && (

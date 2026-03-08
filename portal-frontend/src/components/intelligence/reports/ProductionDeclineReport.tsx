@@ -68,10 +68,10 @@ export function ProductionDeclineReport({ tier }: Props) {
       {/* HUD */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
         {[
-          { value: `${s.activeCount}`, label: 'Active Wells', detail: `${s.idleCount} idle` },
-          { value: s.portfolioOil.toLocaleString(), label: 'Oil (BBL)', detail: 'Latest month' },
-          { value: s.portfolioGas.toLocaleString(), label: 'Gas (MCF)', detail: 'Latest month' },
-          { value: `${s.decliningCount + s.steepDeclineCount}`, label: 'Declining', detail: `${s.steepDeclineCount} steep` },
+          { value: `${s.activeWells ?? 0}`, label: 'Active Wells', detail: `${s.idleWells ?? 0} idle` },
+          { value: (s.portfolioOilBBL ?? 0).toLocaleString(), label: 'Oil (BBL)', detail: 'Latest month' },
+          { value: (s.portfolioGasMCF ?? 0).toLocaleString(), label: 'Gas (MCF)', detail: 'Latest month' },
+          { value: `${(s.wellsInDecline ?? 0) + (s.wellsSteepDecline ?? 0)}`, label: 'Declining', detail: `${s.wellsSteepDecline ?? 0} steep` },
         ].map((b, i) => (
           <div key={i} style={{
             display: 'flex', alignItems: 'center', gap: 10,
@@ -118,22 +118,22 @@ function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
 
   const columns: Column<DeclineWell>[] = useMemo(() => [
     {
-      key: 'wellName', label: 'Well', sortType: 'string', width: 180,
+      key: 'wellName', label: 'Well', sortType: 'string', width: 'minmax(100px, 1.5fr)',
       render: (row) => <span style={{ fontWeight: 500 }}>{row.wellName}</span>,
     },
     {
-      key: 'operator', label: 'Operator', sortType: 'string', width: 130,
+      key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)',
       render: (row) => <span title={row.operator}>{row.operator || '—'}</span>,
     },
     {
-      key: 'county', label: 'County', sortType: 'string', width: 100,
+      key: 'county', label: 'County', sortType: 'string', width: 'minmax(80px, 1fr)',
     },
     {
-      key: 'status', label: 'Status', sortType: 'string', width: 100,
+      key: 'status', label: 'Status', sortType: 'string', width: 'minmax(80px, 0.9fr)',
       render: (row) => statusBadge(row.status),
     },
     {
-      key: 'wellType', label: 'Type', sortType: 'string', width: 50,
+      key: 'wellType', label: 'Type', sortType: 'string', width: 'minmax(40px, 0.4fr)',
       render: (row) => (
         <Badge bg={row.isHorizontal ? '#dbeafe' : '#f3f4f6'} color={row.isHorizontal ? '#1e40af' : '#374151'} size="sm">
           {row.isHorizontal ? 'H' : 'V'}
@@ -141,7 +141,7 @@ function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
       ),
     },
     {
-      key: 'yoyChangePct', label: 'YoY', sortType: 'number', width: 80,
+      key: 'yoyChangePct', label: 'YoY', sortType: 'number', width: 'minmax(60px, 0.7fr)',
       render: (row) => {
         if (row.yoyChangePct == null) return <span style={{ color: SLATE }}>—</span>;
         const sign = row.yoyChangePct >= 0 ? '+' : '';
@@ -149,10 +149,10 @@ function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
       },
     },
     {
-      key: '_lastMonth', label: 'Last Rpt', sortType: 'string', width: 80,
-      getValue: (row) => row.monthlyData.length > 0 ? row.monthlyData[row.monthlyData.length - 1].yearMonth : null,
+      key: '_lastMonth', label: 'Last Rpt', sortType: 'string', width: 'minmax(60px, 0.7fr)',
+      getValue: (row) => row.monthlyData?.length > 0 ? row.monthlyData[row.monthlyData.length - 1].yearMonth : null,
       render: (row) => {
-        const last = row.monthlyData[row.monthlyData.length - 1];
+        const last = row.monthlyData?.[row.monthlyData.length - 1];
         return <span style={{ fontSize: 12, color: SLATE }}>{last ? formatMonth(last.yearMonth) : '—'}</span>;
       },
     },

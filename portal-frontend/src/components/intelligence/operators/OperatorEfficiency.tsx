@@ -26,18 +26,17 @@ export function OperatorEfficiency() {
     if (!search.trim()) return arr;
     const q = search.toLowerCase();
     return arr.filter(o =>
-      o.company_name.toLowerCase().includes(q) ||
-      o.counties.some(c => c.toLowerCase().includes(q))
+      o.operator_name.toLowerCase().includes(q)
     );
   }, [data, search]);
 
   const exportCsv = () => {
     if (filtered.length === 0) return;
-    const headers = ['Operator', 'Wells', '6M Net Return', 'PCRR', 'Deduction Ratio', 'NGL Recovery', 'Counties'];
+    const headers = ['Operator', 'Wells', 'Deduction %', 'PCRR', 'Net Value Return', 'Primary County'];
     const rows = filtered.map(o => [
-      o.company_name, o.well_count, o.net_return_6m.toFixed(1),
-      o.pcrr.toFixed(3), o.deduction_ratio.toFixed(3),
-      o.ngl_recovery_ratio.toFixed(3), o.counties.join('; '),
+      o.operator_name, o.well_count, o.deduction_pct != null ? o.deduction_pct.toFixed(1) : '',
+      o.pcrr != null ? o.pcrr.toFixed(1) : '', o.net_value_return.toFixed(0),
+      o.primary_county || '',
     ]);
     const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -61,45 +60,55 @@ export function OperatorEfficiency() {
 
   const columns: Column<OperatorEfficiencyEntry>[] = [
     {
-      key: 'company_name', label: 'Operator', sortType: 'string', width: 200,
-      render: (row) => <span style={{ fontWeight: 500 }}>{row.company_name}</span>,
+      key: 'operator_name', label: 'Operator', sortType: 'string', width: 200,
+      render: (row) => <span style={{ fontWeight: 500 }}>{row.operator_name}</span>,
     },
     { key: 'well_count', label: 'Wells', sortType: 'number', width: 70 },
     {
-      key: 'net_return_6m', label: '6M Net Return', sortType: 'number', width: 120,
+      key: 'deduction_pct', label: 'Deduction %', sortType: 'number', width: 100,
       render: (row) => {
-        const pct = row.net_return_6m * 100;
+        const pct = row.deduction_pct ?? 0;
         return (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ flex: 1, height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-              <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: pctColor(pct), borderRadius: 3 }} />
+              <div style={{ width: `${Math.min(pct, 100)}%`, height: '100%', background: pctColor(100 - pct), borderRadius: 3 }} />
             </div>
-            <span style={{ fontSize: 12, fontWeight: 600, color: pctColor(pct), width: 40, textAlign: 'right' }}>{pct.toFixed(0)}%</span>
+            <span style={{ fontSize: 12, fontWeight: 600, color: pct > 40 ? '#dc2626' : TEXT_DARK, width: 40, textAlign: 'right' }}>{pct.toFixed(1)}%</span>
           </div>
         );
       },
     },
     {
       key: 'pcrr', label: 'PCRR', sortType: 'number', width: 80,
-      render: (row) => <span style={{ fontSize: 12, fontWeight: 600 }}>{(row.pcrr * 100).toFixed(1)}%</span>,
+      render: (row) => <span style={{ fontSize: 12, fontWeight: 600 }}>{row.pcrr != null ? row.pcrr.toFixed(1) + '%' : '—'}</span>,
     },
     {
-      key: 'deduction_ratio', label: 'Deduction', sortType: 'number', width: 90,
-      render: (row) => <span style={{ fontSize: 12, color: row.deduction_ratio > 0.4 ? '#dc2626' : TEXT_DARK }}>{(row.deduction_ratio * 100).toFixed(1)}%</span>,
+      key: 'net_value_return', label: 'Net Value', sortType: 'number', width: 100,
+      render: (row) => {
+        const val = row.net_value_return;
+        const color = val >= 0 ? '#16a34a' : '#dc2626';
+        const formatted = Math.abs(val) >= 1_000_000
+          ? '$' + (val / 1_000_000).toFixed(1) + 'M'
+          : Math.abs(val) >= 1_000
+          ? '$' + (val / 1_000).toFixed(0) + 'K'
+          : '$' + Math.round(val).toLocaleString();
+        return <span style={{ fontSize: 12, fontWeight: 600, color }}>{formatted}</span>;
+      },
     },
     {
-      key: 'ngl_recovery_ratio', label: 'NGL Recovery', sortType: 'number', width: 100,
-      render: (row) => <span style={{ fontSize: 12 }}>{(row.ngl_recovery_ratio * 100).toFixed(1)}%</span>,
+      key: '_county', label: 'County', sortType: 'string', width: 100,
+      getValue: (row) => row.primary_county || '',
+      render: (row) => row.primary_county
+        ? <Badge bg="#f1f5f9" color={SLATE} size="sm">{row.primary_county}</Badge>
+        : <span style={{ color: SLATE }}>—</span>,
     },
     {
-      key: '_counties', label: 'Counties', width: 150,
-      getValue: (row) => row.counties.join(', '),
+      key: '_purchaser', label: 'Purchaser', width: 130,
+      getValue: (row) => row.primary_purchaser_name || '',
       render: (row) => (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {row.counties.slice(0, 3).map(c => (
-            <Badge key={c} bg="#f1f5f9" color={SLATE} size="sm">{c}</Badge>
-          ))}
-          {row.counties.length > 3 && <Badge bg="#f1f5f9" color={SLATE} size="sm">+{row.counties.length - 3}</Badge>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          <span style={{ color: SLATE }}>{row.primary_purchaser_name || '—'}</span>
+          {row.is_affiliated && <Badge bg="#fef3c7" color="#92400e" size="sm">Aff</Badge>}
         </div>
       ),
     },
@@ -113,7 +122,7 @@ export function OperatorEfficiency() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search operators or counties..."
+          placeholder="Search operators..."
           style={{
             padding: '8px 12px', border: `1px solid ${BORDER}`, borderRadius: 6,
             fontSize: 13, width: 240, fontFamily: 'inherit', outline: 'none',
@@ -153,7 +162,7 @@ export function OperatorEfficiency() {
       <SortableTable
         columns={columns}
         data={filtered}
-        defaultSort={{ key: 'net_return_6m', dir: 'desc' }}
+        defaultSort={{ key: 'deduction_pct', dir: 'desc' }}
         rowKey={(row) => row.operator_number}
         emptyMessage="No operators match your filters"
       />

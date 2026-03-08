@@ -26,8 +26,8 @@ export function TabNav({ tabs, activeTab, onChange }: TabNavProps) {
             onClick={() => onChange(tab.key)}
             style={{
               padding: '10px 16px', fontSize: 13, fontWeight: active ? 600 : 400,
-              color: active ? TEXT_DARK : SLATE,
-              background: 'none', border: 'none', borderBottom: active ? '2px solid #3b82f6' : '2px solid transparent',
+              color: active ? '#c2410c' : SLATE,
+              background: 'none', border: 'none', borderBottom: active ? '2px solid #f59e0b' : '2px solid transparent',
               marginBottom: -2, cursor: 'pointer', whiteSpace: 'nowrap',
               fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 6,
             }}

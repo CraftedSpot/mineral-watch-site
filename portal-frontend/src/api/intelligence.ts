@@ -14,6 +14,7 @@ import type {
   WellRiskProfileData,
   OperatorDirectoryEntry,
   OperatorEfficiencyEntry,
+  OperatorDetailData,
 } from '../types/intelligence';
 
 // ── Summary & Insights ──
@@ -88,12 +89,18 @@ export function fetchWellRiskProfile(): Promise<WellRiskProfileData> {
 
 // ── Operator Tools ──
 
-export function fetchOperatorDirectory(minWells = 20): Promise<OperatorDirectoryEntry[]> {
-  return apiFetch(`/api/operators/directory?min_wells=${minWells}`);
+export async function fetchOperatorDirectory(minWells = 20): Promise<OperatorDirectoryEntry[]> {
+  const resp = await apiFetch<{ operators: OperatorDirectoryEntry[]; total_count: number }>(`/api/operators/directory?min_wells=${minWells}`);
+  return resp.operators;
 }
 
-export function fetchOperatorEfficiency(minWells = 10): Promise<OperatorEfficiencyEntry[]> {
-  return apiFetch(`/api/operators/efficiency?min_wells=${minWells}`);
+export async function fetchOperatorEfficiency(minWells = 10): Promise<OperatorEfficiencyEntry[]> {
+  const resp = await apiFetch<{ operators: OperatorEfficiencyEntry[] }>(`/api/operators/efficiency?min_wells=${minWells}`);
+  return resp.operators;
+}
+
+export function fetchOperatorDetail(operatorNumber: string): Promise<OperatorDetailData> {
+  return apiFetch(`/api/operators/${operatorNumber}`);
 }
 
 export function fetchOperatorLookup(name: string) {

@@ -179,17 +179,15 @@ export interface ProductionDeclineData {
   wells: DeclineWell[];
   summary: {
     totalWells: number;
-    activeCount: number;
-    decliningCount: number;
-    steepDeclineCount: number;
-    idleCount: number;
-    portfolioOil: number;
-    portfolioGas: number;
-    portfolioBoe: number;
-    portfolioYoyChangePct: number | null;
+    activeWells: number;
+    idleWells: number;
+    portfolioOilBBL: number;
+    portfolioGasMCF: number;
+    wellsInDecline: number;
+    wellsSteepDecline: number;
   };
   latestDataMonth: string;
-  marketComparison: DeclineMarketComparison[];
+  monthlyTotals?: Array<{ yearMonth: string; totalOil: number; totalGas: number; totalBoe: number }>;
 }
 
 // ── Production Decline Markets ──
@@ -349,19 +347,17 @@ export interface PoolingReportData {
 // ── OCC Filing Activity ──
 
 export interface OccFiling {
-  id: string;
-  case_number: string;
-  relief_type: string;
+  caseNumber: string;
+  reliefType: string;
   applicant: string;
   county: string;
   section: string;
   township: string;
   range: string;
-  hearing_date: string | null;
+  hearingDate: string | null;
   status: string;
-  docket_date: string;
-  source_url: string;
-  order_number: string | null;
+  docketDate: string;
+  sourceUrl: string;
   distanceTier: number;
   distanceDescription: string;
 }
@@ -472,25 +468,99 @@ export interface WellRiskProfileData {
 
 export interface OperatorDirectoryEntry {
   operator_number: string;
-  company_name: string;
+  operator_name: string;
   well_count: number;
   counties: string[];
-  phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
+  status: string;
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  contact_name?: string | null;
 }
 
 export interface OperatorEfficiencyEntry {
   operator_number: string;
-  company_name: string;
+  operator_name: string;
+  status: string;
   well_count: number;
-  net_return_6m: number;
-  pcrr: number;
-  deduction_ratio: number;
-  ngl_recovery_ratio: number;
-  counties: string[];
+  total_gross: number;
+  residue_deductions: number;
+  deduction_pct: number | null;
+  pcrr_value: number;
+  net_value_return: number;
+  pcrr: number | null;
+  primary_county: string | null;
+  primary_purchaser_id: string | null;
+  primary_purchaser_name: string | null;
+  is_affiliated: boolean;
+  gas_profile: string | null;
+}
+
+export interface OperatorDetailData {
+  operator_number: string;
+  operator_name: string;
+  status: string;
+  contact: {
+    status: string;
+    phone: string | null;
+    address: string | null;
+    city: string | null;
+    state: string | null;
+    zip: string | null;
+    contact_name: string | null;
+  } | null;
+  gas_profile: {
+    label: string;
+    lean_pct: number;
+    oil_pct: number;
+  } | null;
+  all_counties: string[];
+  summary: {
+    total_gross: number;
+    residue_deductions: number;
+    pcrr_value: number;
+    net_value_return: number;
+    deduction_ratio: number | null;
+    pcrr: number | null;
+    well_count: number;
+    total_puns: number;
+  };
+  efficiency: {
+    pcrr: number | null;
+    deduction_ratio: number | null;
+  };
+  purchaser: {
+    primary_purchaser_id: string | null;
+    primary_purchaser_name: string | null;
+    is_affiliated: boolean;
+  };
+  production_health: {
+    totalPuns: number;
+    activePuns: number;
+    idlePuns: number;
+    recentlyIdle: number;
+    extendedIdle: number;
+    longTermIdle: number;
+    idleRatePct: number;
+    avgDecline: number | null;
+    decliningWells: number;
+    growingWells: number;
+  } | null;
+  monthly: Array<{
+    year_month: string;
+    total_gross: number;
+    residue_deductions: number;
+    well_count: number;
+  }>;
+  counties: Array<{
+    county: string;
+    well_count: number;
+    total_gross: number;
+    deduction_pct: number | null;
+  }>;
+  analysis_period: string;
 }
 
 // ── Report card config ──
