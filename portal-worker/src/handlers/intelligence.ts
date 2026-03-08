@@ -2937,7 +2937,7 @@ export async function handleGetProductionDecline(request: Request, env: Env): Pr
                SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
                SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
         FROM well_pun_links wpl
-        JOIN otc_production op ON op.pun = wpl.pun
+        JOIN otc_production op ON op.base_pun = wpl.base_pun
         WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
           AND op.year_month >= ?
         GROUP BY wpl.api_number, op.year_month
@@ -3283,7 +3283,7 @@ export async function handleGetProductionDeclineMarkets(request: Request, env: E
                SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
                SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
         FROM well_pun_links wpl
-        JOIN otc_production op ON op.pun = wpl.pun
+        JOIN otc_production op ON op.base_pun = wpl.base_pun
         WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
           AND op.year_month >= ?
         GROUP BY wpl.api_number, op.year_month
@@ -3475,7 +3475,7 @@ async function computeCountyAggregate(
              SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
              SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
       FROM well_pun_links wpl
-      JOIN otc_production op ON op.pun = wpl.pun
+      JOIN otc_production op ON op.base_pun = wpl.base_pun
       WHERE wpl.api_number IN (SELECT api_number FROM county_wells)
         AND op.year_month >= ?
       GROUP BY wpl.api_number, op.year_month

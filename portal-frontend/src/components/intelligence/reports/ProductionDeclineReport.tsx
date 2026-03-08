@@ -89,7 +89,7 @@ export function ProductionDeclineReport({ tier }: Props) {
 
       <TabNav tabs={tabs} activeTab={activeTab} onChange={setActiveTab} />
 
-      {activeTab === 'portfolio' && <PortfolioTab wells={wells} />}
+      {activeTab === 'portfolio' && <PortfolioTab wells={wells} monthlyTotals={data.monthlyTotals} />}
       {activeTab === 'markets' && <MarketsTab data={marketsData} loading={marketsLoading} />}
       {activeTab === 'research' && (
         researchLoading ? <LoadingSkeleton columns={3} rows={5} />
@@ -101,20 +101,16 @@ export function ProductionDeclineReport({ tier }: Props) {
   );
 }
 
-function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
-  // Build portfolio trend data for chart
+function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyTotals?: Array<{ yearMonth: string; totalOil: number; totalGas: number; totalBoe: number }> }) {
+  // Build portfolio trend data for chart from pre-aggregated monthlyTotals
   const chartData = useMemo(() => {
-    const monthly: Record<string, number> = {};
-    wells.forEach((w) => {
-      w.monthlyData.forEach((m) => {
-        monthly[m.yearMonth] = (monthly[m.yearMonth] || 0) + m.boe;
-      });
-    });
-    return Object.entries(monthly)
-      .sort(([a], [b]) => a.localeCompare(b))
+    if (!monthlyTotals || monthlyTotals.length === 0) return [];
+    return monthlyTotals
+      .slice()
+      .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth))
       .slice(-18)
-      .map(([k, v]) => ({ label: formatMonth(k), value: v }));
-  }, [wells]);
+      .map((m) => ({ label: formatMonth(m.yearMonth), value: m.totalBOE ?? m.totalBoe ?? 0 }));
+  }, [monthlyTotals]);
 
   const columns: Column<DeclineWell>[] = useMemo(() => [
     {
@@ -141,6 +137,14 @@ function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
       ),
     },
     {
+      key: 'recentOilBBL', label: 'Oil (BBL)', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      render: (row) => <span style={{ fontSize: 12 }}>{row.recentOilBBL != null ? Math.round(row.recentOilBBL).toLocaleString() : '—'}</span>,
+    },
+    {
+      key: 'recentGasMCF', label: 'Gas (MCF)', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      render: (row) => <span style={{ fontSize: 12 }}>{row.recentGasMCF != null ? Math.round(row.recentGasMCF).toLocaleString() : '—'}</span>,
+    },
+    {
       key: 'yoyChangePct', label: 'YoY', sortType: 'number', width: 'minmax(60px, 0.7fr)',
       render: (row) => {
         if (row.yoyChangePct == null) return <span style={{ color: SLATE }}>—</span>;
@@ -149,12 +153,8 @@ function PortfolioTab({ wells }: { wells: DeclineWell[] }) {
       },
     },
     {
-      key: '_lastMonth', label: 'Last Rpt', sortType: 'string', width: 'minmax(60px, 0.7fr)',
-      getValue: (row) => row.monthlyData?.length > 0 ? row.monthlyData[row.monthlyData.length - 1].yearMonth : null,
-      render: (row) => {
-        const last = row.monthlyData?.[row.monthlyData.length - 1];
-        return <span style={{ fontSize: 12, color: SLATE }}>{last ? formatMonth(last.yearMonth) : '—'}</span>;
-      },
+      key: 'lastReportedMonth', label: 'Last Rpt', sortType: 'string', width: 'minmax(60px, 0.7fr)',
+      render: (row) => <span style={{ fontSize: 12, color: SLATE }}>{row.lastReportedMonth ? formatMonth(row.lastReportedMonth) : '—'}</span>,
     },
   ], []);
 

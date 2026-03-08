@@ -158,12 +158,11 @@ export interface DeclineWell {
   wellType: string;
   isHorizontal: boolean;
   status: 'active' | 'declining' | 'steep_decline' | 'idle';
-  productCount: number;
+  lastReportedMonth: string | null;
+  recentOilBBL: number;
+  recentGasMCF: number;
+  recentBOE: number;
   yoyChangePct: number | null;
-  yoyBoe: number | null;
-  trendConfidence: string;
-  monthlyData: DeclineMonthly[];
-  hbpExpiredFlag: boolean;
 }
 
 export interface DeclineMarketComparison {
