@@ -71,6 +71,25 @@ export function computeLayout(data: FlatData, expandedStacks: Set<string>, viewM
     return nodeH;
   }
 
+  // Compute the max node height at each level (accounts for expanded stacks)
+  const maxHeightPerLevel: Record<number, number> = {};
+  for (let l = 0; l <= maxLevel; l++) maxHeightPerLevel[l] = nodeH;
+  Object.entries(levels).forEach(([id, level]) => {
+    const h = getNodeHeight(id);
+    if (h > maxHeightPerLevel[level]) maxHeightPerLevel[level] = h;
+  });
+
+  // Compute cumulative y-offset for each level (bottom-up: roots at bottom)
+  // Original formula was: y = PAD + (maxLevel - level) * (nodeH + vGap)
+  // Level 0 (roots) = bottom, maxLevel (leaves) = top
+  // So we compute top-down from maxLevel to 0, then map level → y
+  const levelY: Record<number, number> = {};
+  let cumulativeY = PAD;
+  for (let l = maxLevel; l >= 0; l--) {
+    levelY[l] = cumulativeY;
+    cumulativeY += maxHeightPerLevel[l] + vGap;
+  }
+
   function getSubtreeWidth(id: string): number {
     const node = nodeMap[id];
     if (!node || !node.children || node.children.length === 0) return NODE_W;
@@ -84,7 +103,7 @@ export function computeLayout(data: FlatData, expandedStacks: Set<string>, viewM
     const node = nodeMap[id];
     if (!node) return;
     const h = getNodeHeight(id);
-    const y = PAD + (maxLevel - level) * (nodeH + vGap);
+    const y = levelY[level] ?? PAD;
     positions[id] = { x: xCenter - NODE_W / 2, y, w: NODE_W, h };
 
     // Expanded stack: compute individual card positions
