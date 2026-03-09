@@ -263,25 +263,29 @@ Extract royalty as BOTH fraction (original document language) AND decimal (for c
 | 1/4 | 0.25 |
 | 1/3 | 0.333333 |
 
+IMPORTANT: The example below uses FICTIONAL names and addresses for illustration only.
+NEVER use any names, addresses, or values from the example in your extraction.
+Extract ONLY what appears in the actual document.
+
 EXAMPLE EXTRACTION:
 {
   "doc_type": "oil_gas_lease",
   "lease_form": "Hefner Form or AAPL Form 675 or omit if unknown",
 
   "lessor": {
-    "name": "REQUIRED - Price Oil & Gas, Ltd.",
-    "address": "6801 N. Country Club Drive",
-    "city": "Oklahoma City",
+    "name": "REQUIRED - Redrock Minerals, Ltd.",
+    "address": "4200 N. Western Avenue",
+    "city": "Tulsa",
     "state": "OK",
-    "zip": "73116",
+    "zip": "74127",
     "capacity": "Mineral Owner|Trustee|Personal Representative|Guardian|Attorney-in-Fact|Manager|President",
-    "signatory": "William S. Price - person who signed if different from entity",
+    "signatory": "Thomas R. Harmon - person who signed if different from entity",
     "signatory_title": "Manager - title if signing in representative capacity"
   },
 
   "lessee": {
-    "name": "REQUIRED - Hefner Energy, LLC",
-    "address": "16224 Muirfield Place",
+    "name": "REQUIRED - Plainview Energy, LLC",
+    "address": "900 S. Broadway Avenue",
     "city": "Edmond",
     "state": "OK",
     "zip": "73013"
@@ -463,7 +467,7 @@ EXAMPLE EXTRACTION:
   },
 
   "assignment_status": {
-    "original_lessee": "Hefner Energy, LLC",
+    "original_lessee": "Plainview Energy, LLC",
     "current_holder": null,
     "has_been_assigned": false,
     "assignment_noted_on_document": false,
@@ -622,6 +626,10 @@ If you mention "Section 11, Township 6N, Range 27E", there MUST be a tract with 
 
 REQUIRED FIELDS: doc_type, deed_type, grantors, grantees, tracts (with at least one), execution_date, consideration
 
+IMPORTANT: The example below uses FICTIONAL names and addresses for illustration only.
+NEVER use any names, addresses, or values from the example in your extraction.
+Extract ONLY what appears in the actual document.
+
 MINERAL DEED EXAMPLE:
 {
   "doc_type": "mineral_deed",
@@ -629,14 +637,14 @@ MINERAL DEED EXAMPLE:
 
   "grantors": [
     {
-      "name": "Joel S. Price",
-      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "name": "Robert D. Harmon",
+      "address": "520 W. Main Street, Norman, Oklahoma",
       "tenancy": "joint_tenants_wros",
       "marital_status": "married"
     },
     {
-      "name": "Virginia K. Price",
-      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "name": "Margaret L. Harmon",
+      "address": "520 W. Main Street, Norman, Oklahoma",
       "tenancy": "joint_tenants_wros",
       "marital_status": "married"
     }
@@ -644,8 +652,8 @@ MINERAL DEED EXAMPLE:
 
   "grantees": [
     {
-      "name": "Joel S. Price",
-      "address": "6801 N. Ctry Club Dr. O.C.",
+      "name": "Robert D. Harmon",
+      "address": "520 W. Main St., Norman, OK",
       "capacity": "Trustee"
     }
   ],
@@ -719,7 +727,7 @@ Estate planning documents where an individual transfers property to their own tr
 DOCUMENT IDENTIFICATION:
 - Title may say "GENERAL ASSIGNMENT", "ASSIGNMENT", or "QUIT CLAIM DEED"
 - Same person appears as BOTH assignor (individual) AND assignee (as trustee)
-- Trust name mentioned (e.g., "Virginia K. Price Trust")
+- Trust name mentioned (e.g., "Margaret L. Harmon Trust")
 - Often includes nominal consideration ($10.00)
 
 {
@@ -728,15 +736,15 @@ DOCUMENT IDENTIFICATION:
 
   "grantors": [
     {
-      "name": "Virginia K. Price",
+      "name": "Margaret L. Harmon",
       "capacity": "Individual"
     }
   ],
 
   "grantees": [
     {
-      "name": "Virginia K. Price Trust dated January 15, 1990",
-      "trustee": "Virginia K. Price",
+      "name": "Margaret L. Harmon Trust dated January 15, 1990",
+      "trustee": "Margaret L. Harmon",
       "capacity": "Trustee"
     }
   ],
@@ -1916,7 +1924,7 @@ CHECK STUB EXAMPLE — every field annotated with where to find it:
   "operator": "Staghorn Petroleum II LLC (the company name at top of statement — the payor)",
   "operator_number": null,
   "operator_address": "P.O. Box 990, Tulsa, OK 74101 (operator mailing address from letterhead — NOT owner address)",
-  "owner_name": "Price Oil and Gas Company (the payee/interest owner name)",
+  "owner_name": "Redrock Minerals, Ltd. (the payee/interest owner name)",
   "owner_number": "0006585 (labeled 'Owner No.', 'Payee No.', 'Account No.' — this is YOUR account number with the operator)",
   "interest_type": "royalty (from revenue codes RO/RG=royalty, WO/WG=working interest, ORRI=overriding royalty — default royalty)",
   "check_number": "638330 (check number from header or check face)",
@@ -2174,7 +2182,7 @@ JIB EXAMPLE:
 
   "operator": "Kirkpatrick Oil Company, Inc.",
 
-  "owner_name": "Joel S Price Trust",
+  "owner_name": "Robert D. Harmon Trust",
   "owner_number": "0017436",
 
   "property_name": "Cheval Unit",
@@ -2209,7 +2217,7 @@ JIB EXAMPLE:
 
   "key_takeaway": "JIB from Kirkpatrick Oil for \$45.92 owner share on Cheval Unit (AFE 2025-095, Cheval 14-5 well work). Decimal: 0.00302500. Gross charges: \$15,175 for pump replacement and well services.",
 
-  "detailed_analysis": "Billing Summary:\\nKirkpatrick Oil billed Joel S Price Trust (owner 0017436) for \$45.92 on the Cheval Unit (PUN 491574). This covers workover operations on Cheval 14-5 under AFE 2025-095, service period October 2025.\\n\\nCharge Breakdown:\\n- Equipment Maintenance: \$5,284.64 gross / \$15.99 your share (downhole pump replacement)\\n- Well Work Costs: \$9,890.48 gross / \$29.93 your share (pumping services, subsurface equipment, casing crews, completion unit)\\n\\nItems to Verify:\\n1. Confirm decimal 0.00302500 matches your division order for Cheval Unit.\\n2. AFE 2025-095 present - this is a workover expense. Verify you received and approved the AFE before work began.\\n3. \$15,175 gross is within reasonable range for a pump changeout with completion unit work."
+  "detailed_analysis": "Billing Summary:\\nKirkpatrick Oil billed Robert D. Harmon Trust (owner 0017436) for \$45.92 on the Cheval Unit (PUN 491574). This covers workover operations on Cheval 14-5 under AFE 2025-095, service period October 2025.\\n\\nCharge Breakdown:\\n- Equipment Maintenance: \$5,284.64 gross / \$15.99 your share (downhole pump replacement)\\n- Well Work Costs: \$9,890.48 gross / \$29.93 your share (pumping services, subsurface equipment, casing crews, completion unit)\\n\\nItems to Verify:\\n1. Confirm decimal 0.00302500 matches your division order for Cheval Unit.\\n2. AFE 2025-095 present - this is a workover expense. Verify you received and approved the AFE before work began.\\n3. \$15,175 gross is within reasonable range for a pump changeout with completion unit work."
 }
 
 FOR JOINT OWNER STATEMENTS (Summary/Cover pages with aging):
@@ -3265,7 +3273,7 @@ TITLE OPINION EXAMPLE:
     "role": "operator"
   },
 
-  "well_name": "Price 1-18H",
+  "well_name": "Harmon 1-18H",
 
   "property_description": {
     "full_legal": "Section 18, Township 17 North, Range 13 West, Indian Meridian, Blaine County, Oklahoma",
@@ -3281,7 +3289,7 @@ TITLE OPINION EXAMPLE:
 
   "current_owners": [
     {
-      "name": "Joel S. Price Trust",
+      "name": "Robert D. Harmon Trust",
       "owner_type": "trust",
       "interest_type": "mineral",
       "interest_fraction": "1/64",
@@ -3324,8 +3332,8 @@ TITLE OPINION EXAMPLE:
         "instrument_number": null,
         "recording_date": "1975-01-28"
       },
-      "grantors": ["Joel S. Price", "Virginia K. Price"],
-      "grantees": ["Joel S. Price, as Trustee of the Joel S. Price Trust"],
+      "grantors": ["Robert D. Harmon", "Margaret L. Harmon"],
+      "grantees": ["Robert D. Harmon, as Trustee of the Robert D. Harmon Trust"],
       "interest_conveyed": "1/64 mineral interest in the E/2 of Section 18",
       "narrative_effect": "Transfer of mineral interest to grantor's own trust for estate planning purposes. No change in beneficial ownership."
     }

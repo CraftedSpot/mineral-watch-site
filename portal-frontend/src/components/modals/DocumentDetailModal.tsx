@@ -49,12 +49,13 @@ export function DocumentDetailModal({ onClose, docId }: Props) {
   );
 
   // Parse extracted_data (comes as JSON string from D1)
+  // Party name corrections are written back to document_parties — extracted_data shows raw AI output.
   const extracted = useMemo(() => {
     if (!doc?.extracted_data) return null;
     if (typeof doc.extracted_data === 'string') {
       try { return JSON.parse(doc.extracted_data); } catch { return null; }
     }
-    return doc.extracted_data;
+    return { ...doc.extracted_data };
   }, [doc]);
 
   const initialNotes = useMemo(() => ({ notes: doc?.user_notes ?? '' }), [doc]);

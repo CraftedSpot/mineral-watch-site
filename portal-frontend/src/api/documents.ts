@@ -46,6 +46,27 @@ export async function saveDocumentNotes(docId: string, notes: string): Promise<v
   });
 }
 
+// --- Corrections (per-party-row) ---
+
+export async function saveCorrection(
+  documentId: string, partyRowId: number, correctedValue: string
+): Promise<{ id: string; party_row_id: number; original_value: string; corrected_value: string }> {
+  return apiFetch('/api/corrections', {
+    method: 'PUT',
+    body: JSON.stringify({ document_id: documentId, party_row_id: partyRowId, corrected_value: correctedValue }),
+  });
+}
+
+export async function deleteCorrection(correctionId: string): Promise<void> {
+  await apiFetch(`/api/corrections/${correctionId}`, { method: 'DELETE' });
+}
+
+export async function fetchCorrections(
+  docId: string
+): Promise<Record<string, { id: string; party_row_id: number; original: string; corrected: string }>> {
+  return apiFetch(`/api/corrections?document_id=${docId}`);
+}
+
 // --- Upload ---
 
 export interface UploadResult {

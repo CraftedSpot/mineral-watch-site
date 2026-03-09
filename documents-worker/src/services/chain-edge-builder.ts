@@ -176,7 +176,7 @@ function extractInterestFromDoc(extractedData: any, docType: string): InterestIn
   const cat = DOC_CATEGORY[docType] || 'informational';
 
   if (cat === 'ownership' || cat === 'succession') {
-    // Deeds: tracts[0].interest
+    // Path 1: tracts[0].interest (structured extraction schema)
     const tracts = extractedData.tracts;
     if (Array.isArray(tracts) && tracts.length > 0) {
       const interest = tracts[0].interest;
@@ -188,9 +188,19 @@ function extractInterestFromDoc(extractedData: any, docType: string): InterestIn
         };
       }
     }
-    // Heirship heirs
+
+    // Path 2: flat interest_conveyed / interest_type (actual extraction output)
+    if (extractedData.interest_conveyed || extractedData.interest_type) {
+      const text = extractedData.interest_conveyed || null;
+      return {
+        text,
+        decimal: parseFraction(text) ?? null,
+        type: extractedData.interest_type || 'mineral',
+      };
+    }
+
+    // Path 3: Heirship heirs
     if (Array.isArray(extractedData.heirs)) {
-      // Return combined info — individual shares handled at owner level
       return { text: null, decimal: null, type: 'mineral' };
     }
   }
@@ -221,7 +231,7 @@ export async function buildChainEdges(
       d.id, d.doc_type, d.extracted_data,
       dp.party_name, dp.party_name_normalized, dp.party_role, dp.document_date
     FROM documents d
-    LEFT JOIN document_parties dp ON dp.document_id = d.id
+    LEFT JOIN document_parties dp ON dp.document_id = d.id AND dp.is_deleted = 0
     WHERE d.chain_of_title = 1
       AND d.status = 'complete'
       AND (d.deleted_at IS NULL OR d.deleted_at = '')

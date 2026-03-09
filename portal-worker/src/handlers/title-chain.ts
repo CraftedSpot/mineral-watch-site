@@ -188,6 +188,7 @@ interface ChainEdgeRow {
 }
 
 interface ChainOwnerRow {
+  id: number;
   owner_name: string;
   owner_name_normalized: string;
   acquired_via_doc_id: string | null;
@@ -195,6 +196,7 @@ interface ChainOwnerRow {
   interest_text: string | null;
   interest_decimal: number | null;
   interest_type: string | null;
+  is_manual: number;
 }
 
 interface TreeNode {
@@ -212,6 +214,8 @@ interface TreeNode {
   matchConfidence: number | null;
   stackedDocs: string[];
   children: TreeNode[];
+  _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  _parties: Array<{ rowId: number; name: string; role: string }>;
 }
 
 interface TitleTree {
@@ -241,7 +245,7 @@ function assembleTree(
   documents: any[],
   edges: ChainEdgeRow[],
   owners: ChainOwnerRow[],
-  partiesMap: Record<string, Array<{ name: string; role: string }>>
+  partiesMap: Record<string, Array<{ name: string; role: string; [key: string]: any }>>
 ): TitleTree {
   const docMap = new Map<string, any>();
   for (const doc of documents) docMap.set(doc.id, doc);
@@ -357,6 +361,8 @@ function assembleTree(
       matchConfidence: edge?.match_confidence ?? null,
       stackedDocs: stackedWith,
       children,
+      _corrections: doc?._corrections || null,
+      _parties: (doc?._parties || []) as Array<{ rowId: number; name: string; role: string }>,
     };
   }
 
@@ -561,9 +567,9 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         AND ${docOwner.where}
     `).bind(airtableId, startsWithPattern, endsWithPattern, containsPattern, ...docOwner.params).all();
 
-    // Batch-fetch document_parties for all docs
+    // Batch-fetch document_parties for all docs (include dp.id for per-party corrections)
     const docIds = (docsResult.results as any[]).map((r: any) => r.id);
-    let partiesMap: Record<string, Array<{ name: string; role: string; date: string | null }>> = {};
+    let partiesMap: Record<string, Array<{ rowId: number; name: string; normalized: string; role: string; date: string | null; isManual?: boolean }>> = {};
 
     if (docIds.length > 0) {
       // Query in batches of 30 to stay under D1 bind limit
@@ -572,19 +578,46 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         const batch = docIds.slice(i, i + BATCH);
         const placeholders = batch.map(() => '?').join(',');
         const partiesResult = await env.WELLS_DB.prepare(`
-          SELECT document_id, party_name, party_role, document_date
+          SELECT id, document_id, party_name, party_name_normalized, party_role, document_date, is_manual
           FROM document_parties
-          WHERE document_id IN (${placeholders})
+          WHERE document_id IN (${placeholders}) AND is_deleted = 0
           ORDER BY party_role, party_name
         `).bind(...batch).all();
 
         for (const row of partiesResult.results as any[]) {
           if (!partiesMap[row.document_id]) partiesMap[row.document_id] = [];
           partiesMap[row.document_id].push({
+            rowId: row.id as number,
             name: row.party_name,
+            normalized: row.party_name_normalized || '',
             role: row.party_role,
             date: row.document_date,
+            isManual: row.is_manual === 1,
           });
+        }
+      }
+    }
+
+    // Fetch user corrections for all docs — keyed by party_row_id
+    // Corrections are already written back to document_parties (party_name + normalized),
+    // so partiesMap already has corrected names. This is metadata for the edit UI.
+    let correctionsMap: Record<string, Record<string, { id: string; partyRowId: number; original: string; corrected: string }>> = {};
+    if (docIds.length > 0) {
+      const CORR_BATCH = 30;
+      for (let i = 0; i < docIds.length; i += CORR_BATCH) {
+        const batch = docIds.slice(i, i + CORR_BATCH);
+        const placeholders = batch.map(() => '?').join(',');
+        const corrResult = await env.WELLS_DB.prepare(`
+          SELECT id, document_id, field, party_row_id, original_value, corrected_value
+          FROM user_corrections
+          WHERE document_id IN (${placeholders}) AND party_row_id IS NOT NULL
+        `).bind(...batch).all();
+        for (const row of corrResult.results as any[]) {
+          if (!correctionsMap[row.document_id]) correctionsMap[row.document_id] = {};
+          correctionsMap[row.document_id][String(row.party_row_id)] = {
+            id: row.id, partyRowId: row.party_row_id as number,
+            original: row.original_value, corrected: row.corrected_value,
+          };
         }
       }
     }
@@ -601,8 +634,9 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
       let parties = partiesMap[row.id];
       let partiesFromJson = false;
       if (!parties || parties.length === 0) {
-        parties = extractPartiesFromJson(extractedData, row.doc_type || '').map(p => ({
+        parties = extractPartiesFromJson(extractedData, row.doc_type || '').map((p, idx) => ({
           ...p,
+          rowId: -1 - idx, // Negative sentinel — no document_parties row
           date: null,
         }));
         if (parties.length > 0) partyDataGaps++;
@@ -624,9 +658,11 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         date: bestDate,
         dateSource: date ? dateSource : (partyDate ? 'document_parties' : null),
         parties: parties.map(p => ({ name: p.name, role: p.role })),
+        _parties: parties.filter((p: any) => p.rowId > 0).map((p: any) => ({ rowId: p.rowId, name: p.name, role: p.role, isManual: p.isManual || false })),
         interestConveyed: interest,
         summary: row.summary || asString(extractedData?.key_takeaway) || null,
         r2Key: row.r2_key,
+        _corrections: correctionsMap[row.id] || null,
       };
     });
 
@@ -772,8 +808,8 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
           ).bind(airtableId).all();
 
           const ownersResult = await env.WELLS_DB.prepare(
-            `SELECT owner_name, owner_name_normalized, acquired_via_doc_id,
-                    acquired_date, interest_text, interest_decimal, interest_type
+            `SELECT id, owner_name, owner_name_normalized, acquired_via_doc_id,
+                    acquired_date, interest_text, interest_decimal, interest_type, is_manual
              FROM chain_current_owners WHERE property_id = ?`
           ).bind(airtableId).all();
 
@@ -784,6 +820,36 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
             (ownersResult.results || []) as unknown as ChainOwnerRow[],
             partiesMap
           );
+
+          // 4b. Post-process: resolve source party row IDs + attach source doc data for current owners
+          const GRANTEE_SIDE_ROLES = ['grantee', 'lessee', 'assignee', 'heir', 'beneficiary', 'owner'];
+          for (const owner of tree.currentOwners) {
+            if (!owner.acquired_via_doc_id) continue;
+            const docParties = partiesMap[owner.acquired_via_doc_id];
+            if (docParties) {
+              // Find matching grantee-side party by normalized name
+              const match = docParties.find(p =>
+                GRANTEE_SIDE_ROLES.includes(p.role) &&
+                p.normalized === owner.owner_name_normalized
+              );
+              if (match) {
+                (owner as any).source_party_row_id = match.rowId;
+                const docCorr = correctionsMap[owner.acquired_via_doc_id];
+                if (docCorr?.[String(match.rowId)]) {
+                  (owner as any).source_correction = docCorr[String(match.rowId)];
+                }
+              }
+              // Attach all source doc parties for Document tab party strip
+              (owner as any)._sourceParties = docParties
+                .filter(p => p.rowId > 0)
+                .map(p => ({ rowId: p.rowId, name: p.name, role: p.role, isManual: p.isManual || false }));
+            }
+            // Attach source doc corrections
+            const docCorrAll = correctionsMap[owner.acquired_via_doc_id];
+            if (docCorrAll) {
+              (owner as any)._sourceCorrections = docCorrAll;
+            }
+          }
 
           // 5. Cache the result
           try {

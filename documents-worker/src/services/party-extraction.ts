@@ -344,8 +344,9 @@ export async function persistParties(
   const parties = extractParties(extractedData, docType);
   if (parties.length === 0) return 0;
 
-  // Delete existing parties for this document (supports re-extraction)
-  await db.prepare('DELETE FROM document_parties WHERE document_id = ?')
+  // Delete existing extracted parties for this document (supports re-extraction)
+  // Preserves user-added (is_manual=1) and user-deleted (is_deleted=1) rows
+  await db.prepare('DELETE FROM document_parties WHERE document_id = ? AND is_manual = 0 AND is_deleted = 0')
     .bind(documentId).run();
 
   // Batch insert

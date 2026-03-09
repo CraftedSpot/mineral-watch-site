@@ -41,10 +41,13 @@ export interface TreeNode {
   matchConfidence: number | null;
   stackedDocs: string[];
   children: TreeNode[];
+  _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
 }
 
 /** Current owner from chain_current_owners */
 export interface ChainOwnerRow {
+  id: number;
   owner_name: string;
   owner_name_normalized: string;
   acquired_via_doc_id: string | null;
@@ -52,6 +55,11 @@ export interface ChainOwnerRow {
   interest_text: string | null;
   interest_decimal: number | null;
   interest_type: string | null;
+  is_manual: number;
+  source_party_row_id?: number;
+  source_correction?: { id: string; partyRowId: number; original: string; corrected: string };
+  _sourceParties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  _sourceCorrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }>;
 }
 
 /** Gap in chain (missing link) */
@@ -135,6 +143,16 @@ export interface FlatNode {
   interestType?: string | null;
   acquiredDate?: string | null;
   acquiredViaDocId?: string | null;
+  ownerId?: number;
+  isManual?: boolean;
+  sourcePartyRowId?: number;
+  sourceCorrection?: { id: string; partyRowId: number; original: string; corrected: string };
+  _sourceParties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  _sourceCorrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }>;
+  // Per-party data for inline editing (rowId = document_parties.id)
+  _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  // User corrections keyed by party_row_id
+  _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   // Source tree node reference
   _treeNode?: TreeNode;
 }

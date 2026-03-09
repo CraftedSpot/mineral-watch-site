@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { useActivity } from '../../../hooks/useActivity';
+import { useWells } from '../../../hooks/useWells';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
@@ -8,11 +9,43 @@ import {
   normalizeActivityType, getFilterCategory, getActivityIcon,
   getAlertLevelStyle, ACTIVITY_FILTER_CATEGORIES,
 } from '../../../lib/activity-utils';
+import { addWell } from '../../../api/wells';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { EmptyState } from '../../ui/EmptyState';
 import { BulkActionBar } from '../../ui/BulkActionBar';
 import { MODAL_TYPES, BORDER, SLATE } from '../../../lib/constants';
 import type { ActivityRecord } from '../../../types/dashboard';
+
+// Activity types that should show "Track Well" button
+const TRACKABLE_TYPES = new Set([
+  'New Permit', 'New Drilling Permit', 'Well Completed',
+  'Rework Permit', 'Application', 'Exception',
+  'Pooling Application', 'Increased Density Application',
+  'Spacing Unit Application', 'Location Exception',
+  'Horizontal Well Application', 'OCC Filing',
+  'Order Modification', 'Operator Change',
+]);
+
+// Activity types that should show "Analyze Order" button
+const OCC_FILING_TYPES = new Set([
+  'Pooling Application', 'Increased Density Application',
+  'Spacing Unit Application', 'Location Exception',
+  'Horizontal Well Application', 'OCC Filing', 'Order Modification',
+]);
+
+function shouldShowTrackButton(activityType: string): boolean {
+  return TRACKABLE_TYPES.has(activityType) ||
+    activityType.toLowerCase().includes('rework') ||
+    activityType.includes('Application') ||
+    activityType.includes('Exception');
+}
+
+function parseSTR(str: string): { section: string; township: string; range: string } | null {
+  const m = str.match(/(\d+)-(\d+[NS])-(\d+[EW])/i) ||
+            str.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
+  if (!m) return null;
+  return { section: m[1], township: m[2], range: m[3] };
+}
 
 // Sort options (matches vanilla dashboard-shell.html)
 const SORT_OPTIONS = [
@@ -44,6 +77,7 @@ function sortActivity(records: ActivityRecord[], sortBy: string): ActivityRecord
 
 export function ActivityTab() {
   const { data: activity, loading, reload } = useActivity();
+  const { data: wells, reload: reloadWells } = useWells();
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -53,7 +87,34 @@ export function ActivityTab() {
   const [sortValue, setSortValue] = useState('date-desc');
   const [filterCat, setFilterCat] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [trackingApi, setTrackingApi] = useState<string | null>(null);
   const lastClickedRef = useRef<number>(-1);
+
+  // Set of API numbers already tracked
+  const trackedApis = useMemo(
+    () => new Set(wells.map((w) => w.apiNumber).filter(Boolean)),
+    [wells],
+  );
+
+  // Find tracked well record by API for map deep-link
+  const findTrackedWell = useCallback(
+    (api: string) => wells.find((w) => w.apiNumber === api),
+    [wells],
+  );
+
+  const handleTrackWell = useCallback(async (apiNumber: string, wellName: string) => {
+    if (trackingApi) return;
+    setTrackingApi(apiNumber);
+    try {
+      await addWell(apiNumber);
+      toast.success(`Tracking ${wellName || apiNumber}`);
+      reloadWells();
+    } catch {
+      toast.error('Failed to track well');
+    } finally {
+      setTrackingApi(null);
+    }
+  }, [trackingApi, toast, reloadWells]);
 
   // Compute category counts for filter chips
   const categoryCounts = useMemo(() => {
@@ -342,6 +403,20 @@ export function ActivityTab() {
                       {changeText}
                     </div>
                   )}
+                  {/* Action buttons */}
+                  <ActivityActions
+                    activityType={activityType}
+                    apiNumber={apiNumber}
+                    str={f['Section-Township-Range']}
+                    county={county}
+                    occMapLink={f['OCC Map Link'] || f['Map Link']}
+                    caseNumber={f['Case Number']}
+                    wellName={f['Well Name'] || ''}
+                    trackedApis={trackedApis}
+                    findTrackedWell={findTrackedWell}
+                    onTrack={handleTrackWell}
+                    trackingApi={trackingApi}
+                  />
                   {isMobile && date && (
                     <div style={{ fontSize: 11, color: SLATE, marginTop: 4 }}>{date}</div>
                   )}
@@ -361,6 +436,116 @@ export function ActivityTab() {
     </div>
   );
 }
+
+// Action buttons row (MW Map, OCC Map, Track Well, Analyze Order)
+function ActivityActions({
+  activityType, apiNumber, str, county, occMapLink, caseNumber, wellName,
+  trackedApis, findTrackedWell, onTrack, trackingApi,
+}: {
+  activityType: string;
+  apiNumber?: string;
+  str?: string;
+  county: string;
+  occMapLink?: string;
+  caseNumber?: string;
+  wellName: string;
+  trackedApis: Set<string>;
+  findTrackedWell: (api: string) => { id: string; county: string; section: string; township: string; range: string } | undefined;
+  onTrack: (api: string, name: string) => void;
+  trackingApi: string | null;
+}) {
+  // Build map link
+  let mapHref: string | null = null;
+  if (apiNumber) {
+    const tracked = findTrackedWell(apiNumber);
+    if (tracked) {
+      const p = new URLSearchParams({
+        well: tracked.id,
+        county: tracked.county || county,
+        section: tracked.section || '',
+        township: tracked.township || '',
+        range: tracked.range || '',
+      });
+      mapHref = `/portal/map?${p}`;
+    }
+  }
+  if (!mapHref && str) {
+    const parsed = parseSTR(str);
+    if (parsed) {
+      const p = new URLSearchParams({ section: parsed.section, township: parsed.township, range: parsed.range, county });
+      mapHref = `/portal/map?${p}`;
+    }
+  }
+
+  // OCC map — only use links with actual coordinates
+  const validOccMap = occMapLink && occMapLink.includes('marker=') ? occMapLink : null;
+
+  // Track button
+  const showTrack = apiNumber && shouldShowTrackButton(activityType);
+  const isTracked = apiNumber ? trackedApis.has(apiNumber) : false;
+
+  // Analyze order
+  const showAnalyze = caseNumber && OCC_FILING_TYPES.has(activityType);
+
+  if (!mapHref && !validOccMap && !showTrack && !showAnalyze) return null;
+
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+      {mapHref && (
+        <a
+          href={mapHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={actionBtnStyle}
+        >
+          MW Map
+        </a>
+      )}
+      {validOccMap && (
+        <a
+          href={validOccMap}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={actionBtnStyle}
+        >
+          OCC Map
+        </a>
+      )}
+      {showTrack && (
+        isTracked ? (
+          <button style={{ ...actionBtnStyle, background: '#22C55E', color: '#fff', borderColor: '#22C55E', cursor: 'default' }} disabled>
+            Added ✓
+          </button>
+        ) : (
+          <button
+            onClick={(e) => { e.stopPropagation(); onTrack(apiNumber!, wellName); }}
+            disabled={trackingApi === apiNumber}
+            style={{ ...actionBtnStyle, background: trackingApi === apiNumber ? '#94a3b8' : undefined }}
+          >
+            {trackingApi === apiNumber ? 'Adding...' : '+ Track Well'}
+          </button>
+        )
+      )}
+      {showAnalyze && (
+        <button
+          onClick={(e) => { e.stopPropagation(); /* TODO: implement analyze order */ }}
+          style={{ ...actionBtnStyle, borderColor: '#C05621', color: '#C05621' }}
+        >
+          Analyze Order
+        </button>
+      )}
+    </div>
+  );
+}
+
+const actionBtnStyle: React.CSSProperties = {
+  fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 4,
+  border: `1px solid ${BORDER}`, background: '#fff', color: '#475569',
+  cursor: 'pointer', textDecoration: 'none', display: 'inline-block',
+  fontFamily: "'Inter', 'DM Sans', sans-serif",
+};
 
 function FilterChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (

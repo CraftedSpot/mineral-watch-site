@@ -647,6 +647,159 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
   };
 }
 
+/**
+ * General-purpose re-extraction for any document type.
+ * Fetches PDF from R2, sends to Claude with the correct doc_type prompt,
+ * updates extracted_data, and re-persists parties.
+ * Skips documents where parties have been manually edited (is_manual = 1).
+ */
+async function reextractDocument(env: Env, documentId: string): Promise<{
+  success: boolean;
+  document_id: string;
+  doc_type?: string;
+  error?: string;
+  skipped?: boolean;
+}> {
+  console.log(`[Reextract] Starting for document ${documentId}`);
+
+  if (!env.ANTHROPIC_API_KEY) {
+    return { success: false, document_id: documentId, error: 'ANTHROPIC_API_KEY not configured' };
+  }
+
+  // 1. Get document info
+  const docResult = await env.WELLS_DB.prepare(`
+    SELECT id, r2_key, filename, doc_type, user_id
+    FROM documents WHERE id = ?
+  `).bind(documentId).first() as any;
+
+  if (!docResult) {
+    return { success: false, document_id: documentId, error: 'Document not found' };
+  }
+  if (!docResult.r2_key) {
+    return { success: false, document_id: documentId, error: 'No R2 key for document' };
+  }
+
+  // 2. Check for manual party edits — skip if user has corrected parties
+  const manualParties = await env.WELLS_DB.prepare(`
+    SELECT COUNT(*) as cnt FROM document_parties
+    WHERE document_id = ? AND (is_manual = 1 OR is_deleted = 1)
+  `).bind(documentId).first() as any;
+
+  if (manualParties?.cnt > 0) {
+    console.log(`[Reextract] Skipping ${documentId} — has ${manualParties.cnt} manual/deleted parties`);
+    return { success: true, document_id: documentId, doc_type: docResult.doc_type, skipped: true };
+  }
+
+  // 3. Fetch PDF from R2
+  console.log(`[Reextract] Fetching PDF from R2: ${docResult.r2_key}`);
+  const r2Object = await env.UPLOADS_BUCKET.get(docResult.r2_key);
+  if (!r2Object) {
+    return { success: false, document_id: documentId, error: 'PDF not found in R2' };
+  }
+
+  const pdfBytes = await r2Object.arrayBuffer();
+  const uint8Array = new Uint8Array(pdfBytes);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  const base64Pdf = btoa(binary);
+  console.log(`[Reextract] PDF encoded, size: ${pdfBytes.byteLength} bytes`);
+
+  // 4. Get the correct prompt for this doc_type
+  const docType = docResult.doc_type || 'unknown';
+  const prompt = preparePrompt(getExtractionPrompt(docType));
+
+  // 5. Call Claude
+  console.log(`[Reextract] Calling Claude API for ${docType}...`);
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    signal: AbortSignal.timeout(120_000),
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 8192,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: base64Pdf }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Reextract] API error: ${response.status}`, errorText.substring(0, 200));
+    return { success: false, document_id: documentId, error: `Claude API error ${response.status}` };
+  }
+
+  const result: any = await response.json();
+  const rawResponse = result.content?.[0]?.text || '';
+
+  // 6. Parse JSON from response
+  let extractedData: any = null;
+  try {
+    const firstBrace = rawResponse.indexOf('{');
+    if (firstBrace === -1) {
+      return { success: false, document_id: documentId, error: 'No JSON found in response' };
+    }
+    let depth = 0;
+    let lastBrace = -1;
+    for (let i = firstBrace; i < rawResponse.length; i++) {
+      if (rawResponse[i] === '{') depth++;
+      if (rawResponse[i] === '}') { depth--; if (depth === 0) { lastBrace = i; break; } }
+    }
+    if (lastBrace === -1) {
+      return { success: false, document_id: documentId, error: 'Malformed JSON in response' };
+    }
+    extractedData = JSON.parse(rawResponse.substring(firstBrace, lastBrace + 1));
+  } catch (parseError) {
+    console.error(`[Reextract] JSON parse error:`, parseError);
+    return { success: false, document_id: documentId, error: 'Failed to parse extraction JSON' };
+  }
+
+  // 7. Extract key_takeaway and detailed_analysis from text sections
+  const keyTakeawayMatch = rawResponse.match(/KEY TAKEAWAY[:\s]*\n?([\s\S]*?)(?=DETAILED ANALYSIS|$)/i);
+  const detailedAnalysisMatch = rawResponse.match(/DETAILED ANALYSIS[:\s]*\n?([\s\S]*?)$/i);
+  extractedData.key_takeaway = keyTakeawayMatch ? keyTakeawayMatch[1].trim().substring(0, 1000) : null;
+  extractedData.detailed_analysis = detailedAnalysisMatch ? detailedAnalysisMatch[1].trim().substring(0, 4000) : null;
+
+  // 8. Update document with new extraction
+  await env.WELLS_DB.prepare(`
+    UPDATE documents
+    SET extracted_data = ?,
+        confidence = 'high',
+        status = 'complete',
+        summary = ?,
+        extraction_completed_at = datetime('now'),
+        notes = 'Reextract (decontaminated) ' || datetime('now')
+    WHERE id = ?
+  `).bind(JSON.stringify(extractedData), extractSummary(extractedData), documentId).run();
+
+  console.log(`[Reextract] Document updated with new extraction`);
+
+  // 9. Persist parties
+  try {
+    const partiesInserted = await persistParties(env.WELLS_DB, documentId, extractedData, docType);
+    console.log(`[Reextract] Inserted ${partiesInserted} parties for ${documentId}`);
+  } catch (partyErr) {
+    console.error(`[Reextract] Party extraction error (non-fatal):`, partyErr);
+  }
+
+  return { success: true, document_id: documentId, doc_type: docType };
+}
+
 // Allowed file types for document uploads
 const ALLOWED_FILE_TYPES: Record<string, { extension: string; canViewInline: boolean }> = {
   'application/pdf': { extension: 'pdf', canViewInline: true },
@@ -5839,6 +5992,157 @@ export default {
       } catch (error) {
         console.error('[Pooling Reextract] Error:', error);
         return errorResponse('Failed to reextract', 500, env);
+      }
+    }
+
+    // ─── Contaminated Document Re-extraction ────────────────────────────
+    // Find and re-extract documents contaminated by old prompts with real Price family data
+
+    // Route: GET /api/processing/reextract-contaminated/candidates
+    if (path === '/api/processing/reextract-contaminated/candidates' && request.method === 'GET') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      try {
+        const candidatesResult = await env.WELLS_DB.prepare(`
+          SELECT d.id, d.doc_type, d.filename, d.status, d.user_id,
+                 SUBSTR(d.extracted_data, 1, 300) as extract_preview
+          FROM documents d
+          WHERE d.status = 'complete'
+            AND d.extracted_data IS NOT NULL
+            AND d.r2_key IS NOT NULL
+            AND (
+              d.extracted_data LIKE '%6801%Country Club%'
+              OR d.extracted_data LIKE '%Joel S. Price%'
+              OR d.extracted_data LIKE '%Virginia K. Price%'
+              OR d.extracted_data LIKE '%Price Oil & Gas%'
+              OR d.extracted_data LIKE '%Price Oil and Gas%'
+              OR d.extracted_data LIKE '%Kelsey Price Solutions%'
+              OR d.extracted_data LIKE '%Hefner Energy%'
+              OR d.extracted_data LIKE '%16224 Muirfield%'
+            )
+            AND (d.notes IS NULL OR d.notes NOT LIKE '%decontaminated%')
+          ORDER BY d.doc_type, d.filename
+          LIMIT 100
+        `).all();
+
+        // Also check how many have manual edits (would be skipped)
+        const manualCount = await env.WELLS_DB.prepare(`
+          SELECT COUNT(DISTINCT dp.document_id) as cnt
+          FROM document_parties dp
+          JOIN documents d ON d.id = dp.document_id
+          WHERE (dp.is_manual = 1 OR dp.is_deleted = 1)
+            AND d.extracted_data IS NOT NULL
+            AND (
+              d.extracted_data LIKE '%6801%Country Club%'
+              OR d.extracted_data LIKE '%Joel S. Price%'
+              OR d.extracted_data LIKE '%Virginia K. Price%'
+              OR d.extracted_data LIKE '%Price Oil & Gas%'
+              OR d.extracted_data LIKE '%Price Oil and Gas%'
+              OR d.extracted_data LIKE '%Kelsey Price Solutions%'
+              OR d.extracted_data LIKE '%Hefner Energy%'
+              OR d.extracted_data LIKE '%16224 Muirfield%'
+            )
+        `).first() as any;
+
+        return jsonResponse({
+          total_candidates: candidatesResult.results.length,
+          would_skip_manual: manualCount?.cnt || 0,
+          candidates: candidatesResult.results
+        }, 200, env);
+      } catch (error) {
+        console.error('[Reextract Contaminated] Error finding candidates:', error);
+        return errorResponse('Failed to find candidates', 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/reextract-contaminated/all
+    if (path === '/api/processing/reextract-contaminated/all' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      try {
+        const body = await request.json() as any;
+        const limit = body.limit || 5;
+        const dryRun = body.dry_run || false;
+
+        const candidatesResult = await env.WELLS_DB.prepare(`
+          SELECT d.id, d.doc_type, d.filename
+          FROM documents d
+          WHERE d.status = 'complete'
+            AND d.extracted_data IS NOT NULL
+            AND d.r2_key IS NOT NULL
+            AND (
+              d.extracted_data LIKE '%6801%Country Club%'
+              OR d.extracted_data LIKE '%Joel S. Price%'
+              OR d.extracted_data LIKE '%Virginia K. Price%'
+              OR d.extracted_data LIKE '%Price Oil & Gas%'
+              OR d.extracted_data LIKE '%Price Oil and Gas%'
+              OR d.extracted_data LIKE '%Kelsey Price Solutions%'
+              OR d.extracted_data LIKE '%Hefner Energy%'
+              OR d.extracted_data LIKE '%16224 Muirfield%'
+            )
+            AND (d.notes IS NULL OR d.notes NOT LIKE '%decontaminated%')
+          ORDER BY d.doc_type, d.filename
+          LIMIT ?
+        `).bind(limit).all();
+
+        if (dryRun) {
+          return jsonResponse({
+            dry_run: true,
+            would_process: candidatesResult.results.length,
+            documents: candidatesResult.results
+          }, 200, env);
+        }
+
+        const results: any[] = [];
+        for (const row of candidatesResult.results) {
+          const doc = row as any;
+          try {
+            const result = await reextractDocument(env, doc.id);
+            results.push({ ...result, filename: doc.filename });
+          } catch (err) {
+            results.push({ document_id: doc.id, filename: doc.filename, success: false, error: (err as Error).message });
+          }
+        }
+
+        const successful = results.filter(r => r.success && !r.skipped).length;
+        const skipped = results.filter(r => r.skipped).length;
+        return jsonResponse({
+          processed: results.length,
+          successful,
+          skipped,
+          failed: results.length - successful - skipped,
+          results
+        }, 200, env);
+      } catch (error) {
+        console.error('[Reextract Contaminated] Error:', error);
+        return errorResponse('Failed to reextract contaminated documents', 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/reextract-contaminated/:document_id - Single document
+    if (path.startsWith('/api/processing/reextract-contaminated/') && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      const documentId = path.split('/').pop();
+      if (!documentId || documentId === 'candidates' || documentId === 'all') {
+        return errorResponse('Invalid document ID', 400, env);
+      }
+
+      try {
+        const result = await reextractDocument(env, documentId);
+        return jsonResponse(result, result.success ? 200 : 500, env);
+      } catch (error) {
+        console.error('[Reextract Single] Error:', error);
+        return errorResponse('Failed to reextract document', 500, env);
       }
     }
 

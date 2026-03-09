@@ -264,6 +264,20 @@ export {
   handleCountyRecordsRetrieve
 } from './county-records.js';
 
+// Corrections handlers (party name corrections)
+export {
+  handleGetCorrections,
+  handleSaveCorrection,
+  handleDeleteCorrection
+} from './corrections.js';
+
+// Document parties handlers (add/delete/restore parties)
+export {
+  handleAddDocumentParty,
+  handleDeleteDocumentParty,
+  handleRestoreDocumentParty
+} from './document-parties.js';
+
 // Admin dashboard handlers
 export {
   handleAdminUsers,

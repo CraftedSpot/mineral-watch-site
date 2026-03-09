@@ -87,6 +87,8 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
         children: childIds,
         docs: stackDocs,
         label: `${stackDocs.length} docs — ${formatDocType(treeNode.docType)}`,
+        _parties: treeNode._parties || [],
+        _corrections: treeNode._corrections || null,
         _treeNode: treeNode,
       });
 
@@ -110,6 +112,8 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       grantee: treeNode.toNames[0] || '',
       interestConveyed: treeNode.interestConveyed,
       children: childIds,
+      _parties: treeNode._parties || [],
+      _corrections: treeNode._corrections || null,
       _treeNode: treeNode,
     });
 
@@ -177,6 +181,12 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       interestType: owner.interest_type,
       acquiredDate: owner.acquired_date,
       acquiredViaDocId: owner.acquired_via_doc_id,
+      ownerId: owner.id,
+      isManual: owner.is_manual === 1,
+      sourcePartyRowId: owner.source_party_row_id,
+      sourceCorrection: owner.source_correction,
+      _sourceParties: owner._sourceParties,
+      _sourceCorrections: owner._sourceCorrections,
     });
 
     // Attach as child of acquired-via doc (checks stacks too)

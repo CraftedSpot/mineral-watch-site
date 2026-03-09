@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
 import { ORANGE, SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
@@ -62,8 +62,16 @@ export function TitlePage() {
       .finally(() => setChainLoading(false));
   }, [selectedId]);
 
+  // Silent refetch after correction save/undo (no loading spinner)
+  const handleRefreshChain = useCallback(() => {
+    if (!selectedId) return;
+    fetchTitleChain(selectedId)
+      .then((res) => setChainData(res))
+      .catch(() => {}); // silent — tree just stays stale if refetch fails
+  }, [selectedId]);
+
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: colors.bg, minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", background: colors.bg, minHeight: '100vh', overflowX: 'hidden' }}>
       {/* Toolbar */}
       <div style={{
         padding: isMobile ? '10px 12px' : '12px 24px', borderBottom: `1px solid ${colors.border}`,
@@ -166,7 +174,7 @@ export function TitlePage() {
           <div style={{ padding: isMobile ? '10px 12px' : '12px 24px' }}>
             <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
-          <ChainTreeView tree={chainData.tree} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} />
+          <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} />
         </>
       )}
 

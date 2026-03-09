@@ -17,13 +17,15 @@ import { TreeLegend } from './TreeLegend';
 
 interface ChainTreeViewProps {
   tree: TitleTree;
+  propertyId?: string;
   isMobile?: boolean;
   viewMode?: ViewMode;
   darkMode?: boolean;
   colors?: TitleColors;
+  onRefresh?: () => void;
 }
 
-export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode, colors }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh }: ChainTreeViewProps) {
   const c = colors; // shorthand
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -210,7 +212,7 @@ export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode,
   const glowOpacity = darkMode ? '0.4' : '0.25';
 
   return (
-    <div style={{ padding: isFullscreen ? '0' : isMobile ? '0 8px 8px' : '0 24px 24px' }}>
+    <div style={{ padding: isFullscreen ? '0' : isMobile ? '0 8px 8px' : '0 24px 24px', overflow: 'hidden' }}>
       <div
         ref={flexParentRef}
         style={{
@@ -222,7 +224,7 @@ export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode,
           minHeight: isMobile ? 300 : 450,
         }}>
         {/* Canvas area */}
-        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden', position: 'relative' }}>
           <div
             ref={containerCallbackRef}
             style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -303,7 +305,7 @@ export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode,
                 to { opacity: 1; transform: translateY(0); }
               }
             `}</style>
-            <svg width="100%" height="100%" style={{ cursor: isDragging ? 'grabbing' : 'grab' }}>
+            <svg width="100%" height="100%" overflow="hidden" style={{ cursor: isDragging ? 'grabbing' : 'grab', maxWidth: '100%' }}>
               <defs>
                 <filter id="glow-orange" x="-20%" y="-20%" width="140%" height="140%">
                   <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#C05621" floodOpacity={glowOpacity} />
@@ -382,9 +384,11 @@ export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode,
         {!isMobile && (
           <DetailDrawer
             node={selectedNode}
+            propertyId={propertyId}
             onClose={handleCloseDrawer}
             onExpandStack={handleExpandStack}
             colors={c}
+            onCorrectionSaved={onRefresh}
           />
         )}
       </div>
@@ -393,10 +397,12 @@ export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode,
       {isMobile && (
         <DetailDrawer
           node={selectedNode}
+          propertyId={propertyId}
           onClose={handleCloseDrawer}
           onExpandStack={handleExpandStack}
           isMobile
           colors={c}
+          onCorrectionSaved={onRefresh}
         />
       )}
     </div>

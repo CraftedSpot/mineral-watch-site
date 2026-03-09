@@ -209,6 +209,10 @@ import {
   handleCountyRecordsRetrieve,
   // Dashboard counts handler
   handleGetDashboardCounts,
+  // Corrections handlers
+  handleGetCorrections,
+  handleSaveCorrection,
+  handleDeleteCorrection,
   // Admin dashboard handlers
   handleAdminUsers,
   handleAdminAttention,
@@ -1030,6 +1034,23 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         console.log(`[DocumentBulkDelete] Deleted ${deleted}/${ids.length} documents by ${user.email}`);
         return jsonResponse({ success: true, deleted, errors: errors.length > 0 ? errors : undefined });
+      }
+
+      // Document party add/delete/restore (handled by portal-worker, NOT proxied)
+      const partyRestoreMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/parties\/(\d+)\/restore$/);
+      if (partyRestoreMatch && request.method === "POST") {
+        const { handleRestoreDocumentParty } = await import('./handlers/document-parties.js');
+        return handleRestoreDocumentParty(partyRestoreMatch[1], partyRestoreMatch[2], request, env);
+      }
+      const partyActionMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/parties\/(\d+)$/);
+      if (partyActionMatch && request.method === "DELETE") {
+        const { handleDeleteDocumentParty } = await import('./handlers/document-parties.js');
+        return handleDeleteDocumentParty(partyActionMatch[1], partyActionMatch[2], request, env);
+      }
+      const partyAddMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/parties$/);
+      if (partyAddMatch && request.method === "POST") {
+        const { handleAddDocumentParty } = await import('./handlers/document-parties.js');
+        return handleAddDocumentParty(request, env);
       }
 
       // Proxy documents endpoints to documents-worker
@@ -1863,6 +1884,18 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleGetPropertyLinkedWells(propertyLinkedWellsMatch[1], request, env);
       }
       
+      // User corrections for AI-extracted party names
+      if (path === "/api/corrections" && request.method === "GET") {
+        return handleGetCorrections(request, env);
+      }
+      if (path === "/api/corrections" && request.method === "PUT") {
+        return handleSaveCorrection(request, env);
+      }
+      const correctionDeleteMatch = path.match(/^\/api\/corrections\/([a-zA-Z0-9_-]+)$/);
+      if (correctionDeleteMatch && request.method === "DELETE") {
+        return handleDeleteCorrection(correctionDeleteMatch[1], request, env);
+      }
+
       // Title chain properties list (properties with chain-of-title docs)
       if (path === "/api/title-chain/properties" && request.method === "GET") {
         const { handleGetTitleChainProperties } = await import('./handlers/title-chain.js');
@@ -1887,6 +1920,19 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           const { handleGetChainEdges } = await import('./handlers/chain-edges.js');
           return handleGetChainEdges(chainEdgesMatch[1], request, env);
         }
+      }
+
+      // Current owner interest — edit + revert
+      const currentOwnerManualMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/current-owners\/(\d+)\/manual$/);
+      if (currentOwnerManualMatch && request.method === "DELETE") {
+        const { handleRevertCurrentOwnerInterest } = await import('./handlers/current-owners.js');
+        return handleRevertCurrentOwnerInterest(currentOwnerManualMatch[1], parseInt(currentOwnerManualMatch[2]), request, env);
+      }
+
+      const currentOwnerMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/current-owners\/(\d+)$/);
+      if (currentOwnerMatch && request.method === "PUT") {
+        const { handleUpdateCurrentOwnerInterest } = await import('./handlers/current-owners.js');
+        return handleUpdateCurrentOwnerInterest(currentOwnerMatch[1], parseInt(currentOwnerMatch[2]), request, env);
       }
 
       // Well linked properties endpoint (using D1 with fallback)
