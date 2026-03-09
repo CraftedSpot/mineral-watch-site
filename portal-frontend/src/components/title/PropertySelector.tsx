@@ -7,9 +7,10 @@ interface PropertySelectorProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   loading: boolean;
+  isMobile?: boolean;
 }
 
-export function PropertySelector({ properties, selectedId, onSelect, loading }: PropertySelectorProps) {
+export function PropertySelector({ properties, selectedId, onSelect, loading, isMobile }: PropertySelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,8 +44,9 @@ export function PropertySelector({ properties, selectedId, onSelect, loading }: 
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
           background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 8,
-          padding: '8px 16px', fontSize: 14, fontWeight: 600, color: DARK,
-          cursor: 'pointer', minWidth: 280,
+          padding: isMobile ? '10px 12px' : '8px 16px', fontSize: 14, fontWeight: 600, color: DARK,
+          cursor: 'pointer', minWidth: isMobile ? undefined : 280, width: isMobile ? '100%' : undefined,
+          minHeight: 44,
         }}>
         {loading ? 'Loading properties...' : selected ? formatLabel(selected) : 'Select a property...'}
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={SLATE} strokeWidth="2"
@@ -82,7 +84,7 @@ export function PropertySelector({ properties, selectedId, onSelect, loading }: 
                 key={p.airtableRecordId}
                 onClick={() => { onSelect(p.airtableRecordId); setOpen(false); setSearch(''); }}
                 style={{
-                  padding: '10px 16px', cursor: 'pointer', fontSize: 13,
+                  padding: isMobile ? '12px 16px' : '10px 16px', cursor: 'pointer', fontSize: 13,
                   background: p.airtableRecordId === selectedId ? ORANGE + '10' : 'transparent',
                   borderLeft: p.airtableRecordId === selectedId ? `3px solid ${ORANGE}` : '3px solid transparent',
                 }}

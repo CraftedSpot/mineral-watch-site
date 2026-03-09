@@ -429,7 +429,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return servePage(titleHtml, request, env);
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
-        return servePage(learnHtml, request, env);
+        return servePage(portalReactHtml, request, env);
       }
       if (path === "/portal/marketing" || path === "/portal/marketing/") {
         // Super-admin only

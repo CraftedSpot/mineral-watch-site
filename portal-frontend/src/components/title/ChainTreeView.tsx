@@ -16,14 +16,15 @@ import { TreeLegend } from './TreeLegend';
 
 interface ChainTreeViewProps {
   tree: TitleTree;
+  isMobile?: boolean;
 }
 
-export function ChainTreeView({ tree }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
   const [expandedStacks, setExpandedStacks] = useState<Set<string>>(new Set());
-  const [zoom, setZoom] = useState(0.82);
-  const [pan, setPan] = useState({ x: 40, y: 0 });
+  const [zoom, setZoom] = useState(isMobile ? 0.55 : 0.82);
+  const [pan, setPan] = useState({ x: isMobile ? 10 : 40, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
@@ -109,6 +110,31 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
   };
   const handleMouseUp = () => { setIsPanning(false); setIsDragging(false); };
 
+  // Touch events for mobile pan
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && !(e.target as HTMLElement).closest('[data-pinned]')) {
+      const t = e.touches[0];
+      setIsPanning(true);
+      setIsDragging(false);
+      setPanStart({ x: t.clientX - pan.x, y: t.clientY - pan.y });
+      setMouseDownPos({ x: t.clientX, y: t.clientY });
+    }
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPanning && e.touches.length === 1) {
+      const t = e.touches[0];
+      const dx = t.clientX - mouseDownPos.x;
+      const dy = t.clientY - mouseDownPos.y;
+      if (!isDragging && Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) {
+        setIsDragging(true);
+      }
+      if (isDragging || Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) {
+        setPan({ x: t.clientX - panStart.x, y: t.clientY - panStart.y });
+      }
+    }
+  };
+  const handleTouchEnd = () => { setIsPanning(false); setIsDragging(false); };
+
   // Pin position
   const computePinPosition = useCallback((nodeId: string) => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -168,14 +194,15 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
   const showHover = hoveredId && !pinnedIds.has(hoveredId);
 
   return (
-    <div style={{ padding: isFullscreen ? '0' : '0 24px 24px' }}>
+    <div style={{ padding: isFullscreen ? '0' : isMobile ? '0 8px 8px' : '0 24px 24px' }}>
       <div
         ref={canvasWrapperRef}
         style={{
           background: '#fff', borderRadius: isFullscreen ? 0 : 12,
           border: isFullscreen ? 'none' : `1px solid ${BORDER}`,
           position: 'relative', overflow: 'hidden',
-          height: isFullscreen ? '100vh' : 'calc(100vh - 320px)', minHeight: 450,
+          height: isFullscreen ? '100vh' : isMobile ? 'calc(100vh - 240px)' : 'calc(100vh - 320px)',
+          minHeight: isMobile ? 300 : 450,
         }}>
         <div
           ref={containerCallbackRef}
@@ -184,19 +211,22 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={() => { handleMouseUp(); setHoveredId(null); }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
           {/* Zoom controls */}
           <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
             {[
               { label: '+', fn: () => setZoom((z) => Math.min(2, z + 0.15)) },
               { label: '\u2212', fn: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
-              { label: 'FIT', fn: () => { setZoom(0.82); setPan({ x: 40, y: 0 }); } },
+              { label: 'FIT', fn: () => { setZoom(isMobile ? 0.55 : 0.82); setPan({ x: isMobile ? 10 : 40, y: 0 }); } },
             ].map(({ label, fn }) => (
               <button key={label} onClick={fn}
                 style={{
-                  width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`,
+                  width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6, border: `1px solid ${BORDER}`,
                   background: '#fff', cursor: 'pointer',
-                  fontSize: label === 'FIT' ? 9 : 16, fontWeight: 700,
+                  fontSize: label === 'FIT' ? (isMobile ? 10 : 9) : (isMobile ? 20 : 16), fontWeight: 700,
                   color: label === 'FIT' ? SLATE : DARK,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontFamily: "'DM Sans', sans-serif",
@@ -206,7 +236,7 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
             ))}
             <button onClick={toggleFullscreen}
               style={{
-                width: 32, height: 32, borderRadius: 6, border: `1px solid ${BORDER}`,
+                width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6, border: `1px solid ${BORDER}`,
                 background: '#fff', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
@@ -227,24 +257,29 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
           </div>
 
           {/* Legend */}
-          <TreeLegend />
+          <TreeLegend isMobile={isMobile} />
 
           {/* Pinned count */}
           {pinnedIds.size > 0 && (
             <div style={{
               position: 'absolute', top: 12, left: 12, zIndex: 10,
-              background: ORANGE, color: '#fff', borderRadius: 6, padding: '4px 10px',
+              background: ORANGE, color: '#fff', borderRadius: 6,
+              padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
+              display: 'flex', alignItems: 'center',
               fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
             }} onClick={() => setPinnedIds(new Set())}>
-              {pinnedIds.size} pinned — clear all
+              {pinnedIds.size} pinned — clear
             </div>
           )}
 
           {/* Expanded stacks count */}
           {expandedStacks.size > 0 && (
             <div style={{
-              position: 'absolute', top: 12, left: pinnedIds.size > 0 ? 160 : 12, zIndex: 10,
-              background: DARK, color: '#fff', borderRadius: 6, padding: '4px 10px',
+              position: 'absolute', top: pinnedIds.size > 0 && isMobile ? 60 : 12,
+              left: pinnedIds.size > 0 && !isMobile ? 160 : 12, zIndex: 10,
+              background: DARK, color: '#fff', borderRadius: 6,
+              padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
+              display: 'flex', alignItems: 'center',
               fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
             }} onClick={() => {
               expandedStacks.forEach((sid) => {
@@ -309,8 +344,8 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
             </g>
           </svg>
 
-          {/* Hover tooltip */}
-          {showHover && hoveredNode && 'type' in hoveredNode && (
+          {/* Hover tooltip — hidden on mobile (tap-to-pin instead) */}
+          {!isMobile && showHover && hoveredNode && 'type' in hoveredNode && (
             <HoverTooltip node={hoveredNode as FlatNode} pos={hoverPos} />
           )}
 
@@ -326,6 +361,7 @@ export function ChainTreeView({ tree }: ChainTreeViewProps) {
                   position={pos}
                   onClose={handleUnpin}
                   onExpandStack={handleExpandStack}
+                  isMobile={isMobile}
                 />
               </div>
             );

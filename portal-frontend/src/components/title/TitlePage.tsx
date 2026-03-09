@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
 import { SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
 import { useAuth } from '../../hooks/useAuth';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { ChainProperty, TitleChainResponse } from '../../types/title-chain';
 import { PropertySelector } from './PropertySelector';
 import { ChainTreeView } from './ChainTreeView';
@@ -24,6 +25,7 @@ export function TitlePage() {
   const [chainData, setChainData] = useState<TitleChainResponse | null>(null);
   const [chainLoading, setChainLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   // Load properties on mount
   useEffect(() => {
@@ -54,8 +56,10 @@ export function TitlePage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
       {/* Toolbar */}
       <div style={{
-        padding: '12px 24px', borderBottom: '1px solid #e2e8f0',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: isMobile ? '10px 12px' : '12px 24px', borderBottom: '1px solid #e2e8f0',
+        display: 'flex', alignItems: isMobile ? 'stretch' : 'center',
+        justifyContent: 'space-between',
+        flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 0,
         background: '#fff',
       }}>
         <PropertySelector
@@ -63,9 +67,10 @@ export function TitlePage() {
           selectedId={selectedId}
           onSelect={setSelectedId}
           loading={propsLoading}
+          isMobile={isMobile}
         />
         {chainData?.property && (
-          <div style={{ fontSize: 12, color: SLATE, display: 'flex', gap: 16 }}>
+          <div style={{ fontSize: 12, color: SLATE, display: 'flex', gap: isMobile ? 12 : 16 }}>
             <span>{chainData.documents.length} documents</span>
             {chainData.tree && (
               <>
@@ -79,8 +84,8 @@ export function TitlePage() {
 
       {/* Disclaimer */}
       <div style={{
-        padding: '8px 24px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A',
-        display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#92400E',
+        padding: isMobile ? '8px 12px' : '8px 24px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A',
+        display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 8, fontSize: isMobile ? 11 : 12, color: '#92400E',
       }}>
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -114,10 +119,10 @@ export function TitlePage() {
       {/* Tree view */}
       {!chainLoading && chainData?.tree && (
         <>
-          <div style={{ padding: '12px 24px' }}>
-            <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} />
+          <div style={{ padding: isMobile ? '10px 12px' : '12px 24px' }}>
+            <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} />
           </div>
-          <ChainTreeView tree={chainData.tree} />
+          <ChainTreeView tree={chainData.tree} isMobile={isMobile} />
         </>
       )}
 

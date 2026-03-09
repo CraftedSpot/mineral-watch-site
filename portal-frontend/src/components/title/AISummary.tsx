@@ -5,9 +5,10 @@ import type { TitleTree } from '../../types/title-chain';
 interface AISummaryProps {
   tree: TitleTree;
   propertyLegal: string;
+  isMobile?: boolean;
 }
 
-export function AISummary({ tree, propertyLegal }: AISummaryProps) {
+export function AISummary({ tree, propertyLegal, isMobile }: AISummaryProps) {
   const [expanded, setExpanded] = useState(false);
   const { stats, gaps, currentOwners } = tree;
 
@@ -18,7 +19,7 @@ export function AISummary({ tree, propertyLegal }: AISummaryProps) {
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1a2332 0%, #2d3a4a 100%)',
-      borderRadius: 12, padding: '16px 24px', color: '#fff',
+      borderRadius: 12, padding: isMobile ? '12px 14px' : '16px 24px', color: '#fff',
       fontFamily: "'DM Sans', sans-serif",
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -34,7 +35,8 @@ export function AISummary({ tree, propertyLegal }: AISummaryProps) {
         </div>
         <button onClick={() => setExpanded(!expanded)}
           style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-            color: '#fff', borderRadius: 6, padding: '4px 12px', fontSize: 11, cursor: 'pointer',
+            color: '#fff', borderRadius: 6, padding: isMobile ? '8px 14px' : '4px 12px',
+            fontSize: 11, cursor: 'pointer', minHeight: 44,
             fontFamily: "'DM Sans', sans-serif" }}>
           {expanded ? 'Collapse' : 'Expand Analysis'}
         </button>

@@ -7,20 +7,31 @@ interface PinnedDetailProps {
   position: { x: number; y: number };
   onClose: (id: string) => void;
   onExpandStack: (id: string) => void;
+  isMobile?: boolean;
 }
 
-export function PinnedDetail({ node, position, onClose, onExpandStack }: PinnedDetailProps) {
+export function PinnedDetail({ node, position, onClose, onExpandStack, isMobile }: PinnedDetailProps) {
+  // On mobile, center horizontally and position near top
+  const mobilePos = isMobile
+    ? { left: 8, right: 8, top: 8, width: undefined as number | undefined }
+    : { left: position.x, top: position.y, width: 310 };
+
   const base: React.CSSProperties = {
-    position: 'absolute', left: position.x, top: position.y,
-    background: '#fff', borderRadius: 12, padding: '18px 22px', width: 310,
+    position: 'absolute', ...mobilePos,
+    background: '#fff', borderRadius: 12, padding: isMobile ? '16px 14px' : '18px 22px',
     boxShadow: '0 16px 48px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.05)',
     zIndex: 200, fontFamily: "'DM Sans', sans-serif",
+    maxHeight: isMobile ? 'calc(100vh - 280px)' : undefined,
+    overflowY: isMobile ? 'auto' : undefined,
   };
 
   const closeBtn = (
     <button onClick={(e) => { e.stopPropagation(); onClose(node.id); }}
       style={{ position: 'absolute', top: 8, right: 10, background: 'none', border: 'none',
-        fontSize: 16, color: SLATE, cursor: 'pointer', lineHeight: 1, padding: 4 }}>
+        fontSize: isMobile ? 22 : 16, color: SLATE, cursor: 'pointer', lineHeight: 1,
+        padding: isMobile ? 8 : 4, minWidth: 44, minHeight: 44,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
       {'\u00D7'}
     </button>
   );

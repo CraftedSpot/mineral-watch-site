@@ -14,7 +14,7 @@ const NAV_ITEMS = [
   { href: '/portal/map', label: 'Map', react: false },
   { href: '/portal/intelligence', label: 'Intelligence', react: true },
   { href: '/portal/account', label: 'Account', react: false },
-  { href: '/portal/learn', label: 'Learn', react: false },
+  { href: '/portal/learn', label: 'Learn', react: true },
 ];
 
 export function NavHeader({ user }: NavHeaderProps) {
