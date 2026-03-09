@@ -675,6 +675,15 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
               }}>
               Full Screen
             </button>
+            <button onClick={() => modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId: node.id })}
+              style={{
+                flex: 1, background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`,
+                borderRadius: 6, padding: '8px 0', fontSize: 11, fontWeight: 600,
+                cursor: 'pointer', color: c?.text || DARK,
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+              View Analysis
+            </button>
             <a href={`/api/documents/${node.id}/download`}
               style={{
                 flex: 1, background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`,

@@ -3,8 +3,9 @@ import { computeLayout, type ViewMode } from '../../lib/layout-engine';
 import { transformTreeToFlatNodes } from '../../lib/tree-adapter';
 import { ORANGE, DARK, SLATE, BORDER, WARNING_AMBER } from '../../lib/constants';
 import type { TitleColors } from '../../lib/title-colors';
-import type { TitleTree, FlatNode, FlatStackDoc } from '../../types/title-chain';
+import type { TitleTree, FlatNode, FlatStackDoc, ChainProperty } from '../../types/title-chain';
 
+import { PropertySelector } from './PropertySelector';
 import { Edge } from './nodes/Edge';
 import { DocNode } from './nodes/DocNode';
 import { GapNode } from './nodes/GapNode';
@@ -24,9 +25,13 @@ interface ChainTreeViewProps {
   darkMode?: boolean;
   colors?: TitleColors;
   onRefresh?: () => void;
+  properties?: ChainProperty[];
+  selectedPropertyId?: string | null;
+  onPropertySelect?: (id: string) => void;
+  propsLoading?: boolean;
 }
 
-export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh, properties, selectedPropertyId, onPropertySelect, propsLoading }: ChainTreeViewProps) {
   const c = colors; // shorthand
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -239,8 +244,22 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
           >
+            {/* Property selector in fullscreen */}
+            {isFullscreen && properties && onPropertySelect && (
+              <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
+                <PropertySelector
+                  properties={properties}
+                  selectedId={selectedPropertyId ?? null}
+                  onSelect={onPropertySelect}
+                  loading={propsLoading || false}
+                  isMobile={isMobile}
+                  darkMode={darkMode}
+                  colors={c}
+                />
+              </div>
+            )}
             {/* Zoom controls */}
-            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
+            <div onMouseUp={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
               {[
                 { label: '+', fn: () => setZoom((z) => Math.min(2, z + 0.15)) },
                 { label: '\u2212', fn: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
@@ -259,7 +278,8 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                   {label}
                 </button>
               ))}
-              <button onClick={toggleFullscreen}
+              <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+                onMouseUp={(e) => e.stopPropagation()}
                 style={{
                   width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6,
                   border: `1px solid ${c?.border || BORDER}`,

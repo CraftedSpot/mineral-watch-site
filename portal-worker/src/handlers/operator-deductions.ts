@@ -509,13 +509,30 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
             operatorNumber = aliasResult?.canonical_operator_number || null;
           }
 
-          const months = well.production_months || [];
-          if (months.length === 0 && well.production_month) {
-            months.push(well);
+          // production_months can be:
+          // (a) flat string array: ["2022-10"] with products at well level
+          // (b) object array: [{ production_month: "2022-10", products: [...] }]
+          // (c) missing — fall back to well-level month fields
+          const rawMonths = well.production_months || [];
+          const monthEntries: Array<{ prodMonth: string; products: any[] }> = [];
+
+          if (rawMonths.length > 0 && typeof rawMonths[0] === 'string') {
+            // Case (a): flat string array — products are at well level, create one entry per month
+            for (const m of rawMonths) {
+              monthEntries.push({ prodMonth: m, products: well.products || [] });
+            }
+          } else if (rawMonths.length > 0 && typeof rawMonths[0] === 'object') {
+            // Case (b): object array with nested products per month
+            for (const m of rawMonths) {
+              const pm = m.production_month || m.period;
+              if (pm) monthEntries.push({ prodMonth: pm, products: m.products || well.products || [] });
+            }
+          } else if (well.production_month) {
+            // Case (c): single month at well level
+            monthEntries.push({ prodMonth: well.production_month, products: well.products || [] });
           }
 
-          for (const month of months) {
-            const prodMonth = month.production_month || month.period;
+          for (const { prodMonth, products } of monthEntries) {
             if (!prodMonth) continue;
 
             // Sum product-level data + collect category line items
@@ -527,12 +544,10 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
             let gasPurchaser: string | null = null;
             let gasPrice: number | null = null;
             const allLineItems: PendingLineItem[] = [];
-
-            const products = month.products || [];
             for (const p of products) {
               // Fix: extraction prompt uses product_type, not type
               const type = (p.product_type || p.type || p.product || '').toLowerCase();
-              const gross = parseFloat(p.gross_value || p.gross || 0) || 0;
+              const gross = parseFloat(p.gross_sales || p.gross_value || p.gross || 0) || 0;
 
               // Determine product bucket
               let productType: string;
@@ -589,15 +604,15 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
               taxes += productTaxes;
             }
 
-            // Also support flat format (not nested products)
+            // Also support flat format (not nested products) — check well-level fields
             if (products.length === 0) {
-              oilGross = parseFloat(month.oil_gross || 0) || 0;
-              gasGross = parseFloat(month.gas_gross || 0) || 0;
-              nglGross = parseFloat(month.ngl_gross || 0) || 0;
-              oilDeductions = parseFloat(month.oil_deductions || 0) || 0;
-              gasDeductions = parseFloat(month.gas_deductions || 0) || 0;
-              nglDeductions = parseFloat(month.ngl_deductions || 0) || 0;
-              taxes = parseFloat(month.taxes || month.tax || 0) || 0;
+              oilGross = parseFloat(well.oil_gross || 0) || 0;
+              gasGross = parseFloat(well.gas_gross || 0) || 0;
+              nglGross = parseFloat(well.ngl_gross || 0) || 0;
+              oilDeductions = parseFloat(well.oil_deductions || 0) || 0;
+              gasDeductions = parseFloat(well.gas_deductions || 0) || 0;
+              nglDeductions = parseFloat(well.ngl_deductions || 0) || 0;
+              taxes = parseFloat(well.taxes || well.tax || 0) || 0;
             }
 
             const totalGross = oilGross + gasGross + nglGross;
