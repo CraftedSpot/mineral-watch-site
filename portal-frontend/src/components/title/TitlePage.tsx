@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
-import { SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
+import { ORANGE, SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
+import { getTitleColors } from '../../lib/title-colors';
+import type { ViewMode } from '../../lib/layout-engine';
 import { useAuth } from '../../hooks/useAuth';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import type { ChainProperty, TitleChainResponse } from '../../types/title-chain';
@@ -25,7 +27,15 @@ export function TitlePage() {
   const [chainData, setChainData] = useState<TitleChainResponse | null>(null);
   const [chainLoading, setChainLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    () => (localStorage.getItem('mmw_titleChainViewMode') as ViewMode) || 'simple',
+  );
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mmw_titleDarkMode') === '1');
   const isMobile = useIsMobile();
+  const colors = useMemo(() => getTitleColors(darkMode), [darkMode]);
+
+  useEffect(() => { localStorage.setItem('mmw_titleChainViewMode', viewMode); }, [viewMode]);
+  useEffect(() => { localStorage.setItem('mmw_titleDarkMode', darkMode ? '1' : '0'); }, [darkMode]);
 
   // Load properties on mount
   useEffect(() => {
@@ -53,14 +63,14 @@ export function TitlePage() {
   }, [selectedId]);
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", background: colors.bg, minHeight: '100vh' }}>
       {/* Toolbar */}
       <div style={{
-        padding: isMobile ? '10px 12px' : '12px 24px', borderBottom: '1px solid #e2e8f0',
+        padding: isMobile ? '10px 12px' : '12px 24px', borderBottom: `1px solid ${colors.border}`,
         display: 'flex', alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'space-between',
         flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 0,
-        background: '#fff',
+        background: colors.surface,
       }}>
         <PropertySelector
           properties={properties}
@@ -68,24 +78,58 @@ export function TitlePage() {
           onSelect={setSelectedId}
           loading={propsLoading}
           isMobile={isMobile}
+          darkMode={darkMode}
+          colors={colors}
         />
-        {chainData?.property && (
-          <div style={{ fontSize: 12, color: SLATE, display: 'flex', gap: isMobile ? 12 : 16 }}>
-            <span>{chainData.documents.length} documents</span>
-            {chainData.tree && (
-              <>
-                <span style={{ color: GAP_COLOR }}>{chainData.tree.stats.gapCount} gaps</span>
-                <span>{chainData.tree.stats.ownerCount} current owners</span>
-              </>
-            )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
+          {/* Simple / Detailed toggle */}
+          <div style={{
+            display: 'flex', borderRadius: 6, overflow: 'hidden',
+            border: `1px solid ${colors.border}`, fontSize: 11, fontWeight: 600,
+          }}>
+            {(['simple', 'detailed'] as const).map((mode) => (
+              <button key={mode} onClick={() => setViewMode(mode)}
+                style={{
+                  padding: '6px 14px', border: 'none', cursor: 'pointer',
+                  background: viewMode === mode ? ORANGE : colors.surface,
+                  color: viewMode === mode ? '#fff' : colors.textMuted,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600,
+                }}>
+                {mode === 'simple' ? 'Simple' : 'Detailed'}
+              </button>
+            ))}
           </div>
-        )}
+          {/* Dark mode toggle */}
+          <button onClick={() => setDarkMode((d) => !d)}
+            style={{
+              padding: '6px 10px', border: `1px solid ${colors.border}`, borderRadius: 6,
+              background: colors.surface, cursor: 'pointer', fontSize: 14, lineHeight: 1,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
+            {darkMode ? '\u2600\uFE0F' : '\uD83C\uDF19'}
+          </button>
+          {chainData?.property && (
+            <div style={{ fontSize: 12, color: colors.textMuted, display: 'flex', gap: isMobile ? 8 : 16 }}>
+              <span>{chainData.documents.length} docs</span>
+              {chainData.tree && (
+                <>
+                  <span style={{ color: GAP_COLOR }}>{chainData.tree.stats.gapCount} gaps</span>
+                  <span>{chainData.tree.stats.ownerCount} owners</span>
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Disclaimer */}
       <div style={{
-        padding: isMobile ? '8px 12px' : '8px 24px', background: '#FFFBEB', borderBottom: '1px solid #FDE68A',
-        display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 8, fontSize: isMobile ? 11 : 12, color: '#92400E',
+        padding: isMobile ? '8px 12px' : '8px 24px',
+        background: colors.disclaimerBg,
+        borderBottom: `1px solid ${colors.disclaimerBorder}`,
+        display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 8,
+        fontSize: isMobile ? 11 : 12, color: colors.disclaimerText,
       }}>
         <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
@@ -105,10 +149,10 @@ export function TitlePage() {
       {chainLoading && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '60px 24px', color: SLATE,
+          padding: '60px 24px', color: colors.textMuted,
         }}>
           <div style={{
-            width: 32, height: 32, border: '3px solid #e2e8f0', borderTopColor: '#C05621',
+            width: 32, height: 32, border: `3px solid ${colors.border}`, borderTopColor: '#C05621',
             borderRadius: '50%', animation: 'spin 0.8s linear infinite',
           }} />
           <span style={{ marginLeft: 12, fontSize: 14 }}>Loading chain of title...</span>
@@ -120,19 +164,19 @@ export function TitlePage() {
       {!chainLoading && chainData?.tree && (
         <>
           <div style={{ padding: isMobile ? '10px 12px' : '12px 24px' }}>
-            <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} />
+            <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
-          <ChainTreeView tree={chainData.tree} isMobile={isMobile} />
+          <ChainTreeView tree={chainData.tree} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} />
         </>
       )}
 
       {/* No tree data */}
       {!chainLoading && chainData && !chainData.tree && (
         <div style={{
-          padding: '60px 24px', textAlign: 'center', color: SLATE, fontSize: 14,
+          padding: '60px 24px', textAlign: 'center', color: colors.textMuted, fontSize: 14,
         }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>{'\uD83C\uDF33'}</div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>No tree data available</div>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: colors.text }}>No tree data available</div>
           <div>Upload chain-of-title documents for this property to see the tree view.</div>
         </div>
       )}
@@ -140,10 +184,10 @@ export function TitlePage() {
       {/* No properties */}
       {!propsLoading && properties.length === 0 && (
         <div style={{
-          padding: '60px 24px', textAlign: 'center', color: SLATE, fontSize: 14,
+          padding: '60px 24px', textAlign: 'center', color: colors.textMuted, fontSize: 14,
         }}>
           <div style={{ fontSize: 40, marginBottom: 12 }}>{'\uD83D\uDCDC'}</div>
-          <div style={{ fontWeight: 600, marginBottom: 4 }}>No chain-of-title documents found</div>
+          <div style={{ fontWeight: 600, marginBottom: 4, color: colors.text }}>No chain-of-title documents found</div>
           <div>Upload documents marked as chain-of-title to begin building your title tree.</div>
         </div>
       )}

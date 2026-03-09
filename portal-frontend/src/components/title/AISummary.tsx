@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { ORANGE, GAP_COLOR, GREEN, DARK } from '../../lib/constants';
+import { GAP_COLOR, GREEN } from '../../lib/constants';
+import type { TitleColors } from '../../lib/title-colors';
 import type { TitleTree } from '../../types/title-chain';
 
 interface AISummaryProps {
   tree: TitleTree;
   propertyLegal: string;
   isMobile?: boolean;
+  darkMode?: boolean;
+  colors?: TitleColors;
 }
 
-export function AISummary({ tree, propertyLegal, isMobile }: AISummaryProps) {
+export function AISummary({ tree, propertyLegal, isMobile, darkMode, colors: c }: AISummaryProps) {
   const [expanded, setExpanded] = useState(false);
   const { stats, gaps, currentOwners } = tree;
 
@@ -16,11 +19,15 @@ export function AISummary({ tree, propertyLegal, isMobile }: AISummaryProps) {
   const firstDate = tree.roots[0]?.date;
   const dateRange = firstDate ? `${firstDate.slice(0, 4)}\u2013present` : '';
 
+  // AISummary is always dark-styled (dark gradient card), so it stays consistent
+  // Only adjust the outer border/shadow to blend with light vs dark page
+  const cardBorder = darkMode ? '1px solid rgba(255,255,255,0.08)' : 'none';
+
   return (
     <div style={{
       background: 'linear-gradient(135deg, #1a2332 0%, #2d3a4a 100%)',
       borderRadius: 12, padding: isMobile ? '12px 14px' : '16px 24px', color: '#fff',
-      fontFamily: "'DM Sans', sans-serif",
+      fontFamily: "'DM Sans', sans-serif", border: cardBorder,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

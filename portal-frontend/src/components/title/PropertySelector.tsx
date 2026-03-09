@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { DARK, SLATE, ORANGE, BORDER, TEAL } from '../../lib/constants';
+import { DARK, SLATE, ORANGE, BORDER } from '../../lib/constants';
+import type { TitleColors } from '../../lib/title-colors';
 import type { ChainProperty } from '../../types/title-chain';
 
 interface PropertySelectorProps {
@@ -8,9 +9,11 @@ interface PropertySelectorProps {
   onSelect: (id: string) => void;
   loading: boolean;
   isMobile?: boolean;
+  darkMode?: boolean;
+  colors?: TitleColors;
 }
 
-export function PropertySelector({ properties, selectedId, onSelect, loading, isMobile }: PropertySelectorProps) {
+export function PropertySelector({ properties, selectedId, onSelect, loading, isMobile, darkMode, colors: c }: PropertySelectorProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -43,13 +46,13 @@ export function PropertySelector({ properties, selectedId, onSelect, loading, is
         onClick={() => setOpen(!open)}
         style={{
           display: 'flex', alignItems: 'center', gap: 8,
-          background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 8,
-          padding: isMobile ? '10px 12px' : '8px 16px', fontSize: 14, fontWeight: 600, color: DARK,
+          background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`, borderRadius: 8,
+          padding: isMobile ? '10px 12px' : '8px 16px', fontSize: 14, fontWeight: 600, color: c?.text || DARK,
           cursor: 'pointer', minWidth: isMobile ? undefined : 280, width: isMobile ? '100%' : undefined,
           minHeight: 44,
         }}>
         {loading ? 'Loading properties...' : selected ? formatLabel(selected) : 'Select a property...'}
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={SLATE} strokeWidth="2"
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke={c?.textMuted || SLATE} strokeWidth="2"
           style={{ marginLeft: 'auto', transform: open ? 'rotate(180deg)' : '' }}>
           <path d="M2 4l4 4 4-4" />
         </svg>
@@ -58,11 +61,11 @@ export function PropertySelector({ properties, selectedId, onSelect, loading, is
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
-          background: '#fff', border: `1px solid ${BORDER}`, borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, maxHeight: 320, overflow: 'hidden',
+          background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`, borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, maxHeight: 320, overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
         }}>
-          <div style={{ padding: 8, borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ padding: 8, borderBottom: `1px solid ${c?.border || BORDER}` }}>
             <input
               type="text"
               placeholder="Search county, section..."
@@ -70,14 +73,15 @@ export function PropertySelector({ properties, selectedId, onSelect, loading, is
               onChange={(e) => setSearch(e.target.value)}
               autoFocus
               style={{
-                width: '100%', padding: '6px 10px', border: `1px solid ${BORDER}`,
+                width: '100%', padding: '6px 10px', border: `1px solid ${c?.border || BORDER}`,
                 borderRadius: 6, fontSize: 13, outline: 'none',
+                background: c?.fieldBg || '#fff', color: c?.text || DARK,
               }}
             />
           </div>
           <div style={{ overflowY: 'auto', maxHeight: 260 }}>
             {filtered.length === 0 && (
-              <div style={{ padding: '12px 16px', color: SLATE, fontSize: 13 }}>No properties found</div>
+              <div style={{ padding: '12px 16px', color: c?.textMuted || SLATE, fontSize: 13 }}>No properties found</div>
             )}
             {filtered.map((p) => (
               <div
@@ -88,11 +92,11 @@ export function PropertySelector({ properties, selectedId, onSelect, loading, is
                   background: p.airtableRecordId === selectedId ? ORANGE + '10' : 'transparent',
                   borderLeft: p.airtableRecordId === selectedId ? `3px solid ${ORANGE}` : '3px solid transparent',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = '#f8f9fb')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = c?.fieldBg || '#f8f9fb')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = p.airtableRecordId === selectedId ? ORANGE + '10' : 'transparent')}
               >
-                <div style={{ fontWeight: 600, color: DARK }}>{formatLabel(p)}</div>
-                <div style={{ fontSize: 11, color: SLATE, marginTop: 2 }}>
+                <div style={{ fontWeight: 600, color: c?.text || DARK }}>{formatLabel(p)}</div>
+                <div style={{ fontSize: 11, color: c?.textMuted || SLATE, marginTop: 2 }}>
                   {p.chainDocCount} chain document{p.chainDocCount !== 1 ? 's' : ''}
                 </div>
               </div>

@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
-import { computeLayout } from '../../lib/layout-engine';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { computeLayout, type ViewMode } from '../../lib/layout-engine';
 import { transformTreeToFlatNodes } from '../../lib/tree-adapter';
 import { ORANGE, DARK, SLATE, BORDER } from '../../lib/constants';
+import type { TitleColors } from '../../lib/title-colors';
 import type { TitleTree, FlatNode, FlatStackDoc } from '../../types/title-chain';
 
 import { Edge } from './nodes/Edge';
@@ -11,17 +12,21 @@ import { CurrentOwnerNode } from './nodes/CurrentOwnerNode';
 import { StackCollapsed } from './nodes/StackCollapsed';
 import { StackExpanded } from './nodes/StackExpanded';
 import { HoverTooltip } from './panels/HoverTooltip';
-import { PinnedDetail } from './panels/PinnedDetail';
+import { DetailDrawer } from './panels/DetailDrawer';
 import { TreeLegend } from './TreeLegend';
 
 interface ChainTreeViewProps {
   tree: TitleTree;
   isMobile?: boolean;
+  viewMode?: ViewMode;
+  darkMode?: boolean;
+  colors?: TitleColors;
 }
 
-export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, isMobile, viewMode = 'detailed', darkMode, colors }: ChainTreeViewProps) {
+  const c = colors; // shorthand
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [expandedStacks, setExpandedStacks] = useState<Set<string>>(new Set());
   const [zoom, setZoom] = useState(isMobile ? 0.55 : 0.82);
   const [pan, setPan] = useState({ x: isMobile ? 10 : 40, y: 0 });
@@ -30,17 +35,23 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [mouseDownPos, setMouseDownPos] = useState({ x: 0, y: 0 });
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
-  const [pinnedPositions, setPinnedPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [entranceKey, setEntranceKey] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const canvasWrapperRef = useRef<HTMLDivElement>(null);
+  const flexParentRef = useRef<HTMLDivElement>(null);
+
+  // Entrance animation: increment key when tree or viewMode changes
+  useEffect(() => { setEntranceKey((k) => k + 1); }, [tree, viewMode]);
+
+  // Clear selection when tree changes (new property loaded)
+  useEffect(() => { setSelectedNodeId(null); }, [tree]);
 
   // Transform API tree → flat nodes for layout
   const flatNodes = useMemo(() => transformTreeToFlatNodes(tree), [tree]);
   const flatData = useMemo(() => ({ nodes: flatNodes }), [flatNodes]);
 
-  // Compute layout when stacks expand/collapse
-  const layout = useMemo(() => computeLayout(flatData, expandedStacks), [flatData, expandedStacks]);
+  // Compute layout when stacks expand/collapse or view mode changes
+  const layout = useMemo(() => computeLayout(flatData, expandedStacks, viewMode), [flatData, expandedStacks, viewMode]);
 
   // Find a node by ID (checks main nodes and stack docs)
   const findNode = useCallback((id: string): FlatNode | FlatStackDoc | null => {
@@ -71,9 +82,9 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
     }
   }, [handleWheel]);
 
-  // Fullscreen
+  // Fullscreen — target flex parent so drawer is included
   const toggleFullscreen = useCallback(() => {
-    const el = canvasWrapperRef.current;
+    const el = flexParentRef.current;
     if (!el) return;
     if (!document.fullscreenElement) {
       el.requestFullscreen?.().then(() => setIsFullscreen(true)).catch(() => {});
@@ -85,7 +96,7 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
   // Pan with drag threshold (3px) so clicks don't accidentally pan
   const DRAG_THRESHOLD = 3;
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (e.button === 0 && !(e.target as HTMLElement).closest('[data-pinned]')) {
+    if (e.button === 0) {
       setIsPanning(true);
       setIsDragging(false);
       setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -108,11 +119,22 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
       setHoverPos({ x: e.clientX - rect.left + 16, y: e.clientY - rect.top - 40 });
     }
   };
-  const handleMouseUp = () => { setIsPanning(false); setIsDragging(false); };
+  const handleMouseUp = (e: React.MouseEvent) => {
+    // Click empty canvas (no drag) → close drawer
+    if (!isDragging && selectedNodeId) {
+      const target = e.target as HTMLElement;
+      // Only close if clicked on canvas bg (svg or rect bg), not on a node
+      if (target.tagName === 'svg' || (target.tagName === 'rect' && !target.closest('g[style]'))) {
+        setSelectedNodeId(null);
+      }
+    }
+    setIsPanning(false);
+    setIsDragging(false);
+  };
 
   // Touch events for mobile pan
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length === 1 && !(e.target as HTMLElement).closest('[data-pinned]')) {
+    if (e.touches.length === 1) {
       const t = e.touches[0];
       setIsPanning(true);
       setIsDragging(false);
@@ -135,36 +157,14 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
   };
   const handleTouchEnd = () => { setIsPanning(false); setIsDragging(false); };
 
-  // Pin position
-  const computePinPosition = useCallback((nodeId: string) => {
-    const rect = containerRef.current?.getBoundingClientRect();
-    if (!rect) return { x: 200, y: 100 };
-    const nodePos = layout.positions[nodeId] || layout.expandedCardPositions[nodeId];
-    if (nodePos) {
-      let px = (nodePos.x + nodePos.w) * zoom + pan.x + 20;
-      let py = nodePos.y * zoom + pan.y;
-      px = Math.min(px, rect.width - 330);
-      py = Math.max(10, Math.min(py, rect.height - 300));
-      return { x: px, y: py };
-    }
-    return { x: 200, y: 100 };
-  }, [layout, zoom, pan]);
-
-  // Click to pin/unpin
+  // Click to select/deselect node → opens drawer
   const handleNodeClick = useCallback((node: FlatNode | FlatStackDoc) => {
-    const pos = computePinPosition(node.id);
-    setPinnedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(node.id)) next.delete(node.id);
-      else next.add(node.id);
-      return next;
-    });
-    setPinnedPositions((prev) => ({ ...prev, [node.id]: pos }));
+    setSelectedNodeId((prev) => prev === node.id ? null : node.id);
     setHoveredId(null);
-  }, [computePinPosition]);
+  }, []);
 
-  const handleUnpin = useCallback((id: string) => {
-    setPinnedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  const handleCloseDrawer = useCallback(() => {
+    setSelectedNodeId(null);
   }, []);
 
   // Expand/collapse stacks
@@ -173,201 +173,232 @@ export function ChainTreeView({ tree, isMobile }: ChainTreeViewProps) {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
+        // If selected node was a child of this stack, deselect
         const stackNode = flatNodes.find((n) => n.id === id);
         if (stackNode?.docs) {
           const childIds = stackNode.docs.map((d) => d.id);
-          setPinnedIds((pp) => {
-            const np = new Set(pp);
-            childIds.forEach((cid) => np.delete(cid));
-            return np;
-          });
+          setSelectedNodeId((sel) => sel && childIds.includes(sel) ? null : sel);
         }
       } else {
         next.add(id);
-        setPinnedIds((pp) => { const np = new Set(pp); np.delete(id); return np; });
+        // Deselect the stack itself when expanding
+        setSelectedNodeId((sel) => sel === id ? null : sel);
       }
       return next;
     });
   }, [flatNodes]);
 
   const hoveredNode = hoveredId ? findNode(hoveredId) : null;
-  const showHover = hoveredId && !pinnedIds.has(hoveredId);
+  const showHover = hoveredId && hoveredId !== selectedNodeId;
+
+  // Resolve selected node for drawer
+  const selectedNode = useMemo(() => {
+    if (!selectedNodeId) return null;
+    const found = findNode(selectedNodeId);
+    if (!found) return null;
+    // FlatStackDoc doesn't have 'type' field — wrap it as a doc FlatNode for drawer
+    if (!('type' in found)) {
+      return {
+        ...found,
+        type: 'document' as const,
+      } as FlatNode;
+    }
+    return found as FlatNode;
+  }, [selectedNodeId, findNode]);
+
+  // Glow filter opacity — bump in dark mode for visibility
+  const glowOpacity = darkMode ? '0.4' : '0.25';
 
   return (
     <div style={{ padding: isFullscreen ? '0' : isMobile ? '0 8px 8px' : '0 24px 24px' }}>
       <div
-        ref={canvasWrapperRef}
+        ref={flexParentRef}
         style={{
-          background: '#fff', borderRadius: isFullscreen ? 0 : 12,
-          border: isFullscreen ? 'none' : `1px solid ${BORDER}`,
-          position: 'relative', overflow: 'hidden',
+          display: 'flex',
+          background: c?.surface || '#fff', borderRadius: isFullscreen ? 0 : 12,
+          border: isFullscreen ? 'none' : `1px solid ${c?.border || BORDER}`,
+          overflow: 'hidden',
           height: isFullscreen ? '100vh' : isMobile ? 'calc(100vh - 240px)' : 'calc(100vh - 320px)',
           minHeight: isMobile ? 300 : 450,
         }}>
-        <div
-          ref={containerCallbackRef}
-          style={{ width: '100%', height: '100%', position: 'relative' }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onMouseLeave={() => { handleMouseUp(); setHoveredId(null); }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* Zoom controls */}
-          <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
-            {[
-              { label: '+', fn: () => setZoom((z) => Math.min(2, z + 0.15)) },
-              { label: '\u2212', fn: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
-              { label: 'FIT', fn: () => { setZoom(isMobile ? 0.55 : 0.82); setPan({ x: isMobile ? 10 : 40, y: 0 }); } },
-            ].map(({ label, fn }) => (
-              <button key={label} onClick={fn}
-                style={{
-                  width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6, border: `1px solid ${BORDER}`,
-                  background: '#fff', cursor: 'pointer',
-                  fontSize: label === 'FIT' ? (isMobile ? 10 : 9) : (isMobile ? 20 : 16), fontWeight: 700,
-                  color: label === 'FIT' ? SLATE : DARK,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontFamily: "'DM Sans', sans-serif",
-                }}>
-                {label}
-              </button>
-            ))}
-            <button onClick={toggleFullscreen}
-              style={{
-                width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6, border: `1px solid ${BORDER}`,
-                background: '#fff', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-              {isFullscreen ? (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={DARK} strokeWidth="1.5">
-                  <polyline points="9,1 9,5 13,5" /><polyline points="5,13 5,9 1,9" />
-                </svg>
-              ) : (
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={DARK} strokeWidth="1.5">
-                  <polyline points="9,1 13,1 13,5" /><polyline points="5,13 1,13 1,9" />
-                </svg>
-              )}
-            </button>
-            <div style={{ textAlign: 'center', fontSize: 9, color: SLATE, fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
-              {Math.round(zoom * 100)}%
-            </div>
-          </div>
-
-          {/* Legend */}
-          <TreeLegend isMobile={isMobile} />
-
-          {/* Pinned count */}
-          {pinnedIds.size > 0 && (
-            <div style={{
-              position: 'absolute', top: 12, left: 12, zIndex: 10,
-              background: ORANGE, color: '#fff', borderRadius: 6,
-              padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
-              display: 'flex', alignItems: 'center',
-              fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
-            }} onClick={() => setPinnedIds(new Set())}>
-              {pinnedIds.size} pinned — clear
-            </div>
-          )}
-
-          {/* Expanded stacks count */}
-          {expandedStacks.size > 0 && (
-            <div style={{
-              position: 'absolute', top: pinnedIds.size > 0 && isMobile ? 60 : 12,
-              left: pinnedIds.size > 0 && !isMobile ? 160 : 12, zIndex: 10,
-              background: DARK, color: '#fff', borderRadius: 6,
-              padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
-              display: 'flex', alignItems: 'center',
-              fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
-            }} onClick={() => {
-              expandedStacks.forEach((sid) => {
-                const sn = flatNodes.find((n) => n.id === sid);
-                if (sn?.docs) sn.docs.forEach((d) => pinnedIds.delete(d.id));
-              });
-              setPinnedIds(new Set(pinnedIds));
-              setExpandedStacks(new Set());
-            }}>
-              {expandedStacks.size} expanded — collapse all
-            </div>
-          )}
-
-          {/* SVG */}
-          <svg width="100%" height="100%" style={{ cursor: isDragging ? 'grabbing' : 'grab' }}>
-            <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>
-              {/* Edges */}
-              {layout.edges.map((edge, i) => (
-                <Edge key={i} from={edge.from} to={edge.to} positions={layout.positions} isGap={edge.isGap} />
+        {/* Canvas area */}
+        <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          <div
+            ref={containerCallbackRef}
+            style={{ width: '100%', height: '100%', position: 'relative' }}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={() => { setIsPanning(false); setIsDragging(false); setHoveredId(null); }}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {/* Zoom controls */}
+            <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
+              {[
+                { label: '+', fn: () => setZoom((z) => Math.min(2, z + 0.15)) },
+                { label: '\u2212', fn: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
+                { label: 'FIT', fn: () => { setZoom(isMobile ? 0.55 : 0.82); setPan({ x: isMobile ? 10 : 40, y: 0 }); } },
+              ].map(({ label, fn }) => (
+                <button key={label} onClick={fn}
+                  style={{
+                    width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6,
+                    border: `1px solid ${c?.border || BORDER}`,
+                    background: c?.zoomBtn || '#fff', cursor: 'pointer',
+                    fontSize: label === 'FIT' ? (isMobile ? 10 : 9) : (isMobile ? 20 : 16), fontWeight: 700,
+                    color: label === 'FIT' ? (c?.textMuted || SLATE) : (c?.zoomText || DARK),
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                  {label}
+                </button>
               ))}
-              {/* Nodes */}
-              {flatNodes.map((node) => {
-                const pos = layout.positions[node.id];
-                if (!pos) return null;
-                const isHov = hoveredId === node.id;
-                const isPin = pinnedIds.has(node.id);
+              <button onClick={toggleFullscreen}
+                style={{
+                  width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, borderRadius: 6,
+                  border: `1px solid ${c?.border || BORDER}`,
+                  background: c?.zoomBtn || '#fff', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+                {isFullscreen ? (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={c?.zoomText || DARK} strokeWidth="1.5">
+                    <polyline points="9,1 9,5 13,5" /><polyline points="5,13 5,9 1,9" />
+                  </svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke={c?.zoomText || DARK} strokeWidth="1.5">
+                    <polyline points="9,1 13,1 13,5" /><polyline points="5,13 1,13 1,9" />
+                  </svg>
+                )}
+              </button>
+              <div style={{ textAlign: 'center', fontSize: 9, color: c?.textMuted || SLATE, fontFamily: "'DM Sans', sans-serif", marginTop: 2 }}>
+                {Math.round(zoom * 100)}%
+              </div>
+            </div>
 
-                if (node.type === 'stack') {
-                  if (expandedStacks.has(node.id)) {
+            {/* Legend */}
+            <TreeLegend isMobile={isMobile} colors={c} />
+
+            {/* Expanded stacks count */}
+            {expandedStacks.size > 0 && (
+              <div style={{
+                position: 'absolute', top: 12, left: 12, zIndex: 10,
+                background: c?.text || DARK, color: c?.surface || '#fff', borderRadius: 6,
+                padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
+                display: 'flex', alignItems: 'center',
+                fontSize: 10, fontWeight: 700, fontFamily: "'DM Sans', sans-serif", cursor: 'pointer',
+              }} onClick={() => {
+                setExpandedStacks(new Set());
+                setSelectedNodeId(null);
+              }}>
+                {expandedStacks.size} expanded — collapse all
+              </div>
+            )}
+
+            {/* SVG */}
+            <style>{`
+              @keyframes fadeSlideIn {
+                from { opacity: 0; transform: translateY(-8px); }
+                to { opacity: 1; transform: translateY(0); }
+              }
+            `}</style>
+            <svg width="100%" height="100%" style={{ cursor: isDragging ? 'grabbing' : 'grab' }}>
+              <defs>
+                <filter id="glow-orange" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#C05621" floodOpacity={glowOpacity} />
+                </filter>
+                <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#16a34a" floodOpacity={glowOpacity} />
+                </filter>
+                <filter id="glow-red" x="-20%" y="-20%" width="140%" height="140%">
+                  <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#e85d4a" floodOpacity={glowOpacity} />
+                </filter>
+              </defs>
+              <g key={entranceKey} transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}
+                style={{ animation: 'fadeSlideIn 0.4s ease-out' }}>
+                {/* Edges */}
+                {layout.edges.map((edge, i) => (
+                  <Edge key={i} from={edge.from} to={edge.to} positions={layout.positions} isGap={edge.isGap} />
+                ))}
+                {/* Nodes */}
+                {flatNodes.map((node) => {
+                  const pos = layout.positions[node.id];
+                  if (!pos) return null;
+                  const isHov = hoveredId === node.id;
+                  const isSel = selectedNodeId === node.id;
+                  const isDimmed = selectedNodeId != null && !isSel && !isHov;
+
+                  if (node.type === 'stack') {
+                    if (expandedStacks.has(node.id)) {
+                      return (
+                        <StackExpanded key={node.id} node={node} pos={pos}
+                          hoveredId={hoveredId} selectedNodeId={selectedNodeId}
+                          viewMode={viewMode} colors={c}
+                          onHover={setHoveredId} onLeave={() => setHoveredId(null)}
+                          onCardClick={(doc) => handleNodeClick(doc)}
+                          onCollapse={() => handleExpandStack(node.id)} />
+                      );
+                    }
                     return (
-                      <StackExpanded key={node.id} node={node} pos={pos}
-                        hoveredId={hoveredId} pinnedIds={pinnedIds}
+                      <StackCollapsed key={node.id} node={node} pos={pos}
+                        isHovered={isHov} isPinned={isSel} isDimmed={isDimmed}
+                        viewMode={viewMode} colors={c}
                         onHover={setHoveredId} onLeave={() => setHoveredId(null)}
-                        onCardClick={(doc) => handleNodeClick(doc)}
-                        onCollapse={() => handleExpandStack(node.id)} />
+                        onClick={handleNodeClick} onExpand={handleExpandStack} />
                     );
                   }
-                  return (
-                    <StackCollapsed key={node.id} node={node} pos={pos}
-                      isHovered={isHov} isPinned={isPin}
+                  if (node.type === 'gap') {
+                    return <GapNode key={node.id} node={node} pos={pos}
+                      isHovered={isHov} isPinned={isSel} isDimmed={isDimmed}
+                      viewMode={viewMode} colors={c}
                       onHover={setHoveredId} onLeave={() => setHoveredId(null)}
-                      onClick={handleNodeClick} onExpand={handleExpandStack} />
-                  );
-                }
-                if (node.type === 'gap') {
-                  return <GapNode key={node.id} node={node} pos={pos}
-                    isHovered={isHov} isPinned={isPin}
+                      onClick={handleNodeClick} />;
+                  }
+                  if (node.type === 'current') {
+                    return <CurrentOwnerNode key={node.id} node={node} pos={pos}
+                      isHovered={isHov} isPinned={isSel} isDimmed={isDimmed}
+                      viewMode={viewMode} colors={c}
+                      onHover={setHoveredId} onLeave={() => setHoveredId(null)}
+                      onClick={handleNodeClick} />;
+                  }
+                  return <DocNode key={node.id} node={node} pos={pos}
+                    isHovered={isHov} isPinned={isSel} isDimmed={isDimmed}
+                    viewMode={viewMode} colors={c}
                     onHover={setHoveredId} onLeave={() => setHoveredId(null)}
                     onClick={handleNodeClick} />;
-                }
-                if (node.type === 'current') {
-                  return <CurrentOwnerNode key={node.id} node={node} pos={pos}
-                    isHovered={isHov} isPinned={isPin}
-                    onHover={setHoveredId} onLeave={() => setHoveredId(null)}
-                    onClick={handleNodeClick} />;
-                }
-                return <DocNode key={node.id} node={node} pos={pos}
-                  isHovered={isHov} isPinned={isPin}
-                  onHover={setHoveredId} onLeave={() => setHoveredId(null)}
-                  onClick={handleNodeClick} />;
-              })}
-            </g>
-          </svg>
+                })}
+              </g>
+            </svg>
 
-          {/* Hover tooltip — hidden on mobile (tap-to-pin instead) */}
-          {!isMobile && showHover && hoveredNode && 'type' in hoveredNode && (
-            <HoverTooltip node={hoveredNode as FlatNode} pos={hoverPos} />
-          )}
-
-          {/* Pinned detail panels */}
-          {Array.from(pinnedIds).map((id) => {
-            const node = findNode(id);
-            const pos = pinnedPositions[id] || computePinPosition(id);
-            if (!node || !('type' in node)) return null;
-            return (
-              <div key={id} data-pinned="true">
-                <PinnedDetail
-                  node={node as FlatNode}
-                  position={pos}
-                  onClose={handleUnpin}
-                  onExpandStack={handleExpandStack}
-                  isMobile={isMobile}
-                />
-              </div>
-            );
-          })}
+            {/* Hover tooltip — hidden on mobile */}
+            {!isMobile && showHover && hoveredNode && 'type' in hoveredNode && (
+              <HoverTooltip node={hoveredNode as FlatNode} pos={hoverPos} colors={c} />
+            )}
+          </div>
         </div>
+
+        {/* Detail drawer — desktop only (mobile uses bottom sheet rendered via portal) */}
+        {!isMobile && (
+          <DetailDrawer
+            node={selectedNode}
+            onClose={handleCloseDrawer}
+            onExpandStack={handleExpandStack}
+            colors={c}
+          />
+        )}
       </div>
+
+      {/* Mobile bottom sheet */}
+      {isMobile && (
+        <DetailDrawer
+          node={selectedNode}
+          onClose={handleCloseDrawer}
+          onExpandStack={handleExpandStack}
+          isMobile
+          colors={c}
+        />
+      )}
     </div>
   );
 }

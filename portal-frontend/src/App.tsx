@@ -11,6 +11,7 @@ import { TitlePage } from './components/title/TitlePage';
 import { AccountPage } from './components/account/AccountPage';
 import { LearnPage } from './components/learn/LearnPage';
 import { IntelligencePage } from './components/intelligence/IntelligencePage';
+import { MapPage } from './components/map/MapPage';
 
 export function App() {
   return (
@@ -26,6 +27,7 @@ export function App() {
               <Route path="account" element={<AccountPage />} />
               <Route path="learn" element={<LearnPage />} />
               <Route path="intelligence" element={<IntelligencePage />} />
+              <Route path="map" element={<MapPage />} />
             </Route>
             {/* Fallback: redirect to React dashboard (not /portal which is vanilla) */}
             <Route path="*" element={<Navigate to="/portal/react" replace />} />

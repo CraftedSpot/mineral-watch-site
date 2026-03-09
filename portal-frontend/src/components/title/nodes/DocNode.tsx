@@ -1,4 +1,6 @@
-import { ORANGE, ORANGE_LIGHT, DARK, SLATE, BORDER, NODE_H } from '../../../lib/constants';
+import { ORANGE, ORANGE_LIGHT, DARK, SLATE, BORDER, NODE_H, NODE_H_SIMPLE } from '../../../lib/constants';
+import type { ViewMode } from '../../../lib/layout-engine';
+import type { TitleColors } from '../../../lib/title-colors';
 import { formatDate } from '../../../lib/helpers';
 import { PinRing } from './PinRing';
 import type { FlatNode, NodePosition } from '../../../types/title-chain';
@@ -8,47 +10,58 @@ interface DocNodeProps {
   pos: NodePosition;
   isHovered: boolean;
   isPinned: boolean;
+  isDimmed?: boolean;
+  viewMode?: ViewMode;
+  colors?: TitleColors;
   onHover: (id: string) => void;
   onLeave: () => void;
   onClick: (node: FlatNode) => void;
 }
 
-export function DocNode({ node, pos, isHovered, isPinned, onHover, onLeave, onClick }: DocNodeProps) {
+export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = 'detailed', colors: c, onHover, onLeave, onClick }: DocNodeProps) {
   const hl = isHovered || isPinned;
+  const isSimple = viewMode === 'simple';
+  const h = isSimple ? NODE_H_SIMPLE : NODE_H;
+
   return (
     <g
       transform={`translate(${pos.x}, ${pos.y})`}
       onMouseEnter={() => onHover(node.id)}
       onMouseLeave={onLeave}
       onClick={(e) => { e.stopPropagation(); onClick(node); }}
-      style={{ cursor: 'pointer' }}
+      style={{ cursor: 'pointer', transition: 'opacity 0.2s ease' }}
+      opacity={isDimmed ? 0.5 : 1}
+      filter={isHovered ? 'url(#glow-orange)' : undefined}
     >
-      {isPinned && <PinRing x={0} y={0} w={pos.w} h={NODE_H} color={ORANGE} />}
-      <rect width={pos.w} height={NODE_H} rx={8}
-        fill={hl ? ORANGE_LIGHT : '#fff'} stroke={hl ? ORANGE : BORDER} strokeWidth={hl ? 2 : 1} />
-      <rect width={4} height={NODE_H} rx={2} fill={ORANGE} />
-      <text x={14} y={18} fontSize={10} fontWeight={700} fill={ORANGE}
+      {isPinned && <PinRing x={0} y={0} w={pos.w} h={h} color={ORANGE} />}
+      <rect width={pos.w} height={h} rx={isSimple ? 6 : 8}
+        fill={hl ? (c?.cardHover || ORANGE_LIGHT) : (c?.card || '#fff')}
+        stroke={hl ? ORANGE : (c?.cardStroke || BORDER)} strokeWidth={hl ? 2 : 1} />
+      <rect width={isSimple ? 3 : 4} height={h} rx={isSimple ? 1.5 : 2} fill={ORANGE} />
+      <text x={isSimple ? 12 : 14} y={isSimple ? 22 : 18} fontSize={10} fontWeight={700} fill={ORANGE}
         fontFamily="'DM Sans', sans-serif">{node.docType}</text>
-      <text x={pos.w - 10} y={18} textAnchor="end" fontSize={9} fill={SLATE}
+      <text x={pos.w - 10} y={isSimple ? 22 : 18} textAnchor="end" fontSize={9} fill={c?.textMuted || SLATE}
         fontFamily="'DM Sans', sans-serif">{formatDate(node.date)}</text>
-      <foreignObject x={10} y={22} width={pos.w - 20} height={50}>
-        <div style={{
-          fontSize: 10, fontFamily: "'DM Sans', sans-serif",
-          lineHeight: '14px', overflow: 'hidden',
-        }}>
-          <div style={{ color: DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {node.grantor}
-          </div>
-          <div style={{ color: SLATE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-            {'\u2192'} {node.grantee}
-          </div>
-          {node.interestConveyed && (
-            <div style={{ color: SLATE, fontSize: 9, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {node.interestConveyed}
+      {!isSimple && (
+        <foreignObject x={10} y={22} width={pos.w - 20} height={50}>
+          <div style={{
+            fontSize: 10, fontFamily: "'DM Sans', sans-serif",
+            lineHeight: '14px', overflow: 'hidden',
+          }}>
+            <div style={{ color: c?.text || DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {node.grantor}
             </div>
-          )}
-        </div>
-      </foreignObject>
+            <div style={{ color: c?.textMuted || SLATE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {'\u2192'} {node.grantee}
+            </div>
+            {node.interestConveyed && (
+              <div style={{ color: c?.textMuted || SLATE, fontSize: 9, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {node.interestConveyed}
+              </div>
+            )}
+          </div>
+        </foreignObject>
+      )}
     </g>
   );
 }

@@ -6,16 +6,27 @@
 import {
   NODE_W, NODE_H, STACK_H, GAP_H, CURRENT_H,
   H_GAP, V_GAP, PAD, EXPANDED_CARD_H, EXPANDED_CARD_GAP,
+  NODE_H_SIMPLE, STACK_H_SIMPLE, GAP_H_SIMPLE, CURRENT_H_SIMPLE,
+  EXPANDED_CARD_H_SIMPLE, V_GAP_SIMPLE,
 } from './constants';
 import type {
   FlatNode, LayoutResult, NodePosition, ExpandedCardPosition, LayoutEdge,
 } from '../types/title-chain';
 
+export type ViewMode = 'simple' | 'detailed';
+
 export interface FlatData {
   nodes: FlatNode[];
 }
 
-export function computeLayout(data: FlatData, expandedStacks: Set<string>): LayoutResult {
+export function computeLayout(data: FlatData, expandedStacks: Set<string>, viewMode: ViewMode = 'detailed'): LayoutResult {
+  const isSimple = viewMode === 'simple';
+  const nodeH = isSimple ? NODE_H_SIMPLE : NODE_H;
+  const stackH = isSimple ? STACK_H_SIMPLE : STACK_H;
+  const gapH = isSimple ? GAP_H_SIMPLE : GAP_H;
+  const currentH = isSimple ? CURRENT_H_SIMPLE : CURRENT_H;
+  const cardH = isSimple ? EXPANDED_CARD_H_SIMPLE : EXPANDED_CARD_H;
+  const vGap = isSimple ? V_GAP_SIMPLE : V_GAP;
   const nodeMap: Record<string, FlatNode> = {};
   data.nodes.forEach((n) => (nodeMap[n.id] = { ...n }));
 
@@ -49,15 +60,15 @@ export function computeLayout(data: FlatData, expandedStacks: Set<string>): Layo
 
   function getNodeHeight(id: string): number {
     const node = nodeMap[id];
-    if (!node) return NODE_H;
+    if (!node) return nodeH;
     if (node.type === 'stack' && expandedStacks.has(id)) {
       const docCount = (node.docs || []).length;
-      return docCount * (EXPANDED_CARD_H + EXPANDED_CARD_GAP) + 36;
+      return docCount * (cardH + EXPANDED_CARD_GAP) + 36;
     }
-    if (node.type === 'stack') return STACK_H;
-    if (node.type === 'gap') return GAP_H;
-    if (node.type === 'current') return CURRENT_H;
-    return NODE_H;
+    if (node.type === 'stack') return stackH;
+    if (node.type === 'gap') return gapH;
+    if (node.type === 'current') return currentH;
+    return nodeH;
   }
 
   function getSubtreeWidth(id: string): number {
@@ -73,7 +84,7 @@ export function computeLayout(data: FlatData, expandedStacks: Set<string>): Layo
     const node = nodeMap[id];
     if (!node) return;
     const h = getNodeHeight(id);
-    const y = PAD + (maxLevel - level) * (NODE_H + V_GAP);
+    const y = PAD + (maxLevel - level) * (nodeH + vGap);
     positions[id] = { x: xCenter - NODE_W / 2, y, w: NODE_W, h };
 
     // Expanded stack: compute individual card positions
@@ -82,9 +93,9 @@ export function computeLayout(data: FlatData, expandedStacks: Set<string>): Layo
       docs.forEach((doc, i) => {
         expandedCardPositions[doc.id] = {
           x: xCenter - NODE_W / 2,
-          y: y + 28 + i * (EXPANDED_CARD_H + EXPANDED_CARD_GAP),
+          y: y + 28 + i * (cardH + EXPANDED_CARD_GAP),
           w: NODE_W,
-          h: EXPANDED_CARD_H,
+          h: cardH,
           parentStackId: id,
         };
       });

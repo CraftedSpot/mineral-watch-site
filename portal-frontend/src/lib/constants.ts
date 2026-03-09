@@ -35,6 +35,14 @@ export const PAD = 80;
 export const EXPANDED_CARD_H = 76;
 export const EXPANDED_CARD_GAP = 8;
 
+// Simple mode dimensions
+export const NODE_H_SIMPLE = 36;
+export const STACK_H_SIMPLE = 48;
+export const GAP_H_SIMPLE = 40;
+export const CURRENT_H_SIMPLE = 48;
+export const EXPANDED_CARD_H_SIMPLE = 36;
+export const V_GAP_SIMPLE = 60;
+
 // Org gating
 export const TITLE_CHAIN_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf'];
 

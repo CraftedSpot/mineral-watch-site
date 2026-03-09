@@ -6,6 +6,7 @@ import { useAsyncData } from '../../hooks/useAsyncData';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import {
   fetchWellEnrichment, fetchLinkedProperties, fetchLinkedDocuments, saveWellNotes, saveWellInterests,
+  addWell,
 } from '../../api/wells';
 import { AccordionSection } from '../ui/AccordionSection';
 import { Badge } from '../ui/Badge';
@@ -39,6 +40,7 @@ interface Props {
   operator?: string;
   county?: string;
   status?: string;
+  onTrack?: (apiNumber: string) => void;
 }
 
 function isHorizontal(name?: string, enrichment?: WellEnrichment | null): boolean {
@@ -49,7 +51,7 @@ function isHorizontal(name?: string, enrichment?: WellEnrichment | null): boolea
     /\d+H$/.test(n) || /\d+HZ$/.test(n) || n.includes('HORIZONTAL');
 }
 
-export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameProp, operator: opProp, county: countyProp, status: statusProp }: Props) {
+export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameProp, operator: opProp, county: countyProp, status: statusProp, onTrack }: Props) {
   const modal = useModal();
   const toast = useToast();
   const isMobile = useIsMobile();
@@ -63,6 +65,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   // Interest editing state — null means "use data from server"
   const [interestEdits, setInterestEdits] = useState<Record<string, string>>({});
   const [interestDirty, setInterestDirty] = useState(false);
+  const [tracking, setTracking] = useState(false);
 
   // Resolve full WellRecord from store
   const wellRecord: WellRecord | null = useMemo(() => {
@@ -220,6 +223,23 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
     }
   }, [clientWellId, modal, toast]);
 
+  const handleTrackWell = useCallback(async () => {
+    if (!resolvedApi || tracking) return;
+    setTracking(true);
+    try {
+      await addWell(resolvedApi);
+      toast.success(`Tracking ${wellName}`);
+      onTrack?.(resolvedApi);
+    } catch {
+      toast.error('Failed to track well');
+    } finally {
+      setTracking(false);
+    }
+  }, [resolvedApi, tracking, wellName, toast, onTrack]);
+
+  // Show track button when well isn't in store and onTrack callback provided
+  const showTrackButton = onTrack && !wellRecord && resolvedApi;
+
   // Clean county display (strip numeric prefix)
   const cleanCounty = (c: string) => c.replace(/^\d+-/, '');
 
@@ -276,6 +296,21 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
               >
                 Unit{!isMobile && ' \u2197'}
               </a>
+            )}
+            {showTrackButton && (
+              <button
+                onClick={handleTrackWell}
+                disabled={tracking}
+                style={{
+                  background: '#2563eb', color: '#fff', border: 'none',
+                  borderRadius: 6, padding: isMobile ? '8px 14px' : '10px 18px',
+                  fontSize: isMobile ? 12 : 13, fontWeight: 600, cursor: 'pointer',
+                  fontFamily: "'Inter', 'DM Sans', sans-serif",
+                  opacity: tracking ? 0.7 : 1,
+                }}
+              >
+                {tracking ? 'Tracking...' : 'Track This Well'}
+              </button>
             )}
             {(notesDirty || interestDirty) && (
               <button

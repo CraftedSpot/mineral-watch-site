@@ -1,16 +1,18 @@
 import { ORANGE, GAP_COLOR, GREEN, SLATE, BORDER } from '../../lib/constants';
+import type { TitleColors } from '../../lib/title-colors';
 
 interface TreeLegendProps {
   isMobile?: boolean;
+  colors?: TitleColors;
 }
 
-export function TreeLegend({ isMobile }: TreeLegendProps) {
+export function TreeLegend({ isMobile, colors: c }: TreeLegendProps) {
   return (
     <div style={{
       position: 'absolute', bottom: 12, left: 12, right: isMobile ? 12 : undefined, zIndex: 10,
-      display: 'flex', gap: isMobile ? 8 : 16, flexWrap: 'wrap', fontSize: 10, color: SLATE,
-      background: 'rgba(255,255,255,0.95)', padding: '6px 12px',
-      borderRadius: 6, border: `1px solid ${BORDER}`,
+      display: 'flex', gap: isMobile ? 8 : 16, flexWrap: 'wrap', fontSize: 10, color: c?.textMuted || SLATE,
+      background: c?.legendBg || 'rgba(255,255,255,0.95)', padding: '6px 12px',
+      borderRadius: 6, border: `1px solid ${c?.border || BORDER}`,
       fontFamily: "'DM Sans', sans-serif",
     }}>
       <span>
@@ -29,10 +31,10 @@ export function TreeLegend({ isMobile }: TreeLegendProps) {
         Current Owner
       </span>
       {!isMobile && (
-        <span style={{ opacity: 0.5 }}>Hover peek · Click pin · Click stacks to expand</span>
+        <span style={{ opacity: 0.5 }}>Hover peek · Click for details · Click stacks to expand</span>
       )}
       {isMobile && (
-        <span style={{ opacity: 0.5 }}>Tap to pin</span>
+        <span style={{ opacity: 0.5 }}>Tap for details</span>
       )}
     </div>
   );
