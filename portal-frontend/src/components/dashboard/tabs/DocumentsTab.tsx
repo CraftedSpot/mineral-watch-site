@@ -544,6 +544,7 @@ export function DocumentsTab() {
       const res = await fetch('/api/documents/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
       if (!res.ok) throw new Error('Delete failed');

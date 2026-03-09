@@ -68,14 +68,19 @@ export function ModalShell({
   const resolvedBodyPadding = bodyPadding || (isMobile ? '16px 16px' : '20px 24px');
 
   return (
-    <div style={{
-      background: '#fff', borderRadius: radius,
-      width: isMobile ? '100%' : maxWidth, maxWidth: '100%',
-      maxHeight: isMobile ? 'calc(100vh - 48px)' : 'calc(100vh - 20px)',
-      display: 'flex', flexDirection: 'column',
-      boxShadow: '0 8px 30px rgba(0,0,0,0.15)', fontFamily: "'Inter', 'DM Sans', sans-serif",
-      overflow: 'hidden', position: 'relative',
-    }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || undefined}
+      style={{
+        background: '#fff', borderRadius: radius,
+        width: isMobile ? '100%' : maxWidth, maxWidth: '100%',
+        maxHeight: isMobile ? 'calc(100vh - 48px)' : 'calc(100vh - 20px)',
+        display: 'flex', flexDirection: 'column',
+        boxShadow: '0 8px 30px rgba(0,0,0,0.15)', fontFamily: "'Inter', 'DM Sans', sans-serif",
+        overflow: 'hidden', position: 'relative',
+      }}
+    >
       {/* Close button — always present */}
       <button onClick={onClose} style={resolvedCloseStyle} aria-label="Close">&times;</button>
 

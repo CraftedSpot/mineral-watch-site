@@ -596,6 +596,7 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         AND (d.deleted_at IS NULL OR d.deleted_at = '')
         AND d.status = 'complete'
         AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+        AND d.doc_type != 'multi_document'
         AND (
           d.property_id = ?
           OR d.property_id LIKE ?

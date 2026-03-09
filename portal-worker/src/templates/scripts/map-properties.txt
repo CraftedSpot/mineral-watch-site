@@ -477,8 +477,8 @@
             let actionsContent = `
                 <div class="map-well-footer-grid">
                     <div class="map-well-footer-left">
-                        <button class="action-btn primary well-blue" onclick="centerMapOnModalWell()">MW Map ↗</button>
-                        ${occMapLink ? `<a href="${occMapLink}" target="_blank" class="action-btn primary well-blue">OCC Map ↗</a>` : ''}
+                        <button class="action-btn primary well-blue" onclick="centerMapOnModalWell()">MW Map</button>
+                        ${occMapLink ? `<a href="${occMapLink}" target="_blank" class="action-btn primary well-blue">OCC Map</a>` : ''}
                     </div>
                     <div class="map-well-footer-right">
                         ${apiNumber && apiNumber !== 'Unknown' ? `

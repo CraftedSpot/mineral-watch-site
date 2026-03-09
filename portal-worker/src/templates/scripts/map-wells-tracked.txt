@@ -479,8 +479,8 @@
             document.getElementById('wellModalActions').innerHTML = `
                 <div class="map-well-footer-grid">
                     <div class="map-well-footer-left">
-                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map ↗</button>
-                        <button type="button" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</button>
+                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map</button>
+                        <button type="button" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map</button>
                     </div>
                     <div class="map-well-footer-right">
                         <div class="occ-warning" style="position: relative;">
@@ -490,7 +490,7 @@
                                 <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
                             </div>
                         </div>
-                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report ↗</button>
+                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report</button>
                     </div>
                 </div>
                 <div id="wellModalTrackRow" style="display: none; margin-top: 10px;">

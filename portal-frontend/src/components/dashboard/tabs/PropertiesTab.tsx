@@ -245,6 +245,7 @@ export function PropertiesTab() {
       const res = await fetch('/api/properties/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
       if (!res.ok) throw new Error('Delete failed');

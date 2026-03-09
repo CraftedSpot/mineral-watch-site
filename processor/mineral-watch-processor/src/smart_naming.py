@@ -1444,7 +1444,7 @@ def name_title_opinion(data: Dict[str, Any]) -> str:
         if isinstance(attorney, dict):
             attorney = attorney.get('name', '')
         if attorney:
-            parts.append(extract_last_name(attorney))
+            parts.append(_extract_first_and_last(attorney))
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1634,9 +1634,9 @@ def name_legal_document(data: Dict[str, Any]) -> str:
     party2 = data.get('defendant') or data.get('party2') or data.get('respondent')
     
     if party1 and party2:
-        parts.append(f"{extract_last_name(party1)} v {extract_last_name(party2)}")
+        parts.append(f"{_extract_first_and_last(party1)} v {_extract_first_and_last(party2)}")
     elif party1:
-        parts.append(extract_last_name(party1))
+        parts.append(_extract_first_and_last(party1))
     
     matter_type = data.get('matter_type') or data.get('case_type') or data.get('document_subtype')
     if matter_type:
@@ -1663,11 +1663,11 @@ def name_correspondence(data: Dict[str, Any]) -> str:
         to_party = to_party.get('name') or to_party.get('company') or ''
 
     if from_party and to_party:
-        parts.append(f"{extract_last_name(from_party)} to {extract_last_name(to_party)}")
+        parts.append(f"{_extract_first_and_last(from_party)} to {_extract_first_and_last(to_party)}")
     elif from_party:
-        parts.append(f"from {extract_last_name(from_party)}")
+        parts.append(f"from {_extract_first_and_last(from_party)}")
     elif to_party:
-        parts.append(f"to {extract_last_name(to_party)}")
+        parts.append(f"to {_extract_first_and_last(to_party)}")
 
     # Use full date for correspondence
     date = format_date(data.get('date') or data.get('letter_date'), data.get('year'))
@@ -1791,7 +1791,7 @@ def name_ratification(data: Dict[str, Any]) -> str:
     
     ratifying = data.get('ratifying_party') or data.get('grantor')
     if ratifying:
-        parts.append(extract_last_name(ratifying))
+        parts.append(_extract_first_and_last(ratifying))
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1805,27 +1805,27 @@ def name_affidavit_of_heirship(data: Dict[str, Any]) -> str:
     
     decedent = data.get('decedent') or data.get('deceased') or data.get('decedent_name')
     if decedent:
-        parts.append(f"Estate of {extract_last_name(decedent)}")
-    
+        parts.append(f"Estate of {_extract_first_and_last(decedent)}")
+
     if data.get('county'):
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
 def name_probate_document(data: Dict[str, Any]) -> str:
     """Probate - Estate of {Decedent} - {County} - Case {#} - {Year}"""
     parts = ["Probate"]
-    
+
     decedent = data.get('decedent') or data.get('deceased') or data.get('decedent_name')
     if decedent:
-        parts.append(f"Estate of {extract_last_name(decedent)}")
+        parts.append(f"Estate of {_extract_first_and_last(decedent)}")
     
     if data.get('county'):
         county = str(data['county']).strip()
@@ -1859,7 +1859,7 @@ def name_right_of_way(data: Dict[str, Any]) -> str:
     
     grantee = data.get('grantee') or data.get('grantee_name') or data.get('company')
     if grantee:
-        parts.append(extract_last_name(grantee))
+        parts.append(_extract_first_and_last(grantee))
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1887,7 +1887,7 @@ def name_release_of_lease(data: Dict[str, Any]) -> str:
     
     releasor = data.get('releasor') or data.get('operator') or data.get('lessee')
     if releasor:
-        parts.append(extract_last_name(releasor))
+        parts.append(_extract_first_and_last(releasor))
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1903,9 +1903,9 @@ def name_divorce_decree(data: Dict[str, Any]) -> str:
     respondent = data.get('respondent') or data.get('respondent_name') or data.get('party2')
     
     if petitioner and respondent:
-        parts.append(f"{extract_last_name(petitioner)} v {extract_last_name(respondent)}")
+        parts.append(f"{_extract_first_and_last(petitioner)} v {_extract_first_and_last(respondent)}")
     elif petitioner:
-        parts.append(f"{extract_last_name(petitioner)} v [Unknown]")
+        parts.append(f"{_extract_first_and_last(petitioner)} v [Unknown]")
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1957,9 +1957,9 @@ def name_power_of_attorney(data: Dict[str, Any]) -> str:
     agent = data.get('agent') or data.get('agent_name') or data.get('attorney_in_fact') or data.get('grantee')
     
     if principal and agent:
-        parts.append(f"{extract_last_name(principal)} to {extract_last_name(agent)}")
+        parts.append(f"{_extract_first_and_last(principal)} to {_extract_first_and_last(agent)}")
     elif principal:
-        parts.append(f"{extract_last_name(principal)} to [Agent]")
+        parts.append(f"{_extract_first_and_last(principal)} to [Agent]")
     
     if data.get('year'):
         parts.append(str(data['year']))
@@ -1995,9 +1995,9 @@ def name_trust_funding(data: Dict[str, Any]) -> str:
 
     # Build "Assignor to Trust" part
     if assignor_name and trust_name:
-        parts.append(f"{extract_last_name(assignor_name)} to {trust_name}")
+        parts.append(f"{_extract_first_and_last(assignor_name)} to {trust_name}")
     elif assignor_name:
-        parts.append(f"{extract_last_name(assignor_name)} Trust")
+        parts.append(f"{_extract_first_and_last(assignor_name)} Trust")
     elif trust_name:
         parts.append(trust_name)
 

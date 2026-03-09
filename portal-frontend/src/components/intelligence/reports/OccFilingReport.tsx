@@ -386,7 +386,7 @@ function FilingsTable({ filings }: { filings: OccFiling[] }) {
     },
     {
       key: 'caseNumber', label: 'Case #', sortType: 'string', width: 'minmax(90px, 1fr)', hideOnMobile: true,
-      render: (row) => row.sourceUrl ? (
+      render: (row) => row.sourceUrl && /^https?:\/\//.test(row.sourceUrl) ? (
         <a href={row.sourceUrl} target="_blank" rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           style={{ color: '#3b82f6', fontSize: 12, textDecoration: 'none' }}>{row.caseNumber}</a>

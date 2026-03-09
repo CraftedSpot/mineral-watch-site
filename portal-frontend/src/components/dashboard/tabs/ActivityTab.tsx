@@ -188,6 +188,7 @@ export function ActivityTab() {
       const res = await fetch('/api/activity/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ ids: Array.from(selected) }),
       });
       if (!res.ok) throw new Error('Delete failed');
@@ -478,7 +479,7 @@ function ActivityActions({
   }
 
   // OCC map — only use links with actual coordinates
-  const validOccMap = occMapLink && occMapLink.includes('marker=') ? occMapLink : null;
+  const validOccMap = occMapLink && occMapLink.includes('marker=') && /^https?:\/\//.test(occMapLink) ? occMapLink : null;
 
   // Track button
   const showTrack = apiNumber && shouldShowTrackButton(activityType);

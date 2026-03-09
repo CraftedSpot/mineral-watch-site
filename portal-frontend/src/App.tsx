@@ -22,6 +22,7 @@ export function App() {
         <ModalProvider>
           <Routes>
             <Route path="/portal" element={<AppShell />}>
+              <Route index element={<DashboardPage />} />
               <Route path="react" element={<DashboardPage />} />
               <Route path="title" element={<TitlePage />} />
               <Route path="account" element={<AccountPage />} />
@@ -29,8 +30,7 @@ export function App() {
               <Route path="intelligence" element={<IntelligencePage />} />
               <Route path="map" element={<MapPage />} />
             </Route>
-            {/* Fallback: redirect to React dashboard (not /portal which is vanilla) */}
-            <Route path="*" element={<Navigate to="/portal/react" replace />} />
+            <Route path="*" element={<Navigate to="/portal" replace />} />
           </Routes>
         </ModalProvider>
         </DashboardDataProvider>

@@ -9,7 +9,7 @@ interface NavHeaderProps {
 }
 
 const NAV_ITEMS = [
-  { href: '/portal/react', label: 'Dashboard', react: true },
+  { href: '/portal', label: 'Dashboard', react: true },
   { href: '/portal/title', label: 'Title', react: true },
   { href: '/portal/map', label: 'Map', react: false },
   { href: '/portal/intelligence', label: 'Intelligence', react: true },
@@ -45,8 +45,8 @@ export function NavHeader({ user }: NavHeaderProps) {
   };
 
   const isActive = (href: string) =>
-    href === '/portal/react'
-      ? location.pathname === '/portal/react' || location.pathname === '/portal'
+    href === '/portal'
+      ? location.pathname === '/portal' || location.pathname === '/portal/react'
       : location.pathname.startsWith(href);
 
   const navLinkStyle = (href: string): React.CSSProperties => ({
@@ -116,24 +116,19 @@ export function NavHeader({ user }: NavHeaderProps) {
           fontFamily: "'Merriweather', serif", fontWeight: 700,
           fontSize: 20, color: '#fff', textDecoration: 'none',
           display: 'flex', alignItems: 'center', gap: 8,
+          ...(!isMobile ? { flex: '1 1 0', minWidth: 0 } : {}),
         }}>
           Mineral Watch
-          <span style={{
-            fontSize: 9, fontWeight: 700, fontFamily: "'Inter', sans-serif",
-            background: 'rgba(59,130,246,0.25)', color: '#93c5fd',
-            padding: '2px 6px', borderRadius: 4, letterSpacing: 0.5,
-            lineHeight: 1.2,
-          }}>REACT</span>
         </a>
 
         {!isMobile && (
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 24, flexShrink: 0 }}>
             {NAV_ITEMS.map(renderNavLink)}
           </nav>
         )}
 
         {!isMobile && (
-          <div data-user-menu style={{ position: 'relative' }}>
+          <div data-user-menu style={{ position: 'relative', flex: '1 1 0', minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               style={{

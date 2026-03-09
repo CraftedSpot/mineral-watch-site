@@ -1,46 +1,40 @@
 import { jsonResponse, errorResponse } from '../utils/responses.js';
 import { syncAirtableData } from '../sync.js';
+import { timingSafeKeyCheck } from '../utils/auth.js';
+import { isSuperAdmin } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 
 export async function handleAirtableSync(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
   try {
-    // Check authentication - require auth token in header or cookie
     const authHeader = request.headers.get('Authorization');
-    const cookieHeader = request.headers.get('Cookie');
-    
-    // Extract session from cookie if present
     let isAuthenticated = false;
-    if (cookieHeader) {
-      // Verify session locally (no auth-worker dependency)
-      try {
-        const { authenticateRequest } = await import('../utils/auth.js');
-        const user = await authenticateRequest(request, env);
-        if (user) {
-          isAuthenticated = true;
-        }
-      } catch (error) {
-        console.error('Auth verification error:', error);
+
+    // Session-based auth — require super admin
+    try {
+      const { authenticateRequest } = await import('../utils/auth.js');
+      const user = await authenticateRequest(request, env);
+      if (user && isSuperAdmin(user.email)) {
+        isAuthenticated = true;
       }
+    } catch {
+      // Session auth failed, try API key below
     }
-    
-    // Check authorization header as fallback
-    if (!isAuthenticated && authHeader) {
-      // Simple bearer token check - you might want to make this more secure
-      const expectedToken = env.SYNC_API_KEY || 'default-sync-key-2024';
-      if (authHeader === `Bearer ${expectedToken}`) {
+
+    // API key auth via Authorization header
+    if (!isAuthenticated && authHeader && env.PROCESSING_API_KEY) {
+      if (timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
         isAuthenticated = true;
       }
     }
-    
-    // Also check X-API-Key header
+
+    // API key auth via X-API-Key header
     if (!isAuthenticated) {
       const apiKey = request.headers.get('X-API-Key');
-      const expectedToken = env.SYNC_API_KEY || 'default-sync-key-2024';
-      if (apiKey === expectedToken) {
+      if (apiKey && env.PROCESSING_API_KEY && timingSafeKeyCheck(apiKey, env.PROCESSING_API_KEY)) {
         isAuthenticated = true;
       }
     }
-    
+
     if (!isAuthenticated) {
       return errorResponse('Unauthorized', 401);
     }

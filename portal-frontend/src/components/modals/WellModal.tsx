@@ -57,8 +57,8 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   const isMobile = useIsMobile();
   const { data: wells } = useWells();
   const [occCountOverride, setOccCountOverride] = useState<number | undefined>(undefined);
-  const [completionCount, setCompletionCount] = useState<number | null>(null);
-  const [permitCount, setPermitCount] = useState<number | null>(null);
+  const [completionCount, setCompletionCount] = useState<number | undefined>(undefined);
+  const [permitCount, setPermitCount] = useState<number | undefined>(undefined);
   const [notesValue, setNotesValue] = useState<string | null>(null);
   const [notesDirty, setNotesDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -276,12 +276,12 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
             {mwMapUrl && (
               <a href={mwMapUrl} target="_blank" rel="noopener noreferrer"
                 style={{ ...footerBtnStyle, textDecoration: 'none', padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110 }}>
-                Map{!isMobile && ' \u2197'}
+                Map
               </a>
             )}
             {occRecordsUrl && (
               <a href={occRecordsUrl} target="_blank" rel="noopener noreferrer" style={{ ...footerBtnStyle, textDecoration: 'none', padding: isMobile ? '8px 10px' : '10px 14px', fontSize: isMobile ? 12 : 13, minWidth: isMobile ? 0 : 110 }}>
-                Records{!isMobile && ' \u2197'}
+                Records
               </a>
             )}
             {resolvedApi && (
@@ -294,7 +294,7 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
                   ...(pun ? {} : { opacity: 0.5, pointerEvents: 'none' as const }),
                 }}
               >
-                Unit{!isMobile && ' \u2197'}
+                Unit Summary
               </a>
             )}
             {showTrackButton && (

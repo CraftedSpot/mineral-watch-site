@@ -9,6 +9,8 @@ import { PropertiesTab } from './tabs/PropertiesTab';
 import { WellsTab } from './tabs/WellsTab';
 import { DocumentsTab } from './tabs/DocumentsTab';
 import { ActivityTab } from './tabs/ActivityTab';
+import { ToolsTab } from './tabs/ToolsTab';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { SLATE } from '../../lib/constants';
 import type { AuthUser } from '../layout/AppShell';
 
@@ -55,34 +57,11 @@ export function DashboardPage() {
       <TabBar tabs={TABS} active={activeTab} onChange={setTab} />
 
       <div style={{ padding: isMobile ? '12px' : '24px', maxWidth: 1600, margin: '0 auto' }}>
-        {activeTab === 'properties' && <PropertiesTab />}
-        {activeTab === 'wells' && <WellsTab />}
-        {activeTab === 'documents' && <DocumentsTab />}
-        {activeTab === 'activity' && <ActivityTab />}
-        {activeTab === 'tools' && <ToolsPlaceholder />}
-      </div>
-    </div>
-  );
-}
-
-function ToolsPlaceholder() {
-  return (
-    <div style={{
-      padding: '60px 24px', textAlign: 'center',
-      border: '2px dashed #e2e8f0', borderRadius: 12,
-    }}>
-      <div style={{ fontSize: 24, fontWeight: 700, color: '#1a2332', marginBottom: 8 }}>
-        Tools
-      </div>
-      <div style={{ fontSize: 14, color: SLATE, maxWidth: 500, margin: '0 auto' }}>
-        Revenue estimator, production analysis, and OCC filing viewer.
-      </div>
-      <div style={{
-        marginTop: 16, fontSize: 12, color: '#94a3b8',
-        background: '#f8fafc', display: 'inline-block', padding: '6px 16px',
-        borderRadius: 6,
-      }}>
-        Phase 2d implementation pending
+        {activeTab === 'properties' && <ErrorBoundary label="Properties"><PropertiesTab /></ErrorBoundary>}
+        {activeTab === 'wells' && <ErrorBoundary label="Wells"><WellsTab /></ErrorBoundary>}
+        {activeTab === 'documents' && <ErrorBoundary label="Documents"><DocumentsTab /></ErrorBoundary>}
+        {activeTab === 'activity' && <ErrorBoundary label="Activity"><ActivityTab /></ErrorBoundary>}
+        {activeTab === 'tools' && <ErrorBoundary label="Tools"><ToolsTab /></ErrorBoundary>}
       </div>
     </div>
   );

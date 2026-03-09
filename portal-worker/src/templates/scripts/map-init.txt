@@ -113,11 +113,10 @@
                         ? fetch(`/api/plss-section?section=${sectionParam}&township=${townshipParam}&range=${rangeParam}`)
                         : null;
 
-                    // Load all data in parallel
-                    const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
+                    // Load properties + wells first (markers visible sooner)
+                    const [propertiesResult, wellsResult] = await Promise.allSettled([
                         loadUserProperties(),
-                        loadTrackedWells(),
-                        loadActivityData()
+                        loadTrackedWells()
                     ]);
 
                     // Log any failures but don't stop the map from working
@@ -127,9 +126,9 @@
                     if (wellsResult.status === 'rejected') {
                         console.error('Failed to load wells:', wellsResult.reason);
                     }
-                    if (activityResult.status === 'rejected') {
-                        console.error('Failed to load activity data:', activityResult.reason);
-                    }
+
+                    // Defer activity data — load in background after markers are shown
+                    loadActivityData().catch(err => console.error('Failed to load activity data:', err));
 
                     if (propertyId && propertiesResult.status === 'fulfilled') {
                         const property = userProperties.find(p => p.id === propertyId);

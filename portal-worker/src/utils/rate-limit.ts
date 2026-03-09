@@ -33,28 +33,53 @@ export async function rateLimit(
     return { allowed: false, remaining: 0 };
   }
 
-  // Increment. If this is the first request, KV sets the TTL.
-  // If the key already exists, put() resets the TTL — but since all
-  // requests within the window write the same TTL, the window stays
-  // roughly aligned to the first request.
   await kv.put(key, String(count + 1), { expirationTtl: windowSeconds });
 
   return { allowed: true, remaining: max - count - 1 };
 }
 
 /**
- * Extract user ID and email from the session cookie without full auth verification.
- * Lightweight — no service binding call. Safe for rate-limit keying because
- * worst case a forged ID just gets its own separate rate limit bucket.
+ * Extract user ID from session cookie by verifying the HMAC signature.
+ * Returns null if cookie is missing, malformed, or signature is invalid.
  */
-function extractSessionFromCookie(request: Request): { userId: string; email: string } | null {
+async function extractVerifiedSession(
+  request: Request,
+  authSecret: string | undefined,
+): Promise<{ userId: string; email: string } | null> {
+  if (!authSecret) return null;
   const cookie = request.headers.get('Cookie') || '';
   const match = cookie.match(new RegExp(`(^| )${COOKIE_NAME}=([^;]+)`));
   if (!match) return null;
+
+  const token = match[2];
+  const [dataB64, sigB64] = token.split('.');
+  if (!dataB64 || !sigB64) return null;
+
   try {
-    const [dataB64] = match[2].split('.');
-    const padded = dataB64.replace(/-/g, '+').replace(/_/g, '/');
-    const decoded = JSON.parse(atob(padded));
+    const encoder = new TextEncoder();
+    const standardData = dataB64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(dataB64.length + (4 - dataB64.length % 4) % 4, '=');
+    const data = atob(standardData);
+
+    // Verify HMAC
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(authSecret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['verify'],
+    );
+    const standardSig = sigB64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(sigB64.length + (4 - sigB64.length % 4) % 4, '=');
+    const sigBytes = Uint8Array.from(atob(standardSig), (c) => c.charCodeAt(0));
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, encoder.encode(data));
+    if (!valid) return null;
+
+    const decoded = JSON.parse(data);
     if (decoded.id && decoded.email) {
       return { userId: decoded.id, email: decoded.email };
     }
@@ -66,7 +91,7 @@ function extractSessionFromCookie(request: Request): { userId: string; email: st
 
 /**
  * User-aware rate limiter for authenticated endpoints.
- * Uses user ID from cookie if available, falls back to IP.
+ * Verifies session HMAC before trusting user identity.
  * Super admins bypass rate limits entirely.
  *
  * Returns a 429 Response if rate limited, or null if allowed.
@@ -76,12 +101,13 @@ export async function rateLimitUser(
   kv: KVNamespace,
   endpoint: string,
   max: number,
-  windowSeconds: number
+  windowSeconds: number,
+  authSecret?: string,
 ): Promise<Response | null> {
-  const session = extractSessionFromCookie(request);
+  const session = await extractVerifiedSession(request, authSecret);
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
 
-  // Super admin bypass
+  // Super admin bypass — only trusted after HMAC verification
   if (session && SUPER_ADMIN_EMAILS.includes(session.email as any)) {
     return null;
   }

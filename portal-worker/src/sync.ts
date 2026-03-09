@@ -1148,7 +1148,7 @@ async function runPostSync(env: any, cursor: SyncCursor): Promise<void> {
         new Request('https://documents-worker/api/processing/relink-all', {
           method: 'POST',
           headers: {
-            'X-API-Key': env.PROCESSING_API_KEY || 'mmw-proc-2024-secure-key',
+            'X-API-Key': env.PROCESSING_API_KEY,
             'Content-Type': 'application/json'
           }
         })

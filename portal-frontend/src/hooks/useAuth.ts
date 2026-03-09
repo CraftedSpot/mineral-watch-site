@@ -27,7 +27,7 @@ export function useAuth() {
           plan: data.plan || 'Free',
           organizationId: data.organizationId || null,
           organizationRole: data.organizationRole || null,
-          isSuperAdmin: data.email === 'james@mymineralwatch.com',
+          isSuperAdmin: data.isSuperAdmin ?? false,
         });
         setLoading(false);
       })

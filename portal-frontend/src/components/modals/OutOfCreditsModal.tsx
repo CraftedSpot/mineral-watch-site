@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useModal } from '../../contexts/ModalContext';
 import { MODAL_TYPES, OIL_NAVY, BORDER, TEXT_MUTED, TEXT_FAINT } from '../../lib/constants';
 import { ModalShell } from '../ui/ModalShell';
@@ -80,8 +81,9 @@ export function OutOfCreditsModal({ onClose, isLifetimeTier, resetDate }: Props)
           </button>
 
           {/* Upgrade Plan */}
-          <a
-            href="/portal/account"
+          <Link
+            to="/portal/account"
+            onClick={onClose}
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
               padding: '10px 12px', background: '#fff',
@@ -96,7 +98,7 @@ export function OutOfCreditsModal({ onClose, isLifetimeTier, resetDate }: Props)
               <div style={{ fontWeight: 500 }}>Upgrade Plan</div>
               <div style={{ fontSize: 12, color: TEXT_MUTED }}>More monthly credits + bonus</div>
             </div>
-          </a>
+          </Link>
         </div>
       </div>
 

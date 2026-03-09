@@ -10,9 +10,9 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" as="script" />
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js" as="script" />
+    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js" as="script" />
     <style>
         :root { 
             /* UI Palette */
@@ -422,22 +422,7 @@
         }
         
         .occ-warning-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 16px;
-            height: 16px;
-            background: #F59E0B;
-            color: white;
-            border-radius: 50%;
-            font-size: 11px;
-            font-weight: bold;
-            cursor: help;
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 10;
+            display: none;
         }
         
         .occ-tooltip {
@@ -1791,6 +1776,7 @@
             min-width: 110px;
             justify-content: center;
         }
+        .map-well-footer-grid .occ-warning { display: flex; align-items: stretch; }
         .map-well-footer-grid .occ-warning .action-btn { min-width: 110px; }
         .action-btn.secondary:hover { background: #FFF5F0; }
         .action-btn.outline { background: white; color: var(--slate-blue); border: 1px solid var(--border); }
@@ -3409,8 +3395,8 @@
             <div class="well-modal-actions" id="wellModalActions" style="padding: 16px 20px; border-top: 1px solid #e5e7eb; background: white;">
                 <div class="map-well-footer-grid">
                     <div class="map-well-footer-left">
-                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map ↗</button>
-                        <button type="button" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</button>
+                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map</button>
+                        <button type="button" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map</button>
                     </div>
                     <div class="map-well-footer-right">
                         <div class="occ-warning" style="position: relative;">
@@ -3420,7 +3406,7 @@
                                 <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
                             </div>
                         </div>
-                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report ↗</button>
+                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report</button>
                     </div>
                 </div>
                 <div id="wellModalTrackRow" style="display: none; margin-top: 10px;">
@@ -3532,6 +3518,9 @@
         </div>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
     <script>
 /* __MAP_SHARED_AUTH__ */
 /* __MAP_SHARED_UTILS__ */

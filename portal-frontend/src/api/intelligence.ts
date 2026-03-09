@@ -15,6 +15,7 @@ import type {
   OperatorDirectoryEntry,
   OperatorEfficiencyEntry,
   OperatorDetailData,
+  CategoryBreakdownData,
 } from '../types/intelligence';
 
 // ── Summary & Insights ──
@@ -39,6 +40,11 @@ export function fetchOperatorComparison(): Promise<OperatorComparisonData> {
 
 export function fetchDeductionResearch(): Promise<DeductionResearchData> {
   return apiFetch('/api/intelligence/deduction-research');
+}
+
+export function fetchDeductionCategories(apiNumber?: string): Promise<CategoryBreakdownData> {
+  const params = apiNumber ? `?api_number=${encodeURIComponent(apiNumber)}` : '';
+  return apiFetch(`/api/intelligence/deduction-categories${params}`);
 }
 
 // ── Production Decline ──

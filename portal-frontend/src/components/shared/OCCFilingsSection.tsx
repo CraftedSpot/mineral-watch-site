@@ -265,7 +265,11 @@ export function OCCFilingsSection({ apiNumber, section, township, range, onCount
     modal.open(MODAL_TYPES.DOCUMENT_DETAIL, { docId });
   }, [modal]);
 
-  if (loading) return <SkeletonRows count={3} />;
+  if (loading) return (
+    <div style={{ padding: '16px 8px', textAlign: 'center', fontSize: 13, color: '#6b7280', animation: 'pulse 1.5s ease-in-out infinite' }}>
+      Searching OCC filings...
+    </div>
+  );
   if (error) return <div style={{ color: '#dc2626', fontSize: 12, padding: 8 }}>Failed to load filings</div>;
   if (!data || (data.direct.length === 0 && data.adjacent.length === 0)) {
     return <div style={{ color: SLATE, fontSize: 12, padding: 8, textAlign: 'center' }}>No filings found</div>;

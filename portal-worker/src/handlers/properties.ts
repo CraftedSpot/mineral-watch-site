@@ -432,6 +432,9 @@ export async function handleBulkDeleteProperties(request: Request, env: Env) {
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return jsonResponse({ error: "Missing ids array" }, 400);
   }
+  if (ids.length > 500) {
+    return jsonResponse({ error: "Cannot delete more than 500 items at once" }, 400);
+  }
 
   const userOrg = userRecord?.fields.Organization?.[0];
   const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrg);

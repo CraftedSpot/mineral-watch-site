@@ -1012,6 +1012,7 @@
             min-width: 110px;
             justify-content: center;
         }
+        .well-footer-grid .occ-warning { display: flex; align-items: stretch; }
         .well-footer-grid .occ-warning .action-btn { min-width: 110px; }
 
         /* Property Footer Grid */
@@ -1482,18 +1483,7 @@
         }
         
         .occ-warning-icon {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 16px;
-            height: 16px;
-            margin-left: 6px;
-            background: #F59E0B;
-            color: white;
-            border-radius: 50%;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: help;
+            display: none;
         }
         
         .occ-tooltip {

@@ -2766,6 +2766,19 @@ export default {
             || null;
         }
 
+        // Final fallback: source_metadata county (from ingest-cli folder name)
+        if (!resolvedCounty) {
+          try {
+            const smRow = await env.WELLS_DB.prepare(
+              `SELECT source_metadata FROM documents WHERE id = ?`
+            ).bind(docId).first() as any;
+            if (smRow?.source_metadata) {
+              const sm = JSON.parse(smRow.source_metadata);
+              resolvedCounty = sm.county || null;
+            }
+          } catch (_) { /* non-fatal */ }
+        }
+
         // Normalize range — strip meridian suffixes (ECM→E, WCM→W, EIM→E, WIM→W)
         // and populate meridian column separately
         let normalizedRange = range ?? null;
@@ -4117,7 +4130,7 @@ export default {
 
         // Get parent document info
         const parentDoc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename, user_id, organization_id, user_plan, user_email, user_name
+          SELECT r2_key, filename, user_id, organization_id, user_plan, user_email, user_name, source_metadata
           FROM documents
           WHERE id = ? AND deleted_at IS NULL
         `).bind(parentDocId).first();
@@ -4143,6 +4156,15 @@ export default {
         } catch (loadErr) {
           console.error(`[Split] Failed to load parent PDF for extraction, children will share parent r2_key:`, loadErr);
         }
+
+        // Parse parent source_metadata for fallback county/TRS
+        let parentCounty: string | null = null;
+        try {
+          if (parentDoc.source_metadata) {
+            const sm = JSON.parse(parentDoc.source_metadata as string);
+            parentCounty = sm.county || null;
+          }
+        } catch (_) { /* non-fatal */ }
 
         // Create child documents
         const childIds = [];
@@ -4210,7 +4232,7 @@ export default {
             child.display_name,
             child.category,
             child.confidence,
-            child.county,
+            child.county || parentCounty,
             child.section,
             child.township,
             child.range,

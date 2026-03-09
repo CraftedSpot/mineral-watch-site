@@ -56,7 +56,8 @@ export async function handleGetOperatorDirectory(request: Request, env: Env): Pr
     const minWells = parseInt(url.searchParams.get('min_wells') || '20');
 
     // Cache key
-    const cacheKey = `operator-directory-v4:${minWells}:${search.substring(0, 20)}`;
+    const safeCacheSearch = search.replace(/[^A-Z0-9 ]/g, '').substring(0, 20);
+    const cacheKey = `operator-directory-v4:${minWells}:${safeCacheSearch}`;
 
     // Check cache
     if (env.OCC_CACHE) {
@@ -181,9 +182,11 @@ export async function handleGetOperatorEfficiency(request: Request, env: Env): P
     const minWells = parseInt(url.searchParams.get('min_wells') || '20');
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 500);
     const offset = parseInt(url.searchParams.get('offset') || '0');
-    const sort = url.searchParams.get('sort') || 'well_count';
+    const VALID_SORTS = ['well_count', 'net_value_return', 'pcrr', 'pcrr_value', 'deductions', 'name'];
+    const sortRaw = url.searchParams.get('sort') || 'well_count';
+    const sort = VALID_SORTS.includes(sortRaw) ? sortRaw : 'well_count';
 
-    // Cache key
+    // Cache key — sort is validated against allowlist above
     const cacheKey = `operator-efficiency-v1:${minWells}:${limit}:${offset}:${sort}`;
 
     // Check cache

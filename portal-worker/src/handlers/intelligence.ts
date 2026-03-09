@@ -7400,3 +7400,342 @@ export async function handleGetWellRiskProfile(request: Request, env: Env, ctx?:
     }, 500);
   }
 }
+
+// ============================================================
+// Deduction Categories — Category-level breakdown from check stubs
+// ============================================================
+
+const CATEGORY_BUCKETS: Record<string, { bucket: string; label: string }> = {
+  gathering:      { bucket: 'field_services', label: 'Field Services' },
+  compression:    { bucket: 'field_services', label: 'Field Services' },
+  treating:       { bucket: 'field_services', label: 'Field Services' },
+  processing:     { bucket: 'plant',          label: 'Plant' },
+  fuel:           { bucket: 'plant',          label: 'Plant' },
+  transportation: { bucket: 'marketing',      label: 'Marketing' },
+  marketing:      { bucket: 'marketing',      label: 'Marketing' },
+  other:          { bucket: 'other',          label: 'Other' },
+};
+
+const MIN_PERCENTILE_OBS = 5;
+
+function computePercentiles(values: number[]): { p25: number; p50: number; p75: number; p90: number } | null {
+  if (values.length < MIN_PERCENTILE_OBS) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const pct = (p: number) => sorted[Math.min(Math.floor(p * sorted.length), sorted.length - 1)];
+  return { p25: pct(0.25), p50: pct(0.5), p75: pct(0.75), p90: pct(0.9) };
+}
+
+export async function handleGetDeductionCategories(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isPortfolioAllowed((userRecord.fields as any).Plan)) {
+      return jsonResponse({ error: 'Intelligence features are not available for your plan' }, 403);
+    }
+
+    const db = env.WELLS_DB;
+    if (!db) return jsonResponse({ error: 'Database not available' }, 503);
+
+    const url = new URL(request.url);
+    const filterApiNumber = url.searchParams.get('api_number') || null;
+
+    // Check KV cache
+    const cacheId = filterApiNumber || userOrgId || authUser.id;
+    const cacheKey = `deduction-cat:${cacheId}`;
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (_) {}
+    }
+
+    // Get user's wells
+    const memberIds = await getOrgMemberIds(db, userOrgId);
+    const { where: ownerWhere, params: ownerParams } = buildOwnershipFilter('cw', userOrgId, authUser.id, memberIds);
+    const wellsResult = await db.prepare(
+      `SELECT api_number FROM client_wells cw WHERE ${ownerWhere}`
+    ).bind(...ownerParams).all();
+    const userApis = [...new Set(
+      (wellsResult.results as Array<{ api_number: string }>)
+        .map(r => r.api_number)
+        .filter(Boolean)
+        .map(a => a.replace(/-/g, '').substring(0, 10))
+    )];
+
+    if (userApis.length === 0) {
+      return jsonResponse({ wells: [] });
+    }
+
+    // Filter to single well if requested
+    const targetApis = filterApiNumber
+      ? userApis.filter(a => a === filterApiNumber.replace(/-/g, '').substring(0, 10))
+      : userApis;
+
+    if (targetApis.length === 0) {
+      return jsonResponse({ wells: [] });
+    }
+
+    // Query observations + line items for user's wells in batches
+    type ObsRow = {
+      obs_id: number; api_number: string; well_name: string | null;
+      operator_name: string; operator_number: string | null; county: string;
+      interest_type: string | null; total_gross: number;
+    };
+    type LineRow = {
+      observation_id: number; product_type: string; category: string;
+      raw_label: string; amount: number;
+    };
+
+    const allObs: ObsRow[] = [];
+    const allLines: LineRow[] = [];
+
+    // Batch queries — 30 APIs per batch (90 params max including joins)
+    for (let i = 0; i < targetApis.length; i += 30) {
+      const batch = targetApis.slice(i, i + 30);
+      const ph = batch.map(() => '?').join(',');
+
+      const obsResult = await db.prepare(`
+        SELECT do.id as obs_id, do.api_number, do.well_name,
+          do.operator_name, do.operator_number, do.county,
+          do.interest_type, do.total_gross
+        FROM deduction_observations do
+        WHERE do.api_number IN (${ph})
+          AND do.source = 'check_stub'
+      `).bind(...batch).all();
+      allObs.push(...(obsResult.results as ObsRow[]));
+
+      const lineResult = await db.prepare(`
+        SELECT dli.observation_id, dli.product_type, dli.category, dli.raw_label, dli.amount
+        FROM deduction_line_items dli
+        JOIN deduction_observations do ON dli.observation_id = do.id
+        WHERE do.api_number IN (${ph})
+          AND do.source = 'check_stub'
+      `).bind(...batch).all();
+      allLines.push(...(lineResult.results as LineRow[]));
+    }
+
+    if (allObs.length === 0) {
+      return jsonResponse({ wells: [] });
+    }
+
+    // Group observations by API number
+    const obsByApi = new Map<string, ObsRow[]>();
+    for (const obs of allObs) {
+      if (!obsByApi.has(obs.api_number)) obsByApi.set(obs.api_number, []);
+      obsByApi.get(obs.api_number)!.push(obs);
+    }
+
+    // Group line items by observation_id
+    const linesByObs = new Map<number, LineRow[]>();
+    for (const li of allLines) {
+      if (!linesByObs.has(li.observation_id)) linesByObs.set(li.observation_id, []);
+      linesByObs.get(li.observation_id)!.push(li);
+    }
+
+    // Collect unique operator+county pairs for percentile queries
+    const peerKeys = new Set<string>();
+    for (const obs of allObs) {
+      if (obs.operator_number && obs.county) {
+        peerKeys.add(`${obs.operator_number}|${obs.county}|${obs.interest_type || ''}`);
+      }
+    }
+
+    // Query percentile peer data — all observations for same operator+county+interest_type
+    const peerPercentiles = new Map<string, Record<string, { p25: number; p50: number; p75: number; p90: number } | null>>();
+    const peerList = [...peerKeys].map(k => {
+      const [opNum, county, intType] = k.split('|');
+      return { opNum, county, intType: intType || null, key: k };
+    });
+
+    for (let i = 0; i < peerList.length; i += 20) {
+      const peerBatch = peerList.slice(i, i + 20);
+      // Query each peer group individually to stay within param limits
+      for (const peer of peerBatch) {
+        try {
+          const interestFilter = peer.intType
+            ? `AND do.interest_type = ?`
+            : `AND (do.interest_type IS NULL OR do.interest_type = '')`;
+          const binds = peer.intType
+            ? [peer.opNum, peer.county, peer.intType]
+            : [peer.opNum, peer.county];
+
+          const peerResult = await db.prepare(`
+            SELECT dli.category, dli.amount, do.total_gross
+            FROM deduction_line_items dli
+            JOIN deduction_observations do ON dli.observation_id = do.id
+            WHERE do.operator_number = ? AND do.county = ?
+              AND do.source = 'check_stub'
+              ${interestFilter}
+          `).bind(...binds).all();
+
+          // Aggregate by bucket per observation (total_gross is at obs level)
+          // We compute pct_of_gross per bucket per observation, then percentile across observations
+          const obsGross = new Map<number, number>();
+          const obsBucketAmounts = new Map<number, Map<string, number>>();
+
+          for (const r of peerResult.results as Array<{ category: string; amount: number; total_gross: number; observation_id?: number }>) {
+            // We need observation_id — re-query with it
+            // Actually the JOIN gives us the data but we don't have obs_id in this query. Let me fix.
+          }
+
+          // Simpler approach: group by bucket, compute pct from total amounts
+          const bucketAmounts: Record<string, number[]> = {};
+          // We need per-observation bucket pcts. Re-query with obs grouping.
+          const peerDetailResult = await db.prepare(`
+            SELECT do.id as obs_id, do.total_gross, dli.category, SUM(ABS(dli.amount)) as bucket_amount
+            FROM deduction_line_items dli
+            JOIN deduction_observations do ON dli.observation_id = do.id
+            WHERE do.operator_number = ? AND do.county = ?
+              AND do.source = 'check_stub'
+              ${interestFilter}
+            GROUP BY do.id, dli.category
+          `).bind(...binds).all();
+
+          // Aggregate categories into buckets, compute pct per observation
+          const obsBucketPcts = new Map<number, Map<string, number>>();
+          const obsGrossMap = new Map<number, number>();
+
+          for (const r of peerDetailResult.results as Array<{ obs_id: number; total_gross: number; category: string; bucket_amount: number }>) {
+            const bucketInfo = CATEGORY_BUCKETS[r.category] || CATEGORY_BUCKETS.other;
+            const bucket = bucketInfo.bucket;
+            obsGrossMap.set(r.obs_id, r.total_gross);
+
+            if (!obsBucketPcts.has(r.obs_id)) obsBucketPcts.set(r.obs_id, new Map());
+            const bucketMap = obsBucketPcts.get(r.obs_id)!;
+            bucketMap.set(bucket, (bucketMap.get(bucket) || 0) + r.bucket_amount);
+          }
+
+          // Convert to pct arrays per bucket
+          const bucketPctArrays: Record<string, number[]> = {};
+          for (const [obsId, bucketMap] of obsBucketPcts) {
+            const gross = obsGrossMap.get(obsId) || 1;
+            for (const [bucket, amount] of bucketMap) {
+              if (!bucketPctArrays[bucket]) bucketPctArrays[bucket] = [];
+              bucketPctArrays[bucket].push(amount / gross);
+            }
+          }
+
+          // Compute percentiles per bucket
+          const percentiles: Record<string, { p25: number; p50: number; p75: number; p90: number } | null> = {};
+          for (const bucket of ['field_services', 'plant', 'marketing', 'other']) {
+            percentiles[bucket] = computePercentiles(bucketPctArrays[bucket] || []);
+          }
+
+          peerPercentiles.set(peer.key, percentiles);
+        } catch (e) {
+          console.error(`[Deduction Categories] Peer percentile error for ${peer.opNum}/${peer.county}:`, e);
+        }
+      }
+    }
+
+    // Build response
+    const wells: Array<{
+      api_number: string; well_name: string | null; operator: string;
+      county: string; interest_type: string | null; observation_count: number;
+      buckets: Array<{
+        bucket: string; bucket_label: string;
+        total_amount: number; pct_of_gross: number;
+        categories: Array<{ category: string; total_amount: number; raw_labels: string[] }>;
+      }>;
+      percentiles: Record<string, { p25: number; p50: number; p75: number; p90: number } | null>;
+    }> = [];
+
+    for (const [apiNumber, obsGroup] of obsByApi) {
+      // Use first observation for metadata (they should all have same well info)
+      const firstObs = obsGroup[0];
+      const totalGross = obsGroup.reduce((s, o) => s + (o.total_gross || 0), 0);
+
+      // Aggregate all line items across all observations for this well
+      const bucketData = new Map<string, { amount: number; categories: Map<string, { amount: number; labels: Set<string> }> }>();
+
+      for (const obs of obsGroup) {
+        const lines = linesByObs.get(obs.obs_id) || [];
+        for (const li of lines) {
+          const bucketInfo = CATEGORY_BUCKETS[li.category] || CATEGORY_BUCKETS.other;
+          const bucket = bucketInfo.bucket;
+
+          if (!bucketData.has(bucket)) {
+            bucketData.set(bucket, { amount: 0, categories: new Map() });
+          }
+          const bd = bucketData.get(bucket)!;
+          bd.amount += Math.abs(li.amount);
+
+          if (!bd.categories.has(li.category)) {
+            bd.categories.set(li.category, { amount: 0, labels: new Set() });
+          }
+          const cat = bd.categories.get(li.category)!;
+          cat.amount += Math.abs(li.amount);
+          if (li.raw_label) cat.labels.add(li.raw_label);
+        }
+      }
+
+      // Build bucket array
+      const buckets = [];
+      for (const [bucket, bd] of bucketData) {
+        const bucketLabel = bucket === 'field_services' ? 'Field Services'
+          : bucket === 'plant' ? 'Plant'
+          : bucket === 'marketing' ? 'Marketing'
+          : 'Other';
+
+        buckets.push({
+          bucket,
+          bucket_label: bucketLabel,
+          total_amount: -bd.amount, // negative (deduction)
+          pct_of_gross: totalGross > 0 ? bd.amount / totalGross : 0,
+          categories: [...bd.categories].map(([cat, cd]) => ({
+            category: cat,
+            total_amount: -cd.amount,
+            raw_labels: [...cd.labels],
+          })).sort((a, b) => a.total_amount - b.total_amount), // most deducted first (most negative)
+        });
+      }
+
+      // Sort buckets: field_services, plant, marketing, other
+      const bucketOrder = ['field_services', 'plant', 'marketing', 'other'];
+      buckets.sort((a, b) => bucketOrder.indexOf(a.bucket) - bucketOrder.indexOf(b.bucket));
+
+      // Look up percentiles for this well's operator+county+interest_type
+      const peerKey = firstObs.operator_number && firstObs.county
+        ? `${firstObs.operator_number}|${firstObs.county}|${firstObs.interest_type || ''}`
+        : null;
+      const percentiles = peerKey ? (peerPercentiles.get(peerKey) || {}) : {};
+
+      wells.push({
+        api_number: apiNumber,
+        well_name: firstObs.well_name,
+        operator: firstObs.operator_name,
+        county: firstObs.county,
+        interest_type: firstObs.interest_type,
+        observation_count: obsGroup.length,
+        buckets,
+        percentiles,
+      });
+    }
+
+    const responseData = { wells };
+
+    // Cache for 24h
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, JSON.stringify(responseData), { expirationTtl: 86400 });
+      } catch (_) {}
+    }
+
+    return jsonResponse(responseData);
+
+  } catch (error) {
+    console.error('[Deduction Categories] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load deduction categories',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}

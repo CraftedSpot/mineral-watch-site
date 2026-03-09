@@ -23,7 +23,7 @@ export const CREDIT_PACKS: CreditPack[] = [
  *  Throws on network/API errors — caller should catch and show toast. */
 export async function purchaseCreditPack(packId: string): Promise<void> {
   // Build return URL pointing to React portal so Stripe redirects back here
-  const returnUrl = `${window.location.origin}/portal/react?tab=documents`;
+  const returnUrl = `${window.location.origin}/portal?tab=documents`;
 
   const res = await fetch('/api/documents/checkout/credit-pack', {
     method: 'POST',

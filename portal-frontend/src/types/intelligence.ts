@@ -102,6 +102,44 @@ export interface DeductionReportData {
   };
 }
 
+// ── Deduction Categories ──
+
+export interface DeductionCategoryDetail {
+  category: string;
+  total_amount: number;
+  raw_labels: string[];
+}
+
+export interface DeductionBucket {
+  bucket: string;
+  bucket_label: string;
+  total_amount: number;
+  pct_of_gross: number;
+  categories: DeductionCategoryDetail[];
+}
+
+export interface DeductionPercentiles {
+  p25: number;
+  p50: number;
+  p75: number;
+  p90: number;
+}
+
+export interface WellCategoryData {
+  api_number: string;
+  well_name: string | null;
+  operator: string;
+  county: string;
+  interest_type: string | null;
+  observation_count: number;
+  buckets: DeductionBucket[];
+  percentiles: Record<string, DeductionPercentiles | null>;
+}
+
+export interface CategoryBreakdownData {
+  wells: WellCategoryData[];
+}
+
 // ── Operator Comparison ──
 
 export interface OperatorComparisonEntry {

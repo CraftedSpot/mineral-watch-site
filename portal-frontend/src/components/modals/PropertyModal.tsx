@@ -60,7 +60,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
   const { data: properties, reload: reloadProperties } = useProperties();
   const [saving, setSaving] = useState(false);
   const [meridian, setMeridian] = useState('IM');
-  const [occCount, setOccCount] = useState<number | null>(null);
+  const [occCountOverride, setOccCountOverride] = useState<number | null>(null);
 
   const prop = useMemo(() => properties.find((p) => p.id === propertyId), [properties, propertyId]);
   const f = prop?.fields;
@@ -359,12 +359,12 @@ export function PropertyModal({ onClose, propertyId }: Props) {
       </AccordionSection>
 
       {/* OCC Filings */}
-      <AccordionSection title="OCC Filings" count={occCount}>
+      <AccordionSection title="OCC Filings" count={occCountOverride ?? prop?._linkCounts?.filings ?? null}>
         <OCCFilingsSection
           section={f.SEC as string}
           township={f.TWN as string}
           range={f.RNG as string}
-          onCountChange={setOccCount}
+          onCountChange={setOccCountOverride}
         />
       </AccordionSection>
 

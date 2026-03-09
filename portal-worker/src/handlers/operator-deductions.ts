@@ -463,8 +463,22 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
     console.log(`[Ingest Stubs] Found ${docs.length} check stub documents`);
 
     let observationsCreated = 0;
+    let lineItemsCreated = 0;
     let documentsProcessed = 0;
     const wellsCovered = new Set<string>();
+
+    // Track observations for line item insertion (api_number + prodMonth → lineItems)
+    interface PendingLineItem {
+      product_type: string;
+      category: string;
+      raw_label: string;
+      amount: number;
+    }
+    interface PendingObservation {
+      apiNumber: string;
+      prodMonth: string;
+      lineItems: PendingLineItem[];
+    }
 
     for (const doc of docs) {
       try {
@@ -472,6 +486,10 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
         if (!data.wells || !Array.isArray(data.wells)) continue;
 
         const stmts: D1PreparedStatement[] = [];
+        const pendingObs: PendingObservation[] = [];
+
+        // Extract interest_type from top-level check stub data
+        const interestType = data.interest_type || null;
 
         for (const well of data.wells) {
           const apiNumber = well.api_number || data.api_number;
@@ -500,7 +518,7 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
             const prodMonth = month.production_month || month.period;
             if (!prodMonth) continue;
 
-            // Sum product-level data
+            // Sum product-level data + collect category line items
             let oilGross = 0, gasGross = 0, nglGross = 0;
             let oilDeductions = 0, gasDeductions = 0, nglDeductions = 0;
             let taxes = 0;
@@ -508,30 +526,67 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
             let oilPrice: number | null = null;
             let gasPurchaser: string | null = null;
             let gasPrice: number | null = null;
+            const allLineItems: PendingLineItem[] = [];
 
             const products = month.products || [];
             for (const p of products) {
-              const type = (p.type || p.product || '').toLowerCase();
+              // Fix: extraction prompt uses product_type, not type
+              const type = (p.product_type || p.type || p.product || '').toLowerCase();
               const gross = parseFloat(p.gross_value || p.gross || 0) || 0;
-              const deductions = parseFloat(p.deductions || p.marketing || 0) || 0;
-              const tax = parseFloat(p.taxes || p.tax || 0) || 0;
 
-              if (type.includes('oil') || type.includes('crude')) {
+              // Determine product bucket
+              let productType: string;
+              if (type.includes('oil') || type.includes('crude') || type.includes('condensate')) {
+                productType = 'oil';
+              } else if (type.includes('ngl') || type.includes('liquids') || type.includes('plant')) {
+                productType = 'ngl';
+              } else {
+                productType = 'gas';
+              }
+
+              // Parse deductions — may be array of { raw_label, normalized_category, amount } or flat number
+              let productDeductions = 0;
+              if (Array.isArray(p.deductions)) {
+                for (const d of p.deductions) {
+                  const amt = parseFloat(d.amount || 0) || 0;
+                  productDeductions += Math.abs(amt);
+                  allLineItems.push({
+                    product_type: productType,
+                    category: d.normalized_category || 'other',
+                    raw_label: d.raw_label || '',
+                    amount: amt < 0 ? amt : -Math.abs(amt), // ensure negative
+                  });
+                }
+              } else {
+                // Flat format fallback — single deduction value, no category detail
+                productDeductions = Math.abs(parseFloat(p.total_deductions || p.deductions || p.marketing || 0) || 0);
+              }
+
+              // Parse taxes
+              let productTaxes = 0;
+              if (Array.isArray(p.taxes)) {
+                for (const t of p.taxes) {
+                  productTaxes += Math.abs(parseFloat(t.amount || 0) || 0);
+                }
+              } else {
+                productTaxes = Math.abs(parseFloat(p.total_taxes || p.taxes || p.tax || 0) || 0);
+              }
+
+              if (productType === 'oil') {
                 oilGross += gross;
-                oilDeductions += deductions;
+                oilDeductions += productDeductions;
                 oilPurchaser = p.purchaser || oilPurchaser;
                 oilPrice = p.price_per_unit || p.price || oilPrice;
-              } else if (type.includes('ngl') || type.includes('liquids')) {
+              } else if (productType === 'ngl') {
                 nglGross += gross;
-                nglDeductions += deductions;
+                nglDeductions += productDeductions;
               } else {
-                // gas or residue
                 gasGross += gross;
-                gasDeductions += deductions;
+                gasDeductions += productDeductions;
                 gasPurchaser = p.purchaser || gasPurchaser;
                 gasPrice = p.price_per_unit || p.price || gasPrice;
               }
-              taxes += tax;
+              taxes += productTaxes;
             }
 
             // Also support flat format (not nested products)
@@ -559,8 +614,8 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
                  oil_deductions, gas_deductions, ngl_deductions, taxes,
                  total_deductions, total_net, effective_deduction_pct,
                  oil_purchaser, oil_price_per_bbl, gas_purchaser, gas_price_per_mcf,
-                 source, source_document_id)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'check_stub', ?)
+                 source, source_document_id, interest_type)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'check_stub', ?, ?)
               ON CONFLICT(api_number, production_month, source) DO UPDATE SET
                 well_name = excluded.well_name,
                 operator_name = excluded.operator_name,
@@ -581,7 +636,8 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
                 oil_price_per_bbl = excluded.oil_price_per_bbl,
                 gas_purchaser = excluded.gas_purchaser,
                 gas_price_per_mcf = excluded.gas_price_per_mcf,
-                source_document_id = excluded.source_document_id
+                source_document_id = excluded.source_document_id,
+                interest_type = excluded.interest_type
             `).bind(
               apiNumber,
               well.well_name || data.well_name || null,
@@ -593,18 +649,52 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
               oilDeductions, gasDeductions, nglDeductions, taxes,
               totalDeductions, totalNet, effectivePct,
               oilPurchaser, oilPrice, gasPurchaser, gasPrice,
-              doc.id
+              doc.id,
+              interestType
             ));
+
+            // Track for line item insertion
+            if (allLineItems.length > 0) {
+              pendingObs.push({ apiNumber, prodMonth, lineItems: allLineItems });
+            }
 
             observationsCreated++;
             wellsCovered.add(apiNumber);
           }
         }
 
-        // Execute batch
+        // Execute observation batch
         for (let j = 0; j < stmts.length; j += 400) {
           await db.batch(stmts.slice(j, j + 400));
         }
+
+        // Now insert line items — look up observation_id for each pending observation
+        for (const obs of pendingObs) {
+          try {
+            const row = await db.prepare(
+              `SELECT id FROM deduction_observations WHERE api_number = ? AND production_month = ? AND source = 'check_stub'`
+            ).bind(obs.apiNumber, obs.prodMonth).first<{ id: number }>();
+            if (!row) continue;
+
+            const lineStmts: D1PreparedStatement[] = [
+              // Delete existing line items (idempotent re-ingest)
+              db.prepare(`DELETE FROM deduction_line_items WHERE observation_id = ?`).bind(row.id),
+              // Insert new line items
+              ...obs.lineItems.map(li =>
+                db.prepare(
+                  `INSERT INTO deduction_line_items (observation_id, product_type, category, raw_label, amount) VALUES (?, ?, ?, ?, ?)`
+                ).bind(row.id, li.product_type, li.category, li.raw_label, li.amount)
+              ),
+            ];
+
+            // Execute (1 delete + N inserts, well under D1 500 batch limit)
+            await db.batch(lineStmts);
+            lineItemsCreated += obs.lineItems.length;
+          } catch (liErr) {
+            console.error(`[Ingest Stubs] Line item error for ${obs.apiNumber}/${obs.prodMonth}:`, liErr);
+          }
+        }
+
         documentsProcessed++;
 
       } catch (e) {
@@ -612,12 +702,13 @@ export async function handleIngestCheckStubDeductions(request: Request, env: Env
       }
     }
 
-    console.log(`[Ingest Stubs] Processed ${documentsProcessed} docs, ${observationsCreated} observations, ${wellsCovered.size} wells`);
+    console.log(`[Ingest Stubs] Processed ${documentsProcessed} docs, ${observationsCreated} observations, ${lineItemsCreated} line items, ${wellsCovered.size} wells`);
 
     return jsonResponse({
       success: true,
       documents_processed: documentsProcessed,
       observations_created: observationsCreated,
+      line_items_created: lineItemsCreated,
       wells_covered: wellsCovered.size
     });
 

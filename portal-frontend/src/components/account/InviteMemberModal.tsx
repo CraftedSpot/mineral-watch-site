@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ModalShell } from '../ui/ModalShell';
 import { TextInput, Select } from '../ui/FormField';
 import { Button } from '../ui/Button';
-import { SLATE, TEXT_DARK } from '../../lib/constants';
+import { SLATE, TEXT_DARK, MODAL_BASE_Z } from '../../lib/constants';
 import { inviteMember } from '../../api/account';
 import { useToast } from '../../contexts/ToastContext';
 import { getPlanConfig } from '../../lib/plan-config';
@@ -50,7 +50,7 @@ export function InviteMemberModal({ onClose, onInvited, plan, currentMemberCount
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 1100000,
+      position: 'fixed', inset: 0, zIndex: MODAL_BASE_Z + 50,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.4)',
     }} onClick={onClose}>

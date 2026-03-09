@@ -254,33 +254,6 @@ export function generateTrackWellErrorPage(message: string, showUpgrade: boolean
  * @returns HTML response with tracking result
  */
 export async function handleTrackThisWell(request: Request, env: Env, url: URL): Promise<Response> {
-  // Debug endpoint
-  if (url.pathname === '/debug-token') {
-    const apiNumber = url.searchParams.get('api');
-    const userId = url.searchParams.get('user');
-    const token = url.searchParams.get('token');
-    const exp = url.searchParams.get('exp');
-    
-    if (!apiNumber || !userId || !token || !exp) {
-      return new Response('Missing parameters', { status: 400 });
-    }
-    
-    const expiration = parseInt(exp);
-    const result = await validateTrackToken(userId, apiNumber, expiration, token, env.TRACK_WELL_SECRET || '');
-    
-    return new Response(JSON.stringify({
-      valid: result.valid,
-      error: result.error,
-      apiNumber,
-      userId,
-      tokenFirst8: token.substring(0, 8),
-      hasSecret: !!env.TRACK_WELL_SECRET,
-      secretFirst4: env.TRACK_WELL_SECRET?.substring(0, 4)
-    }, null, 2), {
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-  
   // Normal track-well flow
   const apiNumber = url.searchParams.get('api');
   const userId = url.searchParams.get('user');
@@ -310,9 +283,6 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
     
     // Validate token
     const expiration = parseInt(exp);
-    console.log(`[Track Well] Validating token for API ${apiNumber} (cleaned: ${cleanApi}), user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
-    console.log(`[Track Well] Has TRACK_WELL_SECRET: ${!!env.TRACK_WELL_SECRET}`);
-    console.log(`[Track Well] Secret first 4 chars: ${env.TRACK_WELL_SECRET?.substring(0, 4)}`);
     // Use original apiNumber for token validation (not cleaned)
     const tokenValidation = await validateTrackToken(userId, apiNumber, expiration, token, env.TRACK_WELL_SECRET);
     

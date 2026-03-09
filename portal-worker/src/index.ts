@@ -62,6 +62,7 @@ import {
   timingSafeKeyCheck,
   generateToken,
   verifyToken,
+  verifySessionToken,
   getCookieValue
 } from './utils/auth.js';
 
@@ -399,11 +400,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         return Response.redirect(`${BASE_URL}/portal/login`, 301);
       }
-      if (path === "/portal" || path === "/portal/") {
-        return servePage(dashboardHtml, request, env);
-      }
-      if (path === "/portal/react" || path === "/portal/react/" || path.startsWith("/portal/react/")) {
+      if (path === "/portal" || path === "/portal/" || path === "/portal/react" || path === "/portal/react/" || path.startsWith("/portal/react/")) {
         return servePage(portalReactHtml, request, env);
+      }
+      if (path === "/portal/vanilla" || path === "/portal/vanilla/") {
+        return servePage(dashboardHtml, request, env);
       }
       if (path === "/portal/login" || path === "/portal/login/") {
         return servePage(loginHtml, request, env);
@@ -421,7 +422,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return servePage(oklahomaMapHtml, request, env);
       }
       if (path === "/portal/intelligence" || path === "/portal/intelligence/") {
-        return servePage(intelligenceHtml, request, env);
+        return servePage(portalReactHtml, request, env);
       }
       if (path === "/portal/operators" || path === "/portal/operators/") {
         return servePage(operatorsHtml, request, env);
@@ -618,6 +619,12 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           const token = body?.sessionToken;
           if (!token || typeof token !== 'string') {
             return jsonResponse({ error: 'Missing sessionToken' }, 400);
+          }
+          // Verify HMAC signature before setting cookie
+          try {
+            await verifySessionToken(env, token);
+          } catch {
+            return jsonResponse({ error: 'Invalid session token' }, 400);
           }
           return new Response(JSON.stringify({ success: true }), {
             status: 200,
@@ -1015,6 +1022,9 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         const ids: string[] = body.ids;
         if (!ids || !Array.isArray(ids) || ids.length === 0) {
           return jsonResponse({ error: "Missing ids array" }, 400);
+        }
+        if (ids.length > 500) {
+          return jsonResponse({ error: "Cannot delete more than 500 items at once" }, 400);
         }
 
         let deleted = 0;
@@ -1441,7 +1451,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleBulkValidateProperties(request, env);
       }
       if (path === "/api/bulk-upload-properties" && request.method === "POST") {
-        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600);
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600, env.AUTH_SECRET);
         if (rlResp) return rlResp;
         return handleBulkUploadProperties(request, env, ctx);
       }
@@ -1451,7 +1461,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleBulkValidateWells(request, env);
       }
       if (path === "/api/bulk-upload-wells" && request.method === "POST") {
-        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600);
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'bulk-upload', 5, 3600, env.AUTH_SECRET);
         if (rlResp) return rlResp;
         return handleBulkUploadWells(request, env, ctx);
       }
@@ -1538,7 +1548,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleCountyRecordsInstrumentTypes(request, env);
       }
       if (path === "/api/county-records/search" && request.method === "POST") {
-        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'county-search', 30, 3600);
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'county-search', 30, 3600, env.AUTH_SECRET);
         if (rlResp) return rlResp;
         return handleCountyRecordsSearch(request, env, ctx);
       }
@@ -1790,7 +1800,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       // Intelligence API endpoints (rate limited: 120/hr per user)
       if (path.startsWith("/api/intelligence/") && request.method === "GET") {
-        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'intelligence', 120, 3600);
+        const rlResp = await rateLimitUser(request, env.AUTH_TOKENS, 'intelligence', 120, 3600, env.AUTH_SECRET);
         if (rlResp) return rlResp;
       }
       if (path === "/api/intelligence/data" && request.method === "GET") {
@@ -1816,6 +1826,10 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       if (path === "/api/intelligence/deduction-research" && request.method === "GET") {
         const { handleGetDeductionResearch } = await import('./handlers/intelligence.js');
         return handleGetDeductionResearch(request, env);
+      }
+      if (path === "/api/intelligence/deduction-categories" && request.method === "GET") {
+        const { handleGetDeductionCategories } = await import('./handlers/intelligence.js');
+        return handleGetDeductionCategories(request, env);
       }
       if (path === "/api/intelligence/pooling-report" && request.method === "GET") {
         const { handleGetPoolingReport } = await import('./handlers/intelligence.js');
@@ -2028,11 +2042,6 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
 
       // Track This Well endpoint
       if (path === "/add-well" && request.method === "GET") {
-        return handleTrackThisWell(request, env, url);
-      }
-      
-      // Debug endpoint for token validation
-      if (path === "/debug-token" && request.method === "GET") {
         return handleTrackThisWell(request, env, url);
       }
       

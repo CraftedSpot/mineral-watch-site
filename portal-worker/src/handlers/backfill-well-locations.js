@@ -296,9 +296,9 @@ async function processActivityLog(env, results) {
  */
 export default async function handleBackfillWellLocations(request, env) {
   try {
-    // Check for API key
+    // Check for valid API key
     const authHeader = request.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader || !env.PROCESSING_API_KEY || authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
       return new Response('Unauthorized', { status: 401 });
     }
     

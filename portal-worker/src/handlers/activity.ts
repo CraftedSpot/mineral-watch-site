@@ -220,6 +220,9 @@ export async function handleBulkDeleteActivity(request: Request, env: Env) {
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return jsonResponse({ error: "Missing ids array" }, 400);
   }
+  if (ids.length > 500) {
+    return jsonResponse({ error: "Cannot delete more than 500 items at once" }, 400);
+  }
 
   const userRecord = await getUserFromSession(env, user);
   const userOrganizations = userRecord?.fields.Organization || [];

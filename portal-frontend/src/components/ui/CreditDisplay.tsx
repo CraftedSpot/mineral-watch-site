@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { useModal } from '../../contexts/ModalContext';
 import { BORDER, ORANGE, MODAL_TYPES, TEXT_MUTED, TEXT_DARK, TEXT_FAINT } from '../../lib/constants';
 import { Card } from './Card';
@@ -61,11 +62,11 @@ export function CreditDisplay({ usage, compact }: CreditDisplayProps) {
           {u.total_available.toLocaleString()}
         </span>
         <span style={{ color: TEXT_MUTED }}>available</span>
-        <a href="/portal/account#credits" style={{
+        <Link to="/portal/account" style={{
           color: '#3b82f6', fontSize: 12, textDecoration: 'none', fontWeight: 400, marginLeft: 4,
         }}>
           View details
-        </a>
+        </Link>
         <span style={{ color: '#D1D5DB' }}>&middot;</span>
         <button
           onClick={() => modal.open(MODAL_TYPES.CREDIT_PACK)}

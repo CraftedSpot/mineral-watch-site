@@ -1,9 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useReportData } from '../../../hooks/useReportData';
-import { fetchDeductionReport, fetchOperatorComparison, fetchDeductionResearch, fetchOperatorEfficiency } from '../../../api/intelligence';
+import { fetchDeductionReport, fetchOperatorComparison, fetchDeductionResearch, fetchOperatorEfficiency, fetchDeductionCategories } from '../../../api/intelligence';
 import { useToast } from '../../../contexts/ToastContext';
 import { TabNav } from '../TabNav';
 import { SortableTable } from '../SortableTable';
+import { DonutChart } from '../DonutChart';
 import { OperatorModal } from '../operators/OperatorModal';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
@@ -16,11 +17,127 @@ import type {
   OperatorComparisonEntry,
   DeductionResearchData,
   OperatorEfficiencyEntry,
+  WellCategoryData,
 } from '../../../types/intelligence';
 
 interface Props {
   tier: IntelligenceTier;
   initialTab?: string;
+}
+
+const BUCKET_COLORS: Record<string, string> = {
+  field_services: '#3b82f6',
+  plant: '#8b5cf6',
+  marketing: '#f59e0b',
+  other: '#94a3b8',
+};
+
+const INTEREST_LABELS: Record<string, string> = {
+  royalty: 'Royalty',
+  working_interest: 'Working Interest',
+  overriding_royalty: 'ORRI',
+};
+
+function CategoryBreakdownSection({ apiNumber }: { apiNumber: string }) {
+  const [data, setData] = useState<WellCategoryData | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchDeductionCategories(apiNumber)
+      .then(res => { if (!cancelled) setData(res.wells?.[0] || null); })
+      .catch(() => { if (!cancelled) setData(null); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [apiNumber]);
+
+  if (loading) {
+    return <div style={{ fontSize: 12, color: SLATE, padding: '8px 0' }}>Loading category data...</div>;
+  }
+  if (!data || data.buckets.length === 0) return null;
+
+  const totalDeductions = data.buckets.reduce((s, b) => s + Math.abs(b.total_amount), 0);
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>
+          Deduction Categories
+        </div>
+        {data.interest_type && (
+          <span style={{
+            fontSize: 10, fontWeight: 500, padding: '1px 6px', borderRadius: 3,
+            background: '#f1f5f9', color: SLATE,
+          }}>
+            {INTEREST_LABELS[data.interest_type] || data.interest_type}
+          </span>
+        )}
+        <span style={{ fontSize: 10, color: SLATE }}>
+          {data.observation_count} check stub{data.observation_count !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <DonutChart
+          segments={data.buckets.map(b => ({
+            label: b.bucket_label,
+            value: Math.abs(b.total_amount),
+            color: BUCKET_COLORS[b.bucket] || '#94a3b8',
+          }))}
+          size={130}
+          strokeWidth={18}
+          centerLabel="Total"
+          centerValue={formatCurrencyCompact(totalDeductions)}
+        />
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, flex: 1 }}>
+          {data.buckets.map(b => {
+            const pctiles = data.percentiles[b.bucket];
+            return (
+              <div key={b.bucket} style={{
+                padding: '8px 12px', background: '#fff', borderRadius: 6,
+                border: `1px solid ${BORDER}`, borderLeft: `3px solid ${BUCKET_COLORS[b.bucket] || '#94a3b8'}`,
+              }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: SLATE, marginBottom: 4 }}>
+                  {b.bucket_label}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: TEXT_DARK }}>
+                  {formatCurrencyCompact(Math.abs(b.total_amount))}
+                </div>
+                <div style={{ fontSize: 11, color: SLATE }}>
+                  {(b.pct_of_gross * 100).toFixed(1)}% of gross
+                </div>
+                {pctiles ? (
+                  <div style={{ fontSize: 10, color: SLATE, marginTop: 4 }}>
+                    P50: {(pctiles.p50 * 100).toFixed(1)}% | P75: {(pctiles.p75 * 100).toFixed(1)}%
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 10, color: SLATE, marginTop: 4, fontStyle: 'italic' }}>
+                    Insufficient peer data
+                  </div>
+                )}
+                {b.categories.length > 1 && (
+                  <div style={{ marginTop: 4, borderTop: `1px solid ${BORDER}`, paddingTop: 4 }}>
+                    {b.categories.map(c => (
+                      <div key={c.category} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                        <span style={{ color: SLATE, textTransform: 'capitalize' }}>{c.category}</span>
+                        <span style={{ color: TEXT_DARK }}>{formatCurrencyCompact(Math.abs(c.total_amount))}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function formatCurrencyCompact(amount: number): string {
+  if (amount >= 1000) return '$' + (amount / 1000).toFixed(1) + 'k';
+  return '$' + amount.toFixed(2);
 }
 
 const PRODUCT_NAMES: Record<string, string> = {
@@ -434,6 +551,9 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
             </div>
           ))}
         </div>
+
+        {/* Category Breakdown from check stubs */}
+        <CategoryBreakdownSection apiNumber={row.api_number} />
 
         {/* Context notes */}
         {hasResidueGasNote && !isContextual && (

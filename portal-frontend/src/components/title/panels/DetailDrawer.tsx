@@ -560,11 +560,11 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Party name strip */}
-          {node._parties && node._parties.length > 0 && (
+          {/* Party name strip — always show for orphans (need add button even with 0 parties) */}
+          {(node._parties && node._parties.length > 0 || node.type === 'orphan') && (
             <PartyStrip
               docId={node.id}
-              parties={node._parties}
+              parties={node._parties || []}
               corrections={localCorrections}
               colors={c}
               markDirty={markDirty}
@@ -1267,15 +1267,23 @@ function PartyStrip({ docId, parties, corrections, colors: c, markDirty, flushCh
   const [addingRole, setAddingRole] = useState<string | null>(null);
   const [addName, setAddName] = useState('');
   const [dirty, setDirty] = useState(false);
+  const [deletedRowIds, setDeletedRowIds] = useState<Set<number>>(new Set());
+  const [addedParties, setAddedParties] = useState<Array<{ rowId: number; name: string; role: string; isManual: true }>>([]);
 
-  useEffect(() => { setLocalCorr(corrections); setEditingRowId(null); setAddingRole(null); setDirty(false); }, [corrections]);
-
-  if (!parties || parties.length === 0) return null;
+  useEffect(() => {
+    setLocalCorr(corrections); setEditingRowId(null); setAddingRole(null);
+    setDirty(false); setDeletedRowIds(new Set()); setAddedParties([]);
+  }, [corrections]);
 
   const FROM_ROLES = ['grantor', 'lessor', 'assignor'];
   const TO_ROLES = ['grantee', 'lessee', 'assignee', 'heir', 'beneficiary', 'owner'];
-  const fromParties = parties.filter(p => FROM_ROLES.includes(p.role));
-  const toParties = parties.filter(p => TO_ROLES.includes(p.role));
+  // Merge original props (minus deleted) with locally added parties
+  const allParties = [
+    ...parties.filter(p => !deletedRowIds.has(p.rowId)),
+    ...addedParties,
+  ];
+  const fromParties = allParties.filter(p => FROM_ROLES.includes(p.role));
+  const toParties = allParties.filter(p => TO_ROLES.includes(p.role));
 
   const notifyDirty = () => { setDirty(true); markDirty?.(); };
 
@@ -1317,6 +1325,7 @@ function PartyStrip({ docId, parties, corrections, colors: c, markDirty, flushCh
     setSaving(true);
     try {
       await deleteDocumentParty(docId, party.rowId);
+      setDeletedRowIds(prev => new Set([...prev, party.rowId]));
       notifyDirty();
     } catch {}
     finally { setSaving(false); }
@@ -1326,7 +1335,13 @@ function PartyStrip({ docId, parties, corrections, colors: c, markDirty, flushCh
     if (!addName.trim()) return;
     setSaving(true);
     try {
-      await addDocumentParty(docId, { party_name: addName.trim(), party_role: role });
+      const result = await addDocumentParty(docId, { party_name: addName.trim(), party_role: role });
+      const newParty = result?.party;
+      if (newParty) {
+        setAddedParties(prev => [...prev, {
+          rowId: newParty.id, name: newParty.party_name, role: newParty.party_role, isManual: true as const,
+        }]);
+      }
       setAddingRole(null);
       setAddName('');
       notifyDirty();
@@ -1390,7 +1405,7 @@ function PartyStrip({ docId, parties, corrections, colors: c, markDirty, flushCh
           fontSize: 12, fontWeight: 600, color: c?.text || DARK,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0,
         }}>
-          {party.name}
+          {corr ? corr.corrected : party.name}
         </span>
         {corr && <span style={{ width: 5, height: 5, borderRadius: '50%', background: ORANGE, flexShrink: 0 }} />}
         {party.rowId > 0 && (
@@ -1576,7 +1591,7 @@ function EditablePartyField({ partyRowId, value, correction, isEditing, editValu
           fontSize: 13, color: c?.text || DARK, fontWeight: 600,
           minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1,
         }}>
-          {value}
+          {correction ? correction.corrected : value}
         </div>
         {correction && (
           <span title="Edited — click pencil to modify or undo" style={{

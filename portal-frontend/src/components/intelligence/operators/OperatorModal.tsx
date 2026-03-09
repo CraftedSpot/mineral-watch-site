@@ -5,7 +5,7 @@ import { TrendChart } from '../TrendChart';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { Badge } from '../../ui/Badge';
 import { ModalShell } from '../../ui/ModalShell';
-import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_BASE_Z } from '../../../lib/constants';
 import type { OperatorDetailData } from '../../../types/intelligence';
 
 interface OperatorModalProps {
@@ -144,7 +144,7 @@ export function OperatorModal({ operatorNumber, operatorName, subtitle, onClose 
   return createPortal(
     <div
       style={{
-        position: 'fixed', inset: 0, zIndex: 999999,
+        position: 'fixed', inset: 0, zIndex: MODAL_BASE_Z,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
     >
