@@ -405,7 +405,7 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return servePage(loginHtml, request, env);
       }
       if (path === "/portal/account" || path === "/portal/account/") {
-        return servePage(accountHtml, request, env);
+        return servePage(portalReactHtml, request, env);
       }
       if (path === "/portal/upgrade" || path === "/portal/upgrade/") {
         return servePage(upgradeHtml, request, env);
