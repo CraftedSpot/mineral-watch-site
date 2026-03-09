@@ -36,6 +36,7 @@ import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 
 // matchSingleWell removed — using D1-based matchSingleWellD1 below
 
+import { purgeIntelligenceCache } from './intelligence.js';
 import type { Env, CompletionData } from '../types/env.js';
 
 // Helper functions no longer needed - D1 is now the source for well metadata
@@ -813,6 +814,9 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
       ctx.waitUntil(matchPromise);
     }
 
+    // Purge intelligence cache so summary cards reflect new well
+    await purgeIntelligenceCache(env, user.id, organizationId);
+
     return jsonResponse({ id: wellId, success: true }, 201);
   } catch (error) {
     console.error("Error in handleAddWell:", error);
@@ -889,6 +893,7 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
   await env.WELLS_DB.batch(stmts);
 
   console.log(`[DeleteWell] Deleted: ${wellId} (${well.api_number}) by ${user.email}`);
+  await purgeIntelligenceCache(env, user.id, organizationId);
   return jsonResponse({ success: true });
 }
 
@@ -946,6 +951,7 @@ export async function handleBulkDeleteWells(request: Request, env: Env) {
   }
 
   console.log(`[WellBulkDelete] Deleted ${deleted}/${ids.length} wells by ${user.email}`);
+  await purgeIntelligenceCache(env, user.id, organizationId);
   return jsonResponse({ success: true, deleted });
 }
 

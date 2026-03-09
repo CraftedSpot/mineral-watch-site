@@ -91,6 +91,8 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
 
   if (stack.length === 0) return null;
 
+  const portalTarget = document.fullscreenElement || document.body;
+
   return createPortal(
     <>
       {stack.map((entry, index) => {
@@ -142,6 +144,6 @@ export function ModalContainer({ stack, onClose }: ModalContainerProps) {
         );
       })}
     </>,
-    document.body,
+    portalTarget,
   );
 }

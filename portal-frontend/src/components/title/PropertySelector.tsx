@@ -33,12 +33,13 @@ export function PropertySelector({ properties, selectedId, onSelect, loading, is
   const filtered = properties.filter((p) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = `${p.county} S${p.section}-${p.township}-${p.range}`.toLowerCase();
+    const label = `${p.county} ${p.township}-${p.range}-${p.section}`.toLowerCase();
     return label.includes(q);
   });
 
+  const padSec = (s: string) => s.replace(/^\d+$/, (m) => m.padStart(2, '0'));
   const formatLabel = (p: ChainProperty) =>
-    `${p.county} — S${p.section}-${p.township}-${p.range}`;
+    `${p.county} — ${p.township}-${p.range}-${padSec(p.section)}`;
 
   return (
     <div ref={dropdownRef} style={{ position: 'relative', fontFamily: "'DM Sans', sans-serif" }}>

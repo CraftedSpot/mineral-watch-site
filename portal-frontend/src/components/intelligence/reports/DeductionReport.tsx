@@ -7,7 +7,8 @@ import { SortableTable } from '../SortableTable';
 import { DonutChart } from '../DonutChart';
 import { OperatorModal } from '../operators/OperatorModal';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
-import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/constants';
+import { useModal } from '../../../contexts/ModalContext';
 import type { Column } from '../SortableTable';
 import type {
   IntelligenceTier,
@@ -226,6 +227,7 @@ function GasProfileBadge({ profile }: { profile: string | null }) {
 export function DeductionReport({ tier, initialTab }: Props) {
   const [activeTab, setActiveTab] = useState(initialTab || 'portfolio');
   const [operatorModal, setOperatorModal] = useState<{ number: string; name: string } | null>(null);
+  const modal = useModal();
   const { data, loading, error, refetch } = useReportData(fetchDeductionReport);
   const { data: opData } = useReportData(fetchOperatorComparison, { enabled: tier === 'full' });
   const { data: researchData, loading: researchLoading } = useReportData(
@@ -270,7 +272,9 @@ export function DeductionReport({ tier, initialTab }: Props) {
 
       {/* Tab content */}
       {activeTab === 'portfolio' && (
-        <PortfolioTab data={data} onOperatorClick={setOperatorModal} />
+        <PortfolioTab data={data} onOperatorClick={setOperatorModal} onWellClick={(w) => {
+          modal.open(MODAL_TYPES.WELL, { apiNumber: w.api_number, wellName: w.well_name, operator: w.operator, county: w.county });
+        }} />
       )}
       {activeTab === 'markets' && (
         <MarketsTab data={opData} tier={tier} onOperatorClick={setOperatorModal} />
@@ -306,11 +310,11 @@ function HudMetrics({ portfolio, statewide, summary, highCount }: {
   highCount: number;
 }) {
   const statewideText = statewide?.avg_deduction_pct != null
-    ? `vs ${statewide.avg_deduction_pct}% statewide` : 'Deduction rate';
+    ? `vs ${statewide.avg_deduction_pct}% statewide` : 'Residue gas deduction rate';
 
   const badges = [
-    { value: `${portfolio.avg_deduction_pct}%`, label: 'Portfolio Avg', detail: statewideText },
-    { value: String(highCount), label: 'High (>50%)', detail: `${summary.flagged_count} total shown` },
+    { value: `${portfolio.avg_deduction_pct}%`, label: 'Gas Ded Avg', detail: statewideText },
+    { value: String(highCount), label: 'High (>50%)', detail: `${summary.flagged_count} total flagged` },
     { value: String(portfolio.total_wells_analyzed), label: 'Wells Analyzed', detail: summary.analysis_period },
   ];
 
@@ -335,7 +339,7 @@ function HudMetrics({ portfolio, statewide, summary, highCount }: {
 
 // ── Portfolio Tab ──
 
-function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; onOperatorClick: (op: { number: string; name: string }) => void }) {
+function PortfolioTab({ data, onOperatorClick, onWellClick }: { data: DeductionReportData; onOperatorClick: (op: { number: string; name: string }) => void; onWellClick: (w: DeductionWell) => void }) {
   const { flaggedWells, portfolio, statewide, summary } = data;
   const toast = useToast();
 
@@ -345,7 +349,7 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
         <h3 style={{ fontSize: 15, fontWeight: 600, color: TEXT_DARK, margin: '0 0 8px' }}>Summary</h3>
         <p style={{ fontSize: 13, color: SLATE, margin: 0, lineHeight: 1.6 }}>
           <strong>{portfolio.total_wells_analyzed} wells</strong> with OTC financial data were analyzed
-          over the past {summary.analysis_period}. No wells exceeded the 25% aggregate deduction threshold.
+          over the past {summary.analysis_period}. No wells exceeded the 25% residue gas deduction threshold.
           Your portfolio average is <strong>{portfolio.avg_deduction_pct}%</strong>
           {statewide?.avg_deduction_pct != null && ` (vs ${statewide.avg_deduction_pct}% statewide)`}.
         </p>
@@ -390,7 +394,15 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       key: 'well_name', label: 'Well', sortType: 'string', width: 'minmax(140px, 2fr)',
       render: (row) => (
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-          <span style={{ fontWeight: 500 }}>{row.well_name}</span>
+          <span
+            role="button"
+            onClick={(e) => { e.stopPropagation(); onWellClick(row); }}
+            style={{ fontWeight: 500, color: '#3b82f6', cursor: 'pointer', textDecoration: 'none' }}
+            onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline'; }}
+            onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none'; }}
+          >
+            {row.well_name}
+          </span>
           {row.lean_gas_expected && (
             <span style={{ fontSize: 10, color: '#6b7280', padding: '1px 4px', background: '#f3f4f6', borderRadius: 3 }} title="Lean gas — high deductions expected">
               Expected
@@ -431,7 +443,8 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       ),
     },
     {
-      key: 'agg_deduction_pct', label: 'Ded %', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'agg_deduction_pct', label: 'Gas Ded %', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      title: 'Residue gas deduction rate — processing fees as % of gross gas value',
       render: (row) => {
         const isContextual = row.lean_gas_expected || row.oil_only_verify;
         return (
@@ -487,8 +500,8 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       render: (row) => <span>{formatCurrency(row.total_gross)}</span>,
     },
     {
-      key: '_residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(75px, 0.7fr)', hideOnMobile: true,
-      title: 'Product 5 — Residue Gas processing fees',
+      key: '_residue_deductions', label: 'Gas Ded', sortType: 'number', width: 'minmax(75px, 0.7fr)', hideOnMobile: true,
+      title: 'Product 5 — Residue gas processing deductions',
       getValue: (row) => getPcrrMetrics(row).residue,
       render: (row) => <span>{formatCurrency(getPcrrMetrics(row).residue)}</span>,
     },
@@ -498,7 +511,7 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       getValue: (row) => getPcrrMetrics(row).ngl,
       render: (row) => <span>{formatCurrency(getPcrrMetrics(row).ngl)}</span>,
     },
-  ], []);
+  ], [onWellClick]);
 
   const renderExpanded = (row: DeductionWell) => {
     const isContextual = row.lean_gas_expected || row.oil_only_verify;
@@ -767,11 +780,13 @@ function MarketsTab({ data, tier, onOperatorClick }: { data: OperatorComparisonD
       render: (row) => <span>{formatCurrency(row.total_gross)}</span>,
     },
     {
-      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.8fr)', hideOnMobile: true,
+      key: 'residue_deductions', label: 'Gas Ded', sortType: 'number', width: 'minmax(80px, 0.8fr)', hideOnMobile: true,
+      title: 'Residue gas processing deductions',
       render: (row) => <span>{formatCurrency(row.residue_deductions)}</span>,
     },
     {
-      key: 'deduction_ratio', label: 'Ded %', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'deduction_ratio', label: 'Gas Ded %', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      title: 'Residue gas deduction rate',
       render: (row) => {
         const v = row.deduction_ratio;
         if (v == null) return <span style={{ color: SLATE }}>—</span>;
@@ -945,7 +960,8 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       key: 'well_count', label: 'Wells', sortType: 'number', width: 'minmax(50px, 0.5fr)', hideOnMobile: true,
     },
     {
-      key: 'deduction_pct', label: 'Ded %', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'deduction_pct', label: 'Gas Ded %', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      title: 'Residue gas deduction rate',
       render: (row) => {
         const v = row.deduction_pct;
         if (v == null) return <span style={{ color: SLATE }}>—</span>;
@@ -976,7 +992,8 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       render: (row) => <span>{formatCurrencyShort(row.total_gross)}</span>,
     },
     {
-      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.7fr)', hideOnMobile: true,
+      key: 'residue_deductions', label: 'Gas Ded', sortType: 'number', width: 'minmax(80px, 0.7fr)', hideOnMobile: true,
+      title: 'Residue gas processing deductions',
       render: (row) => <span>{formatCurrencyShort(row.residue_deductions)}</span>,
     },
     {

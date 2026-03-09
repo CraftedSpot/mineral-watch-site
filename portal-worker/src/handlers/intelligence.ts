@@ -14,6 +14,21 @@ import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
 import { parallelBatches } from '../utils/batch.js';
 import type { Env } from '../types/env.js';
 
+/**
+ * Purge intelligence cache for a user/org so next page load recomputes.
+ * Call after events that change portfolio data (well add/delete, document processing, etc.)
+ */
+export async function purgeIntelligenceCache(env: Env, userId: string, orgId?: string) {
+  if (!env.OCC_CACHE) return;
+  const cacheId = orgId || userId;
+  try {
+    await Promise.all([
+      env.OCC_CACHE.delete(`intelligence-summary:${cacheId}`),
+      env.OCC_CACHE.delete(`intelligence-insights:${cacheId}`),
+    ]);
+  } catch (_) {}
+}
+
 // Minimum annual BOE threshold for including a well in county YoY calculations.
 // Wells below this are intermittent/marginal and create extreme % swings (e.g. 1→10 BOE = +900%).
 const MIN_BOE_THRESHOLD = 50;
@@ -159,12 +174,14 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       });
     }
 
-    // KV cache — summary data only changes on daily cron, 1h TTL
+    // KV cache — summary data only changes on daily cron, 24h TTL
+    // Long TTL ensures users almost always get instant cached response
     const cacheId = userOrgId || authUser.id;
+    const cacheKey = `intelligence-summary:${cacheId}`;
     const skipCache = new URL(request.url).searchParams.has('bust');
     if (env.OCC_CACHE && !skipCache) {
       try {
-        const cached = await env.OCC_CACHE.get(`intelligence-summary:${cacheId}`, 'json');
+        const cached = await env.OCC_CACHE.get(cacheKey, 'json');
         if (cached) return jsonResponse(cached);
       } catch (_) {}
     }
@@ -356,9 +373,9 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       _intelligence_tier: getIntelligenceTier(userPlan)
     };
 
-    // Cache for 1 hour
+    // Cache for 24 hours — data only changes on daily cron
     if (env.OCC_CACHE) {
-      try { await env.OCC_CACHE.put(`intelligence-summary:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 }); } catch (_) {}
+      try { await env.OCC_CACHE.put(cacheKey, JSON.stringify(response), { expirationTtl: 86400 }); } catch (_) {}
     }
 
     return jsonResponse(response);
@@ -598,9 +615,9 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     const response = { insights };
 
-    // Cache for 1 hour
+    // Cache for 24 hours — data only changes on daily cron
     if (env.OCC_CACHE) {
-      try { await env.OCC_CACHE.put(`intelligence-insights:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 }); } catch (_) {}
+      try { await env.OCC_CACHE.put(`intelligence-insights:${cacheId}`, JSON.stringify(response), { expirationTtl: 86400 }); } catch (_) {}
     }
 
     return jsonResponse(response);

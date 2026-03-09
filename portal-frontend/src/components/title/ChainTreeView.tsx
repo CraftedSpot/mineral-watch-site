@@ -308,7 +308,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
             {/* Expanded stacks count */}
             {expandedStacks.size > 0 && (
               <div style={{
-                position: 'absolute', top: 12, left: 12, zIndex: 10,
+                position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
                 background: c?.text || DARK, color: c?.surface || '#fff', borderRadius: 6,
                 padding: isMobile ? '8px 12px' : '4px 10px', minHeight: isMobile ? 44 : undefined,
                 display: 'flex', alignItems: 'center',
