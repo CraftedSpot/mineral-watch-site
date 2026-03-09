@@ -70,12 +70,29 @@ export interface ChainGap {
   lastSeenDate: string | null;
 }
 
+/** Orphan document — in chain scope but no edges matched */
+export interface OrphanDoc {
+  id: string;
+  docType: string | null;
+  category: string | null;
+  date: string | null;
+  displayName: string;
+  fromNames: string[];
+  toNames: string[];
+  interestConveyed: string | null;
+  reason: 'no_parties' | 'no_match' | 'unknown';
+  _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+}
+
 /** Full tree structure from API */
 export interface TitleTree {
   roots: TreeNode[];
   gaps: ChainGap[];
   currentOwners: ChainOwnerRow[];
-  orphanDocIds: string[];
+  orphanDocs: OrphanDoc[];
+  /** @deprecated Use orphanDocs instead — kept for cached tree compat */
+  orphanDocIds?: string[];
   stats: {
     totalDocs: number;
     linkedDocs: number;
@@ -122,13 +139,17 @@ export interface TitleChainPropertiesResponse {
 /** Flat node for the layout engine (transformed from API TreeNode) */
 export interface FlatNode {
   id: string;
-  type: 'document' | 'stack' | 'gap' | 'current';
+  type: 'document' | 'stack' | 'gap' | 'current' | 'orphan';
   docType?: string;
   date?: string | null;
   grantor?: string;
   grantee?: string;
   interestConveyed?: string | null;
   children: string[];
+  // Orphan-specific
+  reason?: 'no_parties' | 'no_match' | 'unknown';
+  displayName?: string;
+  category?: string | null;
   // Stack-specific
   docs?: FlatStackDoc[];
   label?: string;

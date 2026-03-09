@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { computeLayout, type ViewMode } from '../../lib/layout-engine';
 import { transformTreeToFlatNodes } from '../../lib/tree-adapter';
-import { ORANGE, DARK, SLATE, BORDER } from '../../lib/constants';
+import { ORANGE, DARK, SLATE, BORDER, WARNING_AMBER } from '../../lib/constants';
 import type { TitleColors } from '../../lib/title-colors';
 import type { TitleTree, FlatNode, FlatStackDoc } from '../../types/title-chain';
 
@@ -14,6 +14,7 @@ import { StackExpanded } from './nodes/StackExpanded';
 import { HoverTooltip } from './panels/HoverTooltip';
 import { DetailDrawer } from './panels/DetailDrawer';
 import { TreeLegend } from './TreeLegend';
+import { OrphanCard } from './nodes/OrphanCard';
 
 interface ChainTreeViewProps {
   tree: TitleTree;
@@ -39,6 +40,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
   const [hoverPos, setHoverPos] = useState({ x: 0, y: 0 });
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [entranceKey, setEntranceKey] = useState(0);
+  const [orphansExpanded, setOrphansExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const flexParentRef = useRef<HTMLDivElement>(null);
 
@@ -50,7 +52,8 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
 
   // Transform API tree → flat nodes for layout
   const flatNodes = useMemo(() => transformTreeToFlatNodes(tree), [tree]);
-  const flatData = useMemo(() => ({ nodes: flatNodes }), [flatNodes]);
+  const orphanNodes = useMemo(() => flatNodes.filter(n => n.type === 'orphan'), [flatNodes]);
+  const flatData = useMemo(() => ({ nodes: flatNodes.filter(n => n.type !== 'orphan') }), [flatNodes]);
 
   // Compute layout when stacks expand/collapse or view mode changes
   const layout = useMemo(() => computeLayout(flatData, expandedStacks, viewMode), [flatData, expandedStacks, viewMode]);
@@ -392,6 +395,60 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
           />
         )}
       </div>
+
+      {/* Orphan documents section */}
+      {orphanNodes.length > 0 && (
+        <div style={{
+          marginTop: 12, borderRadius: 10,
+          border: `1px solid ${c?.border || BORDER}`,
+          background: c?.surface || '#fff', overflow: 'hidden',
+        }}>
+          <button
+            onClick={() => setOrphansExpanded(v => !v)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: isMobile ? '12px 14px' : '10px 16px', background: 'none', border: 'none',
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 20, height: 20, borderRadius: 5,
+                background: 'rgba(245,158,11,0.12)', display: 'flex',
+                alignItems: 'center', justifyContent: 'center', fontSize: 11,
+              }}>{'\u26A0'}</div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>
+                {orphanNodes.length} Orphan Document{orphanNodes.length !== 1 ? 's' : ''}
+              </span>
+              <span style={{ fontSize: 11, color: c?.textMuted || SLATE }}>
+                — not linked into chain
+              </span>
+            </div>
+            <span style={{ fontSize: 14, color: c?.textMuted || SLATE, transition: 'transform 0.2s',
+              transform: orphansExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+              {'\u25BE'}
+            </span>
+          </button>
+          {orphansExpanded && (
+            <div style={{
+              padding: isMobile ? '0 14px 14px' : '0 16px 14px',
+              display: 'grid', gap: 8,
+              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
+            }}>
+              {orphanNodes.map(node => (
+                <OrphanCard
+                  key={node.id}
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  isMobile={isMobile}
+                  colors={c}
+                  onClick={handleNodeClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Mobile bottom sheet */}
       {isMobile && (

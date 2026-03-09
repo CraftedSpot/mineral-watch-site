@@ -218,6 +218,20 @@ interface TreeNode {
   _parties: Array<{ rowId: number; name: string; role: string }>;
 }
 
+interface OrphanDoc {
+  id: string;
+  docType: string | null;
+  category: string | null;
+  date: string | null;
+  displayName: string;
+  fromNames: string[];
+  toNames: string[];
+  interestConveyed: string | null;
+  reason: 'no_parties' | 'no_match' | 'unknown';
+  _parties: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+}
+
 interface TitleTree {
   roots: TreeNode[];
   gaps: Array<{
@@ -227,7 +241,7 @@ interface TitleTree {
     lastSeenDate: string | null;
   }>;
   currentOwners: ChainOwnerRow[];
-  orphanDocIds: string[];
+  orphanDocs: OrphanDoc[];
   stats: {
     totalDocs: number;
     linkedDocs: number;
@@ -245,7 +259,8 @@ function assembleTree(
   documents: any[],
   edges: ChainEdgeRow[],
   owners: ChainOwnerRow[],
-  partiesMap: Record<string, Array<{ name: string; role: string; [key: string]: any }>>
+  partiesMap: Record<string, Array<{ name: string; role: string; [key: string]: any }>>,
+  correctionsMap: Record<string, Record<string, { id: string; partyRowId: number; original: string; corrected: string }>>
 ): TitleTree {
   const docMap = new Map<string, any>();
   for (const doc of documents) docMap.set(doc.id, doc);
@@ -267,8 +282,31 @@ function assembleTree(
     inEdge.add(edge.child_doc_id);
   }
 
-  // Orphans: docs with no edges at all
-  const orphanDocIds = documents.filter(d => !inEdge.has(d.id)).map(d => d.id);
+  // Orphans: docs with no edges at all — enrich with full metadata + reason
+  const orphanDocs: OrphanDoc[] = documents.filter(d => !inEdge.has(d.id)).map(d => {
+    const parties = partiesMap[d.id] || [];
+    const hasParties = parties.length > 0;
+    const reason: OrphanDoc['reason'] = !hasParties ? 'no_parties' : 'no_match';
+
+    const doc = docMap.get(d.id);
+    const docType = doc?.docType || d.docType || d.doc_type || null;
+
+    return {
+      id: d.id,
+      docType,
+      category: d.category || null,
+      date: d.date || null,
+      displayName: d.displayName || d.display_name || 'Untitled',
+      fromNames: getPartyNames(d.id, 'from'),
+      toNames: getPartyNames(d.id, 'to'),
+      interestConveyed: d.interestConveyed || null,
+      reason,
+      _parties: parties.filter((p: any) => p.rowId > 0).map((p: any) => ({
+        rowId: p.rowId, name: p.name, role: p.role, isManual: p.isManual || false,
+      })),
+      _corrections: correctionsMap[d.id] || null,
+    };
+  });
 
   // Roots: docs that are parents but never children
   const rootIds = [...inEdge].filter(id => !hasParent.has(id) && docMap.has(id));
@@ -416,10 +454,10 @@ function assembleTree(
     roots,
     gaps,
     currentOwners: owners,
-    orphanDocIds,
+    orphanDocs,
     stats: {
       totalDocs: documents.length,
-      linkedDocs: documents.length - orphanDocIds.length,
+      linkedDocs: documents.length - orphanDocs.length,
       stackedGroups: totalStackedGroups,
       gapCount: gaps.length,
       ownerCount: owners.length,
@@ -818,7 +856,8 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
             documents,
             (edgesResult.results || []) as unknown as ChainEdgeRow[],
             (ownersResult.results || []) as unknown as ChainOwnerRow[],
-            partiesMap
+            partiesMap,
+            correctionsMap
           );
 
           // 4b. Post-process: resolve source party row IDs + attach source doc data for current owners

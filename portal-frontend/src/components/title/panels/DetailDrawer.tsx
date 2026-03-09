@@ -155,7 +155,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
   markDirty?: () => void;
   flushChanges?: () => void;
 }) {
-  const isDocType = node.type === 'document' || (!node.type && node.docType);
+  const isDocType = node.type === 'document' || node.type === 'orphan' || (!node.type && node.docType);
   const modal = useModal();
 
   // Document detail state (for header book/page + viewer)

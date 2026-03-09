@@ -73,11 +73,30 @@ export function AISummary({ tree, propertyLegal, isMobile, darkMode, colors: c }
               {'\u2022'} {stats.gapCount} gap{stats.gapCount !== 1 ? 's' : ''} detected — search county records to fill
             </div>
           )}
-          {tree.orphanDocIds.length > 0 && (
-            <div style={{ marginBottom: 6 }}>
-              {'\u2022'} {tree.orphanDocIds.length} orphan document{tree.orphanDocIds.length !== 1 ? 's' : ''} not yet linked
-            </div>
-          )}
+          {(tree.orphanDocs?.length || tree.orphanDocIds?.length || 0) > 0 && (() => {
+            const orphans = tree.orphanDocs || [];
+            const total = orphans.length || tree.orphanDocIds?.length || 0;
+            if (orphans.length === 0) {
+              // Cached tree with old format — just show count
+              return <div style={{ marginBottom: 6 }}>{'\u2022'} {total} orphan document{total !== 1 ? 's' : ''} not yet linked</div>;
+            }
+            const noParties = orphans.filter(o => o.reason === 'no_parties').length;
+            const noMatch = orphans.filter(o => o.reason === 'no_match').length;
+            return (
+              <>
+                {noMatch > 0 && (
+                  <div style={{ marginBottom: 6 }}>
+                    {'\u2022'} {noMatch} document{noMatch !== 1 ? 's' : ''} with unmatched party names — edit names to link
+                  </div>
+                )}
+                {noParties > 0 && (
+                  <div style={{ marginBottom: 6 }}>
+                    {'\u2022'} {noParties} document{noParties !== 1 ? 's' : ''} with no extracted parties — add parties to link
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {currentOwners.length > 0 && (
             <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(255,255,255,0.08)', borderRadius: 8, fontSize: 11 }}>
               <strong style={{ color: GREEN }}>Current Owners:</strong>{' '}

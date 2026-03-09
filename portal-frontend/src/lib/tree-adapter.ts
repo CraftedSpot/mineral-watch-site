@@ -11,7 +11,7 @@
  *   { id, type, docType, date, grantor, grantee, children: string[], docs?: [...] }
  */
 import type {
-  TitleTree, TreeNode, ChainOwnerRow, ChainGap, FlatNode, FlatStackDoc,
+  TitleTree, TreeNode, ChainOwnerRow, ChainGap, FlatNode, FlatStackDoc, OrphanDoc,
 } from '../types/title-chain';
 
 /** Format a doc type slug for display: "mineral_deed" → "Mineral Deed" */
@@ -196,6 +196,30 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
         parentNode.children.push(uniqueId);
       }
     }
+  }
+
+  // 4. Add orphan document nodes — parentless, rendered in separate section
+  const orphanDocs = tree.orphanDocs || [];
+  for (const orphan of orphanDocs) {
+    // Use raw doc ID — orphans are by definition not in the tree, so no collision
+    if (seen.has(orphan.id)) continue;
+    seen.add(orphan.id);
+
+    nodes.push({
+      id: orphan.id,
+      type: 'orphan',
+      docType: formatDocType(orphan.docType),
+      date: orphan.date,
+      displayName: orphan.displayName,
+      category: orphan.category,
+      grantor: orphan.fromNames[0] || '',
+      grantee: orphan.toNames[0] || '',
+      interestConveyed: orphan.interestConveyed,
+      reason: orphan.reason,
+      children: [],
+      _parties: orphan._parties || [],
+      _corrections: orphan._corrections || null,
+    });
   }
 
   return nodes;
