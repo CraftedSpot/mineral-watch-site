@@ -400,6 +400,7 @@ export interface PoolingNearbyOrder {
   range: string;
   unitSizeAcres: number;
   wellType: string;
+  spacing: string | null;
   responseDeadline: string;
   caseNumber: string;
   orderNumber: string;

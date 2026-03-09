@@ -528,12 +528,12 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
       id, document_id, case_number, order_number, order_date, effective_date,
       applicant, operator, proposed_well_name,
       section, township, range, county, meridian,
-      unit_description, unit_size_acres,
+      unit_description, unit_size_acres, spacing,
       well_type, formations,
       response_deadline, response_deadline_days,
       default_election_option, default_election_description,
       confidence
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET
       case_number = excluded.case_number,
       order_number = excluded.order_number,
@@ -548,6 +548,7 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
       county = excluded.county,
       unit_description = excluded.unit_description,
       unit_size_acres = excluded.unit_size_acres,
+      spacing = excluded.spacing,
       well_type = excluded.well_type,
       formations = excluded.formations,
       response_deadline = excluded.response_deadline,
@@ -573,6 +574,7 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
     'IM',
     unitInfo.unit_description || null,
     unitInfo.unit_size_acres || null,
+    unitInfo.spacing || null,
     wellInfo.well_type || null,
     extractedData.formations ? JSON.stringify(extractedData.formations) : null,
     deadlines.election_deadline || null,

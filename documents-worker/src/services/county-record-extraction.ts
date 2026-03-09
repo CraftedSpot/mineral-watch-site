@@ -707,12 +707,12 @@ export class CountyRecordExtractionService {
           id, document_id, case_number, order_number, order_date, effective_date,
           applicant, operator, proposed_well_name,
           section, township, range, county, meridian,
-          unit_description, unit_size_acres,
+          unit_description, unit_size_acres, spacing,
           well_type, formations,
           response_deadline, response_deadline_days,
           default_election_option, default_election_description,
           confidence
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         poolingId,
         documentId,
@@ -730,6 +730,7 @@ export class CountyRecordExtractionService {
         'IM',
         unitInfo.unit_description || null,
         unitInfo.unit_size_acres || null,
+        unitInfo.spacing || null,
         wellInfo.well_type || null,
         extraction.formations ? JSON.stringify(extraction.formations) : null,
         deadlines.election_deadline || null,
@@ -758,10 +759,10 @@ export class CountyRecordExtractionService {
           opt.option_type || null,
           opt.description || null,
           opt.bonus_per_nma || null,
-          opt.royalty_rate || null,
+          opt.total_royalty || opt.royalty_rate || null,
           (() => {
             // Compute royalty_decimal from fraction string first, fall back to NRI inversion
-            const fracStr = opt.royalty_rate || null;
+            const fracStr = opt.total_royalty || opt.royalty_rate || null;
             if (fracStr) {
               const m = String(fracStr).match(/(\d+)\/(\d+)/);
               if (m) return parseFloat(m[1]) / parseFloat(m[2]);

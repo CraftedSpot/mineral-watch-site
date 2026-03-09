@@ -2127,7 +2127,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       SELECT
         po.id, po.order_date, po.operator, po.formations, po.county,
         po.section, po.township, po.range, po.unit_size_acres, po.well_type,
-        po.response_deadline, po.case_number, po.order_number, po.applicant,
+        po.spacing, po.response_deadline, po.case_number, po.order_number, po.applicant,
         peo.option_number, peo.option_type, peo.bonus_per_acre, peo.royalty_fraction
       FROM pooling_orders po
       LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
@@ -2147,6 +2147,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       range: string;
       unit_size_acres: number;
       well_type: string;
+      spacing: string;
       response_deadline: string;
       case_number: string;
       order_number: string;
@@ -2169,6 +2170,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
       range: string;
       unitSizeAcres: number;
       wellType: string;
+      spacing: string | null;
       responseDeadline: string;
       caseNumber: string;
       orderNumber: string;
@@ -2201,6 +2203,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
           range: row.range,
           unitSizeAcres: row.unit_size_acres,
           wellType: row.well_type,
+          spacing: row.spacing || null,
           responseDeadline: row.response_deadline,
           caseNumber: row.case_number,
           orderNumber: row.order_number,

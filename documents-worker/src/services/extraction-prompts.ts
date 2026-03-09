@@ -1020,7 +1020,8 @@ POOLING ORDER EXAMPLE
   "unit_info": {
     "unit_description": "The SE/4 of Section 3, Township 1 North, Range 8 East, IM, Coal County",
     "unit_size_acres": 160,
-    "quarters": "SE/4"
+    "quarters": "SE/4",
+    "spacing": "160-acre"
   },
 
   "well_info": {
@@ -1138,6 +1139,13 @@ POOLING ORDER EXAMPLE
 =============================================================================
 EXTRACTION NOTES:
 =============================================================================
+
+SPACING:
+- Extract the drilling/spacing unit size from the order (e.g., "640-acre", "160-acre", "80-acre")
+- For horizontal wells, include orientation if stated (e.g., "640-acre horizontal", "1280-acre horizontal")
+- Look for phrases like "640-acre drilling and spacing unit", "160-acre tract", spacing order references
+- If the order references a spacing order number, include it (e.g., "640-acre (Order No. 639000)")
+- If not explicitly stated, infer from unit_size_acres when clear (160 acres = "160-acre")
 
 ELECTION OPTIONS - EXTRACT ALL with ALL financial terms:
 - option_number, option_type, is_default are required for every option

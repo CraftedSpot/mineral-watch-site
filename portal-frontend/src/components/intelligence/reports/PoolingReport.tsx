@@ -487,7 +487,8 @@ function OrdersTable({ orders, onOperatorClick }: { orders: PoolingNearbyOrder[]
         <span><strong style={{ color: TEXT_DARK }}>Order Date:</strong> {formatDate(row.orderDate)}</span>
         {row.responseDeadline && <span><strong style={{ color: TEXT_DARK }}>Deadline:</strong> {formatDate(row.responseDeadline)}</span>}
         {row.wellType && <span><strong style={{ color: TEXT_DARK }}>Well Type:</strong> {row.wellType}</span>}
-        {row.unitSizeAcres > 0 && <span><strong style={{ color: TEXT_DARK }}>Unit Size:</strong> {row.unitSizeAcres} acres</span>}
+        {row.spacing && <span><strong style={{ color: TEXT_DARK }}>Spacing:</strong> {row.spacing}</span>}
+        {!row.spacing && row.unitSizeAcres > 0 && <span><strong style={{ color: TEXT_DARK }}>Unit Size:</strong> {row.unitSizeAcres} acres</span>}
       </div>
 
       {/* Election options table */}
