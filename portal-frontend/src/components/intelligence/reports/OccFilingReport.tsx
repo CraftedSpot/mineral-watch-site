@@ -6,6 +6,7 @@ import { SortableTable } from '../SortableTable';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { Badge } from '../../ui/Badge';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { OperatorLink } from '../../ui/OperatorLink';
 import type { Column } from '../SortableTable';
 import type { OccFiling, OccFilingProperty, OccFilingData } from '../../../types/intelligence';
 
@@ -85,14 +86,14 @@ export function OccFilingReport() {
           { value: String(s.propertiesWithActivity), label: 'Properties Active', detail: `of ${byProperty.length} total` },
         ].map((b, i) => (
           <div key={i} style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 16px', background: BG_MUTED, borderRadius: 8,
-            border: `1px solid ${BORDER}`, flex: '1 1 160px',
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 12px', background: BG_MUTED, borderRadius: 8,
+            border: `1px solid ${BORDER}`, flex: '1 1 calc(50% - 8px)', minWidth: 0,
           }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: b.highlight ? '#dc2626' : TEXT_DARK }}>{b.value}</span>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{b.label}</div>
-              <div style={{ fontSize: 11, color: SLATE }}>{b.detail}</div>
+            <span style={{ fontSize: 20, fontWeight: 700, color: b.highlight ? '#dc2626' : TEXT_DARK }}>{b.value}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.label}</div>
+              <div style={{ fontSize: 11, color: SLATE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.detail}</div>
             </div>
           </div>
         ))}
@@ -114,7 +115,7 @@ export function OccFilingReport() {
           <span style={{ fontSize: 12, color: SLATE, fontWeight: 600, marginRight: 4 }}>Most Active Filers</span>
           {s.topApplicants.slice(0, 5).map((op, i) => (
             <Badge key={i} bg="#f1f5f9" color={TEXT_DARK} size="sm">
-              {op.name} <span style={{ fontWeight: 700, color: '#3b82f6', marginLeft: 4 }}>{op.count}</span>
+              <OperatorLink name={op.name} fontSize={12} /> <span style={{ fontWeight: 700, color: '#3b82f6', marginLeft: 4 }}>{op.count}</span>
             </Badge>
           ))}
         </div>
@@ -381,10 +382,10 @@ function FilingsTable({ filings }: { filings: OccFiling[] }) {
     },
     {
       key: 'applicant', label: 'Applicant', sortType: 'string', width: 'minmax(110px, 1.5fr)',
-      render: (row) => <span style={{ fontWeight: 500, color: TEXT_DARK }}>{row.applicant}</span>,
+      render: (row) => <OperatorLink name={row.applicant} fontSize={13} fontWeight={500} />,
     },
     {
-      key: 'caseNumber', label: 'Case #', sortType: 'string', width: 'minmax(90px, 1fr)',
+      key: 'caseNumber', label: 'Case #', sortType: 'string', width: 'minmax(90px, 1fr)', hideOnMobile: true,
       render: (row) => row.sourceUrl ? (
         <a href={row.sourceUrl} target="_blank" rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
@@ -392,12 +393,12 @@ function FilingsTable({ filings }: { filings: OccFiling[] }) {
       ) : <span style={{ fontSize: 12 }}>{row.caseNumber || '—'}</span>,
     },
     {
-      key: '_location', label: 'Location', sortType: 'string', width: 'minmax(90px, 1fr)',
+      key: '_location', label: 'Location', sortType: 'string', width: 'minmax(90px, 1fr)', hideOnMobile: true,
       getValue: (row) => formatTRS(row.section, row.township, row.range),
       render: (row) => <span style={{ fontSize: 12, fontFamily: 'monospace', color: SLATE, whiteSpace: 'nowrap' }}>{formatTRS(row.section, row.township, row.range)}</span>,
     },
     {
-      key: 'status', label: 'Status', sortType: 'string', width: 'minmax(70px, 0.8fr)',
+      key: 'status', label: 'Status', sortType: 'string', width: 'minmax(70px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontSize: 12, color: SLATE }}>{row.status || '—'}</span>,
     },
     {
@@ -448,7 +449,7 @@ function CountiesTab({ counties }: { counties: OccFilingData['byCounty'] }) {
           fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit',
         }}>Export CSV</button>
       </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
       {counties.map((c) => {
         const topTypes = Object.entries(c.filingTypes || {}).sort(([, a], [, b]) => b - a).slice(0, 4);
 
@@ -465,7 +466,7 @@ function CountiesTab({ counties }: { counties: OccFilingData['byCounty'] }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {c.topApplicants.slice(0, 3).map((a, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                      <span style={{ color: TEXT_DARK }}>{a.name}</span>
+                      <OperatorLink name={a.name} fontSize={13} />
                       <span style={{ color: SLATE, fontSize: 12 }}>{a.count}</span>
                     </div>
                   ))}
@@ -543,7 +544,7 @@ function ResearchTab({ data }: { data: OccFilingData['marketResearch'] }) {
           fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit', marginLeft: 'auto',
         }}>Export CSV</button>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 16 }}>
         {/* Hottest counties */}
         {data.hottestCounties?.length > 0 && (
           <ResearchCard accent="#f59e0b" title="Hottest Counties" subtitle="90 days" col1="County" col2="Filings">
@@ -557,7 +558,8 @@ function ResearchTab({ data }: { data: OccFilingData['marketResearch'] }) {
         {data.topFilers?.length > 0 && (
           <ResearchCard accent="#3b82f6" title="Most Active Filers" subtitle="90 days" col1="Operator" col2="Filings">
             {data.topFilers.map((f, i) => (
-              <ResearchRow key={i} label={f.applicant} value={f.count} max={maxFiler} color="#3b82f6" />
+              <ResearchRow key={i} label={f.applicant} value={f.count} max={maxFiler} color="#3b82f6"
+                labelNode={<OperatorLink name={f.applicant} fontSize={13} />} />
             ))}
           </ResearchCard>
         )}
@@ -597,14 +599,14 @@ function ResearchCard({ accent, title, subtitle, col1, col2, children }: {
   );
 }
 
-function ResearchRow({ label, value, max, color, suffix }: {
-  label: string; value: number; max: number; color: string; suffix?: string;
+function ResearchRow({ label, value, max, color, suffix, labelNode }: {
+  label: string; value: number; max: number; color: string; suffix?: string; labelNode?: React.ReactNode;
 }) {
   const pct = Math.round((value / max) * 100);
   return (
     <div style={{ padding: '8px 0', borderBottom: `1px solid ${BORDER}` }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-        <span style={{ fontSize: 13, color: TEXT_DARK }}>{label}</span>
+        <span style={{ fontSize: 13, color: TEXT_DARK }}>{labelNode || label}</span>
         <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'monospace', color: TEXT_DARK }}>
           {value.toLocaleString()}
           {suffix && <span style={{ fontWeight: 400, fontSize: 11, color: SLATE, marginLeft: 4 }}>{suffix}</span>}

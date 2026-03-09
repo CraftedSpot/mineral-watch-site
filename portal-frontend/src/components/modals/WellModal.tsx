@@ -213,8 +213,12 @@ export function WellModal({ onClose, apiNumber: apiProp, wellId, wellName: nameP
   }, [clientWellId, notesDirty, interestDirty, currentNotes, interestEdits, onClose, toast]);
 
   const handleEstimateRevenue = useCallback(() => {
-    toast.info('Revenue Estimator coming in Phase 2d');
-  }, [toast]);
+    if (clientWellId) {
+      modal.open(MODAL_TYPES.REVENUE_ESTIMATOR, { wellId: clientWellId });
+    } else {
+      toast.info('Well ID not available');
+    }
+  }, [clientWellId, modal, toast]);
 
   // Clean county display (strip numeric prefix)
   const cleanCounty = (c: string) => c.replace(/^\d+-/, '');

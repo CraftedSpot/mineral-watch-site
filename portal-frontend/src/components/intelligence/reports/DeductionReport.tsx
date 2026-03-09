@@ -288,7 +288,7 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       ),
     },
     {
-      key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(120px, 1.5fr)',
+      key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(120px, 1.5fr)', hideOnMobile: true,
       render: (row) => (
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {row.operator_number ? (
@@ -325,7 +325,7 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       },
     },
     {
-      key: '_pcrr', label: 'PCRR %', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: '_pcrr', label: 'PCRR %', sortType: 'number', width: 'minmax(55px, 0.5fr)', hideOnMobile: true,
       title: 'Post-Production Cost Recovery Ratio: NGL ÷ Deductions. Over 100% is favorable.',
       getValue: (row) => getPcrrMetrics(row).pcrr,
       render: (row) => {
@@ -347,7 +347,7 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       },
     },
     {
-      key: 'variance_points', label: 'Variance', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      key: 'variance_points', label: 'Variance', sortType: 'number', width: 'minmax(65px, 0.6fr)', hideOnMobile: true,
       title: 'Points above county average',
       render: (row) => {
         if (row.variance_points == null) return <span style={{ color: SLATE }}>—</span>;
@@ -357,26 +357,26 @@ function PortfolioTab({ data, onOperatorClick }: { data: DeductionReportData; on
       },
     },
     {
-      key: 'county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.7fr)',
+      key: 'county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.7fr)', hideOnMobile: true,
       getValue: (row) => cleanCounty(row.county),
       render: (row) => <span>{cleanCounty(row.county)}</span>,
     },
     {
-      key: 'county_avg_pct', label: 'Cty Avg', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'county_avg_pct', label: 'Cty Avg', sortType: 'number', width: 'minmax(55px, 0.5fr)', hideOnMobile: true,
       render: (row) => <span>{row.county_avg_pct != null ? `${row.county_avg_pct}%` : '—'}</span>,
     },
     {
-      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(70px, 0.7fr)',
+      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(70px, 0.7fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrency(row.total_gross)}</span>,
     },
     {
-      key: '_residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(75px, 0.7fr)',
+      key: '_residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(75px, 0.7fr)', hideOnMobile: true,
       title: 'Product 5 — Residue Gas processing fees',
       getValue: (row) => getPcrrMetrics(row).residue,
       render: (row) => <span>{formatCurrency(getPcrrMetrics(row).residue)}</span>,
     },
     {
-      key: '_ngl_returned', label: 'NGL Returned', sortType: 'number', width: 'minmax(75px, 0.7fr)',
+      key: '_ngl_returned', label: 'NGL Returned', sortType: 'number', width: 'minmax(75px, 0.7fr)', hideOnMobile: true,
       title: 'Product 6 — Value returned from plant',
       getValue: (row) => getPcrrMetrics(row).ngl,
       render: (row) => <span>{formatCurrency(getPcrrMetrics(row).ngl)}</span>,
@@ -635,19 +635,19 @@ function MarketsTab({ data, tier, onOperatorClick }: { data: OperatorComparisonD
       ),
     },
     {
-      key: 'your_wells', label: 'Your Wells', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      key: 'your_wells', label: 'Your Wells', sortType: 'number', width: 'minmax(65px, 0.6fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontWeight: row.your_wells > 0 ? 600 : 400 }}>{row.your_wells}</span>,
     },
     {
-      key: 'total_wells', label: 'Total Wells', sortType: 'number', width: 'minmax(65px, 0.6fr)',
+      key: 'total_wells', label: 'Total Wells', sortType: 'number', width: 'minmax(65px, 0.6fr)', hideOnMobile: true,
       render: (row) => <span>{row.total_wells}</span>,
     },
     {
-      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(80px, 0.8fr)',
+      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(80px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrency(row.total_gross)}</span>,
     },
     {
-      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.8fr)',
+      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrency(row.residue_deductions)}</span>,
     },
     {
@@ -659,7 +659,7 @@ function MarketsTab({ data, tier, onOperatorClick }: { data: OperatorComparisonD
       },
     },
     {
-      key: 'liquids_returned', label: 'NGL Returned', sortType: 'number', width: 'minmax(80px, 0.8fr)',
+      key: 'liquids_returned', label: 'NGL Returned', sortType: 'number', width: 'minmax(80px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrency(row.liquids_returned)}</span>,
     },
     {
@@ -672,7 +672,7 @@ function MarketsTab({ data, tier, onOperatorClick }: { data: OperatorComparisonD
       },
     },
     {
-      key: '_pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: '_pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)', hideOnMobile: true,
       title: 'Post-Production Cost Recovery Ratio: NGL ÷ Deductions',
       getValue: (row) => row.residue_deductions > 0 ? Math.round((row.liquids_returned / row.residue_deductions) * 1000) / 10 : -Infinity,
       render: (row) => {
@@ -683,7 +683,7 @@ function MarketsTab({ data, tier, onOperatorClick }: { data: OperatorComparisonD
       },
     },
     {
-      key: 'gas_profile', label: 'Gas Profile', sortType: 'string', width: 'minmax(70px, 0.7fr)',
+      key: 'gas_profile', label: 'Gas Profile', sortType: 'string', width: 'minmax(70px, 0.7fr)', hideOnMobile: true,
       render: (row) => {
         if (!row.gas_profile) return <span style={{ color: SLATE }}>—</span>;
         return <GasProfileBadge profile={row.gas_profile} />;
@@ -822,7 +822,7 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       ),
     },
     {
-      key: 'well_count', label: 'Wells', sortType: 'number', width: 'minmax(50px, 0.5fr)',
+      key: 'well_count', label: 'Wells', sortType: 'number', width: 'minmax(50px, 0.5fr)', hideOnMobile: true,
     },
     {
       key: 'deduction_pct', label: 'Ded %', sortType: 'number', width: 'minmax(55px, 0.5fr)',
@@ -833,7 +833,7 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       },
     },
     {
-      key: 'pcrr_value', label: 'NGL Returned', sortType: 'number', width: 'minmax(80px, 0.7fr)',
+      key: 'pcrr_value', label: 'NGL Returned', sortType: 'number', width: 'minmax(80px, 0.7fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrencyShort(row.pcrr_value)}</span>,
     },
     {
@@ -844,7 +844,7 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       },
     },
     {
-      key: 'pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)', hideOnMobile: true,
       render: (row) => {
         if (row.pcrr == null) return <span style={{ color: SLATE }}>—</span>;
         const c = row.pcrr >= 100 ? '#16a34a' : row.pcrr >= 30 ? TEXT_DARK : '#f59e0b';
@@ -852,15 +852,15 @@ function ResearchTab({ data, loading, onOperatorClick }: {
       },
     },
     {
-      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(80px, 0.7fr)',
+      key: 'total_gross', label: 'Total Gross', sortType: 'number', width: 'minmax(80px, 0.7fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrencyShort(row.total_gross)}</span>,
     },
     {
-      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.7fr)',
+      key: 'residue_deductions', label: 'Deductions', sortType: 'number', width: 'minmax(80px, 0.7fr)', hideOnMobile: true,
       render: (row) => <span>{formatCurrencyShort(row.residue_deductions)}</span>,
     },
     {
-      key: 'primary_county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.6fr)',
+      key: 'primary_county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.6fr)', hideOnMobile: true,
       render: (row) => <span>{row.primary_county || '—'}</span>,
     },
   ], [onOperatorClick]);

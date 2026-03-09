@@ -138,9 +138,9 @@ export function PoolingReport() {
           <div key={i} style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 16px', background: BG_MUTED, borderRadius: 8,
-            border: `1px solid ${BORDER}`, flex: '1 1 160px',
+            border: `1px solid ${BORDER}`, flex: '1 1 calc(50% - 8px)', minWidth: 0,
           }}>
-            <span style={{ fontSize: 22, fontWeight: 700, color: TEXT_DARK }}>{b.value}</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: TEXT_DARK }}>{b.value}</span>
             <div>
               <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{b.label}</div>
               <div style={{ fontSize: 11, color: SLATE }}>{b.detail}</div>
@@ -569,7 +569,7 @@ function MarketsTab({ counties, onOperatorClick }: { counties: PoolingCountyAvg[
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
         <button onClick={exportCsv} style={exportBtnStyle}>&#8615; Export CSV</button>
       </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
       {counties.map((c) => {
         const rangeStart = c.minBonus != null ? ((c.minBonus - globalMin) / globalRange * 100) : 0;
         const rangeWidth = c.minBonus != null && c.maxBonus != null

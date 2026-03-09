@@ -76,7 +76,7 @@ export function OperatorDirectory() {
     },
     { key: 'well_count', label: 'Wells', sortType: 'number', width: 70 },
     {
-      key: '_contact', label: 'Contact', width: '1fr',
+      key: '_contact', label: 'Contact', width: '1fr', hideOnMobile: true,
       getValue: (row) => row.contact_name || row.phone || '',
       render: (row) => {
         if (!row.contact_name && !row.phone) return <span style={{ color: SLATE }}>—</span>;
@@ -95,7 +95,7 @@ export function OperatorDirectory() {
       },
     },
     {
-      key: '_address', label: 'Mailing Address', width: '1.5fr',
+      key: '_address', label: 'Mailing Address', width: '1.5fr', hideOnMobile: true,
       getValue: (row) => row.address || row.city || '',
       render: (row) => {
         if (!row.address && !row.city) return <span style={{ color: SLATE }}>—</span>;
@@ -121,7 +121,7 @@ export function OperatorDirectory() {
           placeholder="Search operators or counties..."
           style={{
             padding: '8px 12px', border: `1px solid ${BORDER}`, borderRadius: 6,
-            fontSize: 13, width: 240, fontFamily: 'inherit', outline: 'none',
+            fontSize: 13, flex: '1 1 200px', maxWidth: 300, minWidth: 140, fontFamily: 'inherit', outline: 'none',
           }}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: SLATE }}>

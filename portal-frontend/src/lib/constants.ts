@@ -88,6 +88,7 @@ export const MODAL_TYPES = {
   OUT_OF_CREDITS: 'out-of-credits',
   ADD_WELL: 'add-well',
   ADD_PROPERTY: 'add-property',
+  REVENUE_ESTIMATOR: 'revenue-estimator',
 } as const;
 
 // OCC filing status colors

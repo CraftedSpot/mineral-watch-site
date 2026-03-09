@@ -60,15 +60,17 @@ export function SummaryCards({ data, insightCount, loading, onOpenReport, onScro
         revenueDetail = 'Based on available data';
       }
     } else if (data.totalWells && data.totalWells > 0) {
-      revenueDetail = 'Add decimal interests or check stubs';
+      revenueDetail = 'Upload check data to unlock';
     }
   }
 
   // Deduction detail
   let deductionValue = '—';
   let deductionDetail = 'No deduction data yet';
+  let deductionWarning = false;
   if (data && data.deductionFlags != null) {
     deductionValue = data.deductionFlags > 0 ? `${data.deductionFlags} High` : '0 High';
+    deductionWarning = data.deductionFlags > 0;
     deductionDetail = data.wellsAnalyzed ? `${data.wellsAnalyzed} wells analyzed` : 'No high deduction wells';
   }
 
@@ -124,7 +126,12 @@ export function SummaryCards({ data, insightCount, loading, onOpenReport, onScro
           >
             <div style={labelStyle}>Est. Monthly Revenue</div>
             <div style={valueStyle}>{loading ? '—' : revenueValue}</div>
-            <div style={detailStyle(revenueVariant)}>{loading ? 'Loading...' : revenueDetail}</div>
+            <div style={{
+              ...detailStyle(revenueVariant),
+              ...(revenueValue === '—' && !loading ? { textDecoration: 'underline', textUnderlineOffset: 2, opacity: 0.8 } : {}),
+            }}>
+              {loading ? 'Loading...' : revenueDetail}
+            </div>
           </div>
 
           {/* Deduction Health */}
@@ -135,20 +142,32 @@ export function SummaryCards({ data, insightCount, loading, onOpenReport, onScro
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
           >
             <div style={labelStyle}>Residue Gas Deduction Health</div>
-            <div style={valueStyle}>{loading ? '—' : deductionValue}</div>
+            <div style={{ ...valueStyle, color: deductionWarning ? '#fbbf24' : '#fff' }}>
+              {loading ? '—' : deductionValue}
+            </div>
             <div style={detailStyle()}>{loading ? 'Loading...' : deductionDetail}</div>
           </div>
 
           {/* Findings */}
           <div
-            style={cardStyle(true)}
+            style={{
+              ...cardStyle(true),
+              borderLeft: !loading && insightCount > 0 ? '3px solid #f59e0b' : '1px solid rgba(255,255,255,0.12)',
+            }}
             onClick={onScrollToInsights}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.12)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
           >
             <div style={labelStyle}>Findings</div>
-            <div style={valueStyle}>{loading ? '—' : insightCount}</div>
-            <div style={detailStyle(findingsVariant)}>{findingsDetail}</div>
+            <div style={{ ...valueStyle, color: !loading && insightCount > 0 ? '#fbbf24' : '#fff' }}>
+              {loading ? '—' : insightCount}
+            </div>
+            <div style={{
+              ...detailStyle(findingsVariant),
+              ...(insightCount > 0 ? { textDecoration: 'underline', textUnderlineOffset: 2, cursor: 'pointer' } : {}),
+            }}>
+              {findingsDetail}
+            </div>
           </div>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useReportData } from '../../../hooks/useReportData';
 import { fetchWellRiskProfile } from '../../../api/intelligence';
 import { TabNav } from '../TabNav';
@@ -6,7 +6,9 @@ import { SortableTable } from '../SortableTable';
 import { DonutChart } from '../DonutChart';
 import { LoadingSkeleton } from '../../ui/LoadingSkeleton';
 import { Badge } from '../../ui/Badge';
-import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../../lib/constants';
+import { BORDER, TEXT_DARK, SLATE, BG_MUTED, MODAL_TYPES } from '../../../lib/constants';
+import { useModal } from '../../../contexts/ModalContext';
+import { useIsMobile } from '../../../hooks/useIsMobile';
 import { OperatorLink } from '../../ui/OperatorLink';
 import type { Column } from '../SortableTable';
 import type { RiskProfileWell } from '../../../types/intelligence';
@@ -48,6 +50,7 @@ function formatPct(v: number | null): string {
 
 export function WellRiskProfileReport() {
   const [activeTab, setActiveTab] = useState('overview');
+  const isMobile = useIsMobile();
   const { data, loading, error, refetch } = useReportData(fetchWellRiskProfile);
 
   if (loading) return <LoadingSkeleton columns={5} rows={6} label="Well Risk Profiles" />;
@@ -71,29 +74,29 @@ export function WellRiskProfileReport() {
       {/* Price banner */}
       <div style={{
         background: 'linear-gradient(135deg, #1e293b, #334155)',
-        borderRadius: 8, padding: '14px 20px', marginBottom: 16,
-        display: 'flex', gap: 24, alignItems: 'center', flexWrap: 'wrap',
+        borderRadius: 8, padding: isMobile ? '12px 14px' : '14px 20px', marginBottom: 16,
+        display: 'flex', gap: isMobile ? 12 : 24, alignItems: 'center', flexWrap: 'wrap',
       }}>
         <div>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>WTI Crude</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{formatPrice(wtiPrice?.price)}</div>
-          <div style={{ fontSize: 11, color: '#94a3b8' }}>{wtiPrice?.source} — {wtiPrice?.date ? new Date(wtiPrice.date).toLocaleDateString() : ''}</div>
+          <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, color: '#fff' }}>{formatPrice(wtiPrice?.price)}</div>
+          {!isMobile && <div style={{ fontSize: 11, color: '#94a3b8' }}>{wtiPrice?.source} — {wtiPrice?.date ? new Date(wtiPrice.date).toLocaleDateString() : ''}</div>}
         </div>
         {henryHubPrice && (
           <div>
             <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Henry Hub</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>{formatPrice(henryHubPrice.price)}</div>
+            <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, color: '#fff' }}>{formatPrice(henryHubPrice.price)}</div>
           </div>
         )}
         <div style={{ marginLeft: 'auto' }}>
           <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 2 }}>Portfolio Net-Back</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#22c55e' }}>{formatPrice(s.portfolioNetBack)}</div>
+          <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 700, color: '#22c55e' }}>{formatPrice(s.portfolioNetBack)}</div>
         </div>
       </div>
 
       {/* HUD — donut + stat boxes */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-        <div style={{ padding: 16, background: '#fff', borderRadius: 8, border: `1px solid ${BORDER}` }}>
+      <div style={{ display: 'flex', gap: isMobile ? 12 : 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row' }}>
+        <div style={{ padding: isMobile ? 12 : 16, background: '#fff', borderRadius: 8, border: `1px solid ${BORDER}`, alignSelf: isMobile ? 'center' : undefined }}>
           <DonutChart
             segments={[
               { label: 'Comfortable', value: s.comfortableCount, color: '#22c55e' },
@@ -152,6 +155,18 @@ export function WellRiskProfileReport() {
 const RISK_ORDER: Record<string, number> = { comfortable: 0, adequate: 1, tight: 2, at_risk: 3 };
 
 function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?: number }) {
+  const modal = useModal();
+
+  const openWell = useCallback((w: RiskProfileWell) => {
+    modal.open(MODAL_TYPES.WELL, {
+      wellId: w.clientWellId || w.apiNumber,
+      apiNumber: w.apiNumber,
+      wellName: w.wellName,
+      operator: w.operator,
+      county: w.county,
+    });
+  }, [modal]);
+
   const exportCsv = () => {
     const headers = ['Well', 'API Number', 'Operator', 'Formation', 'Breakeven', 'Deductions %', 'Deduction Source', 'Deduction Detail', 'Net-Back', 'Risk Level', 'Stressed At', 'Critical At'];
     const rows = wells.map(w => [
@@ -176,14 +191,21 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
   const columns: Column<RiskProfileWell>[] = useMemo(() => [
     {
       key: 'wellName', label: 'Well', sortType: 'string', width: 'minmax(100px, 1.5fr)',
-      render: (row) => <span style={{ fontWeight: 500 }}>{row.wellName}</span>,
+      render: (row) => (
+        <span
+          onClick={(e) => { e.stopPropagation(); openWell(row); }}
+          style={{ fontWeight: 500, color: '#3b82f6', cursor: 'pointer' }}
+        >
+          {row.wellName}
+        </span>
+      ),
     },
     {
       key: 'operator', label: 'Operator', sortType: 'string', width: 'minmax(90px, 1.2fr)',
       render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
     },
     {
-      key: 'formationGroup', label: 'Formation', sortType: 'string', width: 'minmax(80px, 1fr)',
+      key: 'formationGroup', label: 'Formation', sortType: 'string', width: 'minmax(80px, 1fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontSize: 12 }}>{row.formationGroup || '—'}</span>,
     },
     {
@@ -219,7 +241,7 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
       render: (row) => riskBadge(row.riskLevel),
     },
     {
-      key: 'stressedAtWti', label: 'Stressed At', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      key: 'stressedAtWti', label: 'Stressed At', sortType: 'number', width: 'minmax(70px, 0.8fr)', hideOnMobile: true,
       render: (row) => {
         if (row.stressedAtWti == null) return <span style={{ color: SLATE }}>—</span>;
         const isNear = wtiPrice && row.stressedAtWti >= wtiPrice - 15;
@@ -227,7 +249,7 @@ function OverviewTab({ wells, wtiPrice }: { wells: RiskProfileWell[]; wtiPrice?:
       },
     },
     {
-      key: 'criticalAtWti', label: 'Critical At', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      key: 'criticalAtWti', label: 'Critical At', sortType: 'number', width: 'minmax(70px, 0.8fr)', hideOnMobile: true,
       render: (row) => {
         if (row.criticalAtWti == null) return <span style={{ color: SLATE }}>—</span>;
         const isNear = wtiPrice && row.criticalAtWti >= wtiPrice - 10;
@@ -295,7 +317,7 @@ function FormationTab({ formations }: { formations: Array<{ formationGroup: stri
           fontSize: 13, cursor: 'pointer', background: '#fff', color: TEXT_DARK, fontFamily: 'inherit',
         }}>Export CSV</button>
       </div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
       {formations.map((f) => {
         const total = f.wellCount || 1;
         const distEntries = Object.entries(f.profileDistribution || {});

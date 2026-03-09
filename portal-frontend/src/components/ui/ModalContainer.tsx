@@ -13,6 +13,7 @@ import { OutOfCreditsModal } from '../modals/OutOfCreditsModal';
 import { UploadDocumentModal } from '../modals/UploadDocumentModal';
 import { AddWellModal } from '../modals/AddWellModal';
 import { AddPropertyModal } from '../modals/AddPropertyModal';
+import { RevenueEstimatorModal } from '../modals/RevenueEstimatorModal';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
@@ -25,6 +26,7 @@ const MODAL_REGISTRY: Record<string, React.ComponentType<any>> = {
   'upload-document': UploadDocumentModal,
   'add-well': AddWellModal,
   'add-property': AddPropertyModal,
+  'revenue-estimator': RevenueEstimatorModal,
 };
 
 interface ModalContainerProps {

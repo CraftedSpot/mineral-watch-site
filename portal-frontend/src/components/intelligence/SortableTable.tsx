@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import { BORDER, TEXT_DARK, SLATE, BG_MUTED } from '../../lib/constants';
 
 export interface Column<T> {
@@ -8,6 +9,8 @@ export interface Column<T> {
   title?: string;
   width?: number | string;
   sticky?: boolean;
+  /** Hide this column on mobile (<768px). Columns with hideOnMobile are removed from the grid on small screens. */
+  hideOnMobile?: boolean;
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => string | number | null | undefined;
   sortType?: 'string' | 'number';
@@ -46,9 +49,16 @@ export function SortableTable<T>({
   onRowClick,
   emptyMessage = 'No data available',
 }: SortableTableProps<T>) {
+  const isMobile = useIsMobile();
   const [sort, setSort] = useState(defaultSort || { key: columns[0]?.key || '', dir: 'desc' as const });
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
   const parentRef = useRef<HTMLDivElement>(null);
+
+  // Filter columns for mobile
+  const visibleColumns = useMemo(
+    () => isMobile ? columns.filter(c => !c.hideOnMobile) : columns,
+    [columns, isMobile],
+  );
 
   const handleSort = useCallback((key: string) => {
     setSort((prev) => {
@@ -91,7 +101,6 @@ export function SortableTable<T>({
     });
   }, []);
 
-  // Use dynamic measurement for expandable rows, fixed for non-expandable
   const virtualizer = useVirtualizer({
     count: sortedData.length,
     getScrollElement: () => parentRef.current,
@@ -110,7 +119,9 @@ export function SortableTable<T>({
     );
   }
 
-  const gridTemplate = columns.map((c) => c.width ? (typeof c.width === 'number' ? `${c.width}px` : c.width) : '1fr').join(' ');
+  const gridTemplate = visibleColumns.map((c) => c.width ? (typeof c.width === 'number' ? `${c.width}px` : c.width) : '1fr').join(' ');
+  const cellPad = isMobile ? '6px 8px' : '8px 12px';
+  const headerPad = isMobile ? '8px 8px' : '10px 12px';
 
   const renderSortArrow = (key: string) => {
     const active = sort.key === key;
@@ -123,107 +134,114 @@ export function SortableTable<T>({
   };
 
   return (
-    <div style={{ border: `1px solid ${BORDER}`, borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-      {/* Fixed header */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: gridTemplate,
-        background: BG_MUTED, borderBottom: `1px solid ${BORDER}`,
-        position: 'sticky', top: 0, zIndex: 1,
-      }}>
-        {columns.map((col) => (
-          <div
-            key={col.key}
-            onClick={() => handleSort(col.key)}
-            title={col.title}
-            style={{
-              padding: '10px 12px', fontSize: 12, fontWeight: 600, color: SLATE,
-              cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
-              display: 'flex', alignItems: 'center',
-            }}
-          >
-            {col.label}
-            {renderSortArrow(col.key)}
-          </div>
-        ))}
-      </div>
-
-      {/* Virtual scroll body */}
-      <div
-        ref={parentRef}
-        style={{ maxHeight: 600, overflow: 'auto' }}
-      >
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
-          {virtualizer.getVirtualItems().map((virtualRow) => {
-            const row = sortedData[virtualRow.index];
-            const key = rowKey(row);
-            const isExpanded = expandedKeys.has(key);
-
-            return (
+    <div style={{
+      border: `1px solid ${BORDER}`, borderRadius: 8, overflow: 'hidden', background: '#fff',
+    }}>
+      {/* Horizontal scroll wrapper for mobile when many columns */}
+      <div style={{ overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ minWidth: isMobile && visibleColumns.length > 4 ? visibleColumns.length * 100 : undefined }}>
+          {/* Fixed header */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: gridTemplate,
+            background: BG_MUTED, borderBottom: `1px solid ${BORDER}`,
+            position: 'sticky', top: 0, zIndex: 1,
+          }}>
+            {visibleColumns.map((col) => (
               <div
-                key={key}
-                data-index={virtualRow.index}
-                ref={virtualizer.measureElement}
+                key={col.key}
+                onClick={() => handleSort(col.key)}
+                title={col.title}
                 style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
+                  padding: headerPad, fontSize: isMobile ? 11 : 12, fontWeight: 600, color: SLATE,
+                  cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+                  display: 'flex', alignItems: 'center',
                 }}
               >
-                <div
-                  onClick={() => {
-                    if (expandable) toggleExpand(key);
-                    onRowClick?.(row);
-                  }}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: gridTemplate,
-                    borderBottom: `1px solid ${BORDER}`,
-                    cursor: expandable || onRowClick ? 'pointer' : 'default',
-                    minHeight: rowHeight,
-                    alignItems: 'center',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#f8fafc'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
-                >
-                  {columns.map((col, colIdx) => (
-                    <div
-                      key={col.key}
-                      style={{
-                        padding: '8px 12px', fontSize: 13, color: TEXT_DARK,
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        display: 'flex', alignItems: 'center', gap: 4,
-                      }}
-                    >
-                      {colIdx === 0 && expandable && (
-                        <span style={{
-                          fontSize: 10, color: SLATE, transition: 'transform 0.15s',
-                          transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                          display: 'inline-block', marginRight: 4, flexShrink: 0,
-                        }}>
-                          &#9654;
-                        </span>
-                      )}
-                      {col.render ? col.render(row, virtualRow.index) : String(getSortValue(row, col) ?? '—')}
-                    </div>
-                  ))}
-                </div>
-
-                {/* Expanded row */}
-                {expandable && isExpanded && renderExpandedRow && (
-                  <div style={{
-                    padding: '12px 16px', background: '#fafbfc',
-                    borderBottom: `1px solid ${BORDER}`,
-                  }}>
-                    {renderExpandedRow(row)}
-                  </div>
-                )}
+                {col.label}
+                {renderSortArrow(col.key)}
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {/* Virtual scroll body */}
+          <div
+            ref={parentRef}
+            style={{ maxHeight: 600, overflow: 'auto' }}
+          >
+            <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+              {virtualizer.getVirtualItems().map((virtualRow) => {
+                const row = sortedData[virtualRow.index];
+                const key = rowKey(row);
+                const isExpanded = expandedKeys.has(key);
+
+                return (
+                  <div
+                    key={key}
+                    data-index={virtualRow.index}
+                    ref={virtualizer.measureElement}
+                    style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                    }}
+                  >
+                    <div
+                      onClick={() => {
+                        if (expandable) toggleExpand(key);
+                        onRowClick?.(row);
+                      }}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: gridTemplate,
+                        borderBottom: `1px solid ${BORDER}`,
+                        cursor: expandable || onRowClick ? 'pointer' : 'default',
+                        minHeight: isMobile ? 40 : rowHeight,
+                        alignItems: 'center',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(e) => { if (!isMobile) e.currentTarget.style.background = '#f8fafc'; }}
+                      onMouseLeave={(e) => { if (!isMobile) e.currentTarget.style.background = ''; }}
+                    >
+                      {visibleColumns.map((col, colIdx) => (
+                        <div
+                          key={col.key}
+                          style={{
+                            padding: cellPad, fontSize: isMobile ? 12 : 13, color: TEXT_DARK,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            display: 'flex', alignItems: 'center', gap: 4,
+                          }}
+                        >
+                          {colIdx === 0 && expandable && (
+                            <span style={{
+                              fontSize: 10, color: SLATE, transition: 'transform 0.15s',
+                              transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
+                              display: 'inline-block', marginRight: 4, flexShrink: 0,
+                            }}>
+                              &#9654;
+                            </span>
+                          )}
+                          {col.render ? col.render(row, virtualRow.index) : String(getSortValue(row, col) ?? '—')}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Expanded row */}
+                    {expandable && isExpanded && renderExpandedRow && (
+                      <div style={{
+                        padding: isMobile ? '10px 12px' : '12px 16px', background: '#fafbfc',
+                        borderBottom: `1px solid ${BORDER}`,
+                      }}>
+                        {renderExpandedRow(row)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -95,14 +95,14 @@ export function ProductionDeclineReport({ tier }: Props) {
 function HudBadge({ value, label, detail, valueColor }: { value: string; label: string; detail: string; valueColor?: string }) {
   return (
     <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '10px 16px', background: BG_MUTED, borderRadius: 8,
-      border: `1px solid ${BORDER}`, flex: '1 1 160px',
+      display: 'flex', alignItems: 'center', gap: 8,
+      padding: '8px 12px', background: BG_MUTED, borderRadius: 8,
+      border: `1px solid ${BORDER}`, flex: '1 1 calc(50% - 8px)', minWidth: 0,
     }}>
-      <span style={{ fontSize: 22, fontWeight: 700, color: valueColor || TEXT_DARK }}>{value}</span>
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK }}>{label}</div>
-        <div style={{ fontSize: 11, color: SLATE }}>{detail}</div>
+      <span style={{ fontSize: 20, fontWeight: 700, color: valueColor || TEXT_DARK }}>{value}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: 11, color: SLATE, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{detail}</div>
       </div>
     </div>
   );
@@ -202,14 +202,14 @@ function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyT
       render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
     },
     {
-      key: 'county', label: 'County', sortType: 'string', width: 'minmax(80px, 1fr)',
+      key: 'county', label: 'County', sortType: 'string', width: 'minmax(80px, 1fr)', hideOnMobile: true,
     },
     {
       key: 'status', label: 'Status', sortType: 'string', width: 'minmax(80px, 0.9fr)',
       render: (row) => statusBadge(row.status),
     },
     {
-      key: 'wellType', label: 'Type', sortType: 'string', width: 'minmax(40px, 0.4fr)',
+      key: 'wellType', label: 'Type', sortType: 'string', width: 'minmax(40px, 0.4fr)', hideOnMobile: true,
       render: (row) => (
         <Badge bg={row.isHorizontal ? '#dbeafe' : '#f3f4f6'} color={row.isHorizontal ? '#1e40af' : '#374151'} size="sm">
           {row.isHorizontal ? 'H' : 'V'}
@@ -217,11 +217,11 @@ function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyT
       ),
     },
     {
-      key: 'recentOilBBL', label: 'Oil (BBL)', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      key: 'recentOilBBL', label: 'Oil (BBL)', sortType: 'number', width: 'minmax(70px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontSize: 12 }}>{row.recentOilBBL != null ? Math.round(row.recentOilBBL).toLocaleString() : '—'}</span>,
     },
     {
-      key: 'recentGasMCF', label: 'Gas (MCF)', sortType: 'number', width: 'minmax(70px, 0.8fr)',
+      key: 'recentGasMCF', label: 'Gas (MCF)', sortType: 'number', width: 'minmax(70px, 0.8fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontSize: 12 }}>{row.recentGasMCF != null ? Math.round(row.recentGasMCF).toLocaleString() : '—'}</span>,
     },
     {
@@ -233,7 +233,7 @@ function PortfolioTab({ wells, monthlyTotals }: { wells: DeclineWell[]; monthlyT
       },
     },
     {
-      key: 'lastReportedMonth', label: 'Last Rpt', sortType: 'string', width: 'minmax(60px, 0.7fr)',
+      key: 'lastReportedMonth', label: 'Last Rpt', sortType: 'string', width: 'minmax(60px, 0.7fr)', hideOnMobile: true,
       render: (row) => <span style={{ fontSize: 12, color: SLATE }}>{row.lastReportedMonth ? formatMonth(row.lastReportedMonth) : '—'}</span>,
     },
   ], [modal]);

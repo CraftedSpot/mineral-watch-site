@@ -139,7 +139,7 @@ export function OperatorEfficiency() {
     },
     { key: 'well_count', label: 'Wells', sortType: 'number', width: 'minmax(50px, 0.4fr)' },
     {
-      key: 'deduction_pct', label: 'Deduction %', sortType: 'number', width: 'minmax(90px, 0.8fr)',
+      key: 'deduction_pct', label: 'Deduction %', sortType: 'number', width: 'minmax(90px, 0.8fr)', hideOnMobile: true,
       render: (row) => {
         const pct = row.deduction_pct ?? 0;
         return (
@@ -153,7 +153,7 @@ export function OperatorEfficiency() {
       },
     },
     {
-      key: 'pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)',
+      key: 'pcrr', label: 'PCRR', sortType: 'number', width: 'minmax(55px, 0.5fr)', hideOnMobile: true,
       render: (row) => {
         if (row.pcrr == null) return <span style={{ color: SLATE }}>—</span>;
         const c = row.pcrr >= 100 ? '#16a34a' : row.pcrr >= 30 ? TEXT_DARK : '#f59e0b';
@@ -174,14 +174,14 @@ export function OperatorEfficiency() {
       ),
     },
     {
-      key: '_county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.6fr)',
+      key: '_county', label: 'County', sortType: 'string', width: 'minmax(70px, 0.6fr)', hideOnMobile: true,
       getValue: (row) => row.primary_county || '',
       render: (row) => row.primary_county
         ? <Badge bg="#f1f5f9" color={SLATE} size="sm">{row.primary_county}</Badge>
         : <span style={{ color: SLATE }}>—</span>,
     },
     {
-      key: '_purchaser', label: 'Purchaser', width: 'minmax(100px, 1fr)',
+      key: '_purchaser', label: 'Purchaser', width: 'minmax(100px, 1fr)', hideOnMobile: true,
       getValue: (row) => row.primary_purchaser_name || '',
       render: (row) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>

@@ -244,7 +244,7 @@ function PortfolioTab({ idleWells, noDataWells }: { idleWells: ShutInWell[]; noD
       key: 'operator', label: 'Operator', sortType: 'string', width: '18%',
       render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
     },
-    { key: 'county', label: 'County', sortType: 'string', width: '11%' },
+    { key: 'county', label: 'County', sortType: 'string', width: '11%', hideOnMobile: true },
     {
       key: 'status', label: 'Status', width: '13%',
       getValue: (row) => {
@@ -258,7 +258,7 @@ function PortfolioTab({ idleWells, noDataWells }: { idleWells: ShutInWell[]; noD
       render: (row) => <span>{row.monthsIdle != null && row.monthsIdle < 999 ? row.monthsIdle : '—'}</span>,
     },
     {
-      key: 'lastProdMonth', label: 'Last Prod', sortType: 'string', width: '10%',
+      key: 'lastProdMonth', label: 'Last Prod', sortType: 'string', width: '10%', hideOnMobile: true,
       render: (row) => {
         if (row.lastProdMonth) return <span style={{ fontSize: 12, color: SLATE }}>{formatMonth(row.lastProdMonth)}</span>;
         if (row.taxPeriodStart) {
@@ -349,7 +349,7 @@ function NoDataSection({ wells, onOpenWell }: { wells: ShutInWell[]; onOpenWell:
       key: 'operator', label: 'Operator', sortType: 'string', width: '20%',
       render: (row) => <OperatorLink name={row.operator} fontSize={13} />,
     },
-    { key: 'county', label: 'County', sortType: 'string', width: '15%' },
+    { key: 'county', label: 'County', sortType: 'string', width: '15%', hideOnMobile: true },
     {
       key: '_noDataStatus', label: 'Status', width: '25%',
       getValue: (row) => {
@@ -496,7 +496,7 @@ function MarketsTab({ data }: { data: ShutInMarketsData }) {
       </div>
 
       {/* County cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
         {sorted.map(c => <MarketCountyCard key={c.county} county={c} />)}
       </div>
 
@@ -622,7 +622,7 @@ function ResearchTab({ data }: { data: ShutInResearchData }) {
   return (
     <div>
       {/* HUD Summary */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
         <HudCard
           value={`${s.idleRatePct.toFixed(1)}%`}
           valueColor={idleRateColor(s.idleRatePct)}
@@ -695,7 +695,7 @@ function ResearchTab({ data }: { data: ShutInResearchData }) {
               </button>
             ))}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: 12 }}>
             {sortedCounties.map(c => <ResearchCountyCard key={c.county} county={c} />)}
           </div>
         </>
@@ -707,11 +707,11 @@ function ResearchTab({ data }: { data: ShutInResearchData }) {
 function HudCard({ value, valueColor, label, detail }: { value: string; valueColor: string; label: string; detail: string }) {
   return (
     <div style={{
-      padding: '14px 16px', background: '#fff', borderRadius: 8,
+      padding: '10px 14px', background: '#fff', borderRadius: 8,
       border: `1px solid ${BORDER}`,
     }}>
-      <div style={{ fontSize: 24, fontWeight: 700, color: valueColor, marginBottom: 4 }}>{value}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: TEXT_DARK, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: valueColor, marginBottom: 4 }}>{value}</div>
+      <div style={{ fontSize: 12, fontWeight: 600, color: TEXT_DARK, marginBottom: 2 }}>{label}</div>
       <div style={{ fontSize: 11, color: SLATE }}>{detail}</div>
     </div>
   );
@@ -732,11 +732,11 @@ function OperatorTable({ operators }: { operators: ShutInResearchOperator[] }) {
       render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.idleWells.toLocaleString()}</span>,
     },
     {
-      key: 'recentlyIdle', label: 'Recently Idle', sortType: 'number', width: '12%',
+      key: 'recentlyIdle', label: 'Recently Idle', sortType: 'number', width: '12%', hideOnMobile: true,
       render: (row) => <span style={{ fontFamily: 'monospace' }}>{row.recentlyIdle.toLocaleString()}</span>,
     },
     {
-      key: '_trend', label: 'Trend', width: '16%',
+      key: '_trend', label: 'Trend', width: '16%', hideOnMobile: true,
       getValue: (row) => row.idleWells > 0 ? row.recentlyIdle / row.idleWells : 0,
       render: (row) => {
         if (row.idleWells === 0) return <span style={{ color: SLATE }}>—</span>;

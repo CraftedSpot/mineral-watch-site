@@ -197,7 +197,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
           <a href={`/portal/title?property=${propertyId}`} style={{ ...actionBtnStyle, background: 'linear-gradient(135deg, #1e3a5f, #0f172a)', textDecoration: 'none', padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
             Title Chain
           </a>
-          <button onClick={() => { onClose(); window.location.search = '?tab=tools'; }}
+          <button onClick={() => modal.open(MODAL_TYPES.REVENUE_ESTIMATOR, { propertyId })}
             style={{ ...actionBtnStyle, background: ORANGE, padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
             Revenue
           </button>
