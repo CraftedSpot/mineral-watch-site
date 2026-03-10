@@ -205,7 +205,7 @@ export async function confirmProcessing(docId: string): Promise<void> {
   if (!data.success) throw new Error('Failed to confirm processing');
 }
 
-export async function fetchDocumentBlob(docId: string): Promise<{ blob: Blob; contentType: string }> {
+export async function fetchDocumentBlob(docId: string): Promise<{ blob: Blob; contentType: string; pageRange?: string }> {
   const res = await fetch(`/api/documents/${docId}/download?view=true`, {
     credentials: 'include',
   });
@@ -216,5 +216,6 @@ export async function fetchDocumentBlob(docId: string): Promise<{ blob: Blob; co
     throw new Error(`Download failed: ${res.status}`);
   }
   const blob = await res.blob();
-  return { blob, contentType: res.headers.get('content-type') || 'application/octet-stream' };
+  const pageRange = res.headers.get('x-page-range') || undefined;
+  return { blob, contentType: res.headers.get('content-type') || 'application/octet-stream', pageRange };
 }

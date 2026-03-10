@@ -161,7 +161,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
   // Document detail state (for header book/page + viewer)
   const [docDetail, setDocDetail] = useState<DocDetail | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'document'>('document');
-  const [docBlob, setDocBlob] = useState<{ url: string; type: string } | null>(null);
+  const [docBlob, setDocBlob] = useState<{ url: string; type: string; pageRange?: string } | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(false);
   const nodeIdRef = useRef(node.id);
@@ -205,9 +205,9 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
     setBlobLoading(true);
     setBlobError(false);
     fetchDocumentBlob(node.id)
-      .then(({ blob, contentType }) => {
+      .then(({ blob, contentType, pageRange }) => {
         if (nodeIdRef.current !== currentId) return; // stale
-        setDocBlob({ url: URL.createObjectURL(blob), type: contentType });
+        setDocBlob({ url: URL.createObjectURL(blob), type: contentType, pageRange });
       })
       .catch(() => {
         if (nodeIdRef.current !== currentId) return;
@@ -653,7 +653,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
             {docBlob && !blobError && (
               docBlob.type === 'application/pdf' ? (
                 <iframe
-                  src={`${docBlob.url}#navpanes=0`}
+                  src={`${docBlob.url}#${docBlob.pageRange ? `page=${docBlob.pageRange.split('-')[0]}&` : ''}navpanes=0`}
                   style={{ width: '100%', height: '100%', border: 'none' }}
                   title="Document preview"
                 />
@@ -781,7 +781,7 @@ function CurrentOwnerContent({ node, propertyId, headerButtons, fieldBg, isMobil
 
   // Source document detail + blob state
   const [srcDocDetail, setSrcDocDetail] = useState<DocDetail | null>(null);
-  const [srcBlob, setSrcBlob] = useState<{ url: string; type: string } | null>(null);
+  const [srcBlob, setSrcBlob] = useState<{ url: string; type: string; pageRange?: string } | null>(null);
   const [srcBlobLoading, setSrcBlobLoading] = useState(false);
   const [srcBlobError, setSrcBlobError] = useState(false);
   const nodeIdRef = useRef(node.id);
@@ -838,9 +838,9 @@ function CurrentOwnerContent({ node, propertyId, headerButtons, fieldBg, isMobil
     setSrcBlobLoading(true);
     setSrcBlobError(false);
     fetchDocumentBlob(sourceDocId)
-      .then(({ blob, contentType }) => {
+      .then(({ blob, contentType, pageRange }) => {
         if (nodeIdRef.current !== currentId) return;
-        setSrcBlob({ url: URL.createObjectURL(blob), type: contentType });
+        setSrcBlob({ url: URL.createObjectURL(blob), type: contentType, pageRange });
       })
       .catch(() => {
         if (nodeIdRef.current !== currentId) return;
@@ -1168,7 +1168,7 @@ function CurrentOwnerContent({ node, propertyId, headerButtons, fieldBg, isMobil
         )}
         {srcBlob && !srcBlobError && (
           srcBlob.type === 'application/pdf' ? (
-            <iframe src={`${srcBlob.url}#navpanes=0`}
+            <iframe src={`${srcBlob.url}#${srcBlob.pageRange ? `page=${srcBlob.pageRange.split('-')[0]}&` : ''}navpanes=0`}
               style={{ width: '100%', height: '100%', border: 'none' }} title="Document preview" />
           ) : srcBlob.type.startsWith('image/') && !srcBlob.type.includes('tiff') ? (
             <div onWheel={handleWheel} onMouseDown={handlePanStart} onMouseMove={handlePanMove}

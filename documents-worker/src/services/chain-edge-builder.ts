@@ -252,6 +252,13 @@ export async function buildChainEdges(
       AND d.status = 'complete'
       AND (d.deleted_at IS NULL OR d.deleted_at = '')
       AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+      AND d.doc_type != 'multi_document'
+      AND NOT EXISTS (
+        SELECT 1 FROM documents child
+        WHERE child.parent_document_id = d.id
+          AND (child.deleted_at IS NULL OR child.deleted_at = '')
+          AND child.status = 'complete'
+      )
       AND (
         d.property_id = ?
         OR d.property_id LIKE ?

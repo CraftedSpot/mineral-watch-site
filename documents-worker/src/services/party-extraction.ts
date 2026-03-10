@@ -183,6 +183,15 @@ export function extractParties(extractedData: any, docType: string): Party[] {
           addParty(g?.name, 'grantee', formatAddress(g));
         }
       }
+      // Fallback: extractor sometimes uses lessor/lessee or assignor/assignee keys for deeds
+      if (parties.length === 0) {
+        addParty(extractedData.lessor?.name, 'grantor', formatAddress(extractedData.lessor));
+        addParty(extractedData.lessee?.name, 'grantee', formatAddress(extractedData.lessee));
+      }
+      if (parties.length === 0) {
+        addParty(extractedData.assignor?.name, 'grantor', formatAddress(extractedData.assignor));
+        addParty(extractedData.assignee?.name, 'grantee', formatAddress(extractedData.assignee));
+      }
       break;
 
     // ===== ASSIGNMENTS =====
