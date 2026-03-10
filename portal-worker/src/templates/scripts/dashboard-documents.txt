@@ -31,6 +31,7 @@
         let currentDocumentRotation = 0;
         let currentDocumentFilename = null;
         let loadedDocuments = [];
+        let documentsCountyFilter = '';
         
         // Documents list controller (state + event binding via shared ListController)
         const documentsController = createListController({
@@ -48,6 +49,7 @@
             onInit: () => {
                 updateDocumentsSortOptions();
                 initDocumentsCategoryDropdown();
+                initDocumentsCountyFilter();
             }
         });
 
@@ -436,6 +438,42 @@
             renderOptions();
         }
 
+        // Initialize county filter dropdown
+        function initDocumentsCountyFilter() {
+            const select = document.getElementById('documentsCountyFilter');
+            if (!select) return;
+            select.addEventListener('change', (e) => {
+                documentsCountyFilter = e.target.value;
+                renderDocumentsList(loadedDocuments);
+            });
+        }
+
+        // Populate county filter options from loaded documents
+        function populateDocumentsCountyFilter(documents) {
+            const select = document.getElementById('documentsCountyFilter');
+            if (!select) return;
+            const counties = new Set();
+            for (const doc of documents) {
+                if (doc.county) counties.add(doc.county);
+            }
+            const sorted = [...counties].sort();
+            const prev = select.value;
+            select.innerHTML = '<option value="">All Counties</option>';
+            sorted.forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c;
+                opt.textContent = c;
+                select.appendChild(opt);
+            });
+            // Restore previous selection if still valid
+            if (prev && sorted.includes(prev)) {
+                select.value = prev;
+                documentsCountyFilter = prev;
+            } else {
+                documentsCountyFilter = '';
+            }
+        }
+
         // Filter documents based on search and category
         function filterDocuments(documents, filterBy, searchTerm) {
             return documents.filter(doc => {
@@ -520,7 +558,12 @@
                     
                     if (docCategory !== filterBy) return false;
                 }
-                
+
+                // County filter
+                if (documentsCountyFilter) {
+                    if ((doc.county || '') !== documentsCountyFilter) return false;
+                }
+
                 // Search filter
                 if (!searchTerm) return true;
 
@@ -8031,7 +8074,8 @@
             // Check if any filter or search is active — if so, flat mode
             const hasFilter = documentsController.filterBy !== 'all';
             const hasSearch = documentsController.searchTerm && documentsController.searchTerm.length > 0;
-            if (hasFilter || hasSearch) return docs;
+            const hasCounty = !!documentsCountyFilter;
+            if (hasFilter || hasSearch || hasCounty) return docs;
 
             // Separate into parents, children, and standalone
             const parentMap = new Map();  // parentId → parentDoc
@@ -8292,8 +8336,9 @@
             }
             
             loadedDocuments = documents;
+            populateDocumentsCountyFilter(documents);
             const container = document.getElementById('documentsContent');
-            
+
             const hasSearch = currentUser?.plan !== 'Free';
 
             // Apply filter and sort via controller pipeline
@@ -8301,6 +8346,11 @@
             if (hasSearch && documents && documents.length > 0) {
                 displayDocuments = documentsController.applyPipeline(documents);
                 documentsController.updateCount(displayDocuments.length, documents.length, 'documentsResultsCount');
+                // Show count when county filter is active (shared controller doesn't know about it)
+                if (documentsCountyFilter && !documentsController.searchTerm && documentsController.filterBy === 'all') {
+                    const el = document.getElementById('documentsResultsCount');
+                    if (el) el.textContent = displayDocuments.length + ' of ' + documents.length + ' documents';
+                }
             }
             
             // Handle empty states
