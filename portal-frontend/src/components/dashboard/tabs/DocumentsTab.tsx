@@ -394,6 +394,7 @@ export function DocumentsTab() {
   const isMobile = useIsMobile();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [category, setCategory] = useState('all');
+  const [county, setCounty] = useState('');
   const [sortValue, setSortValue] = useState('date-desc');
   const [enhanced, setEnhanced] = useState(false);
   const [usage, setUsage] = useState<UsageResponse | null>(null);
@@ -473,11 +474,22 @@ export function DocumentsTab() {
     return 'date-desc';
   }, [sortOptions, sortValue]);
 
-  // Filter by category
+  // County options derived from documents
+  const countyOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of documents) {
+      if (d.county) set.add(d.county);
+    }
+    return [{ value: '', label: 'All Counties' }, ...[...set].sort().map(c => ({ value: c, label: c }))];
+  }, [documents]);
+
+  // Filter by category, then by county
   const filteredByCategory = useMemo(() => {
-    if (category === 'all') return documents;
-    return documents.filter((d) => getDocCategory(d) === category);
-  }, [documents, category]);
+    let arr = documents;
+    if (category !== 'all') arr = arr.filter((d) => getDocCategory(d) === category);
+    if (county) arr = arr.filter((d) => (d.county || '') === county);
+    return arr;
+  }, [documents, category, county]);
 
   // Parse sort into defaultSort
   const defaultSort = useMemo(() => {
@@ -503,9 +515,9 @@ export function DocumentsTab() {
   // Group documents into parent/child folders (only when no filter/search active)
   const transformData = useCallback((sorted: DisplayRow[]): DisplayRow[] => {
     // Check if any filter is active — if so, flat mode (no grouping)
-    if (category !== 'all') return sorted;
+    if (category !== 'all' || county) return sorted;
     return buildDisplayList(sorted, expandedParents);
-  }, [category, expandedParents]);
+  }, [category, county, expandedParents]);
 
   // Style group header rows differently
   const getRowStyle = useCallback((row: DisplayRow): React.CSSProperties | undefined => {
@@ -602,6 +614,11 @@ export function DocumentsTab() {
           value: category,
           onChange: handleCategoryChange,
         }}
+        secondFilterDropdown={countyOptions.length > 2 ? {
+          options: countyOptions,
+          value: county,
+          onChange: setCounty,
+        } : undefined}
         sortDropdown={{
           options: sortOptions,
           value: effectiveSortValue,

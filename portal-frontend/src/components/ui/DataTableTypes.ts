@@ -55,6 +55,13 @@ export interface DataTableProps<T> {
     label?: string;
   };
 
+  // Second filter dropdown (optional, e.g. county)
+  secondFilterDropdown?: {
+    options: DropdownOption[];
+    value: string;
+    onChange: (value: string) => void;
+  };
+
   // Extra sort comparators (for sort keys not tied to a visible column)
   customComparators?: Record<string, (a: T, b: T) => number>;
 

@@ -5,6 +5,7 @@ import { CountyRecordExtractionService } from './services/county-record-extracti
 import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
 import { persistParties, extractSummary, normalizePartyName } from './services/party-extraction';
 import { buildChainEdges } from './services/chain-edge-builder';
+import { resolveCounty, normalizeRange } from './normalize-fields';
 import { PDFDocument } from 'pdf-lib';
 import { AwsClient } from 'aws4fetch';
 
@@ -2254,8 +2255,8 @@ export default {
         }
 
         const query = `
-          SELECT id, r2_key FROM documents 
-          WHERE id = ? 
+          SELECT id, r2_key, property_id, chain_of_title FROM documents
+          WHERE id = ?
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
         `;
@@ -2264,6 +2265,29 @@ export default {
 
         if (!doc) {
           return errorResponse('Document not found', 404, env);
+        }
+
+        // Collect property_ids for chain cache invalidation (from parent + children)
+        const propertyIdsToInvalidate = new Set<string>();
+        if (doc.property_id && doc.chain_of_title) {
+          for (const pid of (doc.property_id as string).split(',')) {
+            if (pid.trim()) propertyIdsToInvalidate.add(pid.trim());
+          }
+        }
+        // Also collect property_ids from children (they may have different TRS links)
+        try {
+          const childProps = await env.WELLS_DB.prepare(
+            `SELECT DISTINCT property_id FROM documents WHERE parent_document_id = ? AND deleted_at IS NULL AND property_id IS NOT NULL AND chain_of_title = 1`
+          ).bind(docId).all();
+          for (const cp of childProps.results || []) {
+            if (cp.property_id) {
+              for (const pid of (cp.property_id as string).split(',')) {
+                if (pid.trim()) propertyIdsToInvalidate.add(pid.trim());
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to collect child property_ids:', e);
         }
 
         // Soft delete in database
@@ -2279,6 +2303,18 @@ export default {
           SET deleted_at = datetime('now', '-6 hours')
           WHERE parent_document_id = ? AND deleted_at IS NULL
         `).bind(docId).run();
+
+        // Invalidate chain_tree_cache for affected properties
+        for (const pid of propertyIdsToInvalidate) {
+          try {
+            await env.WELLS_DB.prepare(
+              `DELETE FROM chain_tree_cache WHERE property_id = ?`
+            ).bind(pid).run();
+            console.log(`[Delete] Invalidated chain cache for ${pid}`);
+          } catch (e) {
+            console.error(`[Delete] Failed to invalidate cache for ${pid}:`, e);
+          }
+        }
 
         // Collect all R2 keys to delete (parent + children with their own keys)
         const r2KeysToDelete = new Set<string>();
@@ -2767,18 +2803,8 @@ export default {
         // Post-process extracted data (normalize PUNs, etc.)
         const extracted_data = postProcessExtractedData(raw_extracted_data);
 
-        // Fallback county from extracted_data if not provided at top level
-        let resolvedCounty = county ?? null;
-        if (!resolvedCounty && extracted_data) {
-          resolvedCounty = extracted_data.county
-            || extracted_data.tracts?.[0]?.legal?.county
-            || extracted_data.tracts?.[0]?.county
-            || extracted_data.tracts?.[0]?.legal_description?.county
-            || extracted_data.recording_info?.county
-            || null;
-        }
-
-        // Final fallback: source_metadata county (from ingest-cli folder name)
+        // Resolve county from extracted_data + source_metadata fallbacks
+        let resolvedCounty = resolveCounty(county, extracted_data);
         if (!resolvedCounty) {
           try {
             const smRow = await env.WELLS_DB.prepare(
@@ -2791,32 +2817,8 @@ export default {
           } catch (_) { /* non-fatal */ }
         }
 
-        // Normalize range — strip meridian suffixes (ECM→E, WCM→W, EIM→E, WIM→W)
-        // and populate meridian column separately
-        let normalizedRange = range ?? null;
-        let meridian: string | null = null;
-        if (normalizedRange) {
-          const rmMatch = normalizedRange.match(/^(\d+[NSEW]?)(CM|IM)$/i);
-          if (rmMatch) {
-            normalizedRange = rmMatch[1];
-            meridian = rmMatch[2].toUpperCase();
-          } else if (normalizedRange.match(/^(\d+)(E|W)CM$/i)) {
-            // Handle "27ECM" → range "27E", meridian "CM"
-            normalizedRange = normalizedRange.replace(/CM$/i, '');
-            meridian = 'CM';
-          } else if (normalizedRange.match(/^(\d+)(E|W)IM$/i)) {
-            // Handle "12WIM" → range "12W", meridian "IM"
-            normalizedRange = normalizedRange.replace(/IM$/i, '');
-            meridian = 'IM';
-          }
-          // Also try extracting meridian from extracted_data if not found in range
-          if (!meridian && extracted_data?.tracts?.[0]?.legal_description?.meridian) {
-            const m = extracted_data.tracts[0].legal_description.meridian;
-            if (m === 'IM' || m === 'CM' || m === 'Indian Meridian' || m === 'Cimarron Meridian') {
-              meridian = m.startsWith('C') ? 'CM' : 'IM';
-            }
-          }
-        }
+        // Normalize range — strip meridian suffixes and populate meridian column
+        const { range: normalizedRange, meridian } = normalizeRange(range, extracted_data);
 
         // Chain-of-title doc types — earmarked for future chain-of-title feature
         const CHAIN_OF_TITLE_TYPES = new Set([
@@ -4213,18 +4215,32 @@ export default {
             }
           }
 
+          // Resolve county + normalize range/meridian (shared logic with regular extraction handler)
+          const childCounty = resolveCounty(child.county, child.extracted_data, parentCounty);
+          const { range: childRange, meridian: childMeridian } = normalizeRange(child.range, child.extracted_data);
+
+          // Determine chain_of_title based on doc_type
+          const CHAIN_TYPES = new Set([
+            'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
+            'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
+            'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
+            'memorandum_of_lease', 'lease_amendment', 'death_certificate',
+            'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+          ]);
+          const childChainOfTitle = child.doc_type && CHAIN_TYPES.has(child.doc_type) ? 1 : 0;
+
           await env.WELLS_DB.prepare(`
             INSERT INTO documents (
               id, r2_key, filename, user_id, organization_id, user_plan,
               user_email, user_name,
               parent_document_id, page_range_start, page_range_end,
               status, doc_type, display_name, category, confidence,
-              county, section, township, range, extracted_data,
+              county, section, township, range, meridian, extracted_data,
               needs_review, field_scores, fields_needing_review,
-              summary, property_id,
+              summary, property_id, chain_of_title,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -4244,16 +4260,18 @@ export default {
             child.display_name,
             child.category,
             child.confidence,
-            child.county || parentCounty,
+            childCounty,
             child.section,
             child.township,
-            child.range,
+            childRange,
+            childMeridian,
             child.extracted_data ? JSON.stringify(child.extracted_data) : null,
             child.needs_review ? 1 : 0,
             child.field_scores ? JSON.stringify(child.field_scores) : null,
             child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null,
             child.extracted_data ? extractSummary(child.extracted_data) : null,
-            parentDoc.property_id || null  // Inherit parent's property link as fallback
+            parentDoc.property_id || null,  // Inherit parent's property link as fallback
+            childChainOfTitle
           ).run();
 
           // Extract and persist document parties for child
@@ -4341,8 +4359,37 @@ export default {
           console.error('[Usage] Failed to track multi-doc usage:', usageError);
         }
 
-        return jsonResponse({ 
-          success: true, 
+        // Invalidate chain_tree_cache for all properties linked to children
+        try {
+          const childPropResult = await env.WELLS_DB.prepare(
+            `SELECT DISTINCT property_id FROM documents WHERE parent_document_id = ? AND property_id IS NOT NULL AND chain_of_title = 1`
+          ).bind(parentDocId).all();
+          const splitPropertyIds = new Set<string>();
+          for (const cp of childPropResult.results || []) {
+            if (cp.property_id) {
+              for (const pid of (cp.property_id as string).split(',')) {
+                if (pid.trim()) splitPropertyIds.add(pid.trim());
+              }
+            }
+          }
+          // Also include parent's property_id
+          if (parentDoc.property_id) {
+            for (const pid of (parentDoc.property_id as string).split(',')) {
+              if (pid.trim()) splitPropertyIds.add(pid.trim());
+            }
+          }
+          for (const pid of splitPropertyIds) {
+            await env.WELLS_DB.prepare(
+              `DELETE FROM chain_tree_cache WHERE property_id = ?`
+            ).bind(pid).run();
+            console.log(`[Split] Invalidated chain cache for ${pid}`);
+          }
+        } catch (cacheErr) {
+          console.error('[Split] Failed to invalidate chain cache:', cacheErr);
+        }
+
+        return jsonResponse({
+          success: true,
           parent_id: parentDocId,
           child_ids: childIds,
           child_count: children.length

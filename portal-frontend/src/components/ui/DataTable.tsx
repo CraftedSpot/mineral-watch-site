@@ -40,6 +40,7 @@ export function DataTable<T>({
   defaultSort,
   sortDropdown,
   filterDropdown,
+  secondFilterDropdown,
   customComparators,
   emptyTitle,
   emptyDescription,
@@ -211,6 +212,17 @@ export function DataTable<T>({
               ))}
             </Select>
           )}
+          {secondFilterDropdown && (
+            <Select
+              value={secondFilterDropdown.value}
+              onChange={(e) => secondFilterDropdown.onChange(e.target.value)}
+              style={{ width: '100%', fontSize: 13 }}
+            >
+              {secondFilterDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          )}
           {sortDropdown && (
             <Select
               value={sortDropdown.value}
@@ -262,6 +274,17 @@ export function DataTable<T>({
               style={{ minWidth: 160, fontSize: 13 }}
             >
               {filterDropdown.options.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </Select>
+          )}
+          {secondFilterDropdown && (
+            <Select
+              value={secondFilterDropdown.value}
+              onChange={(e) => secondFilterDropdown.onChange(e.target.value)}
+              style={{ minWidth: 140, fontSize: 13 }}
+            >
+              {secondFilterDropdown.options.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </Select>
