@@ -777,17 +777,27 @@ async function reextractDocument(env: Env, documentId: string): Promise<{
   extractedData.key_takeaway = keyTakeawayMatch ? keyTakeawayMatch[1].trim().substring(0, 1000) : null;
   extractedData.detailed_analysis = detailedAnalysisMatch ? detailedAnalysisMatch[1].trim().substring(0, 4000) : null;
 
-  // 8. Update document with new extraction
+  // 8. Update document with new extraction (including chain_of_title flag)
+  const CHAIN_OF_TITLE_TYPES = new Set([
+    'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
+    'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
+    'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
+    'memorandum_of_lease', 'lease_amendment', 'death_certificate',
+    'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+  ]);
+  const chainOfTitle = docType && CHAIN_OF_TITLE_TYPES.has(docType) ? 1 : 0;
+
   await env.WELLS_DB.prepare(`
     UPDATE documents
     SET extracted_data = ?,
         confidence = 'high',
         status = 'complete',
         summary = ?,
+        chain_of_title = ?,
         extraction_completed_at = datetime('now'),
         notes = 'Reextract (decontaminated) ' || datetime('now')
     WHERE id = ?
-  `).bind(JSON.stringify(extractedData), extractSummary(extractedData), documentId).run();
+  `).bind(JSON.stringify(extractedData), extractSummary(extractedData), chainOfTitle, documentId).run();
 
   console.log(`[Reextract] Document updated with new extraction`);
 
@@ -4211,10 +4221,10 @@ export default {
               status, doc_type, display_name, category, confidence,
               county, section, township, range, extracted_data,
               needs_review, field_scores, fields_needing_review,
-              summary,
+              summary, property_id,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -4242,7 +4252,8 @@ export default {
             child.needs_review ? 1 : 0,
             child.field_scores ? JSON.stringify(child.field_scores) : null,
             child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null,
-            child.extracted_data ? extractSummary(child.extracted_data) : null
+            child.extracted_data ? extractSummary(child.extracted_data) : null,
+            parentDoc.property_id || null  // Inherit parent's property link as fallback
           ).run();
 
           // Extract and persist document parties for child
@@ -4523,14 +4534,17 @@ export default {
       console.log('[Documents] Starting re-linking of all documents');
 
       try {
-        // Get all documents that have extracted data
+        // Get unlinked documents that have extracted data (limited batch)
+        const limit = parseInt(url.searchParams.get('limit') || '50');
         const documents = await env.WELLS_DB.prepare(`
-          SELECT id, extracted_data 
-          FROM documents 
-          WHERE deleted_at IS NULL 
+          SELECT id, extracted_data
+          FROM documents
+          WHERE deleted_at IS NULL
           AND extracted_data IS NOT NULL
-          AND status != 'failed'
-        `).all();
+          AND status = 'complete'
+          AND (property_id IS NULL OR property_id = '')
+          LIMIT ?
+        `).bind(limit).all();
 
         let linked = 0;
         let failed = 0;

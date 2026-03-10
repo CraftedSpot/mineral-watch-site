@@ -154,8 +154,10 @@ export function splitCompoundPartyName(fullName: string): string[] {
 
 // ─── Interest extraction ───────────────────────────────────────────
 
-function parseFraction(text: string): number | null {
+function parseFraction(text: unknown): number | null {
   if (!text) return null;
+  if (typeof text === 'number') return text;
+  if (typeof text !== 'string') return null;
   const m = text.match(/(\d+)\s*\/\s*(\d+)/);
   if (m) {
     const denom = parseInt(m[2]);
@@ -181,20 +183,34 @@ function extractInterestFromDoc(extractedData: any, docType: string): InterestIn
     if (Array.isArray(tracts) && tracts.length > 0) {
       const interest = tracts[0].interest;
       if (interest) {
+        const fracText = typeof interest.fraction_text === 'string' ? interest.fraction_text : null;
         return {
-          text: interest.fraction_text || null,
-          decimal: interest.fraction_decimal ?? parseFraction(interest.fraction_text) ?? null,
+          text: fracText,
+          decimal: interest.fraction_decimal ?? parseFraction(fracText) ?? null,
           type: interest.type || 'mineral',
         };
       }
     }
 
-    // Path 2: flat interest_conveyed / interest_type (actual extraction output)
+    // Path 2: interest_conveyed — can be string, number, or structured object
     if (extractedData.interest_conveyed || extractedData.interest_type) {
-      const text = extractedData.interest_conveyed || null;
+      const ic = extractedData.interest_conveyed;
+
+      // 2a: Structured object with fraction_text/fraction_decimal (same shape as tracts[].interest)
+      if (ic && typeof ic === 'object' && !Array.isArray(ic)) {
+        const fracText = typeof ic.fraction_text === 'string' ? ic.fraction_text : null;
+        return {
+          text: fracText,
+          decimal: ic.fraction_decimal ?? parseFraction(fracText) ?? null,
+          type: ic.type || extractedData.interest_type || 'mineral',
+        };
+      }
+
+      // 2b: Plain string or number
+      const text = typeof ic === 'string' ? ic : null;
       return {
         text,
-        decimal: parseFraction(text) ?? null,
+        decimal: (typeof ic === 'number' ? ic : null) ?? parseFraction(text) ?? null,
         type: extractedData.interest_type || 'mineral',
       };
     }
