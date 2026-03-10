@@ -383,7 +383,11 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
             background: fieldBg, border: `1px solid ${c?.border || BORDER}`,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>{doc.docType}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>{doc.docType}
+                <span style={{ fontWeight: 400, fontSize: 9, fontFamily: 'monospace', opacity: 0.5, marginLeft: 6 }}>
+                  {doc.id?.startsWith('doc_') ? `#${doc.id.slice(4, 10)}` : ''}
+                </span>
+              </span>
               <span style={{ fontSize: 10, color: c?.textMuted || SLATE }}>{formatDate(doc.date)}</span>
             </div>
             <div style={{ fontSize: 11, color: c?.textMuted || SLATE, marginTop: 4 }}>
@@ -434,11 +438,10 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
             {formatDate(node.date)}
           </span>
         </div>
-        {bookPage && (
-          <div style={{ fontSize: 11, color: c?.textMuted || SLATE, marginTop: 2 }}>
-            {bookPage}
-          </div>
-        )}
+        <div style={{ fontSize: 10, color: c?.textMuted || SLATE, marginTop: 2, fontFamily: 'monospace', opacity: 0.6 }}>
+          {node.id?.startsWith('doc_') ? `#${node.id.slice(4, 10)}` : ''}
+          {bookPage ? ` \u00b7 ${bookPage}` : ''}
+        </div>
       </div>
 
       {/* Tabs */}

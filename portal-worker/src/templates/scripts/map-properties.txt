@@ -491,6 +491,9 @@
                         </div>
                         ` : ''}
                         ${apiNumber && apiNumber !== 'Unknown' ? `
+                        <button class="action-btn primary well-blue" onclick="printMapWellReport()">Unit Summary</button>
+                        ` : ''}
+                        ${apiNumber && apiNumber !== 'Unknown' ? `
                         <button class="action-btn track-well" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">+ Track</button>
                         ` : ''}
                     </div>

@@ -425,7 +425,7 @@ async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
     },
     signal: AbortSignal.timeout(120_000),
     body: JSON.stringify({
-      model: 'claude-opus-4-6',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       messages: [{
         role: 'user',
@@ -725,7 +725,7 @@ async function reextractDocument(env: Env, documentId: string): Promise<{
     },
     signal: AbortSignal.timeout(120_000),
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       messages: [{
         role: 'user',
@@ -6181,6 +6181,141 @@ export default {
       } catch (error) {
         console.error('[Reextract Single] Error:', error);
         return errorResponse('Failed to reextract document', 500, env);
+      }
+    }
+
+    // ─── County Re-extraction ────────────────────────────────────────
+    // Re-extract all documents for a county (or filtered by doc_type/property)
+
+    // Route: GET /api/admin/reextract-county/candidates?county=Dewey&doc_type=mineral_deed&limit=50
+    if (path === '/api/admin/reextract-county/candidates' && request.method === 'GET') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      const county = url.searchParams.get('county');
+      if (!county) return errorResponse('county parameter required', 400, env);
+
+      const docType = url.searchParams.get('doc_type');
+      const propertyId = url.searchParams.get('property_id');
+      const limit = parseInt(url.searchParams.get('limit') || '100');
+
+      let where = `d.status = 'complete' AND d.extracted_data IS NOT NULL AND d.r2_key IS NOT NULL AND d.county = ?`;
+      const binds: any[] = [county];
+
+      if (docType) {
+        where += ` AND d.doc_type = ?`;
+        binds.push(docType);
+      }
+      if (propertyId) {
+        where += ` AND d.property_id = ?`;
+        binds.push(propertyId);
+      }
+
+      binds.push(limit);
+
+      const result = await env.WELLS_DB.prepare(`
+        SELECT d.id, d.doc_type, d.filename, d.property_id, d.chain_of_title,
+               d.notes, d.extraction_completed_at
+        FROM documents d
+        WHERE ${where}
+        ORDER BY d.doc_type, d.filename
+        LIMIT ?
+      `).bind(...binds).all();
+
+      const totalResult = await env.WELLS_DB.prepare(`
+        SELECT COUNT(*) as cnt FROM documents d WHERE ${where.replace(/ LIMIT \?/, '')}
+      `).bind(...binds.slice(0, -1)).all();
+
+      return jsonResponse({
+        county,
+        doc_type_filter: docType || null,
+        property_id_filter: propertyId || null,
+        total: (totalResult.results[0] as any)?.cnt || 0,
+        showing: result.results.length,
+        candidates: result.results
+      }, 200, env);
+    }
+
+    // Route: POST /api/admin/reextract-county
+    // Body: { county, doc_type?, property_id?, limit?, dry_run?, skip_already_reextracted? }
+    if (path === '/api/admin/reextract-county' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      try {
+        const body = await request.json() as any;
+        const county = body.county;
+        if (!county) return errorResponse('county required', 400, env);
+
+        const docType = body.doc_type || null;
+        const propertyId = body.property_id || null;
+        const limit = body.limit || 10;
+        const dryRun = body.dry_run || false;
+        const skipReextracted = body.skip_already_reextracted !== false; // default true
+
+        let where = `d.status = 'complete' AND d.extracted_data IS NOT NULL AND d.r2_key IS NOT NULL AND d.county = ?`;
+        const binds: any[] = [county];
+
+        if (docType) {
+          where += ` AND d.doc_type = ?`;
+          binds.push(docType);
+        }
+        if (propertyId) {
+          where += ` AND d.property_id = ?`;
+          binds.push(propertyId);
+        }
+        if (skipReextracted) {
+          where += ` AND (d.notes IS NULL OR d.notes NOT LIKE '%Reextract%')`;
+        }
+
+        binds.push(limit);
+
+        const candidatesResult = await env.WELLS_DB.prepare(`
+          SELECT d.id, d.doc_type, d.filename
+          FROM documents d
+          WHERE ${where}
+          ORDER BY d.doc_type, d.filename
+          LIMIT ?
+        `).bind(...binds).all();
+
+        if (dryRun) {
+          return jsonResponse({
+            dry_run: true,
+            county,
+            would_process: candidatesResult.results.length,
+            documents: candidatesResult.results
+          }, 200, env);
+        }
+
+        const results: any[] = [];
+        for (const row of candidatesResult.results) {
+          const doc = row as any;
+          try {
+            const result = await reextractDocument(env, doc.id);
+            results.push({ ...result, filename: doc.filename });
+          } catch (err) {
+            results.push({ document_id: doc.id, filename: doc.filename, success: false, error: (err as Error).message });
+          }
+        }
+
+        const successful = results.filter(r => r.success && !r.skipped).length;
+        const skipped = results.filter(r => r.skipped).length;
+
+        return jsonResponse({
+          county,
+          processed: results.length,
+          successful,
+          skipped,
+          failed: results.length - successful - skipped,
+          results
+        }, 200, env);
+      } catch (error) {
+        console.error('[Reextract County] Error:', error);
+        return errorResponse('Failed to reextract county documents', 500, env);
       }
     }
 
