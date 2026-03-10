@@ -3938,6 +3938,11 @@ CRITICAL RULES:
 - Only classify as "correspondence" if the document is PURELY a letter with no embedded legal instrument.
 - IRS/tax forms (W-9, W-8, 1099, 1042-S, K-1, 1098) are tax_record — NOT check_stub or correspondence.
 - If the document contains MULTIPLE separate instruments, set is_multi_document to true.
+- EXCEPTION: A title opinion that contains a "Chain of Instruments" or "Schedule of Instruments"
+  listing deeds/leases/assignments the attorney examined is ONE document (the title opinion),
+  NOT multiple documents. Similarly, an assignment schedule or exhibit page listing multiple
+  conveyances is ONE document. Only set is_multi_document when physically separate recorded
+  instruments (with their own recording stamps/signatures) appear in the same PDF.
 
 The OKCR instrument type for this document is: {hint}
 This hint may be wrong — always verify from the actual document content.

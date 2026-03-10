@@ -41,9 +41,7 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       const stackId = `stack_${treeNode.id}`;
       const allStackDocIds = [treeNode.id, ...treeNode.stackedDocs];
 
-      // Build docs array for the stack
-      // The main treeNode is the primary doc
-      // stackedDocs are referenced by ID — we need to find them in the full tree
+      // Build docs array for the stack — primary doc first
       const stackDocs: FlatStackDoc[] = [{
         id: treeNode.id,
         docType: formatDocType(treeNode.docType),
@@ -52,20 +50,27 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
         grantee: (treeNode.toNames || []).join(', ') || '',
         interestConveyed: treeNode.interestConveyed,
         _treeNode: treeNode,
+        _parties: treeNode._parties || [],
+        _corrections: treeNode._corrections || null,
       }];
 
-      // Mark stacked doc IDs so we skip them during tree walk
+      // Secondary stacked docs — use _stackedNodes for rich data, fallback to minimal
+      const stackedNodeMap = new Map(
+        (treeNode._stackedNodes || []).map(sn => [sn.id, sn])
+      );
       for (const sdId of treeNode.stackedDocs) {
         seen.add(sdId);
-        // We don't have the full TreeNode for stacked docs in the nested structure
-        // They were siblings that got collapsed — their data is minimal
+        const sn = stackedNodeMap.get(sdId);
         stackDocs.push({
           id: sdId,
-          docType: 'Document', // We'll enhance this if the API provides more info
-          date: treeNode.date, // Same date (that's why they're stacked)
-          grantor: (treeNode.fromNames || []).join(', ') || '',
-          grantee: (treeNode.toNames || []).join(', ') || '',
+          docType: sn ? formatDocType(sn.docType) : 'Document',
+          date: sn?.date ?? treeNode.date,
+          grantor: sn ? (sn.fromNames || []).join(', ') : (treeNode.fromNames || []).join(', ') || '',
+          grantee: sn ? (sn.toNames || []).join(', ') : (treeNode.toNames || []).join(', ') || '',
+          interestConveyed: sn?.interestConveyed,
           _treeNode: treeNode,
+          _parties: sn?._parties || [],
+          _corrections: sn?._corrections || null,
         });
       }
 

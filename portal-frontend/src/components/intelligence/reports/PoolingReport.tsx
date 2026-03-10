@@ -174,6 +174,7 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
   const [countySearch, setCountySearch] = useState('');
   const [countyDropdownOpen, setCountyDropdownOpen] = useState(false);
   const [distanceFilter, setDistanceFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [sortBy, setSortBy] = useState('orders');
 
   const allCounties = useMemo(() => {
@@ -187,8 +188,38 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
     return allCounties.filter(c => c.toLowerCase().includes(q));
   }, [allCounties, countySearch]);
 
+  const dateCutoff = useMemo(() => {
+    if (!dateFilter) return null;
+    const d = new Date();
+    switch (dateFilter) {
+      case '3m': d.setMonth(d.getMonth() - 3); break;
+      case '6m': d.setMonth(d.getMonth() - 6); break;
+      case '1y': d.setFullYear(d.getFullYear() - 1); break;
+      case '2y': d.setFullYear(d.getFullYear() - 2); break;
+      default: return null;
+    }
+    return d.toISOString().substring(0, 10);
+  }, [dateFilter]);
+
   const filtered = useMemo(() => {
     let arr = properties;
+
+    // Apply date filter by narrowing nearbyOrders, then dropping empty properties
+    if (dateCutoff) {
+      arr = arr.map(p => {
+        const orders = p.nearbyOrders.filter(o => o.orderDate >= dateCutoff);
+        if (orders.length === 0) return null;
+        const bonuses = orders.flatMap(o => (o.electionOptions || []).map(e => e.bonusPerAcre).filter((b): b is number => b != null && b > 0));
+        return {
+          ...p,
+          nearbyOrders: orders,
+          orderCount: orders.length,
+          avgBonus: bonuses.length > 0 ? bonuses.reduce((a, b) => a + b, 0) / bonuses.length : null,
+          sameSectionCount: orders.filter(o => o.distanceTier === 0).length,
+          adjacentCount: orders.filter(o => o.distanceTier === 1).length,
+        };
+      }).filter((p): p is PoolingPropertyGroup => p !== null);
+    }
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -217,7 +248,7 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
     }
 
     return sorted;
-  }, [properties, search, countyFilter, distanceFilter, sortBy]);
+  }, [properties, search, countyFilter, distanceFilter, dateFilter, dateCutoff, sortBy]);
 
   const toggle = (id: string) => {
     setExpanded(prev => {
@@ -350,6 +381,18 @@ function PortfolioTab({ properties, onOperatorClick }: { properties: PoolingProp
           <option value="same">Same Section</option>
           <option value="adjacent">Adjacent</option>
           <option value="nearby">Within 2 Twp</option>
+        </select>
+
+        <select
+          value={dateFilter}
+          onChange={(e) => setDateFilter(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="">All Time</option>
+          <option value="3m">Last 3 Months</option>
+          <option value="6m">Last 6 Months</option>
+          <option value="1y">Last 12 Months</option>
+          <option value="2y">Last 2 Years</option>
         </select>
 
         <select

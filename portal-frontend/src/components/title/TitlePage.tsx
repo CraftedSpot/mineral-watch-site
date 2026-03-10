@@ -153,8 +153,8 @@ export function TitlePage() {
         </div>
       )}
 
-      {/* Loading state */}
-      {chainLoading && (
+      {/* Loading state — only show spinner if no tree yet (initial load) */}
+      {chainLoading && !chainData?.tree && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '60px 24px', color: colors.textMuted,
@@ -168,13 +168,13 @@ export function TitlePage() {
         </div>
       )}
 
-      {/* Tree view */}
-      {!chainLoading && chainData?.tree && (
+      {/* Tree view — stays mounted during property switches to preserve fullscreen */}
+      {chainData?.tree && (
         <>
           <div style={{ padding: isMobile ? '10px 12px' : '12px 24px' }}>
             <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
-          <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} />
+          <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} chainLoading={chainLoading} />
         </>
       )}
 

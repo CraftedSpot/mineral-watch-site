@@ -9914,9 +9914,8 @@
             // Initialize cluster group if not already done
             if (!nearbyWellsLayer) {
                 nearbyWellsLayer = L.markerClusterGroup({
-                    // Only cluster at zoom levels below 8 (was 9)
-                    disableClusteringAtZoom: 8,
-                    maxClusterRadius: 80,
+                    disableClusteringAtZoom: 10,  // Uncluster sooner on zoom in
+                    maxClusterRadius: 50,
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
                     zoomToBoundsOnClick: true,

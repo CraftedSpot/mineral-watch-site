@@ -29,9 +29,10 @@ interface ChainTreeViewProps {
   selectedPropertyId?: string | null;
   onPropertySelect?: (id: string) => void;
   propsLoading?: boolean;
+  chainLoading?: boolean;
 }
 
-export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh, properties, selectedPropertyId, onPropertySelect, propsLoading }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh, properties, selectedPropertyId, onPropertySelect, propsLoading, chainLoading }: ChainTreeViewProps) {
   const c = colors; // shorthand
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -76,8 +77,10 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
     return null;
   }, [flatNodes]);
 
-  // Wheel zoom
+  // Wheel zoom — skip if cursor is over a scrollable overlay (property selector, etc.)
   const handleWheel = useCallback((e: WheelEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-scroll-passthrough]')) return;
     e.preventDefault();
     setZoom((z) => Math.max(0.3, Math.min(2, z + (e.deltaY > 0 ? -0.08 : 0.08))));
   }, []);
@@ -246,7 +249,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
           >
             {/* Property selector in fullscreen */}
             {isFullscreen && properties && onPropertySelect && (
-              <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
+              <div data-scroll-passthrough style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
                 <PropertySelector
                   properties={properties}
                   selectedId={selectedPropertyId ?? null}
@@ -259,7 +262,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
               </div>
             )}
             {/* Zoom controls */}
-            <div onMouseUp={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
+            <div data-scroll-passthrough onMouseUp={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 12, right: 12, zIndex: 10, display: 'flex', gap: 4, flexDirection: 'column' }}>
               {[
                 { label: '+', fn: () => setZoom((z) => Math.min(2, z + 0.15)) },
                 { label: '\u2212', fn: () => setZoom((z) => Math.max(0.3, z - 0.15)) },
@@ -399,6 +402,21 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
             {/* Hover tooltip — hidden on mobile */}
             {!isMobile && showHover && hoveredNode && 'type' in hoveredNode && (
               <HoverTooltip node={hoveredNode as FlatNode} pos={hoverPos} colors={c} />
+            )}
+
+            {/* Loading overlay when switching properties in fullscreen */}
+            {chainLoading && (
+              <div style={{
+                position: 'absolute', inset: 0, zIndex: 20,
+                background: (c?.surface || '#fff') + 'cc',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <div style={{
+                  width: 28, height: 28, border: `3px solid ${c?.border || BORDER}`, borderTopColor: '#C05621',
+                  borderRadius: '50%', animation: 'spin 0.8s linear infinite',
+                }} />
+                <span style={{ marginLeft: 10, fontSize: 13, color: c?.textMuted || SLATE }}>Loading...</span>
+              </div>
             )}
           </div>
         </div>

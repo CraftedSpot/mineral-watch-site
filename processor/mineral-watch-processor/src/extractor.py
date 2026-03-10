@@ -2022,6 +2022,10 @@ CONTINUATION INDICATORS - These mean is_document_start=FALSE:
 - "Page X of Y" where X > 1
 - APPROVED/DISAPPROVED stamps with signature
 - No clear title/header visible at the top
+- Schedule/list of instruments (e.g., "SCHEDULE OF INSTRUMENTS", "CHAIN OF INSTRUMENTS",
+  numbered lists of deeds/assignments with book/page references). These are PART OF a title
+  opinion or exhibit — they REFERENCE instruments, they are not the instruments themselves.
+  A page listing "1. Mineral Deed, Book 123 Page 456" is a reference list, NOT a mineral deed.
 
 CONFIDENCE GUIDELINES:
 - start_confidence >= 0.85: Clear top-of-page title AND strong evidence of new document
@@ -2408,6 +2412,19 @@ but they CAN appear alongside other documents in a multi-document PDF:
 Example: A PDF with a Form 1000 (pages 1-12) followed by a Lease (pages 13-16) is TWO
 documents. The Form 1000 is one document and the Lease is another. Do NOT merge them,
 but also do NOT split the Form 1000 into multiple documents.
+
+DO NOT SPLIT schedules, lists, or tables of instruments within a single document:
+- Title opinions often contain a "Chain of Instruments" or "Schedule of Instruments"
+  listing every deed, lease, and assignment the attorney examined. This schedule is
+  PART OF the title opinion — do NOT split each listed instrument into a separate document.
+- Assignment schedules or exhibit pages that list multiple assignments, conveyances, or
+  instruments on a single page are ONE document (the schedule/exhibit), not N documents.
+- Look for context clues: if a page is a tabular list or numbered schedule referencing
+  instruments by book/page/date, it is a REFERENCE LIST within a parent document, not
+  individual documents that happen to be on the same page.
+- The key distinction: a REFERENCE to an instrument (e.g., "Assignment recorded Book 123
+  Page 456") is NOT the instrument itself. Only split when you see the actual recorded
+  document with its own recording stamp, notary, and signatures.
 
 Return ONLY valid JSON in this format:
 

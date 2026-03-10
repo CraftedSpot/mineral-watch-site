@@ -213,6 +213,16 @@ interface TreeNode {
   matchType: string | null;
   matchConfidence: number | null;
   stackedDocs: string[];
+  _stackedNodes?: Array<{
+    id: string;
+    docType: string | null;
+    date: string | null;
+    fromNames: string[];
+    toNames: string[];
+    interestConveyed: string | null;
+    _parties: Array<{ rowId: number; name: string; role: string }>;
+    _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  }>;
   children: TreeNode[];
   _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   _parties: Array<{ rowId: number; name: string; role: string }>;
@@ -384,6 +394,21 @@ function assembleTree(
       }
     }
 
+    // Build stacked node data for secondary docs in this stack
+    const stackedNodes = stackedWith.length > 0 ? stackedWith.map(sdId => {
+      const sdDoc = docMap.get(sdId);
+      return {
+        id: sdId,
+        docType: sdDoc?.docType || null,
+        date: sdDoc?.date || null,
+        fromNames: getPartyNames(sdId, 'from'),
+        toNames: getPartyNames(sdId, 'to'),
+        interestConveyed: sdDoc?.interestConveyed || null,
+        _parties: (sdDoc?._parties || []) as Array<{ rowId: number; name: string; role: string }>,
+        _corrections: sdDoc?._corrections || null,
+      };
+    }) : undefined;
+
     return {
       id: docId,
       docType: doc?.docType || null,
@@ -398,6 +423,7 @@ function assembleTree(
       matchType: edge?.match_type || null,
       matchConfidence: edge?.match_confidence ?? null,
       stackedDocs: stackedWith,
+      _stackedNodes: stackedNodes,
       children,
       _corrections: doc?._corrections || null,
       _parties: (doc?._parties || []) as Array<{ rowId: number; name: string; role: string }>,

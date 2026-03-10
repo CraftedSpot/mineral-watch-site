@@ -40,6 +40,16 @@ export interface TreeNode {
   matchType: string | null;
   matchConfidence: number | null;
   stackedDocs: string[];
+  _stackedNodes?: Array<{
+    id: string;
+    docType: string | null;
+    date: string | null;
+    fromNames: string[];
+    toNames: string[];
+    interestConveyed: string | null;
+    _parties: Array<{ rowId: number; name: string; role: string }>;
+    _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  }>;
   children: TreeNode[];
   _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
@@ -187,6 +197,8 @@ export interface FlatStackDoc {
   grantee: string;
   interestConveyed?: string | null;
   _treeNode?: TreeNode;
+  _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
 }
 
 /** Layout computation result */

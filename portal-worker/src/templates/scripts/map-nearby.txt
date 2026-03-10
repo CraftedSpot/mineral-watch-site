@@ -616,8 +616,8 @@
             // Initialize cluster group if not already done
             if (!nearbyWellsLayer) {
                 nearbyWellsLayer = L.markerClusterGroup({
-                    disableClusteringAtZoom: 13,  // Keep clustering until township-level zoom
-                    maxClusterRadius: 80,
+                    disableClusteringAtZoom: 10,  // Uncluster sooner on zoom in
+                    maxClusterRadius: 50,
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
                     zoomToBoundsOnClick: true,
