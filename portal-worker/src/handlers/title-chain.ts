@@ -418,6 +418,7 @@ function assembleTree(
       fromNames: getPartyNames(docId, 'from'),
       toNames: getPartyNames(docId, 'to'),
       interestConveyed: doc?.interestConveyed || null,
+      summary: doc?.summary || null,
       recording: getRecording(docId),
       edgeType: edge?.edge_type || null,
       matchType: edge?.match_type || null,

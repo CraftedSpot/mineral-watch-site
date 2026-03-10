@@ -14,6 +14,15 @@ import type {
   TitleTree, TreeNode, ChainOwnerRow, ChainGap, FlatNode, FlatStackDoc, OrphanDoc,
 } from '../types/title-chain';
 
+/** Format an ISO date for display: "1951-03-15" → "Mar 15, 1951" */
+function formatDateShort(d: string): string {
+  const date = d.includes('-') && d.indexOf('-') === 4
+    ? new Date(d + 'T00:00:00')
+    : new Date(d);
+  if (isNaN(date.getTime())) return d;
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 /** Format a doc type slug for display: "mineral_deed" → "Mineral Deed" */
 function formatDocType(docType: string | null): string {
   if (!docType) return 'Document';
@@ -116,6 +125,7 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       grantor: (treeNode.fromNames || []).join(', ') || '',
       grantee: (treeNode.toNames || []).join(', ') || '',
       interestConveyed: treeNode.interestConveyed,
+      summary: treeNode.summary,
       children: childIds,
       _parties: treeNode._parties || [],
       _corrections: treeNode._corrections || null,
@@ -148,18 +158,28 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
     if (seen.has(gapId)) continue;
     seen.add(gapId);
 
-    const lastDate = gap.lastSeenDate || 'Unknown';
+    const lastDateRaw = gap.lastSeenDate || 'Unknown';
+    const lastDateFmt = lastDateRaw !== 'Unknown' ? formatDateShort(lastDateRaw) : 'Unknown';
+    // Look up parent doc for context
+    const parentNode = findParentByDocId(gap.lastSeenDocId);
+
     nodes.push({
       id: gapId,
       type: 'gap',
       children: [],
-      dateRange: `${lastDate} — present`,
+      dateRange: `${lastDateFmt} — present`,
       description: `${gap.partyName} last seen as ${gap.lastSeenAs}`,
-      suggestion: `Search county records for ${gap.partyName} conveyances after ${lastDate}.`,
+      suggestion: `Search county records for ${gap.partyName} conveyances after ${lastDateFmt}.`,
+      gapPartyName: gap.partyName,
+      gapLastSeenAs: gap.lastSeenAs,
+      gapLastSeenDocId: gap.lastSeenDocId,
+      gapLastSeenDate: gap.lastSeenDate,
+      gapParentDocType: parentNode?.docType,
+      gapParentGrantor: parentNode?.grantor,
+      gapParentGrantee: parentNode?.grantee,
     });
 
-    // Attach gap as child of the last-seen doc (checks stacks too)
-    const parentNode = findParentByDocId(gap.lastSeenDocId);
+    // Attach gap as child of the last-seen doc
     if (parentNode) {
       parentNode.children.push(gapId);
     }

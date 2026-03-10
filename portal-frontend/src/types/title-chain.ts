@@ -35,6 +35,7 @@ export interface TreeNode {
   fromNames: string[];
   toNames: string[];
   interestConveyed: string | null;
+  summary: string | null;
   recording: { book: string | null; page: string | null } | null;
   edgeType: string | null;
   matchType: string | null;
@@ -155,6 +156,7 @@ export interface FlatNode {
   grantor?: string;
   grantee?: string;
   interestConveyed?: string | null;
+  summary?: string | null;
   children: string[];
   // Orphan-specific
   reason?: 'no_parties' | 'no_match' | 'unknown';
@@ -167,6 +169,13 @@ export interface FlatNode {
   dateRange?: string;
   description?: string;
   suggestion?: string;
+  gapPartyName?: string;
+  gapLastSeenAs?: string;
+  gapLastSeenDocId?: string;
+  gapLastSeenDate?: string | null;
+  gapParentDocType?: string;
+  gapParentGrantor?: string;
+  gapParentGrantee?: string;
   // Current owner-specific
   owner?: string;
   interest?: string;

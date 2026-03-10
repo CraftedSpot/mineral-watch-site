@@ -328,6 +328,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
 
   // --- Non-document types: no tabs ---
   if (node.type === 'gap') {
+    const roleLabel = node.gapLastSeenAs === 'grantee' ? 'received interest via' : 'appeared in';
     return (
       <div style={{ padding: isMobile ? '14px 16px 24px' : '20px 24px', position: 'relative', overflowY: 'auto', flex: 1 }}>
         {headerButtons}
@@ -336,15 +337,47 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
             Gap in Chain
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: c?.text || DARK, marginTop: 4 }}>
-            {'\u26A0'} Missing Documents
+            {'\u26A0'} Missing Link
           </div>
         </div>
-        <div style={{ fontSize: 13, color: c?.text || DARK, marginBottom: 12, lineHeight: 1.6 }}>
-          {node.description}
+
+        {/* What happened */}
+        <div style={{
+          fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+          background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+            What we found
+          </div>
+          <strong>{node.gapPartyName}</strong> {roleLabel} a{' '}
+          {node.gapParentDocType ? <strong>{node.gapParentDocType.toLowerCase()}</strong> : 'document'}{' '}
+          {node.gapLastSeenDate ? `on ${formatDate(node.gapLastSeenDate)}` : ''}
+          {node.gapParentGrantor ? ` from ${node.gapParentGrantor}` : ''}.
+          <div style={{ marginTop: 6, fontSize: 11, color: c?.textMuted || SLATE }}>
+            No subsequent conveyance from this party was found in the chain.
+          </div>
         </div>
-        <div style={{ fontSize: 12, color: c?.textMuted || SLATE, marginBottom: 16 }}>
-          Period: {node.dateRange}
+
+        {/* What's missing */}
+        <div style={{
+          fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+          background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+            What to look for
+          </div>
+          A deed, assignment, or conveyance <strong>from</strong> {node.gapPartyName}{' '}
+          transferring their interest to another party, recorded after {node.gapLastSeenDate ? formatDate(node.gapLastSeenDate) : 'the last seen date'}.
+          <div style={{ marginTop: 8, fontSize: 11, color: c?.textMuted || SLATE }}>
+            Possible explanations: unreported conveyance, name variation, or this party still holds the interest (not yet a current owner record).
+          </div>
         </div>
+
+        {/* Period */}
+        <div style={{ fontSize: 12, color: c?.textMuted || SLATE, marginBottom: 12 }}>
+          Open period: {node.dateRange}
+        </div>
+
         {node.suggestion && (
           <div style={{
             fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
@@ -558,6 +591,18 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
                 Interest Conveyed
               </div>
               {node.interestConveyed}
+            </div>
+          )}
+          {node.summary && (
+            <div style={{
+              fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+              background: fieldBg, borderRadius: 8, lineHeight: 1.5, marginBottom: 12,
+              fontStyle: 'italic',
+            }}>
+              <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4, fontStyle: 'normal' }}>
+                Key Takeaway
+              </div>
+              {node.summary}
             </div>
           )}
         </div>
