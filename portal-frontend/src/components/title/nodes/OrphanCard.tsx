@@ -50,6 +50,11 @@ export function OrphanCard({ node, isSelected, isMobile, colors: c, onClick }: O
             fontFamily: "'DM Sans', sans-serif", textTransform: 'uppercase', letterSpacing: 0.5,
           }}>
             {node.docType || 'Document'}
+            {node.id?.startsWith('doc_') && (
+              <span style={{ fontSize: 7, fontFamily: 'monospace', opacity: 0.5, marginLeft: 4, color: c?.textMuted || SLATE }}>
+                #{node.id.slice(4, 10)}
+              </span>
+            )}
           </span>
           <span style={{
             fontSize: 9, color: c?.textMuted || SLATE,

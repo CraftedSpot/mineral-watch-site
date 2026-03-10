@@ -56,7 +56,12 @@ export function StackExpanded({ node, pos, hoveredId, selectedNodeId, viewMode =
               strokeWidth={hl ? 2 : 1} />
             <rect width={3} height={cardH} rx={1.5} fill={hl ? ORANGE : (c?.textMuted || SLATE)} />
             <text x={12} y={16} fontSize={9} fontWeight={700}
-              fill={hl ? ORANGE : (c?.text || DARK)} fontFamily="'DM Sans', sans-serif">{doc.docType}</text>
+              fill={hl ? ORANGE : (c?.text || DARK)} fontFamily="'DM Sans', sans-serif">
+              {doc.docType}
+              {doc.id?.startsWith('doc_') && (
+                <tspan fontSize={7} fill={c?.textMuted || SLATE} fontFamily="monospace" opacity={0.5}>{' '}#{doc.id.slice(4, 10)}</tspan>
+              )}
+            </text>
             <text x={pos.w - 8} y={16} textAnchor="end" fontSize={8}
               fill={c?.textMuted || SLATE} fontFamily="'DM Sans', sans-serif">{formatDate(doc.date)}</text>
             {!isSimple && (

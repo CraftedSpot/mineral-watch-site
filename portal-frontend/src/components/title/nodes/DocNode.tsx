@@ -39,7 +39,12 @@ export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = '
         stroke={hl ? ORANGE : (c?.cardStroke || BORDER)} strokeWidth={hl ? 2 : 1} />
       <rect width={isSimple ? 3 : 4} height={h} rx={isSimple ? 1.5 : 2} fill={ORANGE} />
       <text x={isSimple ? 12 : 14} y={isSimple ? 22 : 18} fontSize={10} fontWeight={700} fill={ORANGE}
-        fontFamily="'DM Sans', sans-serif">{node.docType}</text>
+        fontFamily="'DM Sans', sans-serif">
+        {node.docType}
+        {node.id?.startsWith('doc_') && (
+          <tspan fontSize={7} fill={c?.textMuted || SLATE} fontFamily="monospace" opacity={0.5}>{' '}#{node.id.slice(4, 10)}</tspan>
+        )}
+      </text>
       <text x={pos.w - 10} y={isSimple ? 22 : 18} textAnchor="end" fontSize={9} fill={c?.textMuted || SLATE}
         fontFamily="'DM Sans', sans-serif">{formatDate(node.date)}</text>
       {!isSimple && (
