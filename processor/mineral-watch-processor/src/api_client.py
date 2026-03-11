@@ -108,8 +108,8 @@ class APIClient:
             response.raise_for_status()
             logger.info(f"Updated document {doc_id} with status: {result.get('status')}")
     
-    async def split_document(self, doc_id: str, children: list[dict]) -> None:
-        """Create child documents from a multi-document PDF."""
+    async def split_document(self, doc_id: str, children: list[dict]) -> Optional[dict]:
+        """Create child documents from a multi-document PDF. Returns response with optional extraction_tasks."""
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 f"{self.base_url}/api/processing/split/{doc_id}",
@@ -117,7 +117,30 @@ class APIClient:
                 json={"children": children}
             )
             response.raise_for_status()
+            data = response.json()
             logger.info(f"Split document {doc_id} into {len(children)} children")
+            return data
+
+    async def upload_child_pdf(self, upload_url: str, pdf_bytes: bytes) -> bool:
+        """Upload extracted child PDF to R2 via presigned URL."""
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.put(
+                upload_url,
+                content=pdf_bytes,
+                headers={"Content-Type": "application/pdf"}
+            )
+            return response.status_code in (200, 201)
+
+    async def report_split_extraction(self, parent_doc_id: str, results: list[dict]) -> None:
+        """Report child PDF extraction results back to documents-worker."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                f"{self.base_url}/api/processing/split-extracted/{parent_doc_id}",
+                headers=self.headers,
+                json={"results": results}
+            )
+            response.raise_for_status()
+            logger.info(f"Reported split extraction for {parent_doc_id}: {len(results)} results")
     
     async def complete_prescan(self, doc_id: str, result: dict) -> None:
         """Update document with prescan results."""

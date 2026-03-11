@@ -231,7 +231,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
           background: c?.surface || '#fff', borderRadius: isFullscreen ? 0 : 12,
           border: isFullscreen ? 'none' : `1px solid ${c?.border || BORDER}`,
           overflow: 'hidden',
-          height: isFullscreen ? '100vh' : isMobile ? 'calc(100vh - 240px)' : 'calc(100vh - 320px)',
+          height: isFullscreen ? '100vh' : isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 240px)',
           minHeight: isMobile ? 300 : 450,
         }}>
         {/* Canvas area */}

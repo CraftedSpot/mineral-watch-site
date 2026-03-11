@@ -375,7 +375,7 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):
-            await handle_multi_document(client, doc_id, extraction_result, doc)
+            await handle_multi_document(client, doc_id, extraction_result, doc, file_path=file_path)
             return {
                 'status': 'complete',
                 'user_id': user_id,
@@ -520,11 +520,70 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             pass
 
 
+async def extract_and_upload_children(
+    client: APIClient,
+    parent_doc_id: str,
+    parent_pdf_path: str,
+    tasks: list[dict],
+) -> None:
+    """Extract child pages from parent PDF using PyMuPDF and upload to R2."""
+    import fitz  # PyMuPDF
+
+    logger.info(f"Extracting {len(tasks)} children from oversized parent {parent_doc_id}")
+    parent_pdf = fitz.open(parent_pdf_path)
+    results = []
+
+    for task in tasks:
+        child_id = task['childId']
+        page_start = task['pageStart'] - 1  # fitz is 0-indexed
+        page_end = task['pageEnd'] - 1       # fitz to_page is inclusive
+        upload_url = task['uploadUrl']
+        r2_key = task['r2Key']
+
+        try:
+            child_pdf = fitz.open()  # new empty PDF
+            child_pdf.insert_pdf(parent_pdf, from_page=page_start, to_page=page_end)
+            pdf_bytes = child_pdf.tobytes()
+            child_pdf.close()
+
+            success = await client.upload_child_pdf(upload_url, pdf_bytes)
+            results.append({
+                'child_id': child_id,
+                'r2_key': r2_key,
+                'success': success,
+                'size_bytes': len(pdf_bytes),
+            })
+            if success:
+                logger.info(f"Uploaded child {child_id} ({len(pdf_bytes)} bytes)")
+            else:
+                logger.warning(f"Failed to upload child {child_id}")
+        except Exception as e:
+            logger.error(f"Failed to extract child {child_id}: {e}")
+            results.append({
+                'child_id': child_id,
+                'r2_key': r2_key,
+                'success': False,
+                'error': str(e),
+            })
+
+    parent_pdf.close()
+
+    # Report results back to documents-worker
+    try:
+        await client.report_split_extraction(parent_doc_id, results)
+    except Exception as e:
+        logger.error(f"Failed to report split extraction results for {parent_doc_id}: {e}")
+
+    ok = sum(1 for r in results if r['success'])
+    logger.info(f"Child extraction complete for {parent_doc_id}: {ok}/{len(results)} successful")
+
+
 async def handle_multi_document(
     client: APIClient,
     parent_doc_id: str,
     extraction_result: dict,
-    parent_doc: dict
+    parent_doc: dict,
+    file_path: str = None,
 ) -> None:
     """Handle a PDF that contains multiple logical documents."""
 
@@ -625,9 +684,14 @@ async def handle_multi_document(
         })
     
     # Create child records via API
-    await client.split_document(parent_doc_id, children)
-    
+    split_response = await client.split_document(parent_doc_id, children)
+
     logger.info(f"Created {len(children)} child documents from {parent_doc_id}")
+
+    # If split response includes extraction_tasks, the parent PDF was too large
+    # for the Worker — extract child pages here using PyMuPDF
+    if split_response and split_response.get('extraction_tasks') and file_path:
+        await extract_and_upload_children(client, parent_doc_id, file_path, split_response['extraction_tasks'])
 
 
 async def check_and_notify_user(

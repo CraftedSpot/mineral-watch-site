@@ -2017,8 +2017,9 @@ export default {
           const baseName = downloadName.replace(/\.pdf$/i, '');
           const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
 
-          // Skip extraction for very large files (>95MB) — Worker 128MB memory limit
-          if (object.size > 95 * 1024 * 1024) {
+          // Skip extraction for extremely large files (>120MB) — Worker 128MB memory limit
+          // pdf-lib uses ~17MB heap for a 103MB file so most large PDFs work fine
+          if (object.size > 120 * 1024 * 1024) {
             console.log(`File too large for in-memory extraction (${Math.round(object.size / 1024 / 1024)}MB), streaming full PDF`);
             return new Response(object.body, {
               headers: {
@@ -2154,8 +2155,8 @@ export default {
           const baseName = (viewName as string).replace(/\.pdf$/i, '');
           const fallbackName = `${baseName} (pp${pageStart}-${pageEnd} of full).pdf`;
 
-          // Skip extraction for very large files (>95MB) — Worker 128MB memory limit
-          if (object.size > 95 * 1024 * 1024) {
+          // Skip extraction for extremely large files (>120MB) — Worker 128MB memory limit
+          if (object.size > 120 * 1024 * 1024) {
             console.log(`File too large for in-memory extraction (${Math.round(object.size / 1024 / 1024)}MB), streaming full PDF for view`);
             return new Response(object.body, {
               headers: {
@@ -4155,12 +4156,14 @@ export default {
 
         // Pre-load parent PDF for child extraction (best-effort)
         let fullPdfDoc: any = null;
+        let parentTooLarge = false;
         try {
           const parentR2Object = await env.UPLOADS_BUCKET.get(parentDoc.r2_key);
           if (parentR2Object) {
             const rawSize = parentR2Object.size;
-            if (rawSize > 95 * 1024 * 1024) {
-              console.log(`[Split] Parent PDF too large for extraction (${Math.round(rawSize / 1024 / 1024)}MB > 95MB), children will share parent r2_key`);
+            if (rawSize > 120 * 1024 * 1024) {
+              console.log(`[Split] Parent PDF too large for extraction (${Math.round(rawSize / 1024 / 1024)}MB > 120MB), processor will extract children`);
+              parentTooLarge = true;
             } else {
               const pdfBytes = await parentR2Object.arrayBuffer();
               fullPdfDoc = await PDFDocument.load(pdfBytes);
@@ -4170,6 +4173,18 @@ export default {
         } catch (loadErr) {
           console.error(`[Split] Failed to load parent PDF for extraction, children will share parent r2_key:`, loadErr);
         }
+
+        // When parent is too large, prepare presigned PUT URLs for processor-side extraction
+        let r2Client: InstanceType<typeof AwsClient> | null = null;
+        if (parentTooLarge) {
+          r2Client = new AwsClient({
+            accessKeyId: env.R2_ACCESS_KEY_ID,
+            secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+            service: 's3',
+            region: 'auto',
+          });
+        }
+        const extractionTasks: { childId: string; r2Key: string; uploadUrl: string; pageStart: number; pageEnd: number }[] = [];
 
         // Parse parent source_metadata for fallback county/TRS
         let parentCounty: string | null = null;
@@ -4212,6 +4227,29 @@ export default {
             } catch (extractErr) {
               console.error(`[Split] Failed to extract child ${childId}, using parent r2_key:`, extractErr);
               // childR2Key remains parentDoc.r2_key
+            }
+          } else if (r2Client && child.page_range_start != null && child.page_range_end != null) {
+            // Parent too large — generate presigned PUT URL for processor-side extraction
+            try {
+              const childKey = `${childId}.pdf`;
+              const r2Url = new URL(
+                `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com/mineral-watch-uploads/${childKey}`
+              );
+              r2Url.searchParams.set('X-Amz-Expires', '3600'); // 60min expiry
+              const signed = await r2Client.sign(
+                new Request(r2Url.toString(), { method: 'PUT' }),
+                { aws: { signQuery: true } }
+              );
+              extractionTasks.push({
+                childId,
+                r2Key: childKey,
+                uploadUrl: signed.url,
+                pageStart: child.page_range_start,
+                pageEnd: child.page_range_end,
+              });
+              console.log(`[Split] Generated presigned URL for child ${childId} (pages ${child.page_range_start}-${child.page_range_end})`);
+            } catch (signErr) {
+              console.error(`[Split] Failed to generate presigned URL for ${childId}:`, signErr);
             }
           }
 
@@ -4392,11 +4430,63 @@ export default {
           success: true,
           parent_id: parentDocId,
           child_ids: childIds,
-          child_count: children.length
+          child_count: children.length,
+          extraction_tasks: extractionTasks.length > 0 ? extractionTasks : undefined,
         }, 200, env);
       } catch (error) {
         console.error('Split document error:', error);
         return errorResponse('Failed to split document', 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/split-extracted/:parentDocId - Callback from processor after extracting oversized PDF children
+    if (path.match(/^\/api\/processing\/split-extracted\/[^\/]+$/) && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const parentDocId = path.split('/')[4];
+
+      try {
+        const data = await request.json() as { results: Array<{ child_id: string; r2_key: string; success: boolean; error?: string; size_bytes?: number }> };
+        const { results } = data;
+
+        if (!results || !Array.isArray(results)) {
+          return errorResponse('Invalid request: results array required', 400, env);
+        }
+
+        let updated = 0;
+        let failed = 0;
+
+        for (const result of results) {
+          if (result.success && result.child_id && result.r2_key) {
+            try {
+              const res = await env.WELLS_DB.prepare(
+                `UPDATE documents SET r2_key = ? WHERE id = ? AND parent_document_id = ?`
+              ).bind(result.r2_key, result.child_id, parentDocId).run();
+              if (res.meta.changes > 0) {
+                updated++;
+                console.log(`[SplitExtracted] Updated r2_key for child ${result.child_id} → ${result.r2_key} (${result.size_bytes ? Math.round(result.size_bytes / 1024) + 'KB' : 'unknown size'})`);
+              }
+            } catch (updateErr) {
+              console.error(`[SplitExtracted] Failed to update child ${result.child_id}:`, updateErr);
+              failed++;
+            }
+          } else {
+            failed++;
+            if (result.error) {
+              console.warn(`[SplitExtracted] Child ${result.child_id} extraction failed: ${result.error}`);
+            }
+          }
+        }
+
+        console.log(`[SplitExtracted] Parent ${parentDocId}: ${updated} updated, ${failed} failed out of ${results.length}`);
+
+        return jsonResponse({ updated, failed, total: results.length }, 200, env);
+      } catch (error) {
+        console.error('[SplitExtracted] Error:', error);
+        return errorResponse('Failed to process split extraction results', 500, env);
       }
     }
 

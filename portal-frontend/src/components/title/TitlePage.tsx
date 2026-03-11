@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
-import { ORANGE, SLATE, GAP_COLOR, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
+import { ORANGE, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
 import { getTitleColors } from '../../lib/title-colors';
 import type { ViewMode } from '../../lib/layout-engine';
 import { useAuth } from '../../hooks/useAuth';
@@ -74,21 +74,28 @@ export function TitlePage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: colors.bg, minHeight: '100vh', overflowX: 'hidden' }}>
       {/* Toolbar */}
       <div style={{
-        padding: isMobile ? '10px 12px' : '12px 24px', borderBottom: `1px solid ${colors.border}`,
+        padding: isMobile ? '8px 12px' : '8px 24px', borderBottom: `1px solid ${colors.border}`,
         display: 'flex', alignItems: isMobile ? 'stretch' : 'center',
         justifyContent: 'space-between',
-        flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 0,
+        flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 6 : 0,
         background: colors.surface,
       }}>
-        <PropertySelector
-          properties={properties}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          loading={propsLoading}
-          isMobile={isMobile}
-          darkMode={darkMode}
-          colors={colors}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 12 }}>
+          <PropertySelector
+            properties={properties}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            loading={propsLoading}
+            isMobile={isMobile}
+            darkMode={darkMode}
+            colors={colors}
+          />
+          {!isMobile && (
+            <span style={{ fontSize: 10, color: colors.textMuted, opacity: 0.6, whiteSpace: 'nowrap' }}>
+              AI-interpreted — not a legal opinion
+            </span>
+          )}
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16 }}>
           {/* Simple / Detailed toggle */}
           <div style={{
@@ -117,33 +124,7 @@ export function TitlePage() {
             title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
             {darkMode ? '\u2600\uFE0F' : '\uD83C\uDF19'}
           </button>
-          {chainData?.property && (
-            <div style={{ fontSize: 12, color: colors.textMuted, display: 'flex', gap: isMobile ? 8 : 16 }}>
-              <span>{chainData.documents.length} docs</span>
-              {chainData.tree && (
-                <>
-                  <span style={{ color: GAP_COLOR }}>{chainData.tree.stats.gapCount} gaps</span>
-                  <span>{chainData.tree.stats.ownerCount} owners</span>
-                </>
-              )}
-            </div>
-          )}
         </div>
-      </div>
-
-      {/* Disclaimer */}
-      <div style={{
-        padding: isMobile ? '8px 12px' : '8px 24px',
-        background: colors.disclaimerBg,
-        borderBottom: `1px solid ${colors.disclaimerBorder}`,
-        display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: 8,
-        fontSize: isMobile ? 11 : 12, color: colors.disclaimerText,
-      }}>
-        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2"
-            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
-        </svg>
-        AI-interpreted chain of title — not a legal opinion. Documents shown are those uploaded to your account.
       </div>
 
       {/* Error state */}
@@ -171,7 +152,7 @@ export function TitlePage() {
       {/* Tree view — stays mounted during property switches to preserve fullscreen */}
       {chainData?.tree && (
         <>
-          <div style={{ padding: isMobile ? '10px 12px' : '12px 24px' }}>
+          <div style={{ padding: isMobile ? '8px 12px 6px' : '8px 24px 6px' }}>
             <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
           <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} chainLoading={chainLoading} />
