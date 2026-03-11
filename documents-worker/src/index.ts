@@ -6470,6 +6470,7 @@ export default {
           edges_created: result.edgesCreated,
           owners_found: result.ownersFound,
           orphan_count: result.orphanCount,
+          fuzzy_edges: result.fuzzyEdges || 0,
           duration_ms: result.duration,
         }, 200, env);
       } catch (error) {

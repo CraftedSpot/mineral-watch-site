@@ -43,7 +43,8 @@ export function normalizePartyName(name: string): string {
   n = n.replace(/\bcorporation\b/gi, '');
   n = n.replace(/\bcorp\.?\b/gi, '');
   n = n.replace(/\bltd\.?\b/gi, '');
-  n = n.replace(/\bCo\.\b/g, ''); // Case-sensitive period required — preserves "conoco"
+  n = n.replace(/\bco\./g, '');      // Period required — "conoco" has no trailing period so it's safe
+  n = n.replace(/\bcompany\b/g, ''); // Already lowercased; no person's name is "company"
 
   // Strip et al., et ux.
   n = n.replace(/\bet\s+al\.?\b/gi, '');
