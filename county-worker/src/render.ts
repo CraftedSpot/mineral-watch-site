@@ -216,6 +216,7 @@ const HEADER = `
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights">Insights</a>
+                <a href="/counties" class="active">Counties</a>
                 <a href="/tools">Tools</a>
 
                 <a href="/about">About</a>
@@ -255,6 +256,24 @@ const FOOTER = `
         <h4>Legal</h4>
         <a href="https://mymineralwatch.com/terms">Terms of Service</a>
         <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+      </div>
+      <div class="footer-col">
+        <h4>Popular Counties</h4>
+        <a href="/counties/canadian-county">Canadian</a>
+        <a href="/counties/grady-county">Grady</a>
+        <a href="/counties/blaine-county">Blaine</a>
+        <a href="/counties/kingfisher-county">Kingfisher</a>
+        <a href="/counties/caddo-county">Caddo</a>
+        <a href="/counties/garfield-county">Garfield</a>
+        <a href="/counties/stephens-county">Stephens</a>
+        <a href="/counties/carter-county">Carter</a>
+        <a href="/counties/custer-county">Custer</a>
+        <a href="/counties/woodward-county">Woodward</a>
+        <a href="/counties/mcclain-county">McClain</a>
+        <a href="/counties/beckham-county">Beckham</a>
+        <a href="/counties/dewey-county">Dewey</a>
+        <a href="/counties/roger-mills-county">Roger Mills</a>
+        <a href="/counties/major-county">Major</a>
       </div>
     </div>
   </div>

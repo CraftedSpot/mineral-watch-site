@@ -24,6 +24,7 @@ const HEADER = `
                 <a href="/features">Features</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/insights" class="active">Insights</a>
+                <a href="/counties">Counties</a>
                 <a href="/tools">Tools</a>
 
                 <a href="/about">About</a>
@@ -63,6 +64,24 @@ const FOOTER = `
         <h4>Legal</h4>
         <a href="https://mymineralwatch.com/terms">Terms of Service</a>
         <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+      </div>
+      <div class="footer-col">
+        <h4>Popular Counties</h4>
+        <a href="/counties/canadian-county">Canadian</a>
+        <a href="/counties/grady-county">Grady</a>
+        <a href="/counties/blaine-county">Blaine</a>
+        <a href="/counties/kingfisher-county">Kingfisher</a>
+        <a href="/counties/caddo-county">Caddo</a>
+        <a href="/counties/garfield-county">Garfield</a>
+        <a href="/counties/stephens-county">Stephens</a>
+        <a href="/counties/carter-county">Carter</a>
+        <a href="/counties/custer-county">Custer</a>
+        <a href="/counties/woodward-county">Woodward</a>
+        <a href="/counties/mcclain-county">McClain</a>
+        <a href="/counties/beckham-county">Beckham</a>
+        <a href="/counties/dewey-county">Dewey</a>
+        <a href="/counties/roger-mills-county">Roger Mills</a>
+        <a href="/counties/major-county">Major</a>
       </div>
     </div>
   </div>
@@ -438,77 +457,77 @@ export function renderInsightsHub(): string {
                     <a href="/counties/mcclain-county" class="county-tile" data-county="mcclain"><div class="county-tile-name">McClain</div></a>
                     <a href="/counties/caddo-county" class="county-tile" data-county="caddo"><div class="county-tile-name">Caddo</div></a>
                     <a href="/counties/custer-county" class="county-tile" data-county="custer"><div class="county-tile-name">Custer</div></a>
-                    <a href="/counties/adair-county" class="county-tile hidden" data-county="adair"><div class="county-tile-name">Adair</div></a>
-                    <a href="/counties/alfalfa-county" class="county-tile hidden" data-county="alfalfa"><div class="county-tile-name">Alfalfa</div></a>
-                    <a href="/counties/atoka-county" class="county-tile hidden" data-county="atoka"><div class="county-tile-name">Atoka</div></a>
-                    <a href="/counties/beaver-county" class="county-tile hidden" data-county="beaver"><div class="county-tile-name">Beaver</div></a>
-                    <a href="/counties/beckham-county" class="county-tile hidden" data-county="beckham"><div class="county-tile-name">Beckham</div></a>
-                    <a href="/counties/bryan-county" class="county-tile hidden" data-county="bryan"><div class="county-tile-name">Bryan</div></a>
-                    <a href="/counties/cherokee-county" class="county-tile hidden" data-county="cherokee"><div class="county-tile-name">Cherokee</div></a>
-                    <a href="/counties/choctaw-county" class="county-tile hidden" data-county="choctaw"><div class="county-tile-name">Choctaw</div></a>
-                    <a href="/counties/cimarron-county" class="county-tile hidden" data-county="cimarron"><div class="county-tile-name">Cimarron</div></a>
-                    <a href="/counties/cleveland-county" class="county-tile hidden" data-county="cleveland"><div class="county-tile-name">Cleveland</div></a>
-                    <a href="/counties/coal-county" class="county-tile hidden" data-county="coal"><div class="county-tile-name">Coal</div></a>
-                    <a href="/counties/comanche-county" class="county-tile hidden" data-county="comanche"><div class="county-tile-name">Comanche</div></a>
-                    <a href="/counties/cotton-county" class="county-tile hidden" data-county="cotton"><div class="county-tile-name">Cotton</div></a>
-                    <a href="/counties/craig-county" class="county-tile hidden" data-county="craig"><div class="county-tile-name">Craig</div></a>
-                    <a href="/counties/creek-county" class="county-tile hidden" data-county="creek"><div class="county-tile-name">Creek</div></a>
-                    <a href="/counties/delaware-county" class="county-tile hidden" data-county="delaware"><div class="county-tile-name">Delaware</div></a>
-                    <a href="/counties/dewey-county" class="county-tile hidden" data-county="dewey"><div class="county-tile-name">Dewey</div></a>
-                    <a href="/counties/ellis-county" class="county-tile hidden" data-county="ellis"><div class="county-tile-name">Ellis</div></a>
-                    <a href="/counties/garvin-county" class="county-tile hidden" data-county="garvin"><div class="county-tile-name">Garvin</div></a>
-                    <a href="/counties/grant-county" class="county-tile hidden" data-county="grant"><div class="county-tile-name">Grant</div></a>
-                    <a href="/counties/greer-county" class="county-tile hidden" data-county="greer"><div class="county-tile-name">Greer</div></a>
-                    <a href="/counties/harmon-county" class="county-tile hidden" data-county="harmon"><div class="county-tile-name">Harmon</div></a>
-                    <a href="/counties/harper-county" class="county-tile hidden" data-county="harper"><div class="county-tile-name">Harper</div></a>
-                    <a href="/counties/haskell-county" class="county-tile hidden" data-county="haskell"><div class="county-tile-name">Haskell</div></a>
-                    <a href="/counties/hughes-county" class="county-tile hidden" data-county="hughes"><div class="county-tile-name">Hughes</div></a>
-                    <a href="/counties/jackson-county" class="county-tile hidden" data-county="jackson"><div class="county-tile-name">Jackson</div></a>
-                    <a href="/counties/jefferson-county" class="county-tile hidden" data-county="jefferson"><div class="county-tile-name">Jefferson</div></a>
-                    <a href="/counties/johnston-county" class="county-tile hidden" data-county="johnston"><div class="county-tile-name">Johnston</div></a>
-                    <a href="/counties/kay-county" class="county-tile hidden" data-county="kay"><div class="county-tile-name">Kay</div></a>
-                    <a href="/counties/kiowa-county" class="county-tile hidden" data-county="kiowa"><div class="county-tile-name">Kiowa</div></a>
-                    <a href="/counties/latimer-county" class="county-tile hidden" data-county="latimer"><div class="county-tile-name">Latimer</div></a>
-                    <a href="/counties/le-flore-county" class="county-tile hidden" data-county="le flore"><div class="county-tile-name">Le Flore</div></a>
-                    <a href="/counties/lincoln-county" class="county-tile hidden" data-county="lincoln"><div class="county-tile-name">Lincoln</div></a>
-                    <a href="/counties/logan-county" class="county-tile hidden" data-county="logan"><div class="county-tile-name">Logan</div></a>
-                    <a href="/counties/love-county" class="county-tile hidden" data-county="love"><div class="county-tile-name">Love</div></a>
-                    <a href="/counties/major-county" class="county-tile hidden" data-county="major"><div class="county-tile-name">Major</div></a>
-                    <a href="/counties/marshall-county" class="county-tile hidden" data-county="marshall"><div class="county-tile-name">Marshall</div></a>
-                    <a href="/counties/mayes-county" class="county-tile hidden" data-county="mayes"><div class="county-tile-name">Mayes</div></a>
-                    <a href="/counties/mccurtain-county" class="county-tile hidden" data-county="mccurtain"><div class="county-tile-name">McCurtain</div></a>
-                    <a href="/counties/mcintosh-county" class="county-tile hidden" data-county="mcintosh"><div class="county-tile-name">McIntosh</div></a>
-                    <a href="/counties/murray-county" class="county-tile hidden" data-county="murray"><div class="county-tile-name">Murray</div></a>
-                    <a href="/counties/muskogee-county" class="county-tile hidden" data-county="muskogee"><div class="county-tile-name">Muskogee</div></a>
-                    <a href="/counties/noble-county" class="county-tile hidden" data-county="noble"><div class="county-tile-name">Noble</div></a>
-                    <a href="/counties/nowata-county" class="county-tile hidden" data-county="nowata"><div class="county-tile-name">Nowata</div></a>
-                    <a href="/counties/okfuskee-county" class="county-tile hidden" data-county="okfuskee"><div class="county-tile-name">Okfuskee</div></a>
-                    <a href="/counties/oklahoma-county" class="county-tile hidden" data-county="oklahoma"><div class="county-tile-name">Oklahoma</div></a>
-                    <a href="/counties/okmulgee-county" class="county-tile hidden" data-county="okmulgee"><div class="county-tile-name">Okmulgee</div></a>
-                    <a href="/counties/osage-county" class="county-tile hidden" data-county="osage"><div class="county-tile-name">Osage</div></a>
-                    <a href="/counties/ottawa-county" class="county-tile hidden" data-county="ottawa"><div class="county-tile-name">Ottawa</div></a>
-                    <a href="/counties/pawnee-county" class="county-tile hidden" data-county="pawnee"><div class="county-tile-name">Pawnee</div></a>
-                    <a href="/counties/payne-county" class="county-tile hidden" data-county="payne"><div class="county-tile-name">Payne</div></a>
-                    <a href="/counties/pittsburg-county" class="county-tile hidden" data-county="pittsburg"><div class="county-tile-name">Pittsburg</div></a>
-                    <a href="/counties/pontotoc-county" class="county-tile hidden" data-county="pontotoc"><div class="county-tile-name">Pontotoc</div></a>
-                    <a href="/counties/pottawatomie-county" class="county-tile hidden" data-county="pottawatomie"><div class="county-tile-name">Pottawatomie</div></a>
-                    <a href="/counties/pushmataha-county" class="county-tile hidden" data-county="pushmataha"><div class="county-tile-name">Pushmataha</div></a>
-                    <a href="/counties/roger-mills-county" class="county-tile hidden" data-county="roger mills"><div class="county-tile-name">Roger Mills</div></a>
-                    <a href="/counties/rogers-county" class="county-tile hidden" data-county="rogers"><div class="county-tile-name">Rogers</div></a>
-                    <a href="/counties/seminole-county" class="county-tile hidden" data-county="seminole"><div class="county-tile-name">Seminole</div></a>
-                    <a href="/counties/sequoyah-county" class="county-tile hidden" data-county="sequoyah"><div class="county-tile-name">Sequoyah</div></a>
-                    <a href="/counties/texas-county" class="county-tile hidden" data-county="texas"><div class="county-tile-name">Texas</div></a>
-                    <a href="/counties/tillman-county" class="county-tile hidden" data-county="tillman"><div class="county-tile-name">Tillman</div></a>
-                    <a href="/counties/tulsa-county" class="county-tile hidden" data-county="tulsa"><div class="county-tile-name">Tulsa</div></a>
-                    <a href="/counties/wagoner-county" class="county-tile hidden" data-county="wagoner"><div class="county-tile-name">Wagoner</div></a>
-                    <a href="/counties/washington-county" class="county-tile hidden" data-county="washington"><div class="county-tile-name">Washington</div></a>
-                    <a href="/counties/washita-county" class="county-tile hidden" data-county="washita"><div class="county-tile-name">Washita</div></a>
-                    <a href="/counties/woods-county" class="county-tile hidden" data-county="woods"><div class="county-tile-name">Woods</div></a>
-                    <a href="/counties/woodward-county" class="county-tile hidden" data-county="woodward"><div class="county-tile-name">Woodward</div></a>
+                    <a href="/counties/adair-county" class="county-tile" data-county="adair"><div class="county-tile-name">Adair</div></a>
+                    <a href="/counties/alfalfa-county" class="county-tile" data-county="alfalfa"><div class="county-tile-name">Alfalfa</div></a>
+                    <a href="/counties/atoka-county" class="county-tile" data-county="atoka"><div class="county-tile-name">Atoka</div></a>
+                    <a href="/counties/beaver-county" class="county-tile" data-county="beaver"><div class="county-tile-name">Beaver</div></a>
+                    <a href="/counties/beckham-county" class="county-tile" data-county="beckham"><div class="county-tile-name">Beckham</div></a>
+                    <a href="/counties/bryan-county" class="county-tile" data-county="bryan"><div class="county-tile-name">Bryan</div></a>
+                    <a href="/counties/cherokee-county" class="county-tile" data-county="cherokee"><div class="county-tile-name">Cherokee</div></a>
+                    <a href="/counties/choctaw-county" class="county-tile" data-county="choctaw"><div class="county-tile-name">Choctaw</div></a>
+                    <a href="/counties/cimarron-county" class="county-tile" data-county="cimarron"><div class="county-tile-name">Cimarron</div></a>
+                    <a href="/counties/cleveland-county" class="county-tile" data-county="cleveland"><div class="county-tile-name">Cleveland</div></a>
+                    <a href="/counties/coal-county" class="county-tile" data-county="coal"><div class="county-tile-name">Coal</div></a>
+                    <a href="/counties/comanche-county" class="county-tile" data-county="comanche"><div class="county-tile-name">Comanche</div></a>
+                    <a href="/counties/cotton-county" class="county-tile" data-county="cotton"><div class="county-tile-name">Cotton</div></a>
+                    <a href="/counties/craig-county" class="county-tile" data-county="craig"><div class="county-tile-name">Craig</div></a>
+                    <a href="/counties/creek-county" class="county-tile" data-county="creek"><div class="county-tile-name">Creek</div></a>
+                    <a href="/counties/delaware-county" class="county-tile" data-county="delaware"><div class="county-tile-name">Delaware</div></a>
+                    <a href="/counties/dewey-county" class="county-tile" data-county="dewey"><div class="county-tile-name">Dewey</div></a>
+                    <a href="/counties/ellis-county" class="county-tile" data-county="ellis"><div class="county-tile-name">Ellis</div></a>
+                    <a href="/counties/garvin-county" class="county-tile" data-county="garvin"><div class="county-tile-name">Garvin</div></a>
+                    <a href="/counties/grant-county" class="county-tile" data-county="grant"><div class="county-tile-name">Grant</div></a>
+                    <a href="/counties/greer-county" class="county-tile" data-county="greer"><div class="county-tile-name">Greer</div></a>
+                    <a href="/counties/harmon-county" class="county-tile" data-county="harmon"><div class="county-tile-name">Harmon</div></a>
+                    <a href="/counties/harper-county" class="county-tile" data-county="harper"><div class="county-tile-name">Harper</div></a>
+                    <a href="/counties/haskell-county" class="county-tile" data-county="haskell"><div class="county-tile-name">Haskell</div></a>
+                    <a href="/counties/hughes-county" class="county-tile" data-county="hughes"><div class="county-tile-name">Hughes</div></a>
+                    <a href="/counties/jackson-county" class="county-tile" data-county="jackson"><div class="county-tile-name">Jackson</div></a>
+                    <a href="/counties/jefferson-county" class="county-tile" data-county="jefferson"><div class="county-tile-name">Jefferson</div></a>
+                    <a href="/counties/johnston-county" class="county-tile" data-county="johnston"><div class="county-tile-name">Johnston</div></a>
+                    <a href="/counties/kay-county" class="county-tile" data-county="kay"><div class="county-tile-name">Kay</div></a>
+                    <a href="/counties/kiowa-county" class="county-tile" data-county="kiowa"><div class="county-tile-name">Kiowa</div></a>
+                    <a href="/counties/latimer-county" class="county-tile" data-county="latimer"><div class="county-tile-name">Latimer</div></a>
+                    <a href="/counties/le-flore-county" class="county-tile" data-county="le flore"><div class="county-tile-name">Le Flore</div></a>
+                    <a href="/counties/lincoln-county" class="county-tile" data-county="lincoln"><div class="county-tile-name">Lincoln</div></a>
+                    <a href="/counties/logan-county" class="county-tile" data-county="logan"><div class="county-tile-name">Logan</div></a>
+                    <a href="/counties/love-county" class="county-tile" data-county="love"><div class="county-tile-name">Love</div></a>
+                    <a href="/counties/major-county" class="county-tile" data-county="major"><div class="county-tile-name">Major</div></a>
+                    <a href="/counties/marshall-county" class="county-tile" data-county="marshall"><div class="county-tile-name">Marshall</div></a>
+                    <a href="/counties/mayes-county" class="county-tile" data-county="mayes"><div class="county-tile-name">Mayes</div></a>
+                    <a href="/counties/mccurtain-county" class="county-tile" data-county="mccurtain"><div class="county-tile-name">McCurtain</div></a>
+                    <a href="/counties/mcintosh-county" class="county-tile" data-county="mcintosh"><div class="county-tile-name">McIntosh</div></a>
+                    <a href="/counties/murray-county" class="county-tile" data-county="murray"><div class="county-tile-name">Murray</div></a>
+                    <a href="/counties/muskogee-county" class="county-tile" data-county="muskogee"><div class="county-tile-name">Muskogee</div></a>
+                    <a href="/counties/noble-county" class="county-tile" data-county="noble"><div class="county-tile-name">Noble</div></a>
+                    <a href="/counties/nowata-county" class="county-tile" data-county="nowata"><div class="county-tile-name">Nowata</div></a>
+                    <a href="/counties/okfuskee-county" class="county-tile" data-county="okfuskee"><div class="county-tile-name">Okfuskee</div></a>
+                    <a href="/counties/oklahoma-county" class="county-tile" data-county="oklahoma"><div class="county-tile-name">Oklahoma</div></a>
+                    <a href="/counties/okmulgee-county" class="county-tile" data-county="okmulgee"><div class="county-tile-name">Okmulgee</div></a>
+                    <a href="/counties/osage-county" class="county-tile" data-county="osage"><div class="county-tile-name">Osage</div></a>
+                    <a href="/counties/ottawa-county" class="county-tile" data-county="ottawa"><div class="county-tile-name">Ottawa</div></a>
+                    <a href="/counties/pawnee-county" class="county-tile" data-county="pawnee"><div class="county-tile-name">Pawnee</div></a>
+                    <a href="/counties/payne-county" class="county-tile" data-county="payne"><div class="county-tile-name">Payne</div></a>
+                    <a href="/counties/pittsburg-county" class="county-tile" data-county="pittsburg"><div class="county-tile-name">Pittsburg</div></a>
+                    <a href="/counties/pontotoc-county" class="county-tile" data-county="pontotoc"><div class="county-tile-name">Pontotoc</div></a>
+                    <a href="/counties/pottawatomie-county" class="county-tile" data-county="pottawatomie"><div class="county-tile-name">Pottawatomie</div></a>
+                    <a href="/counties/pushmataha-county" class="county-tile" data-county="pushmataha"><div class="county-tile-name">Pushmataha</div></a>
+                    <a href="/counties/roger-mills-county" class="county-tile" data-county="roger mills"><div class="county-tile-name">Roger Mills</div></a>
+                    <a href="/counties/rogers-county" class="county-tile" data-county="rogers"><div class="county-tile-name">Rogers</div></a>
+                    <a href="/counties/seminole-county" class="county-tile" data-county="seminole"><div class="county-tile-name">Seminole</div></a>
+                    <a href="/counties/sequoyah-county" class="county-tile" data-county="sequoyah"><div class="county-tile-name">Sequoyah</div></a>
+                    <a href="/counties/texas-county" class="county-tile" data-county="texas"><div class="county-tile-name">Texas</div></a>
+                    <a href="/counties/tillman-county" class="county-tile" data-county="tillman"><div class="county-tile-name">Tillman</div></a>
+                    <a href="/counties/tulsa-county" class="county-tile" data-county="tulsa"><div class="county-tile-name">Tulsa</div></a>
+                    <a href="/counties/wagoner-county" class="county-tile" data-county="wagoner"><div class="county-tile-name">Wagoner</div></a>
+                    <a href="/counties/washington-county" class="county-tile" data-county="washington"><div class="county-tile-name">Washington</div></a>
+                    <a href="/counties/washita-county" class="county-tile" data-county="washita"><div class="county-tile-name">Washita</div></a>
+                    <a href="/counties/woods-county" class="county-tile" data-county="woods"><div class="county-tile-name">Woods</div></a>
+                    <a href="/counties/woodward-county" class="county-tile" data-county="woodward"><div class="county-tile-name">Woodward</div></a>
                     <div class="county-no-results" id="countyNoResults">No counties match your search.</div>
                 </div>
 
-                <a href="/counties/" class="view-all-link" id="viewAllLink">See all 77 Oklahoma counties &rarr;</a>
+                <a href="/counties/" class="view-all-link" id="viewAllLink">View all county pages &rarr;</a>
             </div>
         </section>
 
@@ -1731,6 +1750,22 @@ export function renderArticle(slug: string): string | null {
     </main>
 
     ${resourcesHtml}
+
+    <section class="county-callout" style="background: var(--paper); border: 1px solid var(--border); border-radius: 8px; padding: 24px 28px; margin: 32px auto; max-width: 800px;">
+        <h3 style="font-size: 18px; margin-bottom: 8px;">Browse County Intelligence</h3>
+        <p style="font-size: 14px; color: var(--slate-blue); margin-bottom: 12px;">
+            See live OCC filings, drilling permits, top operators, and production data for any Oklahoma county.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px;">
+            <a href="/counties/canadian-county" style="color: var(--red-dirt); font-weight: 500;">Canadian</a> &middot;
+            <a href="/counties/grady-county" style="color: var(--red-dirt); font-weight: 500;">Grady</a> &middot;
+            <a href="/counties/blaine-county" style="color: var(--red-dirt); font-weight: 500;">Blaine</a> &middot;
+            <a href="/counties/kingfisher-county" style="color: var(--red-dirt); font-weight: 500;">Kingfisher</a> &middot;
+            <a href="/counties/stephens-county" style="color: var(--red-dirt); font-weight: 500;">Stephens</a> &middot;
+            <a href="/counties/carter-county" style="color: var(--red-dirt); font-weight: 500;">Carter</a> &middot;
+            <a href="/counties" style="color: var(--red-dirt); font-weight: 600;">All 77 Counties &rarr;</a>
+        </div>
+    </section>
 
     <section class="bottom-cta">
         <div class="container">

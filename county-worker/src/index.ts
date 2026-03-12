@@ -1,6 +1,7 @@
 import { COUNTIES } from './data';
 import { fetchCountyData, fetchCountyIndex } from './queries';
 import { renderCountyPage, renderCountyIndex, render404 } from './render';
+import { renderSitemap } from './sitemap';
 
 interface Env {
   DB: D1Database;
@@ -16,6 +17,11 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // Dynamic sitemap
+    if (path === '/sitemap.xml') {
+      return renderSitemap(env.DB);
+    }
 
     // 301 redirect: /oklahoma/counties/:name → /counties/:name-county
     // Handles bad URLs submitted to search engines (e.g. /oklahoma/counties/garfield)
