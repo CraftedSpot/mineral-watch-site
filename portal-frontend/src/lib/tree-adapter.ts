@@ -163,13 +163,20 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
     // Look up parent doc for context
     const parentNode = findParentByDocId(gap.lastSeenDocId);
 
+    const roleLabel = gap.lastSeenAs === 'implied_death' ? 'implied death/inheritance' : gap.lastSeenAs;
+    const typeHint = gap.suggestedTypes?.length
+      ? ` Look for: ${gap.suggestedTypes.slice(0, 2).join(', ')}.`
+      : '';
+
     nodes.push({
       id: gapId,
       type: 'gap',
       children: [],
       dateRange: `${lastDateFmt} — present`,
-      description: `${gap.partyName} last seen as ${gap.lastSeenAs}`,
-      suggestion: `Search county records for ${gap.partyName} conveyances after ${lastDateFmt}.`,
+      description: gap.lastSeenAs === 'implied_death'
+        ? `${gap.partyName} — possible unreported death/inheritance`
+        : `${gap.partyName} last seen as ${roleLabel}`,
+      suggestion: `Search county records for ${gap.partyName} conveyances after ${lastDateFmt}.${typeHint}`,
       gapPartyName: gap.partyName,
       gapLastSeenAs: gap.lastSeenAs,
       gapLastSeenDocId: gap.lastSeenDocId,
@@ -177,6 +184,11 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       gapParentDocType: parentNode?.docType,
       gapParentGrantor: parentNode?.grantor,
       gapParentGrantee: parentNode?.grantee,
+      gapCounty: gap.county,
+      gapSection: gap.section,
+      gapTownship: gap.township,
+      gapRange: gap.range,
+      gapSuggestedTypes: gap.suggestedTypes,
     });
 
     // Attach gap as child of the last-seen doc

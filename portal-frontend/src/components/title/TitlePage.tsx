@@ -155,7 +155,7 @@ export function TitlePage() {
           <div style={{ padding: isMobile ? '8px 12px 6px' : '8px 24px 6px' }}>
             <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
-          <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} chainLoading={chainLoading} />
+          <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} chainLoading={chainLoading} isSuperAdmin={user?.isSuperAdmin ?? false} />
         </>
       )}
 

@@ -204,7 +204,7 @@ export async function sendAlertEmail(env, data) {
   
   // Generate auto-login MW map link if we have apiNumber and userId
   if (apiNumber && userId) {
-    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, utm(`/portal/map?well=${apiNumber}`, 'well_alert', activityType));
+    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, utm(`/portal/dashboard?tab=activity`, 'well_alert', activityType));
   }
 
   const subject = buildSubject(alertLevel, activityType, county, statusChange);
@@ -858,7 +858,7 @@ async function buildHtmlBody(data, env) {
                       ` : ''}
                       ${mwMapUrl ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${mwMapUrl}" style="display: inline-block; background: #0D9488; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View on Map →</a>
+                        <a href="${mwMapUrl}" style="display: inline-block; background: #0D9488; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View in Portal →</a>
                       </td>
                       ` : mapLink ? `
                       <td align="center" style="padding: 2px;">
@@ -997,7 +997,7 @@ WHAT THIS MEANS:
 ${explanation.meaning}
 
 ${explanation.tip ? `TIP: ${explanation.tip}\n` : ''}
-${occLink ? `View OCC Filing: ${occLink}\n` : ''}${mwMapUrl ? `View on Mineral Watch Map: ${mwMapUrl}\n` : mapLink ? `View on OCC Map: ${mapLink}\n` : ''}
+${occLink ? `View OCC Filing: ${occLink}\n` : ''}${mwMapUrl ? `View in Portal: ${mwMapUrl}\n` : mapLink ? `View on OCC Map: ${mapLink}\n` : ''}
 ---
 
 Note: This alert indicates activity near your mineral interests. It does not guarantee you hold rights in the spacing unit or will receive royalties.
@@ -1061,9 +1061,9 @@ export async function sendDigestEmail(env, digestData) {
   // Generate auto-login portal URL with UTM tracking
   const utmCampaign = `${frequency}_digest`;
   const portalLoginUrl = userId
-    ? await generateEmailLoginUrl(env, to, userId, utm('/portal', utmCampaign))
+    ? await generateEmailLoginUrl(env, to, userId, utm('/portal/dashboard?tab=activity', utmCampaign))
     : null;
-  digestData.portalLoginUrl = portalLoginUrl || utm('https://portal.mymineralwatch.com/portal', utmCampaign);
+  digestData.portalLoginUrl = portalLoginUrl || utm('https://portal.mymineralwatch.com/portal/dashboard?tab=activity', utmCampaign);
 
   const htmlBody = buildDigestHtmlBody(digestData);
   const textBody = buildDigestTextBody(digestData);

@@ -30,9 +30,10 @@ interface ChainTreeViewProps {
   onPropertySelect?: (id: string) => void;
   propsLoading?: boolean;
   chainLoading?: boolean;
+  isSuperAdmin?: boolean;
 }
 
-export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh, properties, selectedPropertyId, onPropertySelect, propsLoading, chainLoading }: ChainTreeViewProps) {
+export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed', darkMode, colors, onRefresh, properties, selectedPropertyId, onPropertySelect, propsLoading, chainLoading, isSuperAdmin }: ChainTreeViewProps) {
   const c = colors; // shorthand
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
@@ -430,6 +431,8 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
             onExpandStack={handleExpandStack}
             colors={c}
             onCorrectionSaved={onRefresh}
+            isSuperAdmin={isSuperAdmin}
+            onChainRefresh={onRefresh}
           />
         )}
       </div>
@@ -498,6 +501,8 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
           isMobile
           colors={c}
           onCorrectionSaved={onRefresh}
+          isSuperAdmin={isSuperAdmin}
+          onChainRefresh={onRefresh}
         />
       )}
     </div>

@@ -136,6 +136,35 @@
                 initPropertiesControls();
                 initDocumentsControls();
 
+                // URL-driven tab selection (e.g. ?tab=activity from email links)
+                if (currentTab !== 'properties') {
+                    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+                    document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+                    var targetBtn = document.querySelector('.tab[data-tab="' + currentTab + '"]');
+                    if (targetBtn) targetBtn.classList.add('active');
+                    var targetPane = document.getElementById(currentTab + '-tab');
+                    if (targetPane) targetPane.classList.add('active');
+                    if (currentTab === 'activity' && !activityInitialized) {
+                        activityInitialized = true;
+                        loadActivity().catch(function() { activityInitialized = false; });
+                    }
+                    if (currentTab === 'documents' && !documentsInitialized) {
+                        documentsInitialized = true;
+                        Promise.all([loadDocuments(), loadUsageStats()]).catch(function() { documentsInitialized = false; });
+                    }
+                    if (currentTab === 'wells' && !wellsInitialized) {
+                        wellsInitialized = true;
+                        loadWells().catch(function() { wellsInitialized = false; });
+                    }
+                    if (currentTab === 'tools') {
+                        if (!wellsInitialized) {
+                            wellsInitialized = true;
+                            await loadWells().catch(function() { wellsInitialized = false; });
+                        }
+                        loadTools();
+                    }
+                }
+
                 // Deep-link: auto-open property or well modal from URL params
                 var deepProperty = urlParams.get('property');
                 var deepWell = urlParams.get('well');

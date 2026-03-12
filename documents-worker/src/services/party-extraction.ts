@@ -94,7 +94,7 @@ export function classifyPartyType(name: string): string {
 /**
  * Extract the best available date from extracted_data for chain-of-title ordering.
  */
-function extractDocumentDate(data: any): string | null {
+export function extractDocumentDate(data: any): string | null {
   if (!data) return null;
 
   // Priority: execution_date > effective_date > recording date > order date

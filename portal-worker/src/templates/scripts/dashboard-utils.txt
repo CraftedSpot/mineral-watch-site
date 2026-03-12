@@ -255,7 +255,11 @@
             'Business': { properties: 500, wells: 500 },
             'Enterprise 1K': { properties: 1000, wells: 1000 }
         };
-        let currentTab = 'properties';
+        let currentTab = (function() {
+            var p = new URLSearchParams(window.location.search);
+            var t = p.get('tab');
+            return (t && ['properties','wells','activity','documents','tools'].indexOf(t) !== -1) ? t : 'properties';
+        })();
         let currentUser; // Set by checkAuth() in shared-auth.txt → dashboard-init.txt
         
         // Modal stacking management

@@ -13,6 +13,15 @@ import { PDFDocument } from 'pdf-lib';
 import { UsageTrackingService } from './usage-tracking';
 import { getExtractionPrompt, getExtractionPromptByInstrumentType, preparePrompt, CLASSIFICATION_PROMPT } from './extraction-prompts';
 import { persistParties, extractSummary } from './party-extraction';
+import { linkDocumentToEntities } from '../link-documents';
+
+const CHAIN_OF_TITLE_TYPES = new Set([
+  'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
+  'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
+  'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
+  'memorandum_of_lease', 'lease_amendment', 'death_certificate',
+  'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+]);
 
 interface Env {
   WELLS_DB: D1Database;
@@ -265,6 +274,27 @@ export class CountyRecordExtractionService {
       // Non-fatal
     }
 
+    // 6d. Set chain_of_title flag for qualifying doc types
+    if (CHAIN_OF_TITLE_TYPES.has(docType)) {
+      try {
+        await this.env.WELLS_DB.prepare(
+          `UPDATE documents SET chain_of_title = 1 WHERE id = ?`
+        ).bind(documentId).run();
+        console.log(`[OKCR] Set chain_of_title=1 for ${documentId} (${docType})`);
+      } catch (err) {
+        console.error(`[OKCR] Failed to set chain_of_title for ${documentId}:`, err);
+      }
+    }
+
+    // 6e. Auto-link document to matching properties by TRS
+    try {
+      await linkDocumentToEntities(this.env.WELLS_DB, documentId, extraction || {});
+      console.log(`[OKCR] Linked document ${documentId} to matching properties`);
+    } catch (linkErr) {
+      console.error(`[OKCR] Document linking failed for ${documentId}:`, linkErr);
+      // Non-fatal
+    }
+
     // 7. Deduct credits
     const deducted = await this.usageService.deductCredits(userId, userPlan, credits_required);
     if (!deducted) {
@@ -380,6 +410,26 @@ export class CountyRecordExtractionService {
       console.log(`[OKCR] Extracted ${partiesInserted} parties for cached ${documentId}`);
     } catch (partyErr) {
       console.error(`[OKCR] Party extraction failed for cached ${documentId}:`, partyErr);
+    }
+
+    // Set chain_of_title flag
+    const docType = originalDoc.doc_type as string;
+    if (CHAIN_OF_TITLE_TYPES.has(docType)) {
+      try {
+        await this.env.WELLS_DB.prepare(
+          `UPDATE documents SET chain_of_title = 1 WHERE id = ?`
+        ).bind(documentId).run();
+      } catch (err) {
+        console.error(`[OKCR] Failed to set chain_of_title for cached ${documentId}:`, err);
+      }
+    }
+
+    // Auto-link document to matching properties by TRS
+    try {
+      await linkDocumentToEntities(this.env.WELLS_DB, documentId, extraction || {});
+      console.log(`[OKCR] Linked cached document ${documentId} to matching properties`);
+    } catch (linkErr) {
+      console.error(`[OKCR] Document linking failed for cached ${documentId}:`, linkErr);
     }
 
     // Deduct credits

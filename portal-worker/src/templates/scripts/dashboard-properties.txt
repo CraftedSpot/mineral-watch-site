@@ -260,7 +260,7 @@
         const propertiesVS = createVirtualTableScroller({
             container: document.getElementById('propertiesContent'),
             rowHeight: 56,
-            colCount: 7,
+            colCount: 8,
             threshold: 100
         });
 
@@ -268,9 +268,9 @@
             const isViewer = currentUser?.role === 'Viewer';
             let h = '<colgroup>';
             if (!isViewer) h += '<col class="col-select">';
-            h += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
+            h += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-filecode"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) h += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all" aria-label="Select all properties"></th>';
-            h += '<th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Links</th></tr></thead>';
+            h += '<th>County</th><th>Legal</th><th class="col-prop-filecode">File #</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Links</th></tr></thead>';
             return h;
         }
 
@@ -302,8 +302,10 @@
             if (!isViewer) {
                 row += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"${checked} aria-label="Select property ${escapeHtml(cleanCountyDisplay(f.COUNTY))} ${str}"></td>`;
             }
+            const fileCode = f.property_code ? `<span style="color: var(--slate-blue); font-size: 13px;">${escapeHtml(f.property_code)}</span>` : '';
             row += `<td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
                 <td><strong>${str}</strong></td>
+                <td class="col-prop-filecode">${fileCode}</td>
                 <td class="col-prop-group">${group}</td>
                 <td style="text-align: right;">${acresDisplay}</td>
                 <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell notes-cell">${notes}</td>
@@ -353,10 +355,14 @@
 
             propertiesVS.setData(displayProperties, renderPropertyRow, getPropertiesHeader(), resetScroll);
 
-            // Check if any properties have groups and show/hide Group column
+            // Check if any properties have groups/file codes and show/hide columns
             const hasGroups = displayProperties.some(p => p.fields.Group);
+            const hasFileCodes = displayProperties.some(p => p.fields.property_code);
             const propertiesTable = document.querySelector('#propertiesContent .data-table');
-            if (propertiesTable) propertiesTable.classList.toggle('has-groups', hasGroups);
+            if (propertiesTable) {
+                propertiesTable.classList.toggle('has-groups', hasGroups);
+                propertiesTable.classList.toggle('has-filecodes', hasFileCodes);
+            }
 
             // Update bulk selection state after table render
             updateSelectAllState('properties');

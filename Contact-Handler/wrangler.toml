@@ -20,6 +20,11 @@ compatibility_date = "2024-01-01"
 binding = "MINERAL_CACHE"
 id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "oklahoma-wells"
+database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
+
 [vars]
 # Non-sensitive vars can go here
 # NOTIFY_EMAIL = "support@mymineralwatch.com"

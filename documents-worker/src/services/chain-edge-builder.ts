@@ -326,14 +326,22 @@ function extractInterestFromDoc(extractedData: any, docType: string): InterestIn
  */
 export async function buildChainEdges(
   db: D1Database,
-  propertyId: string
+  propertyId: string,
+  siblingPropertyIds?: string[]
 ): Promise<BuildResult> {
   const start = Date.now();
 
-  // Step 1: Load all chain docs + parties for this property
-  const startsWithPattern = `${propertyId},%`;
-  const endsWithPattern = `%,${propertyId}`;
-  const containsPattern = `%,${propertyId},%`;
+  // Step 1: Load all chain docs + parties for this property (and siblings for multi-entity TRS)
+  const allIds = siblingPropertyIds && siblingPropertyIds.length > 0
+    ? [...new Set([propertyId, ...siblingPropertyIds])]
+    : [propertyId];
+
+  const propConditions: string[] = [];
+  const propParams: string[] = [];
+  for (const pid of allIds) {
+    propConditions.push('d.property_id = ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?');
+    propParams.push(pid, `${pid},%`, `%,${pid}`, `%,${pid},%`);
+  }
 
   const rawResult = await db.prepare(`
     SELECT
@@ -352,14 +360,9 @@ export async function buildChainEdges(
           AND (child.deleted_at IS NULL OR child.deleted_at = '')
           AND child.status = 'complete'
       )
-      AND (
-        d.property_id = ?
-        OR d.property_id LIKE ?
-        OR d.property_id LIKE ?
-        OR d.property_id LIKE ?
-      )
+      AND (${propConditions.join(' OR ')})
     ORDER BY dp.document_date ASC NULLS LAST
-  `).bind(propertyId, startsWithPattern, endsWithPattern, containsPattern).all<any>();
+  `).bind(...propParams).all<any>();
 
   // Group by document
   const docsMap = new Map<string, DocParties>();

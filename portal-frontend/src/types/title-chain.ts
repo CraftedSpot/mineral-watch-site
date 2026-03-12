@@ -76,9 +76,16 @@ export interface ChainOwnerRow {
 /** Gap in chain (missing link) */
 export interface ChainGap {
   partyName: string;
-  lastSeenAs: string;
+  lastSeenAs: string;          // 'grantee' | 'implied_death'
   lastSeenDocId: string;
   lastSeenDate: string | null;
+  county?: string | null;
+  section?: string | null;
+  township?: string | null;
+  range?: string | null;
+  suggestedTypes?: string[];
+  lastSeenDocType?: string | null;
+  grantorName?: string | null;
 }
 
 /** Orphan document — in chain scope but no edges matched */
@@ -176,6 +183,11 @@ export interface FlatNode {
   gapParentDocType?: string;
   gapParentGrantor?: string;
   gapParentGrantee?: string;
+  gapCounty?: string | null;
+  gapSection?: string | null;
+  gapTownship?: string | null;
+  gapRange?: string | null;
+  gapSuggestedTypes?: string[];
   // Current owner-specific
   owner?: string;
   interest?: string;

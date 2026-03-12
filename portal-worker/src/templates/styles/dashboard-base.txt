@@ -110,6 +110,7 @@
         .col-select { width: 40px; }
         .col-prop-county { width: 120px; }
         .col-prop-legal { width: 160px; }
+        .col-prop-filecode { width: 0; padding: 0 !important; overflow: hidden; visibility: collapse; } /* Hidden by default */
         .col-prop-group { width: 0; padding: 0 !important; overflow: hidden; visibility: collapse; } /* Hidden by default */
         .col-prop-acres { width: 130px; }
         .col-prop-notes { 
@@ -171,6 +172,8 @@
             height: 16px;
         }
 
+        /* When file codes are visible, show the column */
+        .has-filecodes .col-prop-filecode { width: 90px; padding: 16px 16px !important; visibility: visible; }
         /* When groups are visible, show the column */
         .has-groups .col-prop-group { width: 80px; padding: 16px 16px !important; visibility: visible; }
         
@@ -322,6 +325,8 @@
         .data-table td { padding: 16px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
         
         /* Reduce padding on specific columns to minimize gaps */
+        .has-filecodes .col-prop-filecode { padding-right: 12px !important; }
+        .has-filecodes td.col-prop-filecode { padding-right: 12px !important; }
         .has-groups .col-prop-group { padding-right: 12px !important; }
         .has-groups td.col-prop-group { padding-right: 12px !important; }
         .data-table td[style*="text-align: right"] { padding-left: 12px; }
@@ -1870,7 +1875,8 @@
             .nav-links.open { display: flex; }
             .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
             .nav-links a { padding: 12px 0; font-size: 16px; }
-            .user-menu { order: 4; }
+            .user-menu { display: none; order: 4; width: 100%; padding: 8px 0; }
+            .nav-links.open ~ .user-menu { display: flex; }
             .user-menu-dropdown { right: auto; left: 0; }
             
             /* Reset table layout for mobile */
@@ -1883,6 +1889,7 @@
             .col-select,
             .col-prop-county,
             .col-prop-legal,
+            .col-prop-filecode,
             .col-prop-acres,
             .col-prop-notes,
             .col-well-info,
@@ -2143,6 +2150,7 @@
             #propertiesContent .col-prop-county { width: 23%; }
             #propertiesContent .col-prop-legal { width: 32%; }
             #propertiesContent .col-prop-acres { width: 20%; padding-left: 5px !important; }
+            #propertiesContent .col-prop-filecode { display: none; } /* Hide file code on mobile */
             #propertiesContent .col-prop-group { display: none; } /* Hide group on mobile */
             #propertiesContent .col-prop-notes { display: none; } /* Hide notes on mobile */
             #propertiesContent .col-actions { width: 25%; }
@@ -2153,8 +2161,9 @@
                 padding-left: 5px !important;
             }
             
-            /* Hide notes and group columns on mobile for properties */
+            /* Hide notes, file code, and group columns on mobile for properties */
             #propertiesContent .col-prop-notes-cell,
+            #propertiesContent .col-prop-filecode,
             #propertiesContent .col-prop-group {
                 display: none;
             }

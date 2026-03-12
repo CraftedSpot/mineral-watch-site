@@ -19,6 +19,7 @@ import {
 
 import {
   authenticateRequest,
+  isSuperAdmin,
   generateToken,
   verifyToken,
   signPayload,
@@ -342,6 +343,7 @@ export async function handleGetCurrentUser(request: Request, env: Env, ctx?: Exe
     status: user.fields.Status,
     role: user.fields.Role || null,
     organizationId,
+    isSuperAdmin: isSuperAdmin(user.fields.Email),
     hasBillingHistory: !!user.fields['Stripe Customer ID'],
     alertPermits: user.fields['Alert Permits'] !== false,
     alertCompletions: user.fields['Alert Completions'] !== false,

@@ -3,7 +3,7 @@ import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
 import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
-import { persistParties, extractSummary, normalizePartyName } from './services/party-extraction';
+import { persistParties, extractSummary, normalizePartyName, extractDocumentDate } from './services/party-extraction';
 import { buildChainEdges } from './services/chain-edge-builder';
 import { resolveCounty, normalizeRange } from './normalize-fields';
 import { PDFDocument } from 'pdf-lib';
@@ -1979,8 +1979,11 @@ export default {
           return errorResponse('Document not found', 404, env);
         }
 
-        // Get from R2
-        const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        // Get from R2 — county records are in LOCKER_BUCKET, other docs in UPLOADS_BUCKET
+        let object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        if (!object && (doc.r2_key as string).startsWith('county-records/') && env.LOCKER_BUCKET) {
+          object = await env.LOCKER_BUCKET.get(doc.r2_key);
+        }
 
         if (!object) {
           return errorResponse('File not found in storage', 404, env);
@@ -2129,8 +2132,11 @@ export default {
           return errorResponse('Document not found', 404, env);
         }
 
-        // Get from R2
-        const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        // Get from R2 — county records are in LOCKER_BUCKET, other docs in UPLOADS_BUCKET
+        let object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        if (!object && (doc.r2_key as string).startsWith('county-records/') && env.LOCKER_BUCKET) {
+          object = await env.LOCKER_BUCKET.get(doc.r2_key);
+        }
 
         if (!object) {
           return errorResponse('File not found in storage', 404, env);
@@ -2928,6 +2934,7 @@ export default {
                   rotation_applied = ?,
                   chain_of_title = ?,
                   summary = ?,
+                  document_date = COALESCE(?, document_date),
                   extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
@@ -2950,6 +2957,7 @@ export default {
               rotation_applied ?? 0,
               chainOfTitle,
               extracted_data ? extractSummary(extracted_data) : null,
+              extracted_data ? extractDocumentDate(extracted_data) : null,
               docId
             ).run();
 
@@ -4275,10 +4283,10 @@ export default {
               status, doc_type, display_name, category, confidence,
               county, section, township, range, meridian, extracted_data,
               needs_review, field_scores, fields_needing_review,
-              summary, property_id, chain_of_title,
+              summary, property_id, chain_of_title, document_date,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -4309,7 +4317,8 @@ export default {
             child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null,
             child.extracted_data ? extractSummary(child.extracted_data) : null,
             parentDoc.property_id || null,  // Inherit parent's property link as fallback
-            childChainOfTitle
+            childChainOfTitle,
+            child.extracted_data ? extractDocumentDate(child.extracted_data) : null
           ).run();
 
           // Extract and persist document parties for child
@@ -6460,11 +6469,11 @@ export default {
     // Internal endpoint: called by portal-worker via service binding
     if (path === '/api/internal/build-chain-edges' && request.method === 'POST') {
       try {
-        const body = await request.json() as { property_id?: string };
+        const body = await request.json() as { property_id?: string; sibling_property_ids?: string[] };
         if (!body.property_id) {
           return errorResponse('property_id required', 400, env);
         }
-        const result = await buildChainEdges(env.WELLS_DB, body.property_id);
+        const result = await buildChainEdges(env.WELLS_DB, body.property_id, body.sibling_property_ids);
         return jsonResponse({
           success: true,
           edges_created: result.edgesCreated,

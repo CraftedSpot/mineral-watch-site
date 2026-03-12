@@ -6,6 +6,8 @@ import { fetchDocumentDetail, fetchDocumentBlob, saveCorrection, deleteCorrectio
 import { addDocumentParty, deleteDocumentParty } from '../../../api/document-parties';
 import { updateCurrentOwnerInterest, revertCurrentOwnerInterest } from '../../../api/title-chain';
 import { useModal } from '../../../contexts/ModalContext';
+import { CountyRecordsSection, isCountySupported } from '../../shared/CountyRecordsSection';
+import { Spinner } from '../../ui/Spinner';
 import type { FlatNode } from '../../../types/title-chain';
 
 interface DetailDrawerProps {
@@ -16,11 +18,13 @@ interface DetailDrawerProps {
   isMobile?: boolean;
   colors?: TitleColors;
   onCorrectionSaved?: () => void;
+  isSuperAdmin?: boolean;
+  onChainRefresh?: () => void;
 }
 
 const DRAWER_W = 380;
 
-export function DetailDrawer({ node, propertyId, onClose, onExpandStack, isMobile, colors: c, onCorrectionSaved }: DetailDrawerProps) {
+export function DetailDrawer({ node, propertyId, onClose, onExpandStack, isMobile, colors: c, onCorrectionSaved, isSuperAdmin, onChainRefresh }: DetailDrawerProps) {
   const isOpen = !!node;
   const [expanded, setExpanded] = useState(false);
   const drawerWidth = expanded ? Math.round(window.innerWidth * 0.6) : DRAWER_W;
@@ -57,7 +61,7 @@ export function DetailDrawer({ node, propertyId, onClose, onExpandStack, isMobil
   }, [isOpen, handleClose]);
 
   if (isMobile) {
-    return <MobileSheet node={node} propertyId={propertyId} onClose={handleClose} onExpandStack={onExpandStack} colors={c} onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} />;
+    return <MobileSheet node={node} propertyId={propertyId} onClose={handleClose} onExpandStack={onExpandStack} colors={c} onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} isSuperAdmin={isSuperAdmin} onChainRefresh={onChainRefresh} />;
   }
 
   // Desktop: right-side drawer
@@ -78,13 +82,13 @@ export function DetailDrawer({ node, propertyId, onClose, onExpandStack, isMobil
         fontFamily: "'DM Sans', sans-serif",
         overflow: 'hidden',
       }}>
-        {node && <DrawerContent node={node} propertyId={propertyId} onClose={handleClose} onExpandStack={onExpandStack} colors={c} expanded={expanded} onToggleExpand={() => setExpanded((e) => !e)} onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} />}
+        {node && <DrawerContent node={node} propertyId={propertyId} onClose={handleClose} onExpandStack={onExpandStack} colors={c} expanded={expanded} onToggleExpand={() => setExpanded((e) => !e)} onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} isSuperAdmin={isSuperAdmin} onChainRefresh={onChainRefresh} />}
       </div>
     </div>
   );
 }
 
-function MobileSheet({ node, propertyId, onClose, onExpandStack, colors: c, onCorrectionSaved, markDirty, flushChanges }: {
+function MobileSheet({ node, propertyId, onClose, onExpandStack, colors: c, onCorrectionSaved, markDirty, flushChanges, isSuperAdmin, onChainRefresh }: {
   node: FlatNode | null;
   propertyId?: string;
   onClose: () => void;
@@ -93,6 +97,8 @@ function MobileSheet({ node, propertyId, onClose, onExpandStack, colors: c, onCo
   onCorrectionSaved?: () => void;
   markDirty: () => void;
   flushChanges: () => void;
+  isSuperAdmin?: boolean;
+  onChainRefresh?: () => void;
 }) {
   const isOpen = !!node;
 
@@ -127,7 +133,7 @@ function MobileSheet({ node, propertyId, onClose, onExpandStack, colors: c, onCo
         }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: c?.border || '#d1d5db' }} />
         </div>
-        {node && <DrawerContent node={node} propertyId={propertyId} onClose={onClose} onExpandStack={onExpandStack} colors={c} isMobile onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} />}
+        {node && <DrawerContent node={node} propertyId={propertyId} onClose={onClose} onExpandStack={onExpandStack} colors={c} isMobile onCorrectionSaved={onCorrectionSaved} markDirty={markDirty} flushChanges={flushChanges} isSuperAdmin={isSuperAdmin} onChainRefresh={onChainRefresh} />}
       </div>
     </>
   );
@@ -142,7 +148,7 @@ interface DocDetail {
   doc_type?: string;
 }
 
-function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, isMobile, expanded, onToggleExpand, onCorrectionSaved, markDirty, flushChanges }: {
+function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, isMobile, expanded, onToggleExpand, onCorrectionSaved, markDirty, flushChanges, isSuperAdmin, onChainRefresh }: {
   node: FlatNode;
   propertyId?: string;
   onClose: () => void;
@@ -154,6 +160,8 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
   onCorrectionSaved?: () => void;
   markDirty?: () => void;
   flushChanges?: () => void;
+  isSuperAdmin?: boolean;
+  onChainRefresh?: () => void;
 }) {
   const isDocType = node.type === 'document' || node.type === 'orphan' || (!node.type && node.docType);
   const modal = useModal();
@@ -328,66 +336,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
 
   // --- Non-document types: no tabs ---
   if (node.type === 'gap') {
-    const roleLabel = node.gapLastSeenAs === 'grantee' ? 'received interest via' : 'appeared in';
-    return (
-      <div style={{ padding: isMobile ? '14px 16px 24px' : '20px 24px', position: 'relative', overflowY: 'auto', flex: 1 }}>
-        {headerButtons}
-        <div style={{ borderLeft: `3px solid ${GAP_COLOR}`, paddingLeft: 12, marginBottom: 16 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: GAP_COLOR, textTransform: 'uppercase', letterSpacing: 1 }}>
-            Gap in Chain
-          </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: c?.text || DARK, marginTop: 4 }}>
-            {'\u26A0'} Missing Link
-          </div>
-        </div>
-
-        {/* What happened */}
-        <div style={{
-          fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
-          background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
-        }}>
-          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-            What we found
-          </div>
-          <strong>{node.gapPartyName}</strong> {roleLabel} a{' '}
-          {node.gapParentDocType ? <strong>{node.gapParentDocType.toLowerCase()}</strong> : 'document'}{' '}
-          {node.gapLastSeenDate ? `on ${formatDate(node.gapLastSeenDate)}` : ''}
-          {node.gapParentGrantor ? ` from ${node.gapParentGrantor}` : ''}.
-          <div style={{ marginTop: 6, fontSize: 11, color: c?.textMuted || SLATE }}>
-            No subsequent conveyance from this party was found in the chain.
-          </div>
-        </div>
-
-        {/* What's missing */}
-        <div style={{
-          fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
-          background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
-        }}>
-          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-            What to look for
-          </div>
-          A deed, assignment, or conveyance <strong>from</strong> {node.gapPartyName}{' '}
-          transferring their interest to another party, recorded after {node.gapLastSeenDate ? formatDate(node.gapLastSeenDate) : 'the last seen date'}.
-          <div style={{ marginTop: 8, fontSize: 11, color: c?.textMuted || SLATE }}>
-            Possible explanations: unreported conveyance, name variation, or this party still holds the interest (not yet a current owner record).
-          </div>
-        </div>
-
-        {/* Period */}
-        <div style={{ fontSize: 12, color: c?.textMuted || SLATE, marginBottom: 12 }}>
-          Open period: {node.dateRange}
-        </div>
-
-        {node.suggestion && (
-          <div style={{
-            fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
-            background: fieldBg, borderRadius: 8, lineHeight: 1.5,
-          }}>
-            <strong>Suggestion:</strong> {node.suggestion}
-          </div>
-        )}
-      </div>
-    );
+    return <GapContent node={node} headerButtons={headerButtons} fieldBg={fieldBg} isMobile={isMobile} colors={c} isSuperAdmin={isSuperAdmin} onChainRefresh={onChainRefresh} />;
   }
 
   if (node.type === 'current') {
@@ -745,6 +694,137 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
         </div>
       )}
     </>
+  );
+}
+
+// ─── Gap Content ─────────────────────────────────────────────
+
+function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuperAdmin, onChainRefresh }: {
+  node: FlatNode;
+  headerButtons: React.ReactNode;
+  fieldBg: string;
+  isMobile?: boolean;
+  colors?: TitleColors;
+  isSuperAdmin?: boolean;
+  onChainRefresh?: () => void;
+}) {
+  const [chainRefreshing, setChainRefreshing] = useState(false);
+
+  const handleDocRetrieved = useCallback(() => {
+    setChainRefreshing(true);
+    onChainRefresh?.();
+    // Fallback timeout — clears if refresh fails silently
+    setTimeout(() => setChainRefreshing(false), 8000);
+  }, [onChainRefresh]);
+
+  const isImpliedDeath = node.gapLastSeenAs === 'implied_death';
+  const roleLabel = isImpliedDeath
+    ? 'may have passed away after appearing in'
+    : node.gapLastSeenAs === 'grantee' ? 'received interest via' : 'appeared in';
+
+  const showCountySearch = isSuperAdmin && node.gapCounty && node.gapSection && node.gapTownship && node.gapRange && isCountySupported(node.gapCounty);
+
+  return (
+    <div style={{ padding: isMobile ? '14px 16px 24px' : '20px 24px', position: 'relative', overflowY: 'auto', flex: 1 }}>
+      {headerButtons}
+      <div style={{ borderLeft: `3px solid ${GAP_COLOR}`, paddingLeft: 12, marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: GAP_COLOR, textTransform: 'uppercase', letterSpacing: 1 }}>
+          {isImpliedDeath ? 'Possible Death/Inheritance' : 'Gap in Chain'}
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 700, color: c?.text || DARK, marginTop: 4 }}>
+          {'\u26A0'} Missing Link
+        </div>
+      </div>
+
+      {/* What happened */}
+      <div style={{
+        fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+        background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
+      }}>
+        <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+          What we found
+        </div>
+        <strong>{node.gapPartyName}</strong> {roleLabel} a{' '}
+        {node.gapParentDocType ? <strong>{node.gapParentDocType.toLowerCase()}</strong> : 'document'}{' '}
+        {node.gapLastSeenDate ? `on ${formatDate(node.gapLastSeenDate)}` : ''}
+        {node.gapParentGrantor ? ` from ${node.gapParentGrantor}` : ''}.
+        <div style={{ marginTop: 6, fontSize: 11, color: c?.textMuted || SLATE }}>
+          {isImpliedDeath
+            ? 'A different family member appears as grantor on the next document in the chain, suggesting an unreported death or inheritance.'
+            : 'No subsequent conveyance from this party was found in the chain.'}
+        </div>
+      </div>
+
+      {/* What's missing */}
+      <div style={{
+        fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+        background: fieldBg, borderRadius: 8, lineHeight: 1.7, marginBottom: 12,
+      }}>
+        <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+          What to look for
+        </div>
+        {node.gapSuggestedTypes?.length ? (
+          <>
+            Look for: {node.gapSuggestedTypes.map((t, i) => (
+              <span key={t}>{i > 0 && ', '}<strong>{t}</strong></span>
+            ))}{' '}
+            from <strong>{node.gapPartyName}</strong>, recorded after {node.gapLastSeenDate ? formatDate(node.gapLastSeenDate) : 'the last seen date'}.
+          </>
+        ) : (
+          <>
+            A deed, assignment, or conveyance <strong>from</strong> {node.gapPartyName}{' '}
+            transferring their interest to another party, recorded after {node.gapLastSeenDate ? formatDate(node.gapLastSeenDate) : 'the last seen date'}.
+          </>
+        )}
+        <div style={{ marginTop: 8, fontSize: 11, color: c?.textMuted || SLATE }}>
+          {isImpliedDeath
+            ? 'An Affidavit of Heirship or probate filing would confirm the transfer of interest.'
+            : 'Possible explanations: unreported conveyance, name variation, or this party still holds the interest (not yet a current owner record).'}
+        </div>
+      </div>
+
+      {/* Period */}
+      <div style={{ fontSize: 12, color: c?.textMuted || SLATE, marginBottom: 12 }}>
+        Open period: {node.dateRange}
+      </div>
+
+      {/* Suggestion (non-super-admin or unsupported county) */}
+      {!showCountySearch && node.suggestion && (
+        <div style={{
+          fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
+          background: fieldBg, borderRadius: 8, lineHeight: 1.5, marginBottom: 12,
+        }}>
+          <strong>Suggestion:</strong> {node.suggestion}
+        </div>
+      )}
+
+      {/* County records search (super admin only, supported counties) */}
+      {showCountySearch && (
+        <div style={{ marginTop: 4 }}>
+          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+            Search County Records
+          </div>
+          <CountyRecordsSection
+            section={node.gapSection!}
+            township={node.gapTownship!}
+            range={node.gapRange!}
+            county={node.gapCounty!}
+            initialFilterMode="title"
+            onDocumentRetrieved={handleDocRetrieved}
+          />
+        </div>
+      )}
+
+      {/* Chain refreshing indicator */}
+      {chainRefreshing && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px',
+          background: '#fffbeb', borderRadius: 8, marginTop: 12, fontSize: 12, color: '#92400e',
+        }}>
+          <Spinner size={14} /> Refreshing chain — checking if this gap is resolved...
+        </div>
+      )}
+    </div>
   );
 }
 

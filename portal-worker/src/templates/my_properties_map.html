@@ -306,7 +306,8 @@
             .nav-links.open { display: flex; }
             .nav-links { flex-direction: column; gap: 0; padding: 15px 0 5px; border-top: 1px solid rgba(255,255,255,0.15); order: 3; }
             .nav-links a { padding: 12px 0; font-size: 15px; }
-            .user-menu { order: 4; }
+            .user-menu { display: none; order: 4; width: 100%; padding: 8px 0; }
+            .nav-links.open ~ .user-menu { display: flex; }
             .user-menu-dropdown { right: auto; left: 0; }
             
             /* Map specific mobile adjustments */

@@ -17,7 +17,8 @@ import { SkeletonRows } from '../ui/SkeletonRows';
 import { Spinner } from '../ui/Spinner';
 import { formatDate, formatDecimal, formatTRS, getWellStatusColor } from '../../lib/helpers';
 import { OCCFilingsSection } from '../shared/OCCFilingsSection';
-import { CompletionReportsSection } from '../shared/CompletionReportsSection';
+import { CountyRecordsSection, isCountySupported } from '../shared/CountyRecordsSection';
+import { useAuth } from '../../hooks/useAuth';
 import { MODAL_TYPES, BORDER, SLATE, ORANGE, ORANGE_DARK } from '../../lib/constants';
 import { getMatchStyle } from '../../lib/match-styles';
 import { OperatorLink } from '../ui/OperatorLink';
@@ -57,10 +58,12 @@ export function PropertyModal({ onClose, propertyId }: Props) {
   const toast = useToast();
   const { confirm } = useConfirm();
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const { data: properties, reload: reloadProperties } = useProperties();
   const [saving, setSaving] = useState(false);
   const [meridian, setMeridian] = useState('IM');
   const [occCountOverride, setOccCountOverride] = useState<number | null>(null);
+  const [crCount, setCrCount] = useState<number | null>(null);
 
   const prop = useMemo(() => properties.find((p) => p.id === propertyId), [properties, propertyId]);
   const f = prop?.fields;
@@ -368,21 +371,24 @@ export function PropertyModal({ onClose, propertyId }: Props) {
         />
       </AccordionSection>
 
-      {/* County Records */}
-      <AccordionSection title="County Records" count={wellsLoading ? null : undefined}>
-        {linkedWells && linkedWells.filter((w) => w.apiNumber).length > 0 ? (
-          linkedWells.filter((w) => w.apiNumber).map((w) => (
-            <div key={w.apiNumber} style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: SLATE_BLUE, fontWeight: 600, marginBottom: 4 }}>{w.wellName}</div>
-              <CompletionReportsSection apiNumber={w.apiNumber} />
+      {/* County Records (OKCR) — super admin only */}
+      {user?.isSuperAdmin && f.COUNTY && (
+        <AccordionSection title="County Records" count={crCount}>
+          {isCountySupported(String(f.COUNTY)) ? (
+            <CountyRecordsSection
+              section={f.SEC as string}
+              township={f.TWN as string}
+              range={f.RNG as string}
+              county={String(f.COUNTY)}
+              onCountChange={setCrCount}
+            />
+          ) : (
+            <div style={{ color: '#6b7280', fontSize: 13, padding: '12px 0' }}>
+              County records search is not available for {String(f.COUNTY)} County.
             </div>
-          ))
-        ) : (
-          <div style={{ color: '#6b7280', fontSize: 14, padding: '12px 0' }}>
-            {wellsLoading ? 'Loading...' : 'No county records found for this section'}
-          </div>
-        )}
-      </AccordionSection>
+          )}
+        </AccordionSection>
+      )}
 
       {/* Notes */}
       <Card style={{ marginTop: 16 }}>

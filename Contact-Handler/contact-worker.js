@@ -67,7 +67,17 @@ export default {
       }
 
       console.log('Processing contact form submission from:', email);
-      
+
+      // Save to D1
+      const sourceUrl = request.headers.get('Referer') || null;
+      try {
+        await env.DB.prepare(
+          'INSERT INTO contact_submissions (name, email, topic, message, source_url, submitted_at) VALUES (?, ?, ?, ?, ?, ?)'
+        ).bind(name, email, topic, message, sourceUrl, new Date().toISOString()).run();
+      } catch (dbErr) {
+        console.error('[D1] Contact insert failed:', dbErr);
+      }
+
       // Save to Airtable
       if (await isAirtableKilled(env.MINERAL_CACHE)) {
         console.log(`[AirtableKillSwitch] Airtable write skipped: contact form from ${email}`);
@@ -338,6 +348,16 @@ async function handleDemoBooking(request, env) {
     }
 
     console.log('Processing demo booking from:', email);
+
+    // Save to D1
+    const sourceUrl = request.headers.get('Referer') || null;
+    try {
+      await env.DB.prepare(
+        'INSERT INTO demo_bookings (name, company, email, property_count, meeting_type, preferred_date, preferred_time, phone, city, source_url, submitted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      ).bind(name, company, email, propertyCount, meetingType, preferredDate, preferredTime, data.phone || null, data.city || null, sourceUrl, new Date().toISOString()).run();
+    } catch (dbErr) {
+      console.error('[D1] Demo booking insert failed:', dbErr);
+    }
 
     // Save to Airtable
     if (await isAirtableKilled(env.MINERAL_CACHE)) {

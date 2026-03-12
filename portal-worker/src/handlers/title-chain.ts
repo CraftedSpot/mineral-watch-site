@@ -242,14 +242,23 @@ interface OrphanDoc {
   _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
 }
 
+interface ChainGap {
+  partyName: string;
+  lastSeenAs: string;
+  lastSeenDocId: string;
+  lastSeenDate: string | null;
+  county: string | null;
+  section: string | null;
+  township: string | null;
+  range: string | null;
+  suggestedTypes: string[];
+  lastSeenDocType: string | null;
+  grantorName: string | null;
+}
+
 interface TitleTree {
   roots: TreeNode[];
-  gaps: Array<{
-    partyName: string;
-    lastSeenAs: string;
-    lastSeenDocId: string;
-    lastSeenDate: string | null;
-  }>;
+  gaps: ChainGap[];
   currentOwners: ChainOwnerRow[];
   orphanDocs: OrphanDoc[];
   stats: {
@@ -259,6 +268,51 @@ interface TitleTree {
     gapCount: number;
     ownerCount: number;
   };
+}
+
+// ─── Gap analysis helpers ─────────────────────────────────────
+
+function extractLastName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return (parts[parts.length - 1] || '').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+function extractFirstName(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  return parts.slice(0, -1).join(' ').toLowerCase().replace(/[^a-z\s]/g, '').trim();
+}
+
+function suggestGapDocTypes(context: {
+  partyName?: string;
+  lastSeenAs?: string;
+  lastSeenDocType?: string | null;
+}): string[] {
+  const name = (context.partyName || '').toLowerCase();
+  const docType = (context.lastSeenDocType || '').toLowerCase();
+
+  // Implied death (from name-change detection)
+  if (context.lastSeenAs === 'implied_death') {
+    return ['Affidavit of Heirship', 'Mineral Deed', 'Quit Claim Deed'];
+  }
+
+  // Death indicators in party name
+  if (name.includes('estate') || name.includes('heirs of') || name.includes('trustee')) {
+    return ['Affidavit of Heirship', 'Mineral Deed', 'Quit Claim Deed'];
+  }
+
+  // Corporate/LLC name
+  if (name.includes('llc') || name.includes('inc') || name.includes('corp') ||
+      name.includes('company') || name.includes('partners')) {
+    return ['Assignment', 'Mineral Deed', 'Deed & Conveyance'];
+  }
+
+  // Last doc was a lease
+  if (docType.includes('lease')) {
+    return ['Assignment', 'Partial Assignment', 'Oil & Gas Lease'];
+  }
+
+  // Default
+  return ['Mineral Deed', 'Warranty Deed', 'Quit Claim Deed', 'Affidavit of Heirship'];
 }
 
 /**
@@ -448,11 +502,13 @@ function assembleTree(
   // Gap detection: "to" parties on leaf ownership docs that aren't in current owners
   // and don't appear as "from" in any later doc
   const ownerNormSet = new Set(owners.map(o => o.owner_name_normalized));
-  const gaps: TitleTree['gaps'] = [];
+  const gaps: ChainGap[] = [];
 
   function findGaps(node: TreeNode) {
     // Leaf node with ownership/succession edge type
     if (node.children.length === 0 && ['ownership', 'succession'].includes(node.edgeType || '')) {
+      const doc = docMap.get(node.id);
+      const docType = doc?.docType || null;
       for (const toName of node.toNames) {
         const norm = toName.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
         if (!ownerNormSet.has(norm)) {
@@ -461,6 +517,10 @@ function assembleTree(
             lastSeenAs: 'grantee',
             lastSeenDocId: node.id,
             lastSeenDate: node.date,
+            county: null, section: null, township: null, range: null, // enriched post-assembly
+            lastSeenDocType: docType,
+            grantorName: node.fromNames[0] || null,
+            suggestedTypes: suggestGapDocTypes({ partyName: toName, lastSeenAs: 'grantee', lastSeenDocType: docType }),
           });
         }
       }
@@ -468,6 +528,57 @@ function assembleTree(
     for (const child of node.children) findGaps(child);
   }
   for (const root of roots) findGaps(root);
+
+  // Implied-death gap detection: parent→child where last name matches but first name changes
+  // (implies death/inheritance with no probate or heirship in the chain)
+  const HEIRSHIP_TYPES = new Set(['affidavit_of_heirship', 'probate', 'death_certificate']);
+  function hasHeirshipBetween(parent: TreeNode, child: TreeNode): boolean {
+    // Check if any node between parent and child is an heirship-type doc
+    for (const c of parent.children) {
+      const doc = docMap.get(c.id);
+      if (doc?.docType && HEIRSHIP_TYPES.has(doc.docType)) return true;
+      if (c === child) continue;
+      if (hasHeirshipBetween(c, child)) return true;
+    }
+    return false;
+  }
+
+  function findImpliedDeathGaps(node: TreeNode) {
+    for (const child of node.children) {
+      for (const toName of node.toNames) {
+        for (const fromName of child.fromNames) {
+          const toLast = extractLastName(toName);
+          const fromLast = extractLastName(fromName);
+          const toFirst = extractFirstName(toName);
+          const fromFirst = extractFirstName(fromName);
+          if (toLast && toFirst && fromFirst && toLast === fromLast && toFirst !== fromFirst) {
+            // Check no heirship doc exists between them
+            if (!hasHeirshipBetween(node, child)) {
+              // Don't duplicate if already flagged as a regular gap
+              const alreadyGapped = gaps.some(g =>
+                g.partyName === toName && g.lastSeenDocId === node.id
+              );
+              if (!alreadyGapped) {
+                const doc = docMap.get(node.id);
+                gaps.push({
+                  partyName: toName,
+                  lastSeenAs: 'implied_death',
+                  lastSeenDocId: node.id,
+                  lastSeenDate: node.date,
+                  county: null, section: null, township: null, range: null,
+                  lastSeenDocType: doc?.docType || null,
+                  grantorName: node.fromNames[0] || null,
+                  suggestedTypes: ['Affidavit of Heirship', 'Mineral Deed', 'Quit Claim Deed'],
+                });
+              }
+            }
+          }
+        }
+      }
+      findImpliedDeathGaps(child);
+    }
+  }
+  for (const root of roots) findImpliedDeathGaps(root);
 
   // Count stacked groups
   let totalStackedGroups = 0;
@@ -509,26 +620,30 @@ export async function handleGetTitleChainProperties(request: Request, env: Env) 
     const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
     const docOwner = buildOwnershipFilter('d', userOrgId, authUser.id, memberIds, { includeUserId: true });
 
-    // Properties with chain docs
+    // Properties with chain docs — grouped by TRS to deduplicate multi-entity properties
     const propsResult = await env.WELLS_DB.prepare(`
       SELECT
-        p.id,
-        p.airtable_record_id,
+        MIN(p.id) as id,
+        MIN(p.airtable_record_id) as airtable_record_id,
         p.county,
         p.section,
         p.township,
         p.range,
-        COUNT(DISTINCT d.id) as chain_doc_count
+        COUNT(DISTINCT d.id) as chain_doc_count,
+        GROUP_CONCAT(DISTINCT p.airtable_record_id) as all_record_ids
       FROM documents d
       JOIN properties p ON (
         d.property_id = p.airtable_record_id
+        OR d.property_id LIKE p.airtable_record_id || ',%'
+        OR d.property_id LIKE '%,' || p.airtable_record_id
+        OR d.property_id LIKE '%,' || p.airtable_record_id || ',%'
       )
       WHERE d.chain_of_title = 1
         AND (d.deleted_at IS NULL OR d.deleted_at = '')
         AND d.status = 'complete'
         AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
         AND ${docOwner.where}
-      GROUP BY p.id
+      GROUP BY p.county, p.section, p.township, p.range
       ORDER BY p.county, CAST(REPLACE(REPLACE(p.section, 'S', ''), ' ', '') AS INTEGER),
                CAST(REPLACE(REPLACE(REPLACE(p.township, 'N', ''), 'S', ''), ' ', '') AS INTEGER),
                CAST(REPLACE(REPLACE(REPLACE(p.range, 'W', ''), 'E', ''), ' ', '') AS INTEGER)
@@ -553,6 +668,7 @@ export async function handleGetTitleChainProperties(request: Request, env: Env) 
       township: row.township,
       range: row.range,
       chainDocCount: row.chain_doc_count,
+      allRecordIds: row.all_record_ids ? (row.all_record_ids as string).split(',') : [row.airtable_record_id],
     }));
 
     return jsonResponse({
@@ -602,10 +718,23 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
     const url = new URL(request.url);
     const includeUnlinked = url.searchParams.get('include_unlinked') === '1';
 
-    // Fetch chain docs for this property
-    const startsWithPattern = `${airtableId},%`;
-    const endsWithPattern = `%,${airtableId}`;
-    const containsPattern = `%,${airtableId},%`;
+    // Find all sibling property records for the same TRS (multi-entity dedup)
+    const prop = propResult as any;
+    const siblingResult = await env.WELLS_DB.prepare(`
+      SELECT airtable_record_id FROM properties
+      WHERE county = ? AND section = ? AND township = ? AND range = ?
+        AND (user_id = ? OR organization_id = ?)
+    `).bind(prop.county, prop.section, prop.township, prop.range, authUser.id, userOrgId || '').all();
+    const allPropertyIds = (siblingResult.results as any[]).map((r: any) => r.airtable_record_id as string);
+    if (!allPropertyIds.includes(airtableId)) allPropertyIds.push(airtableId);
+
+    // Build LIKE conditions for all property IDs (handles comma-separated property_id)
+    const propConditions: string[] = [];
+    const propParams: string[] = [];
+    for (const pid of allPropertyIds) {
+      propConditions.push('d.property_id = ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?');
+      propParams.push(pid, `${pid},%`, `%,${pid}`, `%,${pid},%`);
+    }
 
     const docsResult = await env.WELLS_DB.prepare(`
       SELECT
@@ -630,14 +759,9 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
             AND (child.deleted_at IS NULL OR child.deleted_at = '')
             AND child.status = 'complete'
         )
-        AND (
-          d.property_id = ?
-          OR d.property_id LIKE ?
-          OR d.property_id LIKE ?
-          OR d.property_id LIKE ?
-        )
+        AND (${propConditions.join(' OR ')})
         AND ${docOwner.where}
-    `).bind(airtableId, startsWithPattern, endsWithPattern, containsPattern, ...docOwner.params).all();
+    `).bind(...propParams, ...docOwner.params).all();
 
     // Batch-fetch document_parties for all docs (include dp.id for per-party corrections)
     const docIds = (docsResult.results as any[]).map((r: any) => r.id);
@@ -782,14 +906,9 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
       WHERE d.chain_of_title = 1
         AND d.duplicate_status = 'pending_review'
         AND (d.deleted_at IS NULL OR d.deleted_at = '')
-        AND (
-          d.property_id = ?
-          OR d.property_id LIKE ?
-          OR d.property_id LIKE ?
-          OR d.property_id LIKE ?
-        )
+        AND (${propConditions.join(' OR ')})
         AND ${docOwner.where}
-    `).bind(airtableId, startsWithPattern, endsWithPattern, containsPattern, ...docOwner.params).all();
+    `).bind(...propParams, ...docOwner.params).all();
 
     // Also include pending dups where the *keeper* is on this property but the candidate isn't directly linked
     const keeperDupsResult = await env.WELLS_DB.prepare(`
@@ -799,15 +918,10 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         AND d.duplicate_status = 'pending_review'
         AND (d.deleted_at IS NULL OR d.deleted_at = '')
         AND d.duplicate_of_doc_id IN (
-          SELECT id FROM documents WHERE (
-            property_id = ?
-            OR property_id LIKE ?
-            OR property_id LIKE ?
-            OR property_id LIKE ?
-          )
+          SELECT id FROM documents WHERE (${propConditions.join(' OR ')})
         )
         AND ${docOwner.where}
-    `).bind(airtableId, startsWithPattern, endsWithPattern, containsPattern, ...docOwner.params).all();
+    `).bind(...propParams, ...docOwner.params).all();
 
     // Merge and deduplicate
     const seenDupIds = new Set<string>();
@@ -865,7 +979,7 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
               await env.DOCUMENTS_WORKER.fetch(new Request('https://internal/api/internal/build-chain-edges', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ property_id: airtableId }),
+                body: JSON.stringify({ property_id: airtableId, sibling_property_ids: allPropertyIds }),
               }));
             } catch (err) {
               console.error('[TitleTree] Edge rebuild via service binding failed:', err);
@@ -922,6 +1036,14 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
             if (docCorrAll) {
               (owner as any)._sourceCorrections = docCorrAll;
             }
+          }
+
+          // 4c. Enrich gaps with property-level TRS/county
+          for (const gap of tree.gaps) {
+            gap.county = property.county;
+            gap.section = property.section;
+            gap.township = property.township;
+            gap.range = property.range;
           }
 
           // 5. Cache the result
