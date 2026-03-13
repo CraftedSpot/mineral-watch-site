@@ -30,6 +30,7 @@ import {
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
+import { normalizeTownship, normalizeRange } from '../utils/str-normalize.js';
 
 // Operator lookup no longer needed - data comes from D1 via /api/wells/v2
 // import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
@@ -790,8 +791,8 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     wellDetails?.operator || '',
     wellDetails?.county || '',
     wellDetails?.section ? String(wellDetails.section) : '',
-    wellDetails?.township || '',
-    wellDetails?.range || '',
+    normalizeTownship(wellDetails?.township) || '',
+    normalizeRange(wellDetails?.range) || '',
     wellDetails?.wellType || '',
     wellDetails?.wellStatus || '',
     body.notes || ''

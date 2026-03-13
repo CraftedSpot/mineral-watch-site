@@ -30,6 +30,7 @@ import {
   createLinksInBatches,
 } from '../utils/property-well-matching.js';
 import type { PropertyRecord, WellRecord, LateralLocation, LocationKey } from '../utils/property-well-matching.js';
+import { normalizeTownship, normalizeRange } from '../utils/str-normalize.js';
 import type { Env } from '../types/env.js';
 
 /** Well types to exclude from matching (disposal, injection, dry holes, etc.) */
@@ -844,8 +845,8 @@ export async function handleDiscoverAndTrackWells(request: Request, env: Env) {
           well.operator || null,
           well.county || null,
           well.section ? String(well.section) : null,
-          well.township || null,
-          well.range || null,
+          normalizeTownship(well.township) || null,
+          normalizeRange(well.range) || null,
           well.well_type || null,
           well.well_status || null
         );

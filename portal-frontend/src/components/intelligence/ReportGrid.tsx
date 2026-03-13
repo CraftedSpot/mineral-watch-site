@@ -1,5 +1,6 @@
 import { BORDER, TEXT_DARK, SLATE, OIL_NAVY } from '../../lib/constants';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { useAuth } from '../../hooks/useAuth';
 import type { IntelligenceTier, ReportType } from '../../types/intelligence';
 
 interface ReportGridProps {
@@ -147,8 +148,23 @@ function ReportCard({ card, tier, onClick }: { card: CardDef; tier: Intelligence
   );
 }
 
+const CLERK_DIRECTORY_CARD: CardDef = {
+  type: 'clerk-directory',
+  title: 'County Clerk Directory',
+  description: 'Oklahoma county clerk and court clerk offices, phone numbers, hours, and digitized records dates',
+  requiredTier: 'portfolio',
+  iconBg: '#f0f9ff',
+  iconStroke: '#0369a1',
+  icon: <><path d="M3 21h18M3 7v14M21 7v14M6 11h2M6 15h2M10 11h2M10 15h2M14 11h2M14 15h2M18 11h.01M18 15h.01M6 7V3h12v4" /></>,
+};
+
 export function ReportGrid({ tier, onOpenReport }: ReportGridProps) {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
+
+  const researchCards = user?.isSuperAdmin
+    ? [...RESEARCH_CARDS, CLERK_DIRECTORY_CARD]
+    : RESEARCH_CARDS;
 
   const gridStyle: React.CSSProperties = {
     display: 'grid',
@@ -184,7 +200,7 @@ export function ReportGrid({ tier, onOpenReport }: ReportGridProps) {
           <span style={{ fontSize: 12, color: SLATE }}>Statewide operator data and benchmarking</span>
         </div>
         <div style={gridStyle}>
-          {RESEARCH_CARDS.map((card) => (
+          {researchCards.map((card) => (
             <ReportCard
               key={card.type}
               card={card}

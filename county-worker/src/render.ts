@@ -1,5 +1,5 @@
 import { COUNTIES, COUNTY_DETAILS, genericOverview, genericHero, UPPER_TO_SLUG } from './data';
-import type { CountyStats, OperatorRow, ActivityItem, CountyIndexRow } from './queries';
+import type { CountyStats, OperatorRow, ActivityItem, CountyIndexRow, ClerkInfo } from './queries';
 
 // HTML entity escaping
 function esc(str: string): string {
@@ -303,6 +303,7 @@ export function renderCountyPage(
   operatorsByWells: OperatorRow[],
   operatorsByFilings: OperatorRow[],
   activity: ActivityItem[],
+  clerkInfo: ClerkInfo | null,
 ): string {
   const county = COUNTIES[slug];
   if (!county) return render404();
@@ -509,7 +510,20 @@ ${HEADER}
                         </div>
                         ${operatorsHtml}
                     </section>
-
+${clerkInfo ? `
+                    <section class="clerk-section" style="margin-top:32px;">
+                        <div class="section-header">
+                            <h2>${esc(countyName)} County Records Office</h2>
+                        </div>
+                        <div style="padding:16px 0;font-size:14px;line-height:1.7;">
+                            <div style="font-weight:600;margin-bottom:6px;">${esc(clerkInfo.office_name)}</div>
+                            ${clerkInfo.phone ? `<div><a href="tel:${esc(clerkInfo.phone)}" style="color:var(--red-dirt);text-decoration:none;font-weight:500;">${esc(clerkInfo.phone)}</a></div>` : ''}
+                            ${clerkInfo.physical_address ? `<div style="color:#596674;">${esc(clerkInfo.physical_address)}</div>` : ''}
+                            ${clerkInfo.office_hours ? `<div style="color:#596674;font-size:13px;">Hours: ${esc(clerkInfo.office_hours)}</div>` : ''}
+                            ${clerkInfo.earliest_digitized_records ? `<div style="margin-top:8px;font-size:13px;color:#596674;">Earliest digitized records: <strong style="color:var(--oil-navy);">${esc(clerkInfo.earliest_digitized_records)}</strong>${clerkInfo.uses_okcountyrecords ? ' <span style="color:#16a34a;font-weight:500;">(OKCountyRecords)</span>' : ''}</div>` : ''}
+                        </div>
+                    </section>
+` : ''}
                     <section class="county-overview">
                         <h2>About ${esc(countyName)} County Mineral Rights</h2>
                         ${overviewHtml}

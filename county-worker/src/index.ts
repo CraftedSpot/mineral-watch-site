@@ -1,5 +1,5 @@
 import { COUNTIES } from './data';
-import { fetchCountyData, fetchCountyIndex } from './queries';
+import { fetchCountyData, fetchCountyIndex, fetchClerkInfo } from './queries';
 import { renderCountyPage, renderCountyIndex, render404 } from './render';
 import { renderSitemap } from './sitemap';
 
@@ -84,8 +84,11 @@ async function handleCounty(env: Env, slug: string): Promise<Response> {
   const countyName = county.name;
 
   try {
-    const { stats, operatorsByWells, operatorsByFilings, activity } = await fetchCountyData(env.DB, countyUpper, countyName);
-    const html = renderCountyPage(slug, stats, operatorsByWells, operatorsByFilings, activity);
+    const [{ stats, operatorsByWells, operatorsByFilings, activity }, clerkInfo] = await Promise.all([
+      fetchCountyData(env.DB, countyUpper, countyName),
+      fetchClerkInfo(env.DB, countyName),
+    ]);
+    const html = renderCountyPage(slug, stats, operatorsByWells, operatorsByFilings, activity, clerkInfo);
 
     return new Response(html, {
       headers: {
@@ -102,7 +105,7 @@ async function handleCounty(env: Env, slug: string): Promise<Response> {
       recentPermits: 0,
       recentCompletions: 0,
       recentPooling: 0,
-    }, [], [], []);
+    }, [], [], [], null);
 
     return new Response(html, {
       headers: {

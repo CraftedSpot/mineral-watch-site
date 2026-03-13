@@ -6,6 +6,10 @@ import { fetchDocumentDetail, fetchDocumentBlob, saveCorrection, deleteCorrectio
 import { addDocumentParty, deleteDocumentParty } from '../../../api/document-parties';
 import { updateCurrentOwnerInterest, revertCurrentOwnerInterest } from '../../../api/title-chain';
 import { useModal } from '../../../contexts/ModalContext';
+import { useAuth } from '../../../hooks/useAuth';
+import { fetchClerkByCounty } from '../../../api/intelligence';
+import type { ClerkOffice } from '../../intelligence/clerks/ClerkDirectory';
+import { ClerkDetailModule } from '../../intelligence/clerks/ClerkDetailModule';
 import { CountyRecordsSection, isCountySupported } from '../../shared/CountyRecordsSection';
 import { Spinner } from '../../ui/Spinner';
 import type { FlatNode } from '../../../types/title-chain';
@@ -697,6 +701,41 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
   );
 }
 
+// ─── Helpers ─────────────────────────────────────────────────
+
+const MONTH_MAP: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
+function parseEarliestDigitizedDate(raw: string): { year: number; month?: number; display: string } | null {
+  if (!raw) return null;
+  // ISO format "YYYY-MM-DD"
+  const iso = raw.match(/^(\d{4})-(\d{2})/);
+  if (iso) {
+    const y = parseInt(iso[1], 10);
+    const m = parseInt(iso[2], 10);
+    const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    return { year: y, month: m, display: `${names[m - 1]} ${y}` };
+  }
+  // "Month, YYYY" or "Month YYYY" — take the earliest
+  const re = /\b(January|February|March|April|May|June|July|August|September|October|November|December)[,]?\s+(\d{4})\b/gi;
+  let earliest: { year: number; month: number; display: string } | null = null;
+  let match;
+  while ((match = re.exec(raw)) !== null) {
+    const mo = MONTH_MAP[match[1].toLowerCase()];
+    const yr = parseInt(match[2], 10);
+    if (!earliest || yr < earliest.year || (yr === earliest.year && mo < earliest.month)) {
+      earliest = { year: yr, month: mo, display: `${match[1]} ${yr}` };
+    }
+  }
+  if (earliest) return earliest;
+  // Bare year
+  const yearMatch = raw.match(/\b(1[89]\d{2}|20\d{2})\b/);
+  if (yearMatch) return { year: parseInt(yearMatch[1], 10), display: yearMatch[1] };
+  return null;
+}
+
 // ─── Gap Content ─────────────────────────────────────────────
 
 function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuperAdmin, onChainRefresh }: {
@@ -709,6 +748,78 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
   onChainRefresh?: () => void;
 }) {
   const [chainRefreshing, setChainRefreshing] = useState(false);
+  const [clerkOffices, setClerkOffices] = useState<ClerkOffice[] | null>(null);
+  const [showClerkDetail, setShowClerkDetail] = useState<ClerkOffice | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { user } = useAuth();
+
+  // Fetch clerk data for gap county
+  useEffect(() => {
+    if (!node.gapCounty) return;
+    fetchClerkByCounty(node.gapCounty)
+      .then(offices => setClerkOffices(offices))
+      .catch(() => {});
+  }, [node.gapCounty]);
+
+  const countyClerk = clerkOffices?.find(o => o.office_type === 'County Clerk') || null;
+  const isDark = !!c && c.bg !== '#fff';
+
+  // Smart guidance data
+  const digitizedDate = countyClerk?.earliest_digitized_records
+    ? parseEarliestDigitizedDate(countyClerk.earliest_digitized_records)
+    : null;
+  const gapYear = node.gapLastSeenDate
+    ? (() => { const m = node.gapLastSeenDate!.match(/\b(1[89]\d{2}|20\d{2})\b/); return m ? parseInt(m[1], 10) : null; })()
+    : null;
+  const usesOkcr = countyClerk?.uses_okcountyrecords === 1;
+  const guidanceType: 'online' | 'predigital' | 'no-okcr' | 'unknown' = (() => {
+    if (!countyClerk) return 'unknown';
+    if (usesOkcr && digitizedDate && gapYear != null && gapYear >= digitizedDate.year) return 'online';
+    if (usesOkcr && digitizedDate && gapYear != null && gapYear < digitizedDate.year) return 'predigital';
+    if (!usesOkcr) return 'no-okcr';
+    return 'unknown';
+  })();
+
+  // Draft message text (shared between copy + mailto)
+  const draftMessageText = countyClerk && node.gapCounty ? (() => {
+    const trs = node.gapSection && node.gapTownship && node.gapRange
+      ? `Section ${node.gapSection}, Township ${node.gapTownship}, Range ${node.gapRange}, ${node.gapCounty} County, Oklahoma`
+      : `${node.gapCounty} County, Oklahoma`;
+    const types = node.gapSuggestedTypes?.length ? node.gapSuggestedTypes.join(' or ') : 'deed, assignment, or conveyance';
+    const party = node.gapPartyName ? ` involving ${node.gapPartyName}` : '';
+    const date = node.gapLastSeenDate
+      ? `likely recorded after ${formatDate(node.gapLastSeenDate)}`
+      : `recorded in the records of ${node.gapCounty} County`;
+    return [
+      `Dear ${node.gapCounty} County Clerk,`,
+      '',
+      `I am researching mineral ownership in ${trs}.`,
+      '',
+      `I am looking for a ${types}${party}, ${date}.`,
+      '',
+      'Could you please search your records and advise on availability and copy fees?',
+      '',
+      'Thank you,',
+      user?.name || '',
+    ].join('\n');
+  })() : '';
+
+  const handleCopyDraft = async () => {
+    try {
+      await navigator.clipboard.writeText(draftMessageText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      const el = document.getElementById('resolve-gap-draft');
+      if (el) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    }
+  };
 
   const handleDocRetrieved = useCallback(() => {
     setChainRefreshing(true);
@@ -788,6 +899,165 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
         Open period: {node.dateRange}
       </div>
 
+      {/* ── Resolve This Gap ── */}
+      {countyClerk && node.gapCounty && (
+        <div style={{
+          border: `1px solid ${c?.border || BORDER}`, borderRadius: 10,
+          overflow: 'hidden', marginBottom: 12,
+        }}>
+          {/* Card header — clerk info */}
+          <div style={{
+            padding: '12px 16px', background: isDark ? c.surface : '#f0f9ff',
+            borderBottom: `1px solid ${c?.border || BORDER}`,
+          }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: isDark ? '#7dd3fc' : '#0369a1', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              Resolve This Gap
+            </div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: c?.text || DARK }}>
+              {countyClerk.office_name}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+              {countyClerk.phone && (
+                <a href={`tel:${countyClerk.phone}`} style={{ color: '#3b82f6', textDecoration: 'none', fontSize: 13 }}>
+                  {countyClerk.phone}
+                </a>
+              )}
+              {countyClerk.physical_address && (
+                <span style={{ fontSize: 12, color: c?.textMuted || SLATE }}>
+                  {countyClerk.phone ? ' · ' : ''}{countyClerk.physical_address.split(',')[0]}
+                </span>
+              )}
+            </div>
+            <div style={{ marginTop: 6 }}>
+              <span
+                onClick={() => setShowClerkDetail(countyClerk)}
+                style={{ fontSize: 12, color: '#3b82f6', cursor: 'pointer', fontWeight: 500 }}
+              >
+                View Full Details &rarr;
+              </span>
+            </div>
+          </div>
+
+          {/* Smart records guidance */}
+          {guidanceType === 'online' && (
+            <div style={{ padding: '10px 16px', background: isDark ? 'rgba(22,163,74,0.1)' : '#f0fdf4', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#86efac' : '#166534' }}>
+              {node.gapCounty} County records are searchable online back to {digitizedDate!.display}.
+              This document should be findable on OKCountyRecords.
+              <div style={{ marginTop: 6 }}>
+                <a
+                  href={`https://okcountyrecords.com/search/${node.gapCounty!.toLowerCase().replace(/\s+/g, '-')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: isDark ? '#4ade80' : '#16a34a', fontWeight: 600, textDecoration: 'none', fontSize: 12 }}
+                >
+                  Search OKCountyRecords &rarr;
+                </a>
+              </div>
+            </div>
+          )}
+          {guidanceType === 'predigital' && (
+            <div style={{ padding: '10px 16px', background: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#fcd34d' : '#92400e' }}>
+              {node.gapCounty} County's online records start {digitizedDate!.display}. Documents before this date require a manual search — call or email the clerk.
+            </div>
+          )}
+          {guidanceType === 'no-okcr' && (
+            <div style={{ padding: '10px 16px', background: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#fcd34d' : '#92400e' }}>
+              {node.gapCounty} County is not on OKCountyRecords. Contact the clerk directly to search their records.
+            </div>
+          )}
+          {guidanceType === 'unknown' && (
+            <div style={{ padding: '10px 16px', background: fieldBg, borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: c?.textMuted || SLATE }}>
+              Contact the clerk to check record availability for this date range.
+            </div>
+          )}
+
+          {/* Phone script */}
+          <div style={{ padding: '12px 16px', borderBottom: `1px solid ${c?.border || BORDER}` }}>
+            <div style={{ fontSize: 9, fontWeight: 700, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
+              Phone Script
+            </div>
+            {countyClerk.phone && (
+              <a href={`tel:${countyClerk.phone}`} style={{
+                display: 'inline-block', fontSize: 15, fontWeight: 700, color: '#3b82f6',
+                textDecoration: 'none', marginBottom: 8,
+              }}>
+                Call {countyClerk.phone}
+              </a>
+            )}
+            <div style={{ fontSize: 12, color: c?.text || DARK, lineHeight: 1.7 }}>
+              {node.gapSection && node.gapTownship && node.gapRange && (
+                <div><span style={{ color: c?.textMuted || SLATE }}>Call about:</span> Records search in Section {node.gapSection}, Township {node.gapTownship}, Range {node.gapRange}</div>
+              )}
+              <div>
+                <span style={{ color: c?.textMuted || SLATE }}>Ask for:</span>{' '}
+                {node.gapSuggestedTypes?.length ? node.gapSuggestedTypes.join(' or ') : 'Deed, assignment, or conveyance'}
+                {node.gapPartyName ? ` involving ${node.gapPartyName}` : ''}
+                {node.gapLastSeenDate ? `, recorded after ${formatDate(node.gapLastSeenDate)}` : `, recorded in the records of ${node.gapCounty} County`}
+              </div>
+              <div><span style={{ color: c?.textMuted || SLATE }}>Ask about:</span> Copy fees and turnaround time</div>
+            </div>
+          </div>
+
+          {/* Draft message */}
+          <div style={{ padding: '12px 16px', borderBottom: countyClerk.email ? `1px solid ${c?.border || BORDER}` : 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1 }}>
+                Draft Message
+              </div>
+              <button
+                onClick={handleCopyDraft}
+                style={{
+                  padding: '4px 12px', fontSize: 11, fontWeight: 600, borderRadius: 5,
+                  background: copied
+                    ? (isDark ? 'rgba(22,163,74,0.2)' : '#dcfce7')
+                    : (isDark ? (c?.card || '#334155') : '#f1f5f9'),
+                  color: copied
+                    ? (isDark ? '#86efac' : '#166534')
+                    : '#3b82f6',
+                  border: `1px solid ${copied ? (isDark ? 'rgba(22,163,74,0.3)' : '#bbf7d0') : (c?.border || BORDER)}`,
+                  cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
+                }}
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div
+              id="resolve-gap-draft"
+              style={{
+                fontSize: 12, color: c?.text || DARK, lineHeight: 1.7,
+                padding: '10px 12px', background: fieldBg, borderRadius: 6,
+                border: `1px solid ${c?.border || BORDER}`, whiteSpace: 'pre-wrap',
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              {draftMessageText}
+            </div>
+            {!countyClerk.email && (countyClerk.mailing_address || countyClerk.physical_address) && (
+              <div style={{ fontSize: 11, color: c?.textMuted || SLATE, marginTop: 8, fontStyle: 'italic' }}>
+                No email on file — mail to: {countyClerk.mailing_address || countyClerk.physical_address}
+              </div>
+            )}
+          </div>
+
+          {/* Open in Email button (only when clerk has email) */}
+          {countyClerk.email && (
+            <div style={{ padding: '12px 16px' }}>
+              <a
+                href={`mailto:${countyClerk.email}?subject=${encodeURIComponent(`Records search — ${node.gapCounty} County`)}&body=${encodeURIComponent(draftMessageText.replace(/\n/g, '\r\n'))}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 6,
+                  background: '#3b82f6', color: '#fff', textDecoration: 'none',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Open in Email &rarr;
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Suggestion (non-super-admin or unsupported county) */}
       {!showCountySearch && node.suggestion && (
         <div style={{
@@ -823,6 +1093,16 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
         }}>
           <Spinner size={14} /> Refreshing chain — checking if this gap is resolved...
         </div>
+      )}
+
+      {/* Clerk detail modal */}
+      {showClerkDetail && clerkOffices && (
+        <ClerkDetailModule
+          office={showClerkDetail}
+          allOffices={clerkOffices}
+          onClose={() => setShowClerkDetail(null)}
+          onSwitchOffice={(office) => setShowClerkDetail(office)}
+        />
       )}
     </div>
   );

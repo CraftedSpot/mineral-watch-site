@@ -11,6 +11,11 @@ import { PropertySelector } from './PropertySelector';
 import { ChainTreeView } from './ChainTreeView';
 import { AISummary } from './AISummary';
 
+// Module-level cache — survives React navigation (component unmount/remount)
+let _cachedProperties: ChainProperty[] | null = null;
+let _cachedSelectedId: string | null = null;
+let _cachedChainData: Record<string, TitleChainResponse> = {};
+
 export function TitlePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -21,10 +26,12 @@ export function TitlePage() {
       navigate('/portal', { replace: true });
     }
   }, [user, navigate]);
-  const [properties, setProperties] = useState<ChainProperty[]>([]);
-  const [propsLoading, setPropsLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [chainData, setChainData] = useState<TitleChainResponse | null>(null);
+  const [properties, setProperties] = useState<ChainProperty[]>(_cachedProperties || []);
+  const [propsLoading, setPropsLoading] = useState(!_cachedProperties);
+  const [selectedId, setSelectedId] = useState<string | null>(_cachedSelectedId);
+  const [chainData, setChainData] = useState<TitleChainResponse | null>(
+    _cachedSelectedId ? _cachedChainData[_cachedSelectedId] || null : null,
+  );
   const [chainLoading, setChainLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>(
@@ -37,36 +44,67 @@ export function TitlePage() {
   useEffect(() => { localStorage.setItem('mmw_titleChainViewMode', viewMode); }, [viewMode]);
   useEffect(() => { localStorage.setItem('mmw_titleDarkMode', darkMode ? '1' : '0'); }, [darkMode]);
 
-  // Load properties on mount
+  // Load properties on mount (use cache if available, refresh in background)
   useEffect(() => {
-    fetchChainProperties()
-      .then((res) => {
-        setProperties(res.properties);
-        // Auto-select first property
-        if (res.properties.length > 0) {
-          setSelectedId(res.properties[0].airtableRecordId);
-        }
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setPropsLoading(false));
+    if (_cachedProperties && _cachedProperties.length > 0) {
+      // Already have cached data — just background refresh
+      fetchChainProperties()
+        .then((res) => {
+          _cachedProperties = res.properties;
+          setProperties(res.properties);
+        })
+        .catch(() => {}); // silent — cached data still showing
+    } else {
+      fetchChainProperties()
+        .then((res) => {
+          _cachedProperties = res.properties;
+          setProperties(res.properties);
+          if (res.properties.length > 0 && !_cachedSelectedId) {
+            const firstId = res.properties[0].airtableRecordId;
+            _cachedSelectedId = firstId;
+            setSelectedId(firstId);
+          }
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setPropsLoading(false));
+    }
   }, []);
 
-  // Load chain data when selection changes
+  // Load chain data when selection changes (use cache, refresh in background)
   useEffect(() => {
     if (!selectedId) return;
-    setChainLoading(true);
-    setError(null);
-    fetchTitleChain(selectedId)
-      .then((res) => setChainData(res))
-      .catch((err) => setError(err.message))
-      .finally(() => setChainLoading(false));
+    _cachedSelectedId = selectedId;
+    const cached = _cachedChainData[selectedId];
+    if (cached) {
+      setChainData(cached);
+      // Background refresh
+      fetchTitleChain(selectedId)
+        .then((res) => {
+          _cachedChainData[selectedId] = res;
+          setChainData(res);
+        })
+        .catch(() => {});
+    } else {
+      setChainLoading(true);
+      setError(null);
+      fetchTitleChain(selectedId)
+        .then((res) => {
+          _cachedChainData[selectedId] = res;
+          setChainData(res);
+        })
+        .catch((err) => setError(err.message))
+        .finally(() => setChainLoading(false));
+    }
   }, [selectedId]);
 
   // Silent refetch after correction save/undo (no loading spinner)
   const handleRefreshChain = useCallback(() => {
     if (!selectedId) return;
     fetchTitleChain(selectedId)
-      .then((res) => setChainData(res))
+      .then((res) => {
+        _cachedChainData[selectedId] = res;
+        setChainData(res);
+      })
       .catch(() => {}); // silent — tree just stays stale if refetch fails
   }, [selectedId]);
 

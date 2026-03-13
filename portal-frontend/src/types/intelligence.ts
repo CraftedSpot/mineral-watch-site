@@ -40,7 +40,8 @@ export type ReportType =
   | 'occ-filing'
   | 'well-risk'
   | 'operator-efficiency'
-  | 'operator-directory';
+  | 'operator-directory'
+  | 'clerk-directory';
 
 // ── Deduction Report ──
 

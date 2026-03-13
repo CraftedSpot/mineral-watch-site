@@ -34,6 +34,7 @@ import { getOccFilingsForProperty } from '../utils/docket-matching.js';
 
 import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
+import { normalizeTownship, normalizeRange } from '../utils/str-normalize.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -183,7 +184,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   if (!/^\d{1,2}[NS]$/.test(twnStr)) {
     return jsonResponse({ error: "Invalid township (e.g., 12N or 4S)" }, 400);
   }
-  const township = twnStr.toUpperCase();
+  const township = normalizeTownship(twnStr) || twnStr.toUpperCase();
 
   // Normalize Range: strip prefixes, uppercase, default direction W
   let rngStr = String(body.RNG).trim().toUpperCase().replace(/^(R|RNG|RANGE)\s*/i, '').replace(/\s+/g, '');
@@ -193,7 +194,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   if (!/^\d{1,2}[EW]$/.test(rngStr)) {
     return jsonResponse({ error: "Invalid range (e.g., 4W or 8E)" }, 400);
   }
-  const range = rngStr.toUpperCase();
+  const range = normalizeRange(rngStr) || rngStr.toUpperCase();
 
   // Meridian: accept from body, fallback to county-based detection, default IM
   const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];

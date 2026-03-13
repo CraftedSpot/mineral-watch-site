@@ -95,6 +95,19 @@ export function fetchWellRiskProfile(): Promise<WellRiskProfileData> {
 
 // ── Operator Tools ──
 
+// ── County Clerk Directory ──
+
+export async function fetchClerkDirectory(): Promise<any[]> {
+  const resp = await apiFetch<{ offices: any[]; count: number }>('/api/county-clerks');
+  return resp.offices;
+}
+
+export async function fetchClerkByCounty(county: string): Promise<any[]> {
+  const offices = await fetchClerkDirectory();
+  const q = county.toLowerCase();
+  return offices.filter((o: any) => o.county?.toLowerCase() === q);
+}
+
 export async function fetchOperatorDirectory(minWells = 20): Promise<OperatorDirectoryEntry[]> {
   const resp = await apiFetch<{ operators: OperatorDirectoryEntry[]; total_count: number }>(`/api/operators/directory?min_wells=${minWells}`);
   return resp.operators;

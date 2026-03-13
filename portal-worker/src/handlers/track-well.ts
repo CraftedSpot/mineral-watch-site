@@ -4,12 +4,13 @@
  * Handles signed token-based well tracking from email alerts
  */
 
-import { 
+import {
   BASE_ID,
   WELLS_TABLE,
   BASE_URL,
   PLAN_LIMITS
 } from '../constants.js';
+import { normalizeTownship, normalizeRange } from '../utils/str-normalize.js';
 
 import {
   authenticateRequest
@@ -417,7 +418,7 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
         `).bind(
           wellId, recordId, cleanApi, userId, userOrganization || null,
           wellName || null, operator || null, county || null,
-          section || null, township || null, range || null,
+          section || null, normalizeTownship(township) || null, normalizeRange(range) || null,
           wellType || null, wellStatus || null, occMapLink || null
         ).run();
       } catch (dbErr: any) {

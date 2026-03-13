@@ -4,6 +4,7 @@
 
 import type { Env } from '../types/env.js';
 import { getOrgMemberIds, buildOwnershipFilter } from './ownership.js';
+import { normalizeTownship, normalizeRange } from './str-normalize.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
 export const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
@@ -306,8 +307,8 @@ export function createLocationKey(section: number | null, township: string, rang
 export function locationsMatch(loc1: LocationKey | null, loc2: LocationKey | null): boolean {
   if (!loc1 || !loc2) return false;
   return loc1.section === loc2.section &&
-         loc1.township === loc2.township &&
-         loc1.range === loc2.range &&
+         normalizeTownship(loc1.township) === normalizeTownship(loc2.township) &&
+         normalizeRange(loc1.range) === normalizeRange(loc2.range) &&
          loc1.meridian === loc2.meridian;
 }
 

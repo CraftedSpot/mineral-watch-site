@@ -279,29 +279,31 @@ function normalizeTownship(value: any): string | null {
   if (!/^\d+[NS]$/i.test(str)) {
     return null;
   }
-  
-  // Normalize to uppercase
-  return str.toUpperCase();
+
+  // Normalize to uppercase and strip leading zeros (e.g., "06N" -> "6N")
+  const twnMatch = str.toUpperCase().match(/^0*(\d{1,2})([NS])$/);
+  return twnMatch ? `${parseInt(twnMatch[1], 10)}${twnMatch[2]}` : str.toUpperCase();
 }
 
 function normalizeRange(value: any): string | null {
   if (!value) return null;
-  
+
   let str = String(value).trim().toUpperCase();
-  
+
   // Remove prefixes
   str = str.replace(/^(R|RANGE)\s*/i, '');
-  
+
   // Remove spaces
   str = str.replace(/\s+/g, '');
-  
+
   // Must be digits followed by E or W
   if (!/^\d+[EW]$/i.test(str)) {
     return null;
   }
-  
-  // Normalize to uppercase
-  return str.toUpperCase();
+
+  // Normalize to uppercase and strip leading zeros (e.g., "03W" -> "3W")
+  const rngMatch = str.toUpperCase().match(/^0*(\d{1,2})([EW])$/);
+  return rngMatch ? `${parseInt(rngMatch[1], 10)}${rngMatch[2]}` : str.toUpperCase();
 }
 
 function normalizeMeridian(value: any, county?: string): string {
@@ -1906,8 +1908,8 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           occData?.operator || null,
           occData?.county || null,
           occData?.section ? String(occData.section) : null,
-          occData?.township || null,
-          occData?.range || null,
+          normalizeTownship(occData?.township) || null,
+          normalizeRange(occData?.range) || null,
           well.user_well_code || null,
           well.wi_nri || null,
           well.ri_nri || null,

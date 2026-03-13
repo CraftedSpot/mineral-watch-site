@@ -1868,6 +1868,12 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleGetWellRiskProfile(request, env, ctx);
       }
 
+      // County Clerk Directory API
+      if (path === "/api/county-clerks" && request.method === "GET") {
+        const { handleGetCountyClerks } = await import('./handlers/county-clerks.js');
+        return handleGetCountyClerks(request, env);
+      }
+
       // Operator Directory API (contact info, no financial data - fast)
       if (path === "/api/operators/directory" && request.method === "GET") {
         const { handleGetOperatorDirectory } = await import('./handlers/operators.js');

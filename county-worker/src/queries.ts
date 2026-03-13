@@ -298,6 +298,28 @@ export async function fetchCountyData(db: D1Database, countyUpper: string, count
   };
 }
 
+// Clerk info for county page teaser
+export interface ClerkInfo {
+  office_name: string;
+  phone: string | null;
+  physical_address: string | null;
+  office_hours: string | null;
+  uses_okcountyrecords: number;
+  earliest_digitized_records: string | null;
+}
+
+export async function fetchClerkInfo(db: D1Database, countyName: string): Promise<ClerkInfo | null> {
+  try {
+    const row = await db.prepare(
+      `SELECT office_name, phone, physical_address, office_hours, uses_okcountyrecords, earliest_digitized_records
+       FROM county_clerk_offices WHERE UPPER(county) = UPPER(?) AND office_type = 'County Clerk' LIMIT 1`
+    ).bind(countyName).first<ClerkInfo>();
+    return row || null;
+  } catch {
+    return null;
+  }
+}
+
 // Fetch all counties with well counts for the index page
 export async function fetchCountyIndex(db: D1Database): Promise<CountyIndexRow[]> {
   const result = await db.prepare(
