@@ -35,14 +35,14 @@ export function AISummary({ tree, propertyLegal, isMobile, darkMode, colors: c }
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11,
         }}>{'\u2726'}</div>
         <span style={{ fontSize: 12, lineHeight: 1.5, opacity: 0.9, flex: 1 }}>
-          <span style={{ color: '#FBD38D', fontWeight: 700 }}>{stats.totalDocs} docs</span>
+          <span style={{ color: '#F59E0B', fontWeight: 700 }}>{stats.totalDocs} docs</span>
           {dateRange && <> from {dateRange}</>}
           {' \u2022 '}
-          <span style={{ color: GAP_COLOR, fontWeight: 700 }}>
+          <span style={{ color: '#FCA5A5', fontWeight: 700 }}>
             {stats.gapCount} gap{stats.gapCount !== 1 ? 's' : ''}
           </span>
           {' \u2022 '}
-          <span style={{ color: '#68D391', fontWeight: 700 }}>
+          <span style={{ color: '#86EFAC', fontWeight: 700 }}>
             {stats.ownerCount} owner{stats.ownerCount !== 1 ? 's' : ''}
           </span>
         </span>
@@ -64,7 +64,7 @@ export function AISummary({ tree, propertyLegal, isMobile, darkMode, colors: c }
             {'\u2022'} {stats.linkedDocs} of {stats.totalDocs} documents linked into tree ({stats.stackedGroups} stacked groups)
           </div>
           {stats.gapCount > 0 && (
-            <div style={{ marginBottom: 4, color: GAP_COLOR }}>
+            <div style={{ marginBottom: 4, color: '#FCA5A5' }}>
               {'\u2022'} {stats.gapCount} gap{stats.gapCount !== 1 ? 's' : ''} detected — search county records to fill
             </div>
           )}
@@ -93,7 +93,7 @@ export function AISummary({ tree, propertyLegal, isMobile, darkMode, colors: c }
           })()}
           {currentOwners.length > 0 && (
             <div style={{ marginTop: 8, padding: '6px 12px', background: 'rgba(255,255,255,0.08)', borderRadius: 6, fontSize: 11 }}>
-              <strong style={{ color: GREEN }}>Current Owners:</strong>{' '}
+              <strong style={{ color: '#86EFAC' }}>Current Owners:</strong>{' '}
               {currentOwners.map(o => o.owner_name).join(', ')}
             </div>
           )}

@@ -16,6 +16,8 @@ import { HoverTooltip } from './panels/HoverTooltip';
 import { DetailDrawer } from './panels/DetailDrawer';
 import { TreeLegend } from './TreeLegend';
 import { OrphanCard } from './nodes/OrphanCard';
+import { dedupScan } from '../../api/title-chain';
+import { Spinner } from '../ui/Spinner';
 
 interface ChainTreeViewProps {
   tree: TitleTree;
@@ -48,6 +50,8 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [entranceKey, setEntranceKey] = useState(0);
   const [orphansExpanded, setOrphansExpanded] = useState(false);
+  const [dedupRunning, setDedupRunning] = useState(false);
+  const [dedupResult, setDedupResult] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const flexParentRef = useRef<HTMLDivElement>(null);
 
@@ -348,7 +352,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                 style={{ animation: 'fadeSlideIn 0.4s ease-out' }}>
                 {/* Edges */}
                 {layout.edges.map((edge, i) => (
-                  <Edge key={i} from={edge.from} to={edge.to} positions={layout.positions} isGap={edge.isGap} />
+                  <Edge key={i} from={edge.from} to={edge.to} positions={layout.positions} isGap={edge.isGap} darkMode={darkMode} />
                 ))}
                 {/* Nodes */}
                 {flatNodes.map((node) => {
@@ -393,7 +397,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                   }
                   return <DocNode key={node.id} node={node} pos={pos}
                     isHovered={isHov} isPinned={isSel} isDimmed={isDimmed}
-                    viewMode={viewMode} colors={c}
+                    viewMode={viewMode} colors={c} darkMode={darkMode}
                     onHover={setHoveredId} onLeave={() => setHoveredId(null)}
                     onClick={handleNodeClick} />;
                 })}
@@ -444,32 +448,82 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
           border: `1px solid ${c?.border || BORDER}`,
           background: c?.surface || '#fff', overflow: 'hidden',
         }}>
-          <button
-            onClick={() => setOrphansExpanded(v => !v)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: isMobile ? '12px 14px' : '10px 16px', background: 'none', border: 'none',
-              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 20, height: 20, borderRadius: 5,
-                background: 'rgba(245,158,11,0.12)', display: 'flex',
-                alignItems: 'center', justifyContent: 'center', fontSize: 11,
-              }}>{'\u26A0'}</div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>
-                {orphanNodes.length} Orphan Document{orphanNodes.length !== 1 ? 's' : ''}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <button
+              onClick={() => setOrphansExpanded(v => !v)}
+              style={{
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: isMobile ? '12px 14px' : '10px 16px', background: 'none', border: 'none',
+                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{
+                  width: 20, height: 20, borderRadius: 5,
+                  background: 'rgba(245,158,11,0.12)', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', fontSize: 11,
+                }}>{'\u26A0'}</div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>
+                  {orphanNodes.length} Orphan Document{orphanNodes.length !== 1 ? 's' : ''}
+                </span>
+                <span style={{ fontSize: 11, color: c?.textMuted || SLATE }}>
+                  — not linked into chain
+                </span>
+              </div>
+              <span style={{ fontSize: 14, color: c?.textMuted || SLATE, transition: 'transform 0.2s',
+                transform: orphansExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+                {'\u25BE'}
               </span>
-              <span style={{ fontSize: 11, color: c?.textMuted || SLATE }}>
-                — not linked into chain
-              </span>
+            </button>
+            {propertyId && (
+              <button
+                disabled={dedupRunning}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!propertyId || dedupRunning) return;
+                  setDedupRunning(true);
+                  setDedupResult(null);
+                  dedupScan(propertyId)
+                    .then((res) => {
+                      if (res.totalFlagged > 0) {
+                        const confirmed = (res.tier1aDuplicates || 0) + (res.tier1bDuplicates || 0);
+                        const review = res.tier2Duplicates || 0;
+                        const parts: string[] = [];
+                        if (confirmed > 0) parts.push(`${confirmed} confirmed`);
+                        if (review > 0) parts.push(`${review} needs review`);
+                        setDedupResult(`Flagged ${res.totalFlagged} duplicate${res.totalFlagged !== 1 ? 's' : ''} (${parts.join(', ')})`);
+                        onRefresh?.();
+                      } else {
+                        setDedupResult('No duplicates found');
+                      }
+                      setTimeout(() => setDedupResult(null), 5000);
+                    })
+                    .catch(() => setDedupResult('Scan failed'))
+                    .finally(() => setDedupRunning(false));
+                }}
+                style={{
+                  marginRight: 12, padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                  border: `1px solid ${c?.border || BORDER}`, borderRadius: 5,
+                  background: c?.surface || '#fff', color: c?.textMuted || SLATE,
+                  cursor: dedupRunning ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                  opacity: dedupRunning ? 0.6 : 1,
+                }}
+                title="Scan for and flag duplicate documents based on book/page and instrument number"
+              >
+                {dedupRunning ? <><Spinner size={10} /> Scanning...</> : 'Scan Duplicates'}
+              </button>
+            )}
+          </div>
+          {dedupResult && (
+            <div style={{
+              padding: '4px 16px 8px', fontSize: 11, fontWeight: 600,
+              color: dedupResult.includes('Flagged') ? '#059669' : (c?.textMuted || SLATE),
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              {dedupResult}
             </div>
-            <span style={{ fontSize: 14, color: c?.textMuted || SLATE, transition: 'transform 0.2s',
-              transform: orphansExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-              {'\u25BE'}
-            </span>
-          </button>
+          )}
           {orphansExpanded && (
             <div style={{
               padding: isMobile ? '0 14px 14px' : '0 16px 14px',

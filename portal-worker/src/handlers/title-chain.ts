@@ -120,6 +120,15 @@ function extractPartiesFromJson(data: any, docType: string): Array<{ name: strin
     addArray(data.grantee_names, 'grantee');
     add(data.grantor?.name || data.grantor_name || data.grantor, 'grantor');
     add(data.grantee?.name || data.grantee_name || data.grantee, 'grantee');
+    // Fallback: extraction sometimes uses lessor/lessee or assignor/assignee keys for deeds
+    if (parties.length === 0) {
+      add(data.lessor?.name || data.lessor_name || data.lessor, 'grantor');
+      add(data.lessee?.name || data.lessee_name || data.lessee, 'grantee');
+    }
+    if (parties.length === 0) {
+      add(data.assignor?.name || data.assignor_name || data.assignor, 'grantor');
+      add(data.assignee?.name || data.assignee_name || data.assignee, 'grantee');
+    }
   }
   // Leases
   else if (docType.includes('lease') || docType === 'oil_gas_lease' || docType === 'oil_and_gas_lease') {
@@ -129,9 +138,14 @@ function extractPartiesFromJson(data: any, docType: string): Array<{ name: strin
     addArray(data.lessees, 'lessee');
   }
   // Assignments
-  else if (docType.includes('assignment')) {
+  else if (docType.includes('assignment') || docType === 'well_transfer') {
     add(data.assignor?.name || data.assignor_name || data.assignor, 'assignor');
     add(data.assignee?.name || data.assignee_name || data.assignee, 'assignee');
+    // Fallback for well_transfer with grantor/grantee keys
+    if (parties.length === 0) {
+      add(data.grantor?.name || data.grantor, 'grantor');
+      add(data.grantee?.name || data.grantee, 'grantee');
+    }
   }
   // Affidavit of heirship
   else if (docType === 'affidavit_of_heirship') {
@@ -240,6 +254,7 @@ interface OrphanDoc {
   reason: 'no_parties' | 'no_match' | 'unknown';
   _parties: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
   _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  hiddenDuplicates?: number;
 }
 
 interface ChainGap {
@@ -316,6 +331,108 @@ function suggestGapDocTypes(context: {
 }
 
 /**
+ * Extract recording info from a doc's _recording field (populated during doc mapping).
+ */
+function getRecordingKey(doc: any): string | null {
+  const rec = doc?._recording;
+  if (!rec || !rec.book || !rec.page) return null;
+  const county = (rec.county || '').toLowerCase().trim();
+  const book = String(rec.book).toLowerCase().trim();
+  const page = String(rec.page).toLowerCase().trim();
+  if (!county || !book || !page) return null;
+  return `${county}|${book}|${page}`;
+}
+
+/**
+ * Collapse orphans that share the same county+book+page.
+ * Read-only — no D1 writes. Picks the first orphan (by date, then id) as keeper.
+ */
+function deduplicateOrphans(orphans: OrphanDoc[], docMap: Map<string, any>): OrphanDoc[] {
+  const consumed = new Set<string>(); // orphan IDs already collapsed
+
+  // Pass 1: Group by county+book+page (recording key)
+  const bookPageGroups = new Map<string, OrphanDoc[]>();
+  for (const orphan of orphans) {
+    const doc = docMap.get(orphan.id);
+    const key = getRecordingKey(doc);
+    if (key) {
+      if (!bookPageGroups.has(key)) bookPageGroups.set(key, []);
+      bookPageGroups.get(key)!.push(orphan);
+    }
+  }
+  for (const [, group] of bookPageGroups) {
+    if (group.length < 2) continue;
+    sortOrphanGroup(group);
+    for (let i = 1; i < group.length; i++) consumed.add(group[i].id);
+    group[0].hiddenDuplicates = (group[0].hiddenDuplicates || 0) + group.length - 1;
+  }
+
+  // Pass 2: Tier 2 — county+docType+date with bidirectional party overlap
+  const remaining = orphans.filter(o => !consumed.has(o.id));
+  const dateGroups = new Map<string, OrphanDoc[]>();
+  for (const orphan of remaining) {
+    const doc = docMap.get(orphan.id);
+    const county = (doc?._recording?.county || '').toLowerCase().trim();
+    const docType = (doc?.docType || '').toLowerCase().trim();
+    const date = orphan.date || '';
+    if (!county || !docType || !date) continue;
+    const key = `${county}|${docType}|${date}`;
+    if (!dateGroups.has(key)) dateGroups.set(key, []);
+    dateGroups.get(key)!.push(orphan);
+  }
+  for (const [, group] of dateGroups) {
+    if (group.length < 2) continue;
+    // Check bidirectional party overlap within group
+    const clusters: OrphanDoc[][] = [];
+    const used = new Set<number>();
+    for (let i = 0; i < group.length; i++) {
+      if (used.has(i)) continue;
+      const a = group[i];
+      const aFrom = new Set(a.fromNames.map(n => n.toLowerCase()));
+      const aTo = new Set(a.toNames.map(n => n.toLowerCase()));
+      if (!aFrom.size || !aTo.size) continue;
+      const cluster = [a];
+      used.add(i);
+      for (let j = i + 1; j < group.length; j++) {
+        if (used.has(j)) continue;
+        const b = group[j];
+        const bFrom = new Set(b.fromNames.map(n => n.toLowerCase()));
+        const bTo = new Set(b.toNames.map(n => n.toLowerCase()));
+        if (!bFrom.size || !bTo.size) continue;
+        let fromMatch = false;
+        for (const n of aFrom) { if (bFrom.has(n)) { fromMatch = true; break; } }
+        if (!fromMatch) continue;
+        let toMatch = false;
+        for (const n of aTo) { if (bTo.has(n)) { toMatch = true; break; } }
+        if (!toMatch) continue;
+        cluster.push(b);
+        used.add(j);
+      }
+      if (cluster.length > 1) clusters.push(cluster);
+    }
+    for (const cluster of clusters) {
+      sortOrphanGroup(cluster);
+      for (let i = 1; i < cluster.length; i++) consumed.add(cluster[i].id);
+      cluster[0].hiddenDuplicates = (cluster[0].hiddenDuplicates || 0) + cluster.length - 1;
+    }
+  }
+
+  return orphans.filter(o => !consumed.has(o.id));
+}
+
+function sortOrphanGroup(group: OrphanDoc[]): void {
+  group.sort((a, b) => {
+    const aCorrected = a._corrections && Object.keys(a._corrections).length > 0 ? 1 : 0;
+    const bCorrected = b._corrections && Object.keys(b._corrections).length > 0 ? 1 : 0;
+    if (aCorrected !== bCorrected) return bCorrected - aCorrected;
+    if (a.date && b.date) return a.date.localeCompare(b.date);
+    if (a.date) return -1;
+    if (b.date) return 1;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+/**
  * Assemble a tree structure from persisted edges + documents.
  * Pure graph traversal — no name matching.
  */
@@ -347,7 +464,7 @@ function assembleTree(
   }
 
   // Orphans: docs with no edges at all — enrich with full metadata + reason
-  const orphanDocs: OrphanDoc[] = documents.filter(d => !inEdge.has(d.id)).map(d => {
+  const rawOrphans: OrphanDoc[] = documents.filter(d => !inEdge.has(d.id)).map(d => {
     const parties = partiesMap[d.id] || [];
     const hasParties = parties.length > 0;
     const reason: OrphanDoc['reason'] = !hasParties ? 'no_parties' : 'no_match';
@@ -371,6 +488,9 @@ function assembleTree(
       _corrections: correctionsMap[d.id] || null,
     };
   });
+
+  // Orphan dedup: collapse same-book-page orphans (read-only, no D1 writes)
+  const orphanDocs = deduplicateOrphans(rawOrphans, docMap);
 
   // Roots: docs that are parents but never children
   const rootIds = [...inEdge].filter(id => !hasParent.has(id) && docMap.has(id));
@@ -432,19 +552,23 @@ function assembleTree(
     return result;
   }
 
-  // Recursive tree builder
+  // Recursive tree builder — visited set prevents cycles from blowing the stack
+  const visited = new Set<string>();
   function buildNode(docId: string, edge: ChainEdgeRow | null, stackedWith: string[]): TreeNode {
     const doc = docMap.get(docId);
     const children: TreeNode[] = [];
     let stackedGroups = 0;
 
-    const childEntries = childrenOf.get(docId) || [];
-    const withStacks = detectStacks(childEntries);
+    if (!visited.has(docId)) {
+      visited.add(docId);
+      const childEntries = childrenOf.get(docId) || [];
+      const withStacks = detectStacks(childEntries);
 
-    for (const child of withStacks) {
-      if (docMap.has(child.docId)) {
-        children.push(buildNode(child.docId, child.edge, child.stackedWith));
-        if (child.stackedWith.length > 0) stackedGroups++;
+      for (const child of withStacks) {
+        if (docMap.has(child.docId) && !visited.has(child.docId)) {
+          children.push(buildNode(child.docId, child.edge, child.stackedWith));
+          if (child.stackedWith.length > 0) stackedGroups++;
+        }
       }
     }
 
@@ -746,7 +870,8 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         d.summary,
         d.r2_key,
         d.extracted_data,
-        d.upload_date
+        d.upload_date,
+        d.county
       FROM documents d
       WHERE d.chain_of_title = 1
         AND (d.deleted_at IS NULL OR d.deleted_at = '')
@@ -846,6 +971,13 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
 
       const interest = extractInterest(extractedData, row.doc_type || '');
 
+      // Extract recording info for dedup
+      const ri = extractedData?.recording_info || extractedData?.recording || {};
+      const recBook = asString(ri.book) || null;
+      const recPage = asString(ri.page) || null;
+      const recInstrument = asString(ri.instrument_number) || asString(extractedData?.instrument_number) || null;
+      const recCounty = row.county || asString(extractedData?.county) || null;
+
       return {
         id: row.id,
         displayName: row.display_name || row.filename || 'Untitled',
@@ -859,6 +991,8 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
         summary: row.summary || asString(extractedData?.key_takeaway) || null,
         r2Key: row.r2_key,
         _corrections: correctionsMap[row.id] || null,
+        _recording: { book: recBook, page: recPage, instrumentNumber: recInstrument, county: recCounty },
+        _uploadDate: row.upload_date,
       };
     });
 
@@ -1055,9 +1189,20 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
             console.error('[TitleTree] Cache write error:', cacheErr);
           }
         }
-      } catch (treeErr) {
-        console.error('[TitleTree] Tree assembly error:', treeErr);
-        // Non-fatal — still return documents without tree
+      } catch (treeErr: any) {
+        console.error('[TitleTree] Tree assembly error:', treeErr?.message, treeErr?.stack);
+        // Non-fatal — still return documents without tree, but surface error for diagnostics
+        return jsonResponse({
+          success: true,
+          property,
+          documents,
+          partyDataGaps,
+          unlinkedDocuments,
+          pendingDuplicates,
+          pendingDuplicateCount: pendingDuplicates.length,
+          _treeError: treeErr?.message || 'Unknown tree assembly error',
+          queryTime: Date.now() - start,
+        });
       }
     }
 
@@ -1075,5 +1220,316 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
   } catch (error) {
     console.error('[TitleChain] Chain error:', error);
     return jsonResponse({ error: 'Failed to fetch title chain' }, 500);
+  }
+}
+
+// ─── Retroactive Duplicate Detection ────────────────────────────
+
+function asStringOrNull(val: unknown): string | null {
+  if (val === null || val === undefined) return null;
+  const s = String(val).trim();
+  return s || null;
+}
+
+interface DedupDoc {
+  id: string;
+  county: string | null;
+  docType: string | null;
+  date: string | null;
+  confidence: number;
+  uploadDate: string | null;
+  book: string | null;
+  page: string | null;
+  instrumentNumber: string | null;
+  recordingYear: string | null;
+  hasCorrections: boolean;
+  extractedFieldCount: number;
+}
+
+function selectKeeper(docs: DedupDoc[]): DedupDoc {
+  return docs.sort((a, b) => {
+    // 1. Has user corrections wins
+    if (a.hasCorrections !== b.hasCorrections) return a.hasCorrections ? -1 : 1;
+    // 2. Higher confidence
+    if ((a.confidence || 0) !== (b.confidence || 0)) return (b.confidence || 0) - (a.confidence || 0);
+    // 3. More extracted fields
+    if (a.extractedFieldCount !== b.extractedFieldCount) return b.extractedFieldCount - a.extractedFieldCount;
+    // 4. Earlier upload date
+    if (a.uploadDate && b.uploadDate) return a.uploadDate.localeCompare(b.uploadDate);
+    if (a.uploadDate) return -1;
+    if (b.uploadDate) return 1;
+    return 0;
+  })[0];
+}
+
+/**
+ * POST /api/property/:propertyId/dedup-scan
+ * Scans chain-of-title documents for a property and flags duplicates.
+ */
+export async function handleDedupScan(propertyId: string, request: Request, env: Env) {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserByIdD1First(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const docOwner = buildOwnershipFilter('d', userOrgId, authUser.id, memberIds, { includeUserId: true });
+
+    // Resolve property
+    const bareId = propertyId.startsWith('prop_') ? propertyId.slice(5) : propertyId;
+    const propResult = await env.WELLS_DB.prepare(`
+      SELECT id, airtable_record_id, county, section, township, range
+      FROM properties WHERE airtable_record_id = ? OR id = ? LIMIT 1
+    `).bind(bareId, propertyId).first() as any;
+    if (!propResult) return jsonResponse({ error: 'Property not found' }, 404);
+
+    const airtableId = propResult.airtable_record_id;
+
+    // Find sibling property IDs for same TRS
+    const siblingResult = await env.WELLS_DB.prepare(`
+      SELECT airtable_record_id FROM properties
+      WHERE county = ? AND section = ? AND township = ? AND range = ?
+        AND (user_id = ? OR organization_id = ?)
+    `).bind(propResult.county, propResult.section, propResult.township, propResult.range, authUser.id, userOrgId || '').all();
+    const allPropertyIds = (siblingResult.results as any[]).map((r: any) => r.airtable_record_id as string);
+    if (!allPropertyIds.includes(airtableId)) allPropertyIds.push(airtableId);
+
+    // Build property filter
+    const propConditions: string[] = [];
+    const propParams: string[] = [];
+    for (const pid of allPropertyIds) {
+      propConditions.push('d.property_id = ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?', 'd.property_id LIKE ?');
+      propParams.push(pid, `${pid},%`, `%,${pid}`, `%,${pid},%`);
+    }
+
+    // Load all chain-of-title docs (not already flagged)
+    const docsResult = await env.WELLS_DB.prepare(`
+      SELECT d.id, d.county, d.doc_type, d.confidence, d.upload_date, d.extracted_data
+      FROM documents d
+      WHERE d.chain_of_title = 1
+        AND (d.deleted_at IS NULL OR d.deleted_at = '')
+        AND d.status = 'complete'
+        AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
+        AND d.doc_type != 'multi_document'
+        AND NOT EXISTS (
+          SELECT 1 FROM documents child
+          WHERE child.parent_document_id = d.id
+            AND (child.deleted_at IS NULL OR child.deleted_at = '')
+            AND child.status = 'complete'
+        )
+        AND (${propConditions.join(' OR ')})
+        AND ${docOwner.where}
+    `).bind(...propParams, ...docOwner.params).all();
+
+    const docIds = (docsResult.results as any[]).map((r: any) => r.id as string);
+    if (docIds.length === 0) {
+      return jsonResponse({ success: true, docsScanned: 0, totalFlagged: 0 });
+    }
+
+    // Check which docs have user corrections (batch query)
+    const correctedDocIds = new Set<string>();
+    const CORR_BATCH = 30;
+    for (let i = 0; i < docIds.length; i += CORR_BATCH) {
+      const batch = docIds.slice(i, i + CORR_BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const corrResult = await env.WELLS_DB.prepare(
+        `SELECT DISTINCT document_id FROM user_corrections WHERE document_id IN (${placeholders})`
+      ).bind(...batch).all();
+      for (const row of corrResult.results as any[]) {
+        correctedDocIds.add(row.document_id as string);
+      }
+    }
+
+    // Parse docs into DedupDoc objects
+    const docs: DedupDoc[] = (docsResult.results as any[]).map((row: any) => {
+      let ed: any = null;
+      try { ed = row.extracted_data ? JSON.parse(row.extracted_data) : null; } catch {}
+      const ri = ed?.recording_info || ed?.recording || {};
+      const recDate = asStringOrNull(ri.recording_date);
+
+      let fieldCount = 0;
+      if (ed) {
+        for (const key of Object.keys(ed)) {
+          if (ed[key] !== null && ed[key] !== undefined && ed[key] !== '') fieldCount++;
+        }
+      }
+
+      // Extract execution date for Tier 2
+      const execDate = asStringOrNull(ed?.execution_date) || asStringOrNull(ed?.date) || null;
+
+      return {
+        id: row.id,
+        county: (row.county || asStringOrNull(ed?.county) || '').toLowerCase().trim() || null,
+        docType: row.doc_type || null,
+        date: execDate,
+        confidence: row.confidence || 0,
+        uploadDate: row.upload_date || null,
+        book: asStringOrNull(ri.book)?.toLowerCase() || null,
+        page: asStringOrNull(ri.page)?.toLowerCase() || null,
+        instrumentNumber: (asStringOrNull(ri.instrument_number) || asStringOrNull(ed?.instrument_number))?.toLowerCase() || null,
+        recordingYear: recDate ? recDate.substring(0, 4) : null,
+        hasCorrections: correctedDocIds.has(row.id),
+        extractedFieldCount: fieldCount,
+      };
+    });
+
+    // Load parties for all docs (needed for Tier 2)
+    const FROM_ROLES = new Set(['grantor', 'lessor', 'assignor', 'decedent']);
+    const TO_ROLES = new Set(['grantee', 'lessee', 'assignee']);
+    const docFromParties = new Map<string, Set<string>>(); // normalized grantor names
+    const docToParties = new Map<string, Set<string>>();   // normalized grantee names
+    const PARTY_BATCH = 30;
+    for (let i = 0; i < docIds.length; i += PARTY_BATCH) {
+      const batch = docIds.slice(i, i + PARTY_BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const partiesResult = await env.WELLS_DB.prepare(
+        `SELECT document_id, party_name_normalized, party_role FROM document_parties
+         WHERE document_id IN (${placeholders}) AND is_deleted = 0`
+      ).bind(...batch).all();
+      for (const row of partiesResult.results as any[]) {
+        const norm = (row.party_name_normalized || '').toLowerCase().trim();
+        if (!norm) continue;
+        const role = (row.party_role || '').toLowerCase();
+        if (FROM_ROLES.has(role)) {
+          if (!docFromParties.has(row.document_id)) docFromParties.set(row.document_id, new Set());
+          docFromParties.get(row.document_id)!.add(norm);
+        } else if (TO_ROLES.has(role)) {
+          if (!docToParties.has(row.document_id)) docToParties.set(row.document_id, new Set());
+          docToParties.get(row.document_id)!.add(norm);
+        }
+      }
+    }
+
+    const flagged: Array<{ candidateId: string; keeperId: string; matchType: string }> = [];
+    const alreadyFlagged = new Set<string>();
+
+    // Tier 1a: Group by county + instrument_number + recording_year
+    const tier1aGroups = new Map<string, DedupDoc[]>();
+    for (const doc of docs) {
+      if (!doc.county || !doc.instrumentNumber || !doc.recordingYear) continue;
+      const key = `${doc.county}|${doc.instrumentNumber}|${doc.recordingYear}`;
+      if (!tier1aGroups.has(key)) tier1aGroups.set(key, []);
+      tier1aGroups.get(key)!.push(doc);
+    }
+    for (const [, group] of tier1aGroups) {
+      if (group.length < 2) continue;
+      const keeper = selectKeeper(group);
+      for (const doc of group) {
+        if (doc.id !== keeper.id && !alreadyFlagged.has(doc.id)) {
+          flagged.push({ candidateId: doc.id, keeperId: keeper.id, matchType: 'instrument_number' });
+          alreadyFlagged.add(doc.id);
+        }
+      }
+    }
+
+    // Tier 1b: Group by county + book + page (skip already-flagged)
+    const tier1bGroups = new Map<string, DedupDoc[]>();
+    for (const doc of docs) {
+      if (alreadyFlagged.has(doc.id)) continue;
+      if (!doc.county || !doc.book || !doc.page) continue;
+      const key = `${doc.county}|${doc.book}|${doc.page}`;
+      if (!tier1bGroups.has(key)) tier1bGroups.set(key, []);
+      tier1bGroups.get(key)!.push(doc);
+    }
+    for (const [, group] of tier1bGroups) {
+      if (group.length < 2) continue;
+      const keeper = selectKeeper(group);
+      for (const doc of group) {
+        if (doc.id !== keeper.id && !alreadyFlagged.has(doc.id)) {
+          flagged.push({ candidateId: doc.id, keeperId: keeper.id, matchType: 'book_page' });
+          alreadyFlagged.add(doc.id);
+        }
+      }
+    }
+
+    // Tier 2: Group by county + doc_type + date, then check bidirectional party overlap
+    // Requires BOTH a grantor AND a grantee to match between two docs
+    const tier2Groups = new Map<string, DedupDoc[]>();
+    for (const doc of docs) {
+      if (alreadyFlagged.has(doc.id)) continue;
+      if (!doc.county || !doc.docType || !doc.date) continue;
+      const key = `${doc.county}|${doc.docType}|${doc.date}`;
+      if (!tier2Groups.has(key)) tier2Groups.set(key, []);
+      tier2Groups.get(key)!.push(doc);
+    }
+    for (const [, group] of tier2Groups) {
+      if (group.length < 2) continue;
+      // Within each group, find pairs with bidirectional party overlap
+      // Build clusters of docs that share both a grantor and a grantee
+      const clusters: DedupDoc[][] = [];
+      const consumed = new Set<number>();
+      for (let i = 0; i < group.length; i++) {
+        if (consumed.has(i)) continue;
+        const cluster = [group[i]];
+        consumed.add(i);
+        const aFrom = docFromParties.get(group[i].id);
+        const aTo = docToParties.get(group[i].id);
+        if (!aFrom?.size || !aTo?.size) continue; // need both sides
+
+        for (let j = i + 1; j < group.length; j++) {
+          if (consumed.has(j)) continue;
+          const bFrom = docFromParties.get(group[j].id);
+          const bTo = docToParties.get(group[j].id);
+          if (!bFrom?.size || !bTo?.size) continue;
+
+          // Check: at least one grantor overlaps AND at least one grantee overlaps
+          let fromOverlap = false;
+          for (const name of aFrom) { if (bFrom.has(name)) { fromOverlap = true; break; } }
+          if (!fromOverlap) continue;
+          let toOverlap = false;
+          for (const name of aTo) { if (bTo.has(name)) { toOverlap = true; break; } }
+          if (!toOverlap) continue;
+
+          cluster.push(group[j]);
+          consumed.add(j);
+        }
+        if (cluster.length > 1) clusters.push(cluster);
+      }
+
+      for (const cluster of clusters) {
+        const keeper = selectKeeper(cluster);
+        for (const doc of cluster) {
+          if (doc.id !== keeper.id && !alreadyFlagged.has(doc.id)) {
+            flagged.push({ candidateId: doc.id, keeperId: keeper.id, matchType: 'party_date' });
+            alreadyFlagged.add(doc.id);
+          }
+        }
+      }
+    }
+
+    // Write flags in batches
+    const now = new Date().toISOString();
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < flagged.length; i += BATCH_SIZE) {
+      const batch = flagged.slice(i, i + BATCH_SIZE);
+      const stmts = batch.map(f =>
+        env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET duplicate_of_doc_id = ?, duplicate_status = 'pending_review',
+              duplicate_match_type = ?, duplicate_detected_at = ?
+          WHERE id = ?
+        `).bind(f.keeperId, f.matchType, now, f.candidateId)
+      );
+      await env.WELLS_DB.batch(stmts);
+    }
+
+    const tier1aCount = flagged.filter(f => f.matchType === 'instrument_number').length;
+    const tier1bCount = flagged.filter(f => f.matchType === 'book_page').length;
+    const tier2Count = flagged.filter(f => f.matchType === 'party_date').length;
+
+    return jsonResponse({
+      success: true,
+      docsScanned: docs.length,
+      tier1aDuplicates: tier1aCount,
+      tier1bDuplicates: tier1bCount,
+      tier2Duplicates: tier2Count,
+      totalFlagged: flagged.length,
+    });
+  } catch (error) {
+    console.error('[DedupScan] Error:', error);
+    return jsonResponse({ error: 'Duplicate scan failed', details: error instanceof Error ? error.message : String(error) }, 500);
   }
 }

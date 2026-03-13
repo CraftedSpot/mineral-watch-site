@@ -84,15 +84,27 @@ export function OrphanCard({ node, isSelected, isMobile, colors: c, onClick }: O
           </div>
         )}
 
-        {/* Reason badge */}
-        <div style={{
-          display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6,
-          padding: '2px 8px', borderRadius: 4,
-          background: 'rgba(245,158,11,0.1)', fontSize: 10,
-          color: '#92400e', fontFamily: "'DM Sans', sans-serif",
-        }}>
-          <span style={{ fontSize: 11 }}>{'\u26A0'}</span>
-          {reason.label}
+        {/* Reason badge + hidden duplicates */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4,
+            padding: '2px 8px', borderRadius: 4,
+            background: 'rgba(245,158,11,0.1)', fontSize: 10,
+            color: '#92400e', fontFamily: "'DM Sans', sans-serif",
+          }}>
+            <span style={{ fontSize: 11 }}>{'\u26A0'}</span>
+            {reason.label}
+          </div>
+          {(node.hiddenDuplicates ?? 0) > 0 && (
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+              padding: '2px 8px', borderRadius: 4,
+              background: 'rgba(107,114,128,0.1)', fontSize: 10,
+              color: '#6b7280', fontFamily: "'DM Sans', sans-serif",
+            }}>
+              +{node.hiddenDuplicates} duplicate{node.hiddenDuplicates === 1 ? '' : 's'}
+            </div>
+          )}
         </div>
       </div>
     </div>

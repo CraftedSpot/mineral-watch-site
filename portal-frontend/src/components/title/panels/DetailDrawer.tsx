@@ -176,6 +176,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
   const [docBlob, setDocBlob] = useState<{ url: string; type: string; pageRange?: string } | null>(null);
   const [blobLoading, setBlobLoading] = useState(false);
   const [blobError, setBlobError] = useState(false);
+  const [blobErrorMsg, setBlobErrorMsg] = useState<string | null>(null);
   const nodeIdRef = useRef(node.id);
 
   // Reset state when node changes
@@ -184,6 +185,7 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
     setActiveTab('document');
     setDocDetail(null);
     setBlobError(false);
+    setBlobErrorMsg(null);
     setBlobLoading(false);
     // Clean up previous blob
     setDocBlob((prev) => {
@@ -221,9 +223,14 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
         if (nodeIdRef.current !== currentId) return; // stale
         setDocBlob({ url: URL.createObjectURL(blob), type: contentType, pageRange });
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         if (nodeIdRef.current !== currentId) return;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error('[DocViewer] Failed:', node.id, err);
         setBlobError(true);
+        setBlobErrorMsg(
+          msg === 'FILE_TOO_LARGE' ? 'File too large to preview' : 'Could not load preview — try fullscreen'
+        );
       })
       .finally(() => {
         if (nodeIdRef.current !== currentId) return;
@@ -301,11 +308,21 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
     setPan({ x: 0, y: 0 });
   }, []);
 
-  // Extract book/page from detail
+  // Extract book/page and TRS from detail
   const recording = docDetail?.extracted_data as Record<string, unknown> | null;
   const book = recording?.recording_book || recording?.book;
   const page = recording?.recording_page || recording?.page;
   const bookPage = book && page ? `Book ${book} Pg ${page}` : book ? `Book ${book}` : null;
+
+  // Extract TRS from extracted_data
+  const extSec = recording?.section || recording?.sections;
+  const extTwn = recording?.township;
+  const extRng = recording?.range;
+  const extCounty = recording?.county;
+  const docTrs = extSec && extTwn && extRng
+    ? `S${Array.isArray(extSec) ? (extSec as string[]).join(',') : extSec}-${extTwn}-${extRng}`
+    : null;
+  const docLocation = [docTrs, extCounty ? `${extCounty} Co.` : null].filter(Boolean).join(' \u00b7 ');
 
   const fieldBg = c?.fieldBg || '#f8f9fb';
 
@@ -428,6 +445,11 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
           {node.id?.startsWith('doc_') ? `#${node.id.slice(4, 10)}` : ''}
           {bookPage ? ` \u00b7 ${bookPage}` : ''}
         </div>
+        {docLocation && (
+          <div style={{ fontSize: 10, color: c?.textMuted || SLATE, marginTop: 2 }}>
+            {docLocation}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -592,15 +614,28 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
                 position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', color: c?.textMuted || SLATE, fontSize: 12, gap: 8,
               }}>
-                Could not load preview
-                <button onClick={() => { setBlobError(false); setDocBlob(null); }}
-                  style={{
-                    background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`,
-                    borderRadius: 6, padding: '6px 14px', fontSize: 11, cursor: 'pointer',
-                    color: c?.text || DARK, fontFamily: "'DM Sans', sans-serif",
-                  }}>
-                  Retry
-                </button>
+                {blobErrorMsg || 'Could not load preview'}
+                <div style={{ fontSize: 10, color: '#9ca3af' }}>Doc: {node.id}</div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={() => { setBlobError(false); setBlobErrorMsg(null); setDocBlob(null); }}
+                    style={{
+                      background: c?.surface || '#fff', border: `1px solid ${c?.border || BORDER}`,
+                      borderRadius: 6, padding: '6px 14px', fontSize: 11, cursor: 'pointer',
+                      color: c?.text || DARK, fontFamily: "'DM Sans', sans-serif",
+                    }}>
+                    Retry
+                  </button>
+                  {docDetail && (
+                    <button onClick={openFullScreen}
+                      style={{
+                        background: ORANGE, border: 'none',
+                        borderRadius: 6, padding: '6px 14px', fontSize: 11, cursor: 'pointer',
+                        color: '#fff', fontWeight: 600, fontFamily: "'DM Sans', sans-serif",
+                      }}>
+                      Open Fullscreen
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             {docBlob && !blobError && (
@@ -833,7 +868,7 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
     ? 'may have passed away after appearing in'
     : node.gapLastSeenAs === 'grantee' ? 'received interest via' : 'appeared in';
 
-  const showCountySearch = isSuperAdmin && node.gapCounty && node.gapSection && node.gapTownship && node.gapRange && isCountySupported(node.gapCounty);
+  const showCountySearch = node.gapCounty && node.gapSection && node.gapTownship && node.gapRange && isCountySupported(node.gapCounty);
 
   return (
     <div style={{ padding: isMobile ? '14px 16px 24px' : '20px 24px', position: 'relative', overflowY: 'auto', flex: 1 }}>
@@ -938,31 +973,59 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
             </div>
           </div>
 
-          {/* Smart records guidance */}
+          {/* Smart records guidance + inline search */}
           {guidanceType === 'online' && (
-            <div style={{ padding: '10px 16px', background: isDark ? 'rgba(22,163,74,0.1)' : '#f0fdf4', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#86efac' : '#166534' }}>
-              {node.gapCounty} County records are searchable online back to {digitizedDate!.display}.
-              This document should be findable on OKCountyRecords.
-              <div style={{ marginTop: 6 }}>
-                <a
-                  href={`https://okcountyrecords.com/search/${node.gapCounty!.toLowerCase().replace(/\s+/g, '-')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: isDark ? '#4ade80' : '#16a34a', fontWeight: 600, textDecoration: 'none', fontSize: 12 }}
-                >
-                  Search OKCountyRecords &rarr;
-                </a>
+            <div style={{ borderBottom: `1px solid ${c?.border || BORDER}` }}>
+              <div style={{
+                padding: '10px 16px',
+                background: isDark ? 'rgba(22,163,74,0.1)' : '#f0fdf4',
+                fontSize: 12, lineHeight: 1.6,
+                color: isDark ? '#86efac' : '#166534',
+                borderBottom: showCountySearch ? `1px solid ${c?.border || BORDER}` : 'none',
+              }}>
+                <span style={{ fontWeight: 600 }}>
+                  {node.gapCounty} County records are searchable online
+                </span> back to {digitizedDate!.display}.
+                {showCountySearch
+                  ? ' Search below — this document should be findable.'
+                  : ' This document should be findable on OKCountyRecords.'}
+                {!showCountySearch && (
+                  <div style={{ marginTop: 6 }}>
+                    <a
+                      href={`https://okcountyrecords.com/search/${node.gapCounty!.toLowerCase().replace(/\s+/g, '-')}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ color: isDark ? '#4ade80' : '#16a34a', fontWeight: 600, textDecoration: 'none', fontSize: 12 }}
+                    >
+                      Search OKCountyRecords &rarr;
+                    </a>
+                  </div>
+                )}
               </div>
+              {showCountySearch && (
+                <div style={{ padding: '12px 16px' }}>
+                  <CountyRecordsSection
+                    section={node.gapSection!}
+                    township={node.gapTownship!}
+                    range={node.gapRange!}
+                    county={node.gapCounty!}
+                    initialFilterMode="title"
+                    onDocumentRetrieved={handleDocRetrieved}
+                  />
+                </div>
+              )}
             </div>
           )}
           {guidanceType === 'predigital' && (
             <div style={{ padding: '10px 16px', background: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#fcd34d' : '#92400e' }}>
-              {node.gapCounty} County's online records start {digitizedDate!.display}. Documents before this date require a manual search — call or email the clerk.
+              <span style={{ fontWeight: 600 }}>{node.gapCounty} County's online records start {digitizedDate!.display}.</span>{' '}
+              Documents before this date require a manual search — call or email the clerk.
             </div>
           )}
           {guidanceType === 'no-okcr' && (
             <div style={{ padding: '10px 16px', background: isDark ? 'rgba(245,158,11,0.1)' : '#fffbeb', borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: isDark ? '#fcd34d' : '#92400e' }}>
-              {node.gapCounty} County is not on OKCountyRecords. Contact the clerk directly to search their records.
+              <span style={{ fontWeight: 600 }}>{node.gapCounty} County is not on OKCountyRecords.</span>{' '}
+              Contact the clerk directly to search their records.
             </div>
           )}
           {guidanceType === 'unknown' && (
@@ -1058,30 +1121,13 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
         </div>
       )}
 
-      {/* Suggestion (non-super-admin or unsupported county) */}
+      {/* Suggestion (unsupported county or no clerk data) */}
       {!showCountySearch && node.suggestion && (
         <div style={{
           fontSize: 12, color: c?.text || DARK, padding: '12px 16px',
           background: fieldBg, borderRadius: 8, lineHeight: 1.5, marginBottom: 12,
         }}>
           <strong>Suggestion:</strong> {node.suggestion}
-        </div>
-      )}
-
-      {/* County records search (super admin only, supported counties) */}
-      {showCountySearch && (
-        <div style={{ marginTop: 4 }}>
-          <div style={{ fontSize: 9, color: c?.textMuted || SLATE, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>
-            Search County Records
-          </div>
-          <CountyRecordsSection
-            section={node.gapSection!}
-            township={node.gapTownship!}
-            range={node.gapRange!}
-            county={node.gapCounty!}
-            initialFilterMode="title"
-            onDocumentRetrieved={handleDocRetrieved}
-          />
         </div>
       )}
 

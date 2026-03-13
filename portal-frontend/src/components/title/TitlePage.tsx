@@ -10,6 +10,7 @@ import type { ChainProperty, TitleChainResponse } from '../../types/title-chain'
 import { PropertySelector } from './PropertySelector';
 import { ChainTreeView } from './ChainTreeView';
 import { AISummary } from './AISummary';
+import { NameSuggestionsPanel } from './NameSuggestionsPanel';
 
 // Module-level cache — survives React navigation (component unmount/remount)
 let _cachedProperties: ChainProperty[] | null = null;
@@ -38,6 +39,7 @@ export function TitlePage() {
     () => (localStorage.getItem('mmw_titleChainViewMode') as ViewMode) || 'simple',
   );
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mmw_titleDarkMode') === '1');
+  const [chainToast, setChainToast] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const colors = useMemo(() => getTitleColors(darkMode), [darkMode]);
 
@@ -77,11 +79,13 @@ export function TitlePage() {
     const cached = _cachedChainData[selectedId];
     if (cached) {
       setChainData(cached);
-      // Background refresh
+      // Background refresh — only replace if response includes tree
       fetchTitleChain(selectedId)
         .then((res) => {
-          _cachedChainData[selectedId] = res;
-          setChainData(res);
+          if (res.tree) {
+            _cachedChainData[selectedId] = res;
+            setChainData(res);
+          }
         })
         .catch(() => {});
     } else {
@@ -103,7 +107,13 @@ export function TitlePage() {
     fetchTitleChain(selectedId)
       .then((res) => {
         _cachedChainData[selectedId] = res;
-        setChainData(res);
+        // Preserve existing tree if new response lacks one (assembly may be rebuilding)
+        setChainData(prev => {
+          if (!res.tree && prev?.tree) return { ...res, tree: prev.tree };
+          return res;
+        });
+        setChainToast('Chain updated');
+        setTimeout(() => setChainToast(null), 4000);
       })
       .catch(() => {}); // silent — tree just stays stale if refetch fails
   }, [selectedId]);
@@ -165,6 +175,16 @@ export function TitlePage() {
         </div>
       </div>
 
+      {/* Chain updated toast */}
+      {chainToast && (
+        <div style={{
+          background: 'rgba(16,185,129,0.9)', color: '#fff', fontSize: 11, fontWeight: 600,
+          padding: '4px 16px', textAlign: 'center',
+        }}>
+          {chainToast}
+        </div>
+      )}
+
       {/* Error state */}
       {error && (
         <div style={{ padding: '16px 24px', color: '#dc2626', fontSize: 13 }}>
@@ -193,6 +213,7 @@ export function TitlePage() {
           <div style={{ padding: isMobile ? '8px 12px 6px' : '8px 24px 6px' }}>
             <AISummary tree={chainData.tree} propertyLegal={chainData.property.legal} isMobile={isMobile} darkMode={darkMode} colors={colors} />
           </div>
+          <NameSuggestionsPanel propertyId={selectedId} onCorrectionsApplied={handleRefreshChain} isMobile={isMobile} darkMode={darkMode} />
           <ChainTreeView tree={chainData.tree} propertyId={selectedId ?? undefined} isMobile={isMobile} viewMode={viewMode} darkMode={darkMode} colors={colors} onRefresh={handleRefreshChain} properties={properties} selectedPropertyId={selectedId} onPropertySelect={setSelectedId} propsLoading={propsLoading} chainLoading={chainLoading} isSuperAdmin={user?.isSuperAdmin ?? false} />
         </>
       )}

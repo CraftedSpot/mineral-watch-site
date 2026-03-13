@@ -6,9 +6,10 @@ interface EdgeProps {
   to: string;
   positions: Record<string, NodePosition>;
   isGap: boolean;
+  darkMode?: boolean;
 }
 
-export function Edge({ from, to, positions, isGap }: EdgeProps) {
+export function Edge({ from, to, positions, isGap, darkMode }: EdgeProps) {
   const fp = positions[from], tp = positions[to];
   if (!fp || !tp) return null;
   const x1 = fp.x + fp.w / 2, y1 = fp.y;
@@ -18,7 +19,7 @@ export function Edge({ from, to, positions, isGap }: EdgeProps) {
     <path
       d={`M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`}
       fill="none"
-      stroke={isGap ? GAP_COLOR : '#cbd5e1'}
+      stroke={isGap ? GAP_COLOR : (darkMode ? '#94A3B8' : '#cbd5e1')}
       strokeWidth={isGap ? 2 : 1.5}
       strokeDasharray={isGap ? '6 4' : 'none'}
     />

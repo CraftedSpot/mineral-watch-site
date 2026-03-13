@@ -1724,6 +1724,16 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleBackfillCompletionWriteback(request, env);
       }
 
+      // Document parties backfill endpoint (PROCESSING_API_KEY auth)
+      if (path === "/api/admin/backfill-document-parties" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleBackfillDocumentParties } = await import('./handlers/backfill-document-parties.js');
+        return handleBackfillDocumentParties(request, env);
+      }
+
       // Formation harvest endpoints (PROCESSING_API_KEY auth)
       if (path === "/api/admin/wells-missing-formation" && request.method === "GET") {
         const authHeader = request.headers.get('Authorization') || '';
@@ -1929,6 +1939,13 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleGetTitleChain(titleChainMatch[1], request, env);
       }
 
+      // Duplicate scan — retroactive dedup for a property's chain docs
+      const dedupScanMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/dedup-scan$/);
+      if (dedupScanMatch && request.method === "POST") {
+        const { handleDedupScan } = await import('./handlers/title-chain.js');
+        return handleDedupScan(dedupScanMatch[1], request, env);
+      }
+
       // Chain edges — manual link/unlink + debug read
       const chainEdgesMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/chain-edges$/);
       if (chainEdgesMatch) {
@@ -1940,6 +1957,25 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           const { handleGetChainEdges } = await import('./handlers/chain-edges.js');
           return handleGetChainEdges(chainEdgesMatch[1], request, env);
         }
+      }
+
+      // Name suggestions — detect name clusters + bulk correct + delete mapping
+      const nameSuggestionsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/name-suggestions$/);
+      if (nameSuggestionsMatch && request.method === "GET") {
+        const { handleGetNameSuggestions } = await import('./handlers/name-suggestions.js');
+        return handleGetNameSuggestions(nameSuggestionsMatch[1], request, env);
+      }
+
+      const bulkCorrectMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/bulk-correct$/);
+      if (bulkCorrectMatch && request.method === "POST") {
+        const { handleBulkCorrect } = await import('./handlers/name-suggestions.js');
+        return handleBulkCorrect(bulkCorrectMatch[1], request, env);
+      }
+
+      const nameMappingMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/name-mapping\/([a-zA-Z0-9_-]+)$/);
+      if (nameMappingMatch && request.method === "DELETE") {
+        const { handleDeleteNameMapping } = await import('./handlers/name-suggestions.js');
+        return handleDeleteNameMapping(nameMappingMatch[1], nameMappingMatch[2], request, env);
       }
 
       // Current owner interest — edit + revert

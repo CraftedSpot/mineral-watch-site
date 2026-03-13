@@ -152,6 +152,47 @@ export interface TitleChainPropertiesResponse {
   queryTime: number;
 }
 
+// ─── Name Suggestion Types ──────────────────────────────────────
+
+/** A single variant within a name cluster */
+export interface NameVariant {
+  originalName: string;
+  normalizedName: string;
+  matchType: 'exact_normalized' | 'relaxed' | 'fuzzy';
+  docCount: number;
+  partyRowIds: number[];
+  isCanonical: boolean;
+}
+
+/** A cluster of name variations that likely refer to the same person/entity */
+export interface NameCluster {
+  clusterId: string;
+  canonicalName: string;
+  canonicalSource: 'mapping' | 'division_order' | 'frequency' | 'recent';
+  ambiguous: boolean;
+  variants: NameVariant[];
+  alreadyMapped: boolean;
+  mappingIds?: string[];
+}
+
+/** GET /api/property/:id/name-suggestions response */
+export interface NameSuggestionsResponse {
+  clusters: NameCluster[];
+}
+
+/** POST /api/property/:id/bulk-correct request body */
+export interface BulkCorrectRequest {
+  corrections: Array<{ partyRowId: number; correctedValue: string }>;
+  mappings?: Array<{ variantOriginal: string; variantNormalized: string; canonicalName: string }>;
+}
+
+/** POST /api/property/:id/bulk-correct response */
+export interface BulkCorrectResponse {
+  correctedCount: number;
+  failedRowIds: number[];
+  mappingsCreated: number;
+}
+
 // ─── Flat Node Types (for layout engine) ────────────────────────
 
 /** Flat node for the layout engine (transformed from API TreeNode) */
@@ -169,6 +210,7 @@ export interface FlatNode {
   reason?: 'no_parties' | 'no_match' | 'unknown';
   displayName?: string;
   category?: string | null;
+  hiddenDuplicates?: number;
   // Stack-specific
   docs?: FlatStackDoc[];
   label?: string;

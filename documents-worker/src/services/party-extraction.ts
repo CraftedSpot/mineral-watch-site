@@ -378,5 +378,78 @@ export async function persistParties(
   // D1 batch limit is 500 statements — parties per doc is typically 2-6, well under limit
   await db.batch(stmts);
 
+  // Auto-apply learned name mappings (non-fatal)
+  try {
+    const autoApplied = await applyNameMappings(db, documentId);
+    if (autoApplied > 0) console.log(`[NameMappings] Auto-corrected ${autoApplied} parties for ${documentId}`);
+  } catch (e) {
+    console.error(`[NameMappings] Non-fatal:`, e);
+  }
+
   return parties.length;
+}
+
+/**
+ * Look up party_name_mappings for the document's org/user scope and auto-correct
+ * any matching parties. Called at the end of persistParties() so it applies to
+ * both regular extraction and split-handler paths.
+ */
+async function applyNameMappings(db: D1Database, documentId: string): Promise<number> {
+  // Get document ownership for scoping
+  const doc = await db.prepare(`
+    SELECT user_id, organization_id FROM documents WHERE id = ? LIMIT 1
+  `).bind(documentId).first<any>();
+  if (!doc) return 0;
+
+  // Fetch applicable mappings (org-scoped or user-scoped)
+  let mappings: any[];
+  if (doc.organization_id) {
+    const result = await db.prepare(`
+      SELECT variant_name_normalized, canonical_name
+      FROM party_name_mappings
+      WHERE organization_id = ?
+    `).bind(doc.organization_id).all();
+    mappings = result.results as any[];
+  } else if (doc.user_id) {
+    const result = await db.prepare(`
+      SELECT variant_name_normalized, canonical_name
+      FROM party_name_mappings
+      WHERE user_id = ? AND organization_id IS NULL
+    `).bind(doc.user_id).all();
+    mappings = result.results as any[];
+  } else {
+    return 0;
+  }
+
+  if (mappings.length === 0) return 0;
+
+  // Build lookup: normalized variant → canonical name
+  const mappingLookup = new Map<string, string>();
+  for (const m of mappings) {
+    mappingLookup.set(m.variant_name_normalized, m.canonical_name);
+  }
+
+  // Find parties that match a mapping
+  const parties = await db.prepare(`
+    SELECT id, party_name_normalized FROM document_parties
+    WHERE document_id = ? AND is_manual = 0 AND is_deleted = 0
+  `).bind(documentId).all();
+
+  const stmts: D1PreparedStatement[] = [];
+  for (const p of parties.results as any[]) {
+    const canonical = mappingLookup.get(p.party_name_normalized);
+    if (canonical) {
+      const normalizedCanonical = normalizePartyName(canonical);
+      stmts.push(
+        db.prepare(`
+          UPDATE document_parties SET party_name = ?, party_name_normalized = ?
+          WHERE id = ?
+        `).bind(canonical, normalizedCanonical, p.id)
+      );
+    }
+  }
+
+  if (stmts.length === 0) return 0;
+  await db.batch(stmts);
+  return stmts.length;
 }

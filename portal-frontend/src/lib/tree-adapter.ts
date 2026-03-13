@@ -253,6 +253,7 @@ export function transformTreeToFlatNodes(tree: TitleTree): FlatNode[] {
       grantee: (orphan.toNames || []).join(', ') || '',
       interestConveyed: orphan.interestConveyed,
       reason: orphan.reason,
+      hiddenDuplicates: orphan.hiddenDuplicates || 0,
       children: [],
       _parties: orphan._parties || [],
       _corrections: orphan._corrections || null,

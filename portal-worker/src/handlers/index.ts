@@ -271,6 +271,13 @@ export {
   handleDeleteCorrection
 } from './corrections.js';
 
+// Name suggestions handlers (bulk name variation detection + correction)
+export {
+  handleGetNameSuggestions,
+  handleBulkCorrect,
+  handleDeleteNameMapping
+} from './name-suggestions.js';
+
 // Document parties handlers (add/delete/restore parties)
 export {
   handleAddDocumentParty,

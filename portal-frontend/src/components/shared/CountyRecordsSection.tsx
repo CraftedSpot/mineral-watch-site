@@ -435,13 +435,45 @@ export function CountyRecordsSection({ section, township, range, county, onCount
   }
 
   if (allResults.length === 0) {
-    return <div style={{ color: SLATE, fontSize: 12, padding: 8, textAlign: 'center' }}>No county records found for this section</div>;
+    return (
+      <div style={{ padding: 8, textAlign: 'center' }}>
+        <div style={{ color: SLATE, fontSize: 12, marginBottom: 10 }}>No county records found for this section</div>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+          <input
+            type="text"
+            placeholder="Search by party name (e.g. Price)"
+            value={partySearch}
+            onChange={(e) => setPartySearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
+            style={{
+              flex: 1, padding: '5px 8px', fontSize: 12, border: `1px solid ${BORDER}`,
+              borderRadius: 4, fontFamily: 'inherit',
+            }}
+          />
+          <button
+            onClick={() => { if (partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
+            style={{
+              padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${BORDER}`, borderRadius: 4, background: '#334E68', color: '#fff',
+            }}
+          >
+            Search
+          </button>
+        </div>
+        <div style={{ fontSize: 11, color: '#9ca3af' }}>Try searching by party name to find specific records</div>
+      </div>
+    );
   }
 
   return (
     <div>
+      {/* Pulsing animation for search input while loading more pages */}
+      {loadingMore && (
+        <style>{`@keyframes searchPulse { 0%, 100% { border-color: ${BORDER}; } 50% { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); } }`}</style>
+      )}
+
       {/* Party name search */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 4 }}>
         <input
           type="text"
           placeholder="Search by party name (e.g. Price)"
@@ -451,6 +483,7 @@ export function CountyRecordsSection({ section, township, range, county, onCount
           style={{
             flex: 1, padding: '5px 8px', fontSize: 12, border: `1px solid ${BORDER}`,
             borderRadius: 4, fontFamily: 'inherit',
+            animation: loadingMore ? 'searchPulse 1.5s ease-in-out infinite' : 'none',
           }}
         />
         <button
@@ -474,6 +507,12 @@ export function CountyRecordsSection({ section, township, range, county, onCount
           </button>
         )}
       </div>
+      {loadingMore && (
+        <div style={{ fontSize: 11, color: '#627D98', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <Spinner size={10} />
+          Showing {allResults.length} of ~{totalResults}... loading more
+        </div>
+      )}
 
       {/* Controls bar */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>

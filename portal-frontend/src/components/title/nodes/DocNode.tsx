@@ -13,12 +13,13 @@ interface DocNodeProps {
   isDimmed?: boolean;
   viewMode?: ViewMode;
   colors?: TitleColors;
+  darkMode?: boolean;
   onHover: (id: string) => void;
   onLeave: () => void;
   onClick: (node: FlatNode) => void;
 }
 
-export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = 'detailed', colors: c, onHover, onLeave, onClick }: DocNodeProps) {
+export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = 'detailed', colors: c, darkMode, onHover, onLeave, onClick }: DocNodeProps) {
   const hl = isHovered || isPinned;
   const isSimple = viewMode === 'simple';
   const h = isSimple ? NODE_H_SIMPLE : NODE_H;
@@ -38,7 +39,7 @@ export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = '
         fill={hl ? (c?.cardHover || ORANGE_LIGHT) : (c?.card || '#fff')}
         stroke={hl ? ORANGE : (c?.cardStroke || BORDER)} strokeWidth={hl ? 2 : 1} />
       <rect width={isSimple ? 3 : 4} height={h} rx={isSimple ? 1.5 : 2} fill={ORANGE} />
-      <text x={isSimple ? 12 : 14} y={isSimple ? 22 : 18} fontSize={10} fontWeight={700} fill={ORANGE}
+      <text x={isSimple ? 12 : 14} y={isSimple ? 22 : 18} fontSize={10} fontWeight={700} fill={darkMode ? '#F59E0B' : ORANGE}
         fontFamily="'DM Sans', sans-serif">
         {node.docType}
         {node.id?.startsWith('doc_') && (
