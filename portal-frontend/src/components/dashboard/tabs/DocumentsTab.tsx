@@ -68,6 +68,8 @@ const DOC_TYPE_MAP: Record<string, string> = {
   legal_document: 'legal_documents',
   divorce_decree: 'divorce_decree',
   death_certificate: 'death_certificate',
+  estate_tax_release: 'estate_tax_release',
+  tax_release: 'estate_tax_release',
   power_of_attorney: 'power_of_attorney',
   correspondence: 'correspondence',
   map: 'maps_plats',

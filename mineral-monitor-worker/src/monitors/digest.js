@@ -566,6 +566,34 @@ export async function runDailyDigest(env) {
           continue;
         }
 
+        // Sunday overlap prevention: skip daily for users who also get weekly.
+        // Weekly digest runs 1 hour later and is richer (nearby activity, operators, county stats).
+        // Daily-frequency rows are marked processed so they don't pile up.
+        const isSundayUTC = new Date().getUTCDay() === 0;
+        if (isSundayUTC) {
+          const weeklyPending = await env.WELLS_DB.prepare(`
+            SELECT COUNT(*) as cnt FROM pending_alerts
+            WHERE user_email = ? AND digest_frequency = 'weekly' AND processed_at IS NULL
+          `).bind(userEmail).first();
+
+          if (weeklyPending && weeklyPending.cnt > 0) {
+            console.log(`[Digest] Sunday skip: ${userEmail} has ${weeklyPending.cnt} pending weekly alerts — deferring to weekly digest`);
+            const skipIds = [];
+            for (const typeAlerts of Object.values(userData.alerts)) {
+              if (Array.isArray(typeAlerts)) {
+                for (const alert of typeAlerts) {
+                  skipIds.push(alert.id);
+                  results.alertsProcessed++;
+                }
+              }
+            }
+            if (skipIds.length > 0) {
+              await markAlertsProcessed(env, skipIds);
+            }
+            continue;
+          }
+        }
+
         // Send daily digest email
         await sendDigestEmail(env, {
           to: userEmail,

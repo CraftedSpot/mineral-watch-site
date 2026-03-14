@@ -6,6 +6,7 @@
 
 import { createActivityLog, userWantsAlert, getUserById } from './airtable.js';
 import { sendAlertEmail } from './email.js';
+import { sendBatchedEmails } from './emailBatch.js';
 import { getStatusDescription } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
@@ -215,6 +216,7 @@ export async function checkAllWellStatuses(env, options = {}) {
     alertsSent: 0,
     errors: []
   };
+  const userAlertMap = new Map();
   
   try {
     // Test mode: simulate a status change for a specific API
@@ -406,70 +408,34 @@ export async function checkAllWellStatuses(env, options = {}) {
             continue;
           }
 
-          // Create activity log
-          const activityData = {
-            userId: userIds[0],  // Use the user record ID, not email
-            apiNumber: api,
-            activityType: 'Status Change',
+          // Queue alert for digest (same path as permits/completions)
+          const alertData = {
+            user: { id: userIds[0], email: user.fields.Email, name: userName },
             alertLevel: 'TRACKED WELL',
-            changeType: `${airtableStatus} → ${rbdmsStatus}`,
-            previousValue: airtableStatus,
-            newValue: rbdmsStatus,
+            activityType: 'Status Change',
             wellName: well.fields['Well Name'] || `API ${api}`,
             operator: well.fields.Operator || currentData.operator || 'Unknown',
-            sectionTownshipRange: wellRecord.Section && wellRecord.Township && wellRecord.Range
+            location: wellRecord.Section && wellRecord.Township && wellRecord.Range
               ? `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`
               : null,
             county: currentData.county || wellRecord.County || 'Unknown',
-            notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
-            mapLink: mapLink || ""
+            apiNumber: api,
+            mapLink: mapLink || null,
+            occLink: getOCCWellRecordsLink(api),
+            statusChange: {
+              previous: getStatusDescription(airtableStatus),
+              current: getStatusDescription(rbdmsStatus)
+            },
+            previousValue: airtableStatus,
+            newValue: rbdmsStatus,
+            organizationId: userOrganizations.length > 0 ? userOrganizations[0] : null
           };
-          
-          // Add organization if user belongs to one
-          if (userOrganizations.length > 0) {
-            activityData.organizationId = userOrganizations[0];
+
+          if (!userAlertMap.has(userIds[0])) {
+            userAlertMap.set(userIds[0], []);
           }
-          
-          const activityResult = await createActivityLog(env, activityData);
-          
-          if (!activityResult || !activityResult.id) {
-            console.error(`[RBDMS] Failed to create activity log`);
-            results.errors.push(`Activity log failed: no record ID returned`);
-          }
-          
-          // Send alert email
-          if (!env.DRY_RUN || env.DRY_RUN === 'false') {
-            try {
-              await sendAlertEmail(env, {
-                to: user.fields.Email,
-                subject: `Well Status Update - ${well.fields['Well Name'] || api}`,
-                userName: userName,
-                wellName: well.fields['Well Name'] || `API ${api}`,
-                apiNumber: api,
-                activityType: 'Status Change',
-                alertLevel: 'TRACKED WELL',
-                operator: well.fields.Operator || currentData.operator || 'Unknown',
-                county: currentData.county || wellRecord.County || 'Unknown',
-                location: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
-                section: wellRecord.Section || '',
-                township: wellRecord.Township || '',
-                range: wellRecord.Range || '',
-                statusChange: {
-                  previous: getStatusDescription(airtableStatus),
-                  current: getStatusDescription(rbdmsStatus)
-                },
-                mapLink: mapLink,
-                occLink: getOCCWellRecordsLink(api),
-                userId: userIds[0]
-              });
-              
-              results.alertsSent++;
-              console.log(`[RBDMS] Alert sent to ${user.fields.Email} for well ${api}`);
-            } catch (emailErr) {
-              console.error(`[RBDMS] Failed to send email: ${emailErr.message}`);
-              results.errors.push(`Email failed: ${emailErr.message}`);
-            }
-          }
+          userAlertMap.get(userIds[0]).push(alertData);
+          console.log(`[RBDMS] Queued status change alert for ${user.fields.Email} — ${api} (${airtableStatus} → ${rbdmsStatus})`);
           
           // Update well record with RBDMS status (source of truth)
           // D1 is primary
@@ -526,12 +492,23 @@ export async function checkAllWellStatuses(env, options = {}) {
     }
     
     console.log(`[RBDMS] Complete: ${results.wellsChecked} wells checked, ${results.statusChanges} changes found`);
-    
+
+    // Send all queued status change alerts via digest system
+    if (userAlertMap.size > 0) {
+      console.log(`[RBDMS] Sending batched alerts for ${userAlertMap.size} users`);
+      const emailResults = await sendBatchedEmails(env, userAlertMap, false);
+      results.alertsSent = emailResults.alertsSent;
+      if (emailResults.errors.length > 0) {
+        console.error('[RBDMS] Email batch errors:', emailResults.errors);
+        results.errors.push(...emailResults.errors);
+      }
+    }
+
   } catch (error) {
     console.error('[RBDMS] Status check failed:', error);
     results.errors.push(error.message);
   }
-  
+
   return results;
 }
 

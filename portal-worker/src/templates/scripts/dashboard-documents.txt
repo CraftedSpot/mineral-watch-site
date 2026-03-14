@@ -315,6 +315,7 @@
             { value: 'death_certificate', label: 'Death Certificates' },
             { value: 'divorce_decree', label: 'Divorce Decrees' },
             { value: 'division_orders', label: 'Division Orders' },
+            { value: 'estate_tax_release', label: 'Estate Tax Releases' },
             { value: 'drilling_and_spacing', label: 'Drilling & Spacing Orders (Vertical)' },
             { value: 'drilling_permits', label: 'Drilling Permits' },
             { value: 'horizontal_drilling_and_spacing', label: 'Horizontal Drilling & Spacing Orders' },
@@ -540,6 +541,8 @@
                         'legal_document': 'legal_documents',
                         'divorce_decree': 'divorce_decree',
                         'death_certificate': 'death_certificate',
+                        'estate_tax_release': 'estate_tax_release',
+                        'tax_release': 'estate_tax_release',
                         'power_of_attorney': 'power_of_attorney',
 
                         // Other

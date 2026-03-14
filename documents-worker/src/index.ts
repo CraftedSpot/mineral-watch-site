@@ -693,9 +693,12 @@ async function reextractDocument(env: Env, documentId: string): Promise<{
     return { success: true, document_id: documentId, doc_type: docResult.doc_type, skipped: true };
   }
 
-  // 3. Fetch PDF from R2
+  // 3. Fetch PDF from R2 (check LOCKER_BUCKET for county-records)
   console.log(`[Reextract] Fetching PDF from R2: ${docResult.r2_key}`);
-  const r2Object = await env.UPLOADS_BUCKET.get(docResult.r2_key);
+  let r2Object = await env.UPLOADS_BUCKET.get(docResult.r2_key);
+  if (!r2Object && (docResult.r2_key as string).startsWith('county-records/') && env.LOCKER_BUCKET) {
+    r2Object = await env.LOCKER_BUCKET.get(docResult.r2_key);
+  }
   if (!r2Object) {
     return { success: false, document_id: documentId, error: 'PDF not found in R2' };
   }
@@ -784,7 +787,8 @@ async function reextractDocument(env: Env, documentId: string): Promise<{
     'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
     'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
     'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-    'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+    'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
+    'divorce_decree', 'estate_tax_release'
   ]);
   const chainOfTitle = docType && CHAIN_OF_TITLE_TYPES.has(docType) ? 1 : 0;
 
@@ -2833,7 +2837,8 @@ export default {
           'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
           'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
           'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-          'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+          'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
+          'divorce_decree', 'estate_tax_release', 'tax_release'
         ]);
         const chainOfTitle = doc_type && CHAIN_OF_TITLE_TYPES.has(doc_type) ? 1 : 0;
 
@@ -4151,9 +4156,10 @@ export default {
           return errorResponse('Invalid request: children array required', 400, env);
         }
 
-        // Get parent document info
+        // Get parent document info (include TRS for child fallback)
         const parentDoc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename, user_id, organization_id, user_plan, user_email, user_name, source_metadata
+          SELECT r2_key, filename, user_id, organization_id, user_plan, user_email, user_name, source_metadata,
+                 section, township, range, property_id
           FROM documents
           WHERE id = ? AND deleted_at IS NULL
         `).bind(parentDocId).first();
@@ -4265,6 +4271,10 @@ export default {
           const childCounty = resolveCounty(child.county, child.extracted_data, parentCounty);
           const { range: childRange, meridian: childMeridian } = normalizeRange(child.range, child.extracted_data);
 
+          // Inherit TRS from parent when child extraction didn't produce it
+          const childSection = child.section || (parentDoc.section as string) || null;
+          const childTownship = child.township || (parentDoc.township as string) || null;
+
           // Determine chain_of_title based on doc_type
           const CHAIN_TYPES = new Set([
             'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
@@ -4307,9 +4317,9 @@ export default {
             child.category,
             child.confidence,
             childCounty,
-            child.section,
-            child.township,
-            childRange,
+            childSection,
+            childTownship,
+            childRange || (parentDoc.range as string) || null,
             childMeridian,
             child.extracted_data ? JSON.stringify(child.extracted_data) : null,
             child.needs_review ? 1 : 0,

@@ -16,7 +16,7 @@ import { HoverTooltip } from './panels/HoverTooltip';
 import { DetailDrawer } from './panels/DetailDrawer';
 import { TreeLegend } from './TreeLegend';
 import { OrphanCard } from './nodes/OrphanCard';
-import { dedupScan } from '../../api/title-chain';
+import { dedupScan, markAsRoot } from '../../api/title-chain';
 import { Spinner } from '../ui/Spinner';
 
 interface ChainTreeViewProps {
@@ -538,6 +538,11 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                   isMobile={isMobile}
                   colors={c}
                   onClick={handleNodeClick}
+                  onMarkRoot={propertyId ? (docId) => {
+                    markAsRoot(propertyId, docId)
+                      .then(() => onRefresh?.())
+                      .catch(() => {});
+                  } : undefined}
                 />
               ))}
             </div>

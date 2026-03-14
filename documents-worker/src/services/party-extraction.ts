@@ -54,9 +54,10 @@ export function normalizePartyName(name: string): string {
   n = n.replace(/\b(jr|sr)\.?\b/gi, '');
   n = n.replace(/\b(iv|iii|ii)\b/gi, '');
 
-  // Strip middle initials: single letter followed by optional period, surrounded by spaces
-  // "John A. Smith" → "John Smith", but don't strip from "J. Paul Getty" (leading initial)
-  n = n.replace(/(?<=\s)[a-z]\.?\s/gi, ' ');
+  // Strip middle initials: single letter followed by optional period, preceded by space or period
+  // "John A. Smith" → "John Smith", "H.M. Acre" → same as "H. M. Acre"
+  // Won't strip leading initial ("J. Paul Getty") — requires preceding char
+  n = n.replace(/(?<=[\s.])[a-z]\.?\s/gi, ' ');
 
   // Remove punctuation except hyphens and apostrophes
   n = n.replace(/[^a-z0-9\s\-']/g, '');

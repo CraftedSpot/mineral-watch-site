@@ -12,6 +12,29 @@ export function fetchChainProperties(): Promise<TitleChainPropertiesResponse> {
   return apiFetch('/api/title-chain/properties');
 }
 
+/**
+ * Prefetch properties into module-level cache so the title page loads instantly.
+ * Called on nav hover — deduped so multiple hovers don't re-fetch.
+ */
+let _prefetchPromise: Promise<TitleChainPropertiesResponse> | null = null;
+let _prefetchResult: TitleChainPropertiesResponse | null = null;
+
+export function prefetchTitleProperties(): void {
+  if (_prefetchResult || _prefetchPromise) return;
+  _prefetchPromise = fetchChainProperties()
+    .then((res) => { _prefetchResult = res; return res; })
+    .catch(() => { _prefetchPromise = null; return null as any; });
+}
+
+export function getPrefetchedProperties(): TitleChainPropertiesResponse | null {
+  return _prefetchResult;
+}
+
+export function clearPrefetchedProperties(): void {
+  _prefetchResult = null;
+  _prefetchPromise = null;
+}
+
 /** Fetch chain-of-title data for a property (with tree) */
 export function fetchTitleChain(propertyId: string): Promise<TitleChainResponse> {
   return apiFetch(`/api/property/${propertyId}/title-chain?include_tree=1`);
@@ -56,6 +79,22 @@ export function bulkCorrectNames(propertyId: string, data: BulkCorrectRequest): 
 export function deleteNameMapping(propertyId: string, mappingId: string): Promise<{ success: boolean }> {
   return apiFetch(`/api/property/${propertyId}/name-mapping/${mappingId}`, {
     method: 'DELETE',
+  });
+}
+
+/** Mark an orphan document as a manual chain root */
+export function markAsRoot(propertyId: string, docId: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/property/${propertyId}/mark-root`, {
+    method: 'POST',
+    body: JSON.stringify({ doc_id: docId }),
+  });
+}
+
+/** Remove manual chain root designation */
+export function unmarkRoot(propertyId: string, docId: string): Promise<{ success: boolean }> {
+  return apiFetch(`/api/property/${propertyId}/unmark-root`, {
+    method: 'POST',
+    body: JSON.stringify({ doc_id: docId }),
   });
 }
 

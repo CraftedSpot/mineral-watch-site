@@ -153,3 +153,101 @@ export async function handleGetChainEdges(propertyId: string, request: Request, 
     return jsonResponse({ error: 'Failed to fetch chain edges' }, 500);
   }
 }
+
+/**
+ * POST /api/property/:propertyId/mark-root
+ * Body: { doc_id: string }
+ * Designates an orphan as a manual chain root.
+ */
+export async function handleMarkRoot(propertyId: string, request: Request, env: Env) {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserByIdD1First(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    const bareId = propertyId.startsWith('prop_') ? propertyId.slice(5) : propertyId;
+    const propResult = await env.WELLS_DB.prepare(
+      `SELECT airtable_record_id, user_id, organization_id FROM properties
+       WHERE airtable_record_id = ? OR id = ? LIMIT 1`
+    ).bind(bareId, propertyId).first<any>();
+
+    if (!propResult) return jsonResponse({ error: 'Property not found' }, 404);
+
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const propUserId = propResult.user_id;
+    const propOrgId = propResult.organization_id;
+    const isOwner = propUserId === authUser.id ||
+      (userOrgId && (propOrgId === userOrgId || (memberIds || []).includes(propUserId)));
+    if (!isOwner) return jsonResponse({ error: 'Access denied' }, 403);
+
+    const airtableId = propResult.airtable_record_id;
+    const body = await request.json() as { doc_id?: string };
+    if (!body.doc_id) return jsonResponse({ error: 'doc_id required' }, 400);
+
+    await env.WELLS_DB.prepare(
+      `INSERT OR IGNORE INTO chain_manual_roots (property_id, doc_id) VALUES (?, ?)`
+    ).bind(airtableId, body.doc_id).run();
+
+    // Invalidate tree cache
+    await env.WELLS_DB.prepare(
+      `UPDATE chain_tree_cache SET invalidated_at = datetime('now') WHERE property_id = ?`
+    ).bind(airtableId).run();
+
+    return jsonResponse({ success: true });
+  } catch (error) {
+    console.error('[ChainEdges] Mark root error:', error);
+    return jsonResponse({ error: 'Failed to mark as root' }, 500);
+  }
+}
+
+/**
+ * POST /api/property/:propertyId/unmark-root
+ * Body: { doc_id: string }
+ * Removes manual chain root designation.
+ */
+export async function handleUnmarkRoot(propertyId: string, request: Request, env: Env) {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserByIdD1First(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    const bareId = propertyId.startsWith('prop_') ? propertyId.slice(5) : propertyId;
+    const propResult = await env.WELLS_DB.prepare(
+      `SELECT airtable_record_id, user_id, organization_id FROM properties
+       WHERE airtable_record_id = ? OR id = ? LIMIT 1`
+    ).bind(bareId, propertyId).first<any>();
+
+    if (!propResult) return jsonResponse({ error: 'Property not found' }, 404);
+
+    const memberIds = await getOrgMemberIds(env.WELLS_DB, userOrgId);
+    const propUserId = propResult.user_id;
+    const propOrgId = propResult.organization_id;
+    const isOwner = propUserId === authUser.id ||
+      (userOrgId && (propOrgId === userOrgId || (memberIds || []).includes(propUserId)));
+    if (!isOwner) return jsonResponse({ error: 'Access denied' }, 403);
+
+    const airtableId = propResult.airtable_record_id;
+    const body = await request.json() as { doc_id?: string };
+    if (!body.doc_id) return jsonResponse({ error: 'doc_id required' }, 400);
+
+    await env.WELLS_DB.prepare(
+      `DELETE FROM chain_manual_roots WHERE property_id = ? AND doc_id = ?`
+    ).bind(airtableId, body.doc_id).run();
+
+    // Invalidate tree cache
+    await env.WELLS_DB.prepare(
+      `UPDATE chain_tree_cache SET invalidated_at = datetime('now') WHERE property_id = ?`
+    ).bind(airtableId).run();
+
+    return jsonResponse({ success: true });
+  } catch (error) {
+    console.error('[ChainEdges] Unmark root error:', error);
+    return jsonResponse({ error: 'Failed to unmark root' }, 500);
+  }
+}

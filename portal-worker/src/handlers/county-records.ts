@@ -11,6 +11,15 @@ import type { Env } from '../types/env.js';
 
 const CREDITS_PER_RETRIEVAL = 5;
 
+/**
+ * Strip direction suffix (N/S/E/W) from township/range for OKCR API.
+ * OKCR is inconsistent: "6N"/"27E" works for some counties but "24N"/"12W"
+ * returns 0 for others. Numeric-only always works.
+ */
+function stripDirection(val: string): string {
+  return val.replace(/[NSEW]/gi, '').replace(/^0+(\d)/, '$1');
+}
+
 // Cache TTLs
 const COUNTIES_CACHE_TTL = 7 * 24 * 60 * 60; // 7 days
 const TYPES_CACHE_TTL = 7 * 24 * 60 * 60;    // 7 days
@@ -154,8 +163,8 @@ async function fetchAndCachePage(
   const qs = [
     `county=${encodeURIComponent(county)}`,
     `section=${encodeURIComponent(section)}`,
-    `township=${encodeURIComponent(township)}`,
-    `range=${encodeURIComponent(range)}`,
+    `township=${encodeURIComponent(stripDirection(township))}`,
+    `range=${encodeURIComponent(stripDirection(range))}`,
     `results_per_page=15`,
     ...(page > 1 ? [`result_page=${page}`] : []),
   ].join('&');
@@ -424,8 +433,8 @@ export async function handleCountyRecordsSearch(request: Request, env: Env, ctx?
     };
 
     if (body.section) queryParams.section = body.section;
-    if (body.township) queryParams.township = body.township;
-    if (body.range) queryParams.range = body.range;
+    if (body.township) queryParams.township = stripDirection(body.township);
+    if (body.range) queryParams.range = stripDirection(body.range);
     if (body.type) queryParams.type = body.type;
     if (body.party_name) queryParams.party_name = body.party_name;
     if (body.party_type) queryParams.party_type = body.party_type;

@@ -9,6 +9,7 @@ export const DOCUMENT_CATEGORIES = [
   { value: 'death_certificate', label: 'Death Certificates' },
   { value: 'divorce_decree', label: 'Divorce Decrees' },
   { value: 'division_orders', label: 'Division Orders' },
+  { value: 'estate_tax_release', label: 'Estate Tax Releases' },
   { value: 'drilling_and_spacing', label: 'Drilling & Spacing Orders (Vertical)' },
   { value: 'drilling_permits', label: 'Drilling Permits' },
   { value: 'horizontal_drilling_and_spacing', label: 'Horizontal Drilling & Spacing Orders' },

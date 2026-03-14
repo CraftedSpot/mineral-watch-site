@@ -400,6 +400,11 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         }
         return Response.redirect(`${BASE_URL}/portal/login`, 301);
       }
+      if (path === "/portal/dashboard" || path === "/portal/dashboard/") {
+        // Legacy path used in email links — redirect preserving query params (?tab=activity etc.)
+        const qs = url.search || '';
+        return Response.redirect(`${BASE_URL}/portal${qs}`, 302);
+      }
       if (path === "/portal" || path === "/portal/" || path === "/portal/react" || path === "/portal/react/" || path.startsWith("/portal/react/")) {
         return servePage(portalReactHtml, request, env);
       }
@@ -1734,6 +1739,26 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleBackfillDocumentParties(request, env);
       }
 
+      // Re-normalize party names (PROCESSING_API_KEY auth)
+      if (path === "/api/admin/renormalize-parties" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleRenormalizeParties } = await import('./handlers/renormalize-parties.js');
+        return handleRenormalizeParties(request, env);
+      }
+
+      // Backfill document TRS from extracted_data (PROCESSING_API_KEY auth)
+      if (path === "/api/admin/backfill-document-trs" && request.method === "POST") {
+        const authHeader = request.headers.get('Authorization') || '';
+        if (!timingSafeKeyCheck(authHeader, `Bearer ${env.PROCESSING_API_KEY}`)) {
+          return jsonResponse({ error: 'Unauthorized' }, 401);
+        }
+        const { handleBackfillDocumentTrs } = await import('./handlers/backfill-document-trs.js');
+        return handleBackfillDocumentTrs(request, env);
+      }
+
       // Formation harvest endpoints (PROCESSING_API_KEY auth)
       if (path === "/api/admin/wells-missing-formation" && request.method === "GET") {
         const authHeader = request.headers.get('Authorization') || '';
@@ -1957,6 +1982,18 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
           const { handleGetChainEdges } = await import('./handlers/chain-edges.js');
           return handleGetChainEdges(chainEdgesMatch[1], request, env);
         }
+      }
+
+      // Mark/unmark orphan as manual chain root
+      const markRootMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/mark-root$/);
+      if (markRootMatch && request.method === "POST") {
+        const { handleMarkRoot } = await import('./handlers/chain-edges.js');
+        return handleMarkRoot(markRootMatch[1], request, env);
+      }
+      const unmarkRootMatch = path.match(/^\/api\/property\/([a-zA-Z0-9_-]+)\/unmark-root$/);
+      if (unmarkRootMatch && request.method === "POST") {
+        const { handleUnmarkRoot } = await import('./handlers/chain-edges.js');
+        return handleUnmarkRoot(unmarkRootMatch[1], request, env);
       }
 
       // Name suggestions — detect name clusters + bulk correct + delete mapping

@@ -65,8 +65,9 @@ function isRelevant(type: string): boolean {
 }
 
 function isVisible(type: string, mode: FilterMode): boolean {
-  if (!type || isBlacklisted(type)) return false;
+  if (!type) return false;
   if (mode === 'all') return true;
+  if (isBlacklisted(type)) return false;
   const n = normalizeType(type);
   if (mode === 'leases') return CR_LEASES_ACTIVITY.includes(n);
   if (mode === 'title') return CR_TITLE_DOCS.includes(n);
@@ -121,9 +122,10 @@ interface Props {
   onCountChange?: (count: number | null) => void;
   initialFilterMode?: FilterMode;
   onDocumentRetrieved?: () => void;
+  isDark?: boolean;
 }
 
-export function CountyRecordsSection({ section, township, range, county, onCountChange, initialFilterMode, onDocumentRetrieved }: Props) {
+export function CountyRecordsSection({ section, township, range, county, onCountChange, initialFilterMode, onDocumentRetrieved, isDark }: Props) {
   const modal = useModal();
   const toast = useToast();
   const { confirm } = useConfirm();
@@ -348,6 +350,8 @@ export function CountyRecordsSection({ section, township, range, county, onCount
       const docId = result.document_id!;
       if (result.credits_charged) {
         toast.success(`Retrieved — ${result.credits_charged} credits used`);
+      } else {
+        toast.info('Already in your library — duplicate');
       }
 
       // Update the record
@@ -424,43 +428,64 @@ export function CountyRecordsSection({ section, township, range, county, onCount
 
   if (loading) {
     return (
-      <div style={{ padding: '16px 8px', textAlign: 'center', fontSize: 13, color: '#6b7280' }}>
+      <div style={{ padding: '16px 8px', textAlign: 'center', fontSize: 13, color: isDark ? '#cbd5e1' : '#6b7280' }}>
         <Spinner size={14} /> Searching county records...
       </div>
     );
   }
 
   if (error) {
-    return <div style={{ color: '#dc2626', fontSize: 12, padding: 8 }}>Failed to load county records: {error}</div>;
+    return <div style={{ color: isDark ? '#fca5a5' : '#dc2626', fontSize: 12, padding: 8 }}>Failed to load county records: {error}</div>;
   }
 
   if (allResults.length === 0) {
     return (
       <div style={{ padding: 8, textAlign: 'center' }}>
-        <div style={{ color: SLATE, fontSize: 12, marginBottom: 10 }}>No county records found for this section</div>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-          <input
-            type="text"
-            placeholder="Search by party name (e.g. Price)"
-            value={partySearch}
-            onChange={(e) => setPartySearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
-            style={{
-              flex: 1, padding: '5px 8px', fontSize: 12, border: `1px solid ${BORDER}`,
-              borderRadius: 4, fontFamily: 'inherit',
-            }}
-          />
-          <button
-            onClick={() => { if (partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
-            style={{
-              padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-              border: `1px solid ${BORDER}`, borderRadius: 4, background: '#334E68', color: '#fff',
-            }}
-          >
-            Search
-          </button>
-        </div>
-        <div style={{ fontSize: 11, color: '#9ca3af' }}>Try searching by party name to find specific records</div>
+        {activePartySearch ? (
+          <>
+            <div style={{ color: isDark ? '#e2e8f0' : SLATE, fontSize: 12, marginBottom: 10 }}>
+              No records found for &ldquo;{activePartySearch}&rdquo;
+            </div>
+            <button
+              onClick={() => { setPartySearch(''); setActivePartySearch(''); }}
+              style={{
+                padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${BORDER}`, borderRadius: 4, background: '#334E68', color: '#fff',
+              }}
+            >
+              Back to all records
+            </button>
+          </>
+        ) : (
+          <>
+            <div style={{ color: isDark ? '#e2e8f0' : SLATE, fontSize: 12, marginBottom: 10 }}>No county records found for this section</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+              <input
+                type="text"
+                placeholder="Search by party name (e.g. Price)"
+                value={partySearch}
+                onChange={(e) => setPartySearch(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
+                style={{
+                  flex: 1, padding: '5px 8px', fontSize: 12, border: `1px solid ${BORDER}`,
+                  borderRadius: 4, fontFamily: 'inherit',
+                  background: isDark ? 'rgba(255,255,255,0.1)' : '#fff',
+                  color: isDark ? '#f1f5f9' : '#1e293b',
+                }}
+              />
+              <button
+                onClick={() => { if (partySearch.trim()) setActivePartySearch(partySearch.trim()); }}
+                style={{
+                  padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  border: `1px solid ${BORDER}`, borderRadius: 4, background: '#334E68', color: '#fff',
+                }}
+              >
+                Search
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#9ca3af' }}>Try searching by party name to find specific records</div>
+          </>
+        )}
       </div>
     );
   }
@@ -483,6 +508,8 @@ export function CountyRecordsSection({ section, township, range, county, onCount
           style={{
             flex: 1, padding: '5px 8px', fontSize: 12, border: `1px solid ${BORDER}`,
             borderRadius: 4, fontFamily: 'inherit',
+            background: isDark ? 'rgba(255,255,255,0.1)' : '#fff',
+            color: isDark ? '#f1f5f9' : '#1e293b',
             animation: loadingMore ? 'searchPulse 1.5s ease-in-out infinite' : 'none',
           }}
         />
@@ -500,7 +527,9 @@ export function CountyRecordsSection({ section, township, range, county, onCount
             onClick={() => { setPartySearch(''); setActivePartySearch(''); }}
             style={{
               padding: '5px 8px', fontSize: 11, cursor: 'pointer',
-              border: `1px solid ${BORDER}`, borderRadius: 4, background: '#fff', color: '#334E68',
+              border: `1px solid ${BORDER}`, borderRadius: 4,
+              background: isDark ? 'rgba(255,255,255,0.1)' : '#fff',
+              color: isDark ? '#e2e8f0' : '#334E68',
             }}
           >
             Clear
@@ -508,7 +537,7 @@ export function CountyRecordsSection({ section, township, range, county, onCount
         )}
       </div>
       {loadingMore && (
-        <div style={{ fontSize: 11, color: '#627D98', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div style={{ fontSize: 11, color: isDark ? '#94a3b8' : '#627D98', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
           <Spinner size={10} />
           Showing {allResults.length} of ~{totalResults}... loading more
         </div>
@@ -524,8 +553,9 @@ export function CountyRecordsSection({ section, township, range, county, onCount
               onClick={() => { setFilterMode(key); setTypeFilter(''); }}
               style={{
                 padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                border: 'none', background: filterMode === key ? '#334E68' : '#fff',
-                color: filterMode === key ? '#fff' : '#334E68',
+                border: 'none',
+                background: filterMode === key ? '#334E68' : (isDark ? 'rgba(255,255,255,0.08)' : '#fff'),
+                color: filterMode === key ? '#fff' : (isDark ? '#cbd5e1' : '#334E68'),
               }}
             >
               {label}
@@ -538,7 +568,11 @@ export function CountyRecordsSection({ section, township, range, county, onCount
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            style={{ padding: '4px 8px', fontSize: 11, border: `1px solid ${BORDER}`, borderRadius: 4, background: '#fff' }}
+            style={{
+              padding: '4px 8px', fontSize: 11, border: `1px solid ${BORDER}`, borderRadius: 4,
+              background: isDark ? 'rgba(255,255,255,0.08)' : '#fff',
+              color: isDark ? '#e2e8f0' : '#1e293b',
+            }}
           >
             <option value="">All Types ({uniqueTypes.length})</option>
             {uniqueTypes.map((t) => (
@@ -548,8 +582,10 @@ export function CountyRecordsSection({ section, township, range, county, onCount
         )}
 
         {/* Count */}
-        <span style={{ fontSize: 11, color: SLATE, marginLeft: 'auto' }}>
-          {visibleResults.length} of {totalResults} records
+        <span style={{ fontSize: 11, color: isDark ? '#94a3b8' : SLATE, marginLeft: 'auto' }}>
+          {visibleResults.length === allResults.length
+            ? `${visibleResults.length} records`
+            : `${visibleResults.length} of ${allResults.length} records`}
           {activePartySearch && <> for &ldquo;{activePartySearch}&rdquo;</>}
         </span>
       </div>
@@ -574,20 +610,20 @@ export function CountyRecordsSection({ section, township, range, county, onCount
                     <Badge bg={badge.bg} color={badge.color} size="sm">
                       {record.instrument_type || 'Unknown'}
                     </Badge>
-                    <span style={{ fontSize: 11, color: SLATE }}>
+                    <span style={{ fontSize: 11, color: isDark ? '#cbd5e1' : SLATE }}>
                       {formatDate(record.instrument_date) || formatDate(record.indexed_date) || '—'}
                     </span>
                     {record.page_count > 0 && (
-                      <span style={{ fontSize: 10, color: '#9ca3af' }}>{record.page_count}p</span>
+                      <span style={{ fontSize: 10, color: isDark ? '#94a3b8' : '#9ca3af' }}>{record.page_count}p</span>
                     )}
                   </div>
                   {(record.grantors.length > 0 || record.grantees.length > 0) && (
-                    <div style={{ fontSize: 11, color: '#374151', marginTop: 3, lineHeight: 1.4 }}>
+                    <div style={{ fontSize: 11, color: isDark ? '#f1f5f9' : '#374151', marginTop: 3, lineHeight: 1.4 }}>
                       {record.grantors.length > 0 && (
                         <span>{record.grantors.slice(0, 2).join(', ')}{record.grantors.length > 2 ? ` +${record.grantors.length - 2}` : ''}</span>
                       )}
                       {record.grantors.length > 0 && record.grantees.length > 0 && (
-                        <span style={{ color: SLATE }}> → </span>
+                        <span style={{ color: isDark ? '#94a3b8' : SLATE }}> → </span>
                       )}
                       {record.grantees.length > 0 && (
                         <span>{record.grantees.slice(0, 2).join(', ')}{record.grantees.length > 2 ? ` +${record.grantees.length - 2}` : ''}</span>
@@ -638,8 +674,8 @@ export function CountyRecordsSection({ section, township, range, county, onCount
                     </button>
                   ) : record.page_count > 50 ? (
                     <button disabled style={{
-                      background: '#f1f5f9', border: `1px solid ${BORDER}`, borderRadius: 4,
-                      padding: '3px 10px', fontSize: 11, color: '#9ca3af',
+                      background: isDark ? 'rgba(255,255,255,0.05)' : '#f1f5f9', border: `1px solid ${BORDER}`, borderRadius: 4,
+                      padding: '3px 10px', fontSize: 11, color: isDark ? '#64748b' : '#9ca3af',
                     }}>
                       {record.page_count}p — too large
                     </button>
@@ -663,10 +699,10 @@ export function CountyRecordsSection({ section, township, range, county, onCount
       </div>
 
       {/* Load more — shows progress during auto-load, manual button if auto-load stopped */}
-      {currentPage < totalPages && currentPage < CR_MAX_PAGES && (
+      {currentPage < totalPages && currentPage < CR_MAX_PAGES ? (
         <div style={{ textAlign: 'center', padding: '10px 0' }}>
           {loadingMore ? (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#627D98' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: isDark ? '#94a3b8' : '#627D98' }}>
               <Spinner size={12} />
               Loading page {currentPage + 1} of {Math.min(totalPages, CR_MAX_PAGES)}...
             </div>
@@ -676,12 +712,16 @@ export function CountyRecordsSection({ section, township, range, county, onCount
               style={{
                 background: 'none', border: `1px solid ${BORDER}`, borderRadius: 4,
                 padding: '6px 16px', fontSize: 12, cursor: 'pointer',
-                color: '#334E68', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6,
+                color: isDark ? '#cbd5e1' : '#334E68', fontWeight: 500, display: 'inline-flex', alignItems: 'center', gap: 6,
               }}
             >
               Load More (page {currentPage + 1} of {totalPages})
             </button>
           )}
+        </div>
+      ) : !loadingMore && allResults.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 11, color: isDark ? '#64748b' : '#9ca3af' }}>
+          All {totalResults} records loaded
         </div>
       )}
     </div>

@@ -47,7 +47,12 @@ export function DocNode({ node, pos, isHovered, isPinned, isDimmed, viewMode = '
         )}
       </text>
       <text x={pos.w - 10} y={isSimple ? 22 : 18} textAnchor="end" fontSize={9} fill={c?.textMuted || SLATE}
-        fontFamily="'DM Sans', sans-serif">{formatDate(node.date)}</text>
+        fontFamily="'DM Sans', sans-serif">
+        {node.isManualRoot && (
+          <tspan fill="#3b82f6" fontSize={8} fontWeight={600}>{'\u{1F4CC} '}</tspan>
+        )}
+        {formatDate(node.date)}
+      </text>
       {!isSimple && (
         <foreignObject x={10} y={22} width={pos.w - 20} height={50}>
           <div style={{

@@ -54,6 +54,7 @@ export interface TreeNode {
   children: TreeNode[];
   _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
+  isManualRoot?: boolean;
 }
 
 /** Current owner from chain_current_owners */
@@ -88,6 +89,19 @@ export interface ChainGap {
   grantorName?: string | null;
 }
 
+/** Diagnostic info explaining why an orphan didn't connect */
+export interface MatchDiagnostic {
+  searchedNames: string[];
+  noEarlierDocs: boolean;
+  nearMisses: Array<{
+    orphanName: string;
+    candidateName: string;
+    candidateDocId: string;
+    candidateDisplayName: string;
+    matchType: 'relaxed' | 'token_subset' | 'edit_distance';
+  }>;
+}
+
 /** Orphan document — in chain scope but no edges matched */
 export interface OrphanDoc {
   id: string;
@@ -101,6 +115,7 @@ export interface OrphanDoc {
   reason: 'no_parties' | 'no_match' | 'unknown';
   _parties?: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
   _corrections?: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
+  matchDiagnostic?: MatchDiagnostic;
 }
 
 /** Full tree structure from API */
@@ -211,6 +226,8 @@ export interface FlatNode {
   displayName?: string;
   category?: string | null;
   hiddenDuplicates?: number;
+  matchDiagnostic?: MatchDiagnostic;
+  isManualRoot?: boolean;
   // Stack-specific
   docs?: FlatStackDoc[];
   label?: string;

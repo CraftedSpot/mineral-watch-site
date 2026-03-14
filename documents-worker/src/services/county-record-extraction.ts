@@ -20,7 +20,8 @@ const CHAIN_OF_TITLE_TYPES = new Set([
   'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
   'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
   'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-  'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer'
+  'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
+  'divorce_decree', 'estate_tax_release', 'tax_release'
 ]);
 
 interface Env {

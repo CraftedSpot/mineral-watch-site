@@ -9,6 +9,8 @@ import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserByIdD1First } from '../services/airtable.js';
 import { getOrgMemberIds, buildOwnershipFilter } from '../utils/ownership.js';
+import { normalizePartyName } from '../utils/normalize-party-name.js';
+import { relaxedNormalize, fuzzyTokenMatch } from '../utils/fuzzy-match.js';
 import type { Env } from '../types/env.js';
 
 // Party role display patterns by document type
@@ -240,6 +242,19 @@ interface TreeNode {
   children: TreeNode[];
   _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   _parties: Array<{ rowId: number; name: string; role: string }>;
+  isManualRoot?: boolean;
+}
+
+interface MatchDiagnostic {
+  searchedNames: string[];
+  noEarlierDocs: boolean;
+  nearMisses: Array<{
+    orphanName: string;
+    candidateName: string;
+    candidateDocId: string;
+    candidateDisplayName: string;
+    matchType: 'relaxed' | 'token_subset' | 'edit_distance';
+  }>;
 }
 
 interface OrphanDoc {
@@ -255,6 +270,7 @@ interface OrphanDoc {
   _parties: Array<{ rowId: number; name: string; role: string; isManual?: boolean }>;
   _corrections: Record<string, { id: string; partyRowId: number; original: string; corrected: string }> | null;
   hiddenDuplicates?: number;
+  matchDiagnostic?: MatchDiagnostic;
 }
 
 interface ChainGap {
@@ -441,7 +457,8 @@ function assembleTree(
   edges: ChainEdgeRow[],
   owners: ChainOwnerRow[],
   partiesMap: Record<string, Array<{ name: string; role: string; [key: string]: any }>>,
-  correctionsMap: Record<string, Record<string, { id: string; partyRowId: number; original: string; corrected: string }>>
+  correctionsMap: Record<string, Record<string, { id: string; partyRowId: number; original: string; corrected: string }>>,
+  manualRootDocIds: Set<string> = new Set()
 ): TitleTree {
   const docMap = new Map<string, any>();
   for (const doc of documents) docMap.set(doc.id, doc);
@@ -463,8 +480,11 @@ function assembleTree(
     inEdge.add(edge.child_doc_id);
   }
 
-  // Orphans: docs with no edges at all — enrich with full metadata + reason
-  const rawOrphans: OrphanDoc[] = documents.filter(d => !inEdge.has(d.id)).map(d => {
+  // Orphans: docs with no edges at all, excluding manual roots
+  // Manual roots that also appear in edges (edge builder connected them) are handled normally by edges
+  const manualRootDocs = documents.filter(d => !inEdge.has(d.id) && manualRootDocIds.has(d.id));
+
+  const rawOrphans: OrphanDoc[] = documents.filter(d => !inEdge.has(d.id) && !manualRootDocIds.has(d.id)).map(d => {
     const parties = partiesMap[d.id] || [];
     const hasParties = parties.length > 0;
     const reason: OrphanDoc['reason'] = !hasParties ? 'no_parties' : 'no_match';
@@ -491,6 +511,88 @@ function assembleTree(
 
   // Orphan dedup: collapse same-book-page orphans (read-only, no D1 writes)
   const orphanDocs = deduplicateOrphans(rawOrphans, docMap);
+
+  // --- Orphan diagnosis: explain why each no_match orphan didn't connect ---
+  {
+    // Build toIndex: normalized grantee name → doc metadata (mirrors edge builder logic)
+    const TO_ROLES = new Set(['grantee', 'lessee', 'assignee']);
+    const diagToIndex = new Map<string, Array<{ docId: string; date: string | null; original: string; displayName: string }>>();
+    const diagToRelaxed = new Map<string, Array<{ docId: string; date: string | null; original: string; exactNorm: string; displayName: string }>>();
+
+    for (const doc of documents) {
+      const parties = partiesMap[doc.id] || [];
+      const docType = doc.docType || doc.doc_type || '';
+      const roles = ARROW_ROLE_TYPES[docType];
+      const toRole = roles ? roles[1] : null;
+      const dispName = doc.displayName || doc.display_name || 'Untitled';
+
+      for (const party of parties) {
+        const isTo = toRole ? party.role === toRole : TO_ROLES.has(party.role);
+        if (!isTo) continue;
+        const norm = normalizePartyName(party.name);
+        if (!norm) continue;
+
+        if (!diagToIndex.has(norm)) diagToIndex.set(norm, []);
+        diagToIndex.get(norm)!.push({ docId: doc.id, date: doc.date || null, original: party.name, displayName: dispName });
+
+        const relaxed = relaxedNormalize(norm);
+        if (relaxed) {
+          if (!diagToRelaxed.has(relaxed)) diagToRelaxed.set(relaxed, []);
+          diagToRelaxed.get(relaxed)!.push({ docId: doc.id, date: doc.date || null, original: party.name, exactNorm: norm, displayName: dispName });
+        }
+      }
+    }
+
+    for (const orphan of orphanDocs) {
+      if (orphan.reason !== 'no_match') continue;
+
+      const searchedNames = orphan.fromNames;
+      const nearMisses: MatchDiagnostic['nearMisses'] = [];
+
+      // Check if any docs with dates exist before this orphan
+      const orphanDate = orphan.date;
+      const noEarlierDocs = !orphanDate || !documents.some(d =>
+        d.id !== orphan.id && d.date && d.date < orphanDate
+      );
+
+      for (const fromName of searchedNames) {
+        const fromNorm = normalizePartyName(fromName);
+        if (!fromNorm) continue;
+
+        // Skip if exact or relaxed match exists (edge builder would have caught it)
+        if (diagToIndex.has(fromNorm)) continue;
+        const fromRelaxed = relaxedNormalize(fromNorm);
+        if (fromRelaxed && diagToRelaxed.has(fromRelaxed)) continue;
+
+        // Search for fuzzy near-misses
+        if (!fromRelaxed) continue;
+        for (const [relaxedTo, entries] of diagToRelaxed) {
+          if (relaxedTo === fromRelaxed) continue;
+          const result = fuzzyTokenMatch(fromRelaxed, relaxedTo);
+          if (result) {
+            // Pick the first candidate from a different doc
+            const candidate = entries.find(e => e.docId !== orphan.id);
+            if (candidate) {
+              nearMisses.push({
+                orphanName: fromName,
+                candidateName: candidate.original,
+                candidateDocId: candidate.docId,
+                candidateDisplayName: candidate.displayName,
+                matchType: result.matchType,
+              });
+              break; // one near-miss per from-name is enough
+            }
+          }
+        }
+      }
+
+      orphan.matchDiagnostic = {
+        searchedNames,
+        noEarlierDocs,
+        nearMisses: nearMisses.slice(0, 3),
+      };
+    }
+  }
 
   // Roots: docs that are parents but never children
   const rootIds = [...inEdge].filter(id => !hasParent.has(id) && docMap.has(id));
@@ -612,7 +714,17 @@ function assembleTree(
   // Build roots
   const roots: TreeNode[] = [];
   for (const rootId of rootIds) {
-    roots.push(buildNode(rootId, null, []));
+    const node = buildNode(rootId, null, []);
+    // If user manually designated this as a root, flag it even if edge builder connected it
+    if (manualRootDocIds.has(rootId)) node.isManualRoot = true;
+    roots.push(node);
+  }
+
+  // Add manual roots that aren't in any edge (true orphans designated as roots)
+  for (const doc of manualRootDocs) {
+    const node = buildNode(doc.id, null, []);
+    node.isManualRoot = true;
+    roots.push(node);
   }
 
   // Sort roots by date
@@ -655,7 +767,7 @@ function assembleTree(
 
   // Implied-death gap detection: parent→child where last name matches but first name changes
   // (implies death/inheritance with no probate or heirship in the chain)
-  const HEIRSHIP_TYPES = new Set(['affidavit_of_heirship', 'probate', 'death_certificate']);
+  const HEIRSHIP_TYPES = new Set(['affidavit_of_heirship', 'probate', 'death_certificate', 'estate_tax_release', 'tax_release']);
   function hasHeirshipBetween(parent: TreeNode, child: TreeNode): boolean {
     // Check if any node between parent and child is an heirship-type doc
     for (const c of parent.children) {
@@ -1099,95 +1211,73 @@ export async function handleGetTitleChain(propertyId: string, request: Request, 
 
     if (includeTree) {
       try {
-        // 1. Check cache
-        const cached = await env.WELLS_DB.prepare(
-          `SELECT tree_json FROM chain_tree_cache WHERE property_id = ? AND invalidated_at IS NULL`
-        ).bind(airtableId).first<any>();
+        // Read existing edges (built by documents-worker during extraction / name corrections)
+        const edgesResult = await env.WELLS_DB.prepare(
+          `SELECT id, parent_doc_id, child_doc_id, match_type, match_confidence,
+                  matched_from_name, matched_to_name, edge_type, is_manual
+           FROM document_chain_edges WHERE property_id = ?`
+        ).bind(airtableId).all();
 
-        if (cached?.tree_json) {
-          tree = JSON.parse(cached.tree_json);
-        } else {
-          // 2. Cache miss or invalid — trigger edge rebuild via service binding
-          if (env.DOCUMENTS_WORKER) {
-            try {
-              await env.DOCUMENTS_WORKER.fetch(new Request('https://internal/api/internal/build-chain-edges', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ property_id: airtableId, sibling_property_ids: allPropertyIds }),
-              }));
-            } catch (err) {
-              console.error('[TitleTree] Edge rebuild via service binding failed:', err);
-            }
-          }
+        const ownersResult = await env.WELLS_DB.prepare(
+          `SELECT id, owner_name, owner_name_normalized, acquired_via_doc_id,
+                  acquired_date, interest_text, interest_decimal, interest_type, is_manual
+           FROM chain_current_owners WHERE property_id = ?`
+        ).bind(airtableId).all();
 
-          // 3. Read freshly-built edges
-          const edgesResult = await env.WELLS_DB.prepare(
-            `SELECT id, parent_doc_id, child_doc_id, match_type, match_confidence,
-                    matched_from_name, matched_to_name, edge_type, is_manual
-             FROM document_chain_edges WHERE property_id = ?`
-          ).bind(airtableId).all();
+        // Load manual roots
+        const manualRootsResult = await env.WELLS_DB.prepare(
+          `SELECT doc_id FROM chain_manual_roots WHERE property_id = ?`
+        ).bind(airtableId).all();
+        const manualRootDocIds = new Set(
+          (manualRootsResult.results as any[] || []).map((r: any) => r.doc_id as string)
+        );
 
-          const ownersResult = await env.WELLS_DB.prepare(
-            `SELECT id, owner_name, owner_name_normalized, acquired_via_doc_id,
-                    acquired_date, interest_text, interest_decimal, interest_type, is_manual
-             FROM chain_current_owners WHERE property_id = ?`
-          ).bind(airtableId).all();
+        // Assemble tree (pure graph traversal — no cache, always fresh)
+        tree = assembleTree(
+          documents,
+          (edgesResult.results || []) as unknown as ChainEdgeRow[],
+          (ownersResult.results || []) as unknown as ChainOwnerRow[],
+          partiesMap,
+          correctionsMap,
+          manualRootDocIds
+        );
 
-          // 4. Assemble tree (pure graph traversal)
-          tree = assembleTree(
-            documents,
-            (edgesResult.results || []) as unknown as ChainEdgeRow[],
-            (ownersResult.results || []) as unknown as ChainOwnerRow[],
-            partiesMap,
-            correctionsMap
-          );
-
-          // 4b. Post-process: resolve source party row IDs + attach source doc data for current owners
-          const GRANTEE_SIDE_ROLES = ['grantee', 'lessee', 'assignee', 'heir', 'beneficiary', 'owner'];
-          for (const owner of tree.currentOwners) {
-            if (!owner.acquired_via_doc_id) continue;
-            const docParties = partiesMap[owner.acquired_via_doc_id];
-            if (docParties) {
-              // Find matching grantee-side party by normalized name
-              const match = docParties.find(p =>
-                GRANTEE_SIDE_ROLES.includes(p.role) &&
-                p.normalized === owner.owner_name_normalized
-              );
-              if (match) {
-                (owner as any).source_party_row_id = match.rowId;
-                const docCorr = correctionsMap[owner.acquired_via_doc_id];
-                if (docCorr?.[String(match.rowId)]) {
-                  (owner as any).source_correction = docCorr[String(match.rowId)];
-                }
+        // Post-process: resolve source party row IDs + attach source doc data for current owners
+        const GRANTEE_SIDE_ROLES = ['grantee', 'lessee', 'assignee', 'heir', 'beneficiary', 'owner'];
+        for (const owner of tree.currentOwners) {
+          if (!owner.acquired_via_doc_id) continue;
+          const docParties = partiesMap[owner.acquired_via_doc_id];
+          if (docParties) {
+            // Find matching grantee-side party by normalized name
+            const match = docParties.find(p =>
+              GRANTEE_SIDE_ROLES.includes(p.role) &&
+              p.normalized === owner.owner_name_normalized
+            );
+            if (match) {
+              (owner as any).source_party_row_id = match.rowId;
+              const docCorr = correctionsMap[owner.acquired_via_doc_id];
+              if (docCorr?.[String(match.rowId)]) {
+                (owner as any).source_correction = docCorr[String(match.rowId)];
               }
-              // Attach all source doc parties for Document tab party strip
-              (owner as any)._sourceParties = docParties
-                .filter(p => p.rowId > 0)
-                .map(p => ({ rowId: p.rowId, name: p.name, role: p.role, isManual: p.isManual || false }));
             }
-            // Attach source doc corrections
-            const docCorrAll = correctionsMap[owner.acquired_via_doc_id];
-            if (docCorrAll) {
-              (owner as any)._sourceCorrections = docCorrAll;
-            }
+            // Attach all source doc parties for Document tab party strip
+            (owner as any)._sourceParties = docParties
+              .filter(p => p.rowId > 0)
+              .map(p => ({ rowId: p.rowId, name: p.name, role: p.role, isManual: p.isManual || false }));
           }
+          // Attach source doc corrections
+          const docCorrAll = correctionsMap[owner.acquired_via_doc_id];
+          if (docCorrAll) {
+            (owner as any)._sourceCorrections = docCorrAll;
+          }
+        }
 
-          // 4c. Enrich gaps with property-level TRS/county
-          for (const gap of tree.gaps) {
-            gap.county = property.county;
-            gap.section = property.section;
-            gap.township = property.township;
-            gap.range = property.range;
-          }
-
-          // 5. Cache the result
-          try {
-            await env.WELLS_DB.prepare(
-              `INSERT OR REPLACE INTO chain_tree_cache (property_id, tree_json, doc_count) VALUES (?, ?, ?)`
-            ).bind(airtableId, JSON.stringify(tree), documents.length).run();
-          } catch (cacheErr) {
-            console.error('[TitleTree] Cache write error:', cacheErr);
-          }
+        // Enrich gaps with property-level TRS/county
+        for (const gap of tree.gaps) {
+          gap.county = property.county;
+          gap.section = property.section;
+          gap.township = property.township;
+          gap.range = property.range;
         }
       } catch (treeErr: any) {
         console.error('[TitleTree] Tree assembly error:', treeErr?.message, treeErr?.stack);

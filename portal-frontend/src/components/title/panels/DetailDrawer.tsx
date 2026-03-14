@@ -450,6 +450,28 @@ function DrawerContent({ node, propertyId, onClose, onExpandStack, colors: c, is
             {docLocation}
           </div>
         )}
+        {node.isManualRoot && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: '#3b82f6', fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
+              Manually set as chain root
+            </span>
+            <button
+              onClick={() => {
+                if (!propertyId) return;
+                import('../../../api/title-chain').then(({ unmarkRoot }) => {
+                  unmarkRoot(propertyId, node.id).then(() => onCorrectionSaved?.());
+                });
+              }}
+              style={{
+                padding: '1px 6px', borderRadius: 3, fontSize: 9, fontWeight: 600,
+                border: '1px solid rgba(59,130,246,0.3)', background: 'rgba(59,130,246,0.08)',
+                color: '#3b82f6', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              Unmark
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -753,11 +775,15 @@ function parseEarliestDigitizedDate(raw: string): { year: number; month?: number
     const names = ['January','February','March','April','May','June','July','August','September','October','November','December'];
     return { year: y, month: m, display: `${names[m - 1]} ${y}` };
   }
-  // "Month, YYYY" or "Month YYYY" — take the earliest
+  // Use only the "(Data)" portion if present — "(Images)" dates are scanned but not searchable
+  let text = raw;
+  const dataMatch = raw.match(/^(.*?)\s*\(Data\)/i);
+  if (dataMatch) text = dataMatch[1];
+  // "Month, YYYY" or "Month YYYY" — take the earliest from the relevant portion
   const re = /\b(January|February|March|April|May|June|July|August|September|October|November|December)[,]?\s+(\d{4})\b/gi;
   let earliest: { year: number; month: number; display: string } | null = null;
   let match;
-  while ((match = re.exec(raw)) !== null) {
+  while ((match = re.exec(text)) !== null) {
     const mo = MONTH_MAP[match[1].toLowerCase()];
     const yr = parseInt(match[2], 10);
     if (!earliest || yr < earliest.year || (yr === earliest.year && mo < earliest.month)) {
@@ -766,7 +792,7 @@ function parseEarliestDigitizedDate(raw: string): { year: number; month?: number
   }
   if (earliest) return earliest;
   // Bare year
-  const yearMatch = raw.match(/\b(1[89]\d{2}|20\d{2})\b/);
+  const yearMatch = text.match(/\b(1[89]\d{2}|20\d{2})\b/);
   if (yearMatch) return { year: parseInt(yearMatch[1], 10), display: yearMatch[1] };
   return null;
 }
@@ -987,8 +1013,8 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
                   {node.gapCounty} County records are searchable online
                 </span> back to {digitizedDate!.display}.
                 {showCountySearch
-                  ? ' Search below — this document should be findable.'
-                  : ' This document should be findable on OKCountyRecords.'}
+                  ? ' Search below — this document could be findable.'
+                  : ' This document could be findable on OKCountyRecords.'}
                 {!showCountySearch && (
                   <div style={{ marginTop: 6 }}>
                     <a
@@ -1011,6 +1037,7 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
                     county={node.gapCounty!}
                     initialFilterMode="title"
                     onDocumentRetrieved={handleDocRetrieved}
+                    isDark={isDark}
                   />
                 </div>
               )}
@@ -1029,8 +1056,37 @@ function GapContent({ node, headerButtons, fieldBg, isMobile, colors: c, isSuper
             </div>
           )}
           {guidanceType === 'unknown' && (
-            <div style={{ padding: '10px 16px', background: fieldBg, borderBottom: `1px solid ${c?.border || BORDER}`, fontSize: 12, lineHeight: 1.6, color: c?.textMuted || SLATE }}>
-              Contact the clerk to check record availability for this date range.
+            <div style={{ borderBottom: `1px solid ${c?.border || BORDER}` }}>
+              {!showCountySearch && (
+                <div style={{ padding: '10px 16px', background: fieldBg, fontSize: 12, lineHeight: 1.6, color: c?.textMuted || SLATE }}>
+                  Contact the clerk to check record availability for this date range.
+                </div>
+              )}
+              {showCountySearch && (
+                <div>
+                  <div style={{
+                    padding: '10px 16px',
+                    background: isDark ? 'rgba(22,163,74,0.1)' : '#f0fdf4',
+                    fontSize: 12, lineHeight: 1.6,
+                    color: isDark ? '#86efac' : '#166534',
+                    borderBottom: `1px solid ${c?.border || BORDER}`,
+                  }}>
+                    <span style={{ fontWeight: 600 }}>{node.gapCounty} County records are searchable online.</span>
+                    {' '}Search below — this document may be findable.
+                  </div>
+                  <div style={{ padding: '12px 16px' }}>
+                    <CountyRecordsSection
+                      section={node.gapSection!}
+                      township={node.gapTownship!}
+                      range={node.gapRange!}
+                      county={node.gapCounty!}
+                      initialFilterMode="title"
+                      onDocumentRetrieved={handleDocRetrieved}
+                      isDark={isDark}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

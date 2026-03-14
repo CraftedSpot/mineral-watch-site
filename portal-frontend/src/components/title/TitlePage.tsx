@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchChainProperties, fetchTitleChain } from '../../api/title-chain';
+import { fetchChainProperties, fetchTitleChain, getPrefetchedProperties, clearPrefetchedProperties } from '../../api/title-chain';
 import { ORANGE, TITLE_CHAIN_ALLOWED_ORGS } from '../../lib/constants';
 import { getTitleColors } from '../../lib/title-colors';
 import type { ViewMode } from '../../lib/layout-engine';
@@ -17,6 +17,27 @@ let _cachedProperties: ChainProperty[] | null = null;
 let _cachedSelectedId: string | null = null;
 let _cachedChainData: Record<string, TitleChainResponse> = {};
 
+// SessionStorage persistence — survives page refresh
+const SS_PROPS_KEY = 'mmw_titleProps';
+const SS_SELECTED_KEY = 'mmw_titleSelected';
+
+function loadFromSession(): { properties: ChainProperty[]; selectedId: string | null } | null {
+  try {
+    const raw = sessionStorage.getItem(SS_PROPS_KEY);
+    if (!raw) return null;
+    const properties = JSON.parse(raw) as ChainProperty[];
+    const selectedId = sessionStorage.getItem(SS_SELECTED_KEY) || null;
+    return { properties, selectedId };
+  } catch { return null; }
+}
+
+function saveToSession(properties: ChainProperty[], selectedId: string | null) {
+  try {
+    sessionStorage.setItem(SS_PROPS_KEY, JSON.stringify(properties));
+    if (selectedId) sessionStorage.setItem(SS_SELECTED_KEY, selectedId);
+  } catch {}
+}
+
 export function TitlePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +48,13 @@ export function TitlePage() {
       navigate('/portal', { replace: true });
     }
   }, [user, navigate]);
-  const [properties, setProperties] = useState<ChainProperty[]>(_cachedProperties || []);
+  // Initialize from: module cache → sessionStorage → empty
+  const [properties, setProperties] = useState<ChainProperty[]>(() => {
+    if (_cachedProperties) return _cachedProperties;
+    const ss = loadFromSession();
+    if (ss) { _cachedProperties = ss.properties; _cachedSelectedId = ss.selectedId; return ss.properties; }
+    return [];
+  });
   const [propsLoading, setPropsLoading] = useState(!_cachedProperties);
   const [selectedId, setSelectedId] = useState<string | null>(_cachedSelectedId);
   const [chainData, setChainData] = useState<TitleChainResponse | null>(
@@ -38,7 +65,7 @@ export function TitlePage() {
   const [viewMode, setViewMode] = useState<ViewMode>(
     () => (localStorage.getItem('mmw_titleChainViewMode') as ViewMode) || 'simple',
   );
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mmw_titleDarkMode') === '1');
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mmw_titleDarkMode') !== '0');
   const [chainToast, setChainToast] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const colors = useMemo(() => getTitleColors(darkMode), [darkMode]);
@@ -46,29 +73,38 @@ export function TitlePage() {
   useEffect(() => { localStorage.setItem('mmw_titleChainViewMode', viewMode); }, [viewMode]);
   useEffect(() => { localStorage.setItem('mmw_titleDarkMode', darkMode ? '1' : '0'); }, [darkMode]);
 
-  // Load properties on mount (use cache if available, refresh in background)
+  // Load properties on mount (use prefetch → cache → fetch)
   useEffect(() => {
+    const applyProperties = (res: { properties: ChainProperty[] }) => {
+      _cachedProperties = res.properties;
+      setProperties(res.properties);
+      if (res.properties.length > 0 && !_cachedSelectedId) {
+        const firstId = res.properties[0].airtableRecordId;
+        _cachedSelectedId = firstId;
+        setSelectedId(firstId);
+      }
+      saveToSession(res.properties, _cachedSelectedId);
+    };
+
     if (_cachedProperties && _cachedProperties.length > 0) {
-      // Already have cached data — just background refresh
+      // Already have module cache — just background refresh
       fetchChainProperties()
-        .then((res) => {
-          _cachedProperties = res.properties;
-          setProperties(res.properties);
-        })
-        .catch(() => {}); // silent — cached data still showing
+        .then((res) => applyProperties(res))
+        .catch(() => {}); // silent
     } else {
-      fetchChainProperties()
-        .then((res) => {
-          _cachedProperties = res.properties;
-          setProperties(res.properties);
-          if (res.properties.length > 0 && !_cachedSelectedId) {
-            const firstId = res.properties[0].airtableRecordId;
-            _cachedSelectedId = firstId;
-            setSelectedId(firstId);
-          }
-        })
-        .catch((err) => setError(err.message))
-        .finally(() => setPropsLoading(false));
+      // Check if prefetch (from nav hover) already has data
+      const prefetched = getPrefetchedProperties();
+      if (prefetched) {
+        applyProperties(prefetched);
+        clearPrefetchedProperties();
+        setPropsLoading(false);
+      } else {
+        // Cold load
+        fetchChainProperties()
+          .then((res) => applyProperties(res))
+          .catch((err) => setError(err.message))
+          .finally(() => setPropsLoading(false));
+      }
     }
   }, []);
 
@@ -76,6 +112,7 @@ export function TitlePage() {
   useEffect(() => {
     if (!selectedId) return;
     _cachedSelectedId = selectedId;
+    try { sessionStorage.setItem(SS_SELECTED_KEY, selectedId); } catch {}
     const cached = _cachedChainData[selectedId];
     if (cached) {
       setChainData(cached);
@@ -192,8 +229,8 @@ export function TitlePage() {
         </div>
       )}
 
-      {/* Loading state — only show spinner if no tree yet (initial load) */}
-      {chainLoading && !chainData?.tree && (
+      {/* Loading state — show spinner for properties or chain */}
+      {(propsLoading || (chainLoading && !chainData?.tree)) && (
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           padding: '60px 24px', color: colors.textMuted,
@@ -202,7 +239,9 @@ export function TitlePage() {
             width: 32, height: 32, border: `3px solid ${colors.border}`, borderTopColor: '#C05621',
             borderRadius: '50%', animation: 'spin 0.8s linear infinite',
           }} />
-          <span style={{ marginLeft: 12, fontSize: 14 }}>Loading chain of title...</span>
+          <span style={{ marginLeft: 12, fontSize: 14 }}>
+            {propsLoading ? 'Loading properties...' : 'Loading chain of title...'}
+          </span>
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}

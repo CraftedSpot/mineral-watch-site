@@ -43,7 +43,7 @@ export const JOA_DOC_TYPES = ['joa', 'joint_operating_agreement'];
 
 export const TITLE_OPINION_DOC_TYPES = ['title_opinion'];
 
-export const HEIRSHIP_DOC_TYPES = ['affidavit_of_heirship'];
+export const HEIRSHIP_DOC_TYPES = ['affidavit_of_heirship', 'death_certificate', 'probate'];
 
 export const LEASE_PRODUCTION_DOC_TYPES = ['lease_production', 'production_record', 'production_summary'];
 
@@ -3926,7 +3926,7 @@ DOCUMENT TYPES (pick exactly one for doc_type):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer
 - title_opinion, joa
-- affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, ownership_entity
+- affidavit_of_heirship, death_certificate, probate, divorce_decree, estate_tax_release, trust_funding, limited_partnership, ownership_entity
 - correspondence, rental_deposit_receipt, tax_record, map, occ_order
 - other (only if none of the above fit)
 
@@ -3937,6 +3937,9 @@ CRITICAL RULES:
 - Document type titles in the text ALWAYS outrank formatting patterns (Dear..., Sincerely, letterhead).
 - Only classify as "correspondence" if the document is PURELY a letter with no embedded legal instrument.
 - IRS/tax forms (W-9, W-8, 1099, 1042-S, K-1, 1098) are tax_record — NOT check_stub or correspondence.
+- Oklahoma Tax Commission estate/inheritance tax releases (OTC Form 466, "Estate Tax Release") are estate_tax_release — NOT tax_record.
+- Probate documents (letters testamentary, orders admitting will, final decrees of distribution) are probate.
+- Divorce decrees that divide or assign mineral interests are divorce_decree — NOT correspondence or other.
 - If the document contains MULTIPLE separate instruments, set is_multi_document to true.
 - EXCEPTION: A title opinion that contains a "Chain of Instruments" or "Schedule of Instruments"
   listing deeds/leases/assignments the attorney examined is ONE document (the title opinion),

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { OIL_NAVY } from '../../lib/constants';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { prefetchTitleProperties } from '../../api/title-chain';
 import type { AuthUser } from '../../hooks/useAuth';
 
 interface NavHeaderProps {
@@ -56,11 +57,17 @@ export function NavHeader({ user }: NavHeaderProps) {
     textDecoration: 'none',
   });
 
+  const handlePrefetch = useCallback((href: string) => {
+    if (href === '/portal/title') prefetchTitleProperties();
+  }, []);
+
   const renderNavLink = (item: typeof NAV_ITEMS[0]) => {
     if (item.react) {
       return (
         <Link key={item.href} to={item.href}
           onClick={() => setMenuOpen(false)}
+          onMouseEnter={() => handlePrefetch(item.href)}
+          onFocus={() => handlePrefetch(item.href)}
           style={{
             ...navLinkStyle(item.href),
             ...(isMobile ? {
