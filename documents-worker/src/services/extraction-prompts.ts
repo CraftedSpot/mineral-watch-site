@@ -47,6 +47,17 @@ export const HEIRSHIP_DOC_TYPES = ['affidavit_of_heirship', 'death_certificate',
 
 export const LEASE_PRODUCTION_DOC_TYPES = ['lease_production', 'production_record', 'production_summary'];
 
+// Chain-of-title doc types — single source of truth.
+// Documents with these types get chain_of_title = 1 and appear on the title page.
+export const CHAIN_OF_TITLE_TYPES = new Set([
+  'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
+  'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
+  'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
+  'memorandum_of_lease', 'lease_amendment', 'death_certificate',
+  'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
+  'divorce_decree', 'estate_tax_release', 'tax_release',
+]);
+
 // =============================================================================
 // Primary router — routes by classified doc_type (from Pass 1 classification)
 // =============================================================================

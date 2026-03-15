@@ -227,6 +227,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
   // Glow filter opacity — bump in dark mode for visibility
   const glowOpacity = darkMode ? '0.4' : '0.25';
 
+
   return (
     <div style={{ padding: isFullscreen ? '0' : isMobile ? '0 8px 8px' : '0 24px 24px', overflow: 'hidden' }}>
       <div
@@ -423,6 +424,121 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                 <span style={{ marginLeft: 10, fontSize: 13, color: c?.textMuted || SLATE }}>Loading...</span>
               </div>
             )}
+
+            {/* Orphan documents — bottom overlay, doesn't steal canvas height */}
+            {!isFullscreen && orphanNodes.length > 0 && (
+              <div
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 15,
+                  borderTop: `1px solid ${c?.border || BORDER}`,
+                  background: c?.surface || '#fff',
+                  borderRadius: isFullscreen ? 0 : '0 0 12px 12px',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <button
+                    onClick={() => setOrphansExpanded(v => !v)}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: isMobile ? '10px 14px' : '7px 16px', background: 'none', border: 'none',
+                      cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 20, height: 20, borderRadius: 5,
+                        background: 'rgba(245,158,11,0.12)', display: 'flex',
+                        alignItems: 'center', justifyContent: 'center', fontSize: 11,
+                      }}>{'\u26A0'}</div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>
+                        {orphanNodes.length} Orphan Document{orphanNodes.length !== 1 ? 's' : ''}
+                      </span>
+                      <span style={{ fontSize: 11, color: c?.textMuted || SLATE }}>
+                        — not linked into chain
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 14, color: c?.textMuted || SLATE, transition: 'transform 0.2s',
+                      transform: orphansExpanded ? 'rotate(0deg)' : 'rotate(180deg)' }}>
+                      {'\u25BE'}
+                    </span>
+                  </button>
+                  {propertyId && (
+                    <button
+                      disabled={dedupRunning}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!propertyId || dedupRunning) return;
+                        setDedupRunning(true);
+                        setDedupResult(null);
+                        dedupScan(propertyId)
+                          .then((res) => {
+                            if (res.totalFlagged > 0) {
+                              const confirmed = (res.tier1aDuplicates || 0) + (res.tier1bDuplicates || 0);
+                              const review = res.tier2Duplicates || 0;
+                              const parts: string[] = [];
+                              if (confirmed > 0) parts.push(`${confirmed} confirmed`);
+                              if (review > 0) parts.push(`${review} needs review`);
+                              setDedupResult(`Flagged ${res.totalFlagged} duplicate${res.totalFlagged !== 1 ? 's' : ''} (${parts.join(', ')})`);
+                              onRefresh?.();
+                            } else {
+                              setDedupResult('No duplicates found');
+                            }
+                            setTimeout(() => setDedupResult(null), 5000);
+                          })
+                          .catch(() => setDedupResult('Scan failed'))
+                          .finally(() => setDedupRunning(false));
+                      }}
+                      style={{
+                        marginRight: 12, padding: '4px 10px', fontSize: 10, fontWeight: 600,
+                        border: `1px solid ${c?.border || BORDER}`, borderRadius: 5,
+                        background: c?.surface || '#fff', color: c?.textMuted || SLATE,
+                        cursor: dedupRunning ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif",
+                        display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+                        opacity: dedupRunning ? 0.6 : 1,
+                      }}
+                      title="Scan for and flag duplicate documents based on book/page and instrument number"
+                    >
+                      {dedupRunning ? <><Spinner size={10} /> Scanning...</> : 'Scan Duplicates'}
+                    </button>
+                  )}
+                </div>
+                {dedupResult && (
+                  <div style={{
+                    padding: '4px 16px 8px', fontSize: 11, fontWeight: 600,
+                    color: dedupResult.includes('Flagged') ? '#059669' : (c?.textMuted || SLATE),
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}>
+                    {dedupResult}
+                  </div>
+                )}
+                {orphansExpanded && (
+                  <div data-scroll-passthrough style={{
+                    padding: isMobile ? '0 14px 10px' : '0 16px 10px',
+                    display: 'grid', gap: 8,
+                    gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
+                    maxHeight: 220, overflowY: 'auto',
+                  }}>
+                    {orphanNodes.map(node => (
+                      <OrphanCard
+                        key={node.id}
+                        node={node}
+                        isSelected={selectedNodeId === node.id}
+                        isMobile={isMobile}
+                        colors={c}
+                        onClick={handleNodeClick}
+                        onMarkRoot={propertyId ? (docId) => {
+                          markAsRoot(propertyId, docId)
+                            .then(() => onRefresh?.())
+                            .catch(() => {});
+                        } : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -441,114 +557,6 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
         )}
       </div>
 
-      {/* Orphan documents section */}
-      {orphanNodes.length > 0 && (
-        <div style={{
-          marginTop: 12, borderRadius: 10,
-          border: `1px solid ${c?.border || BORDER}`,
-          background: c?.surface || '#fff', overflow: 'hidden',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <button
-              onClick={() => setOrphansExpanded(v => !v)}
-              style={{
-                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: isMobile ? '12px 14px' : '10px 16px', background: 'none', border: 'none',
-                cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{
-                  width: 20, height: 20, borderRadius: 5,
-                  background: 'rgba(245,158,11,0.12)', display: 'flex',
-                  alignItems: 'center', justifyContent: 'center', fontSize: 11,
-                }}>{'\u26A0'}</div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: c?.text || DARK }}>
-                  {orphanNodes.length} Orphan Document{orphanNodes.length !== 1 ? 's' : ''}
-                </span>
-                <span style={{ fontSize: 11, color: c?.textMuted || SLATE }}>
-                  — not linked into chain
-                </span>
-              </div>
-              <span style={{ fontSize: 14, color: c?.textMuted || SLATE, transition: 'transform 0.2s',
-                transform: orphansExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                {'\u25BE'}
-              </span>
-            </button>
-            {propertyId && (
-              <button
-                disabled={dedupRunning}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!propertyId || dedupRunning) return;
-                  setDedupRunning(true);
-                  setDedupResult(null);
-                  dedupScan(propertyId)
-                    .then((res) => {
-                      if (res.totalFlagged > 0) {
-                        const confirmed = (res.tier1aDuplicates || 0) + (res.tier1bDuplicates || 0);
-                        const review = res.tier2Duplicates || 0;
-                        const parts: string[] = [];
-                        if (confirmed > 0) parts.push(`${confirmed} confirmed`);
-                        if (review > 0) parts.push(`${review} needs review`);
-                        setDedupResult(`Flagged ${res.totalFlagged} duplicate${res.totalFlagged !== 1 ? 's' : ''} (${parts.join(', ')})`);
-                        onRefresh?.();
-                      } else {
-                        setDedupResult('No duplicates found');
-                      }
-                      setTimeout(() => setDedupResult(null), 5000);
-                    })
-                    .catch(() => setDedupResult('Scan failed'))
-                    .finally(() => setDedupRunning(false));
-                }}
-                style={{
-                  marginRight: 12, padding: '4px 10px', fontSize: 10, fontWeight: 600,
-                  border: `1px solid ${c?.border || BORDER}`, borderRadius: 5,
-                  background: c?.surface || '#fff', color: c?.textMuted || SLATE,
-                  cursor: dedupRunning ? 'default' : 'pointer', fontFamily: "'DM Sans', sans-serif",
-                  display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
-                  opacity: dedupRunning ? 0.6 : 1,
-                }}
-                title="Scan for and flag duplicate documents based on book/page and instrument number"
-              >
-                {dedupRunning ? <><Spinner size={10} /> Scanning...</> : 'Scan Duplicates'}
-              </button>
-            )}
-          </div>
-          {dedupResult && (
-            <div style={{
-              padding: '4px 16px 8px', fontSize: 11, fontWeight: 600,
-              color: dedupResult.includes('Flagged') ? '#059669' : (c?.textMuted || SLATE),
-              fontFamily: "'DM Sans', sans-serif",
-            }}>
-              {dedupResult}
-            </div>
-          )}
-          {orphansExpanded && (
-            <div style={{
-              padding: isMobile ? '0 14px 14px' : '0 16px 14px',
-              display: 'grid', gap: 8,
-              gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))',
-            }}>
-              {orphanNodes.map(node => (
-                <OrphanCard
-                  key={node.id}
-                  node={node}
-                  isSelected={selectedNodeId === node.id}
-                  isMobile={isMobile}
-                  colors={c}
-                  onClick={handleNodeClick}
-                  onMarkRoot={propertyId ? (docId) => {
-                    markAsRoot(propertyId, docId)
-                      .then(() => onRefresh?.())
-                      .catch(() => {});
-                  } : undefined}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Mobile bottom sheet */}
       {isMobile && (

@@ -11,18 +11,11 @@
 
 import { PDFDocument } from 'pdf-lib';
 import { UsageTrackingService } from './usage-tracking';
-import { getExtractionPrompt, getExtractionPromptByInstrumentType, preparePrompt, CLASSIFICATION_PROMPT } from './extraction-prompts';
+import { getExtractionPrompt, getExtractionPromptByInstrumentType, preparePrompt, CLASSIFICATION_PROMPT, CHAIN_OF_TITLE_TYPES } from './extraction-prompts';
 import { persistParties, extractSummary } from './party-extraction';
 import { linkDocumentToEntities } from '../link-documents';
 
-const CHAIN_OF_TITLE_TYPES = new Set([
-  'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
-  'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
-  'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
-  'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-  'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
-  'divorce_decree', 'estate_tax_release', 'tax_release'
-]);
+// CHAIN_OF_TITLE_TYPES imported from extraction-prompts.ts
 
 interface Env {
   WELLS_DB: D1Database;

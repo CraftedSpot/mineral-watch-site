@@ -2,7 +2,7 @@ import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
 import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
-import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
+import { getExtractionPrompt, preparePrompt, CHAIN_OF_TITLE_TYPES } from './services/extraction-prompts';
 import { persistParties, extractSummary, normalizePartyName, extractDocumentDate } from './services/party-extraction';
 import { buildChainEdges } from './services/chain-edge-builder';
 import { resolveCounty, normalizeRange } from './normalize-fields';
@@ -176,7 +176,7 @@ async function detectDuplicate(db: D1Database, docId: string): Promise<{ matched
   // Get current document's info
   const doc = await db.prepare(`
     SELECT id, user_id, organization_id, doc_type, county, section, township, range,
-           confidence, upload_date, extracted_data, chain_of_title, duplicate_status
+           confidence, upload_date, extracted_data, chain_of_title, duplicate_status, property_id
     FROM documents WHERE id = ? AND deleted_at IS NULL
   `).bind(docId).first<any>();
 
@@ -274,9 +274,29 @@ async function detectDuplicate(db: D1Database, docId: string): Promise<{ matched
     }
   }
 
-  // === Tier 2: Party + Date + TRS fallback ===
+  // === Tier 2: Party + Date + TRS (with property fallback) ===
   const executionDate = extractedData.execution_date;
-  if (doc.doc_type && doc.county && executionDate && doc.section && doc.township && doc.range) {
+  let t2Section = doc.section;
+  let t2Township = doc.township;
+  let t2Range = doc.range;
+
+  // Fallback to linked property's TRS when document TRS is null
+  if ((!t2Section || !t2Township || !t2Range) && doc.property_id) {
+    // property_id can be comma-separated — use first
+    const firstPropId = String(doc.property_id).split(',')[0].trim();
+    if (firstPropId) {
+      const propTrs = await db.prepare(`
+        SELECT section, township, range FROM properties WHERE id = ? LIMIT 1
+      `).bind(firstPropId).first<any>();
+      if (propTrs) {
+        t2Section = t2Section || propTrs.section;
+        t2Township = t2Township || propTrs.township;
+        t2Range = t2Range || propTrs.range;
+      }
+    }
+  }
+
+  if (doc.doc_type && doc.county && executionDate && t2Section && t2Township && t2Range) {
     // Find candidate docs with same type, county, execution_date, and TRS
     const candidates = await db.prepare(`
       SELECT d.id, d.confidence, d.upload_date, d.extracted_data
@@ -294,7 +314,7 @@ async function detectDuplicate(db: D1Database, docId: string): Promise<{ matched
         AND (d.duplicate_status IS NULL OR d.duplicate_status = 'dismissed')
         AND json_extract(d.extracted_data, '$.execution_date') = ?
       LIMIT 10
-    `).bind(docId, ...ownerParams, doc.doc_type, doc.county, doc.section, doc.township, doc.range, executionDate).all<any>();
+    `).bind(docId, ...ownerParams, doc.doc_type, doc.county, t2Section, t2Township, t2Range, executionDate).all<any>();
 
     if (candidates.results && candidates.results.length > 0) {
       // Get current doc's parties
@@ -782,14 +802,6 @@ async function reextractDocument(env: Env, documentId: string): Promise<{
   extractedData.detailed_analysis = detailedAnalysisMatch ? detailedAnalysisMatch[1].trim().substring(0, 4000) : null;
 
   // 8. Update document with new extraction (including chain_of_title flag)
-  const CHAIN_OF_TITLE_TYPES = new Set([
-    'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
-    'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
-    'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
-    'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-    'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
-    'divorce_decree', 'estate_tax_release'
-  ]);
   const chainOfTitle = docType && CHAIN_OF_TITLE_TYPES.has(docType) ? 1 : 0;
 
   await env.WELLS_DB.prepare(`
@@ -2831,15 +2843,6 @@ export default {
         // Normalize range — strip meridian suffixes and populate meridian column
         const { range: normalizedRange, meridian } = normalizeRange(range, extracted_data);
 
-        // Chain-of-title doc types — earmarked for future chain-of-title feature
-        const CHAIN_OF_TITLE_TYPES = new Set([
-          'title_opinion', 'oil_gas_lease', 'lease', 'mineral_deed', 'royalty_deed',
-          'gift_deed', 'quit_claim_deed', 'assignment', 'assignment_of_lease',
-          'lease_assignment', 'assignment_and_bill_of_sale', 'subordination_agreement',
-          'memorandum_of_lease', 'lease_amendment', 'death_certificate',
-          'affidavit_of_heirship', 'trust_funding', 'probate', 'well_transfer',
-          'divorce_decree', 'estate_tax_release', 'tax_release'
-        ]);
         const chainOfTitle = doc_type && CHAIN_OF_TITLE_TYPES.has(doc_type) ? 1 : 0;
 
         // Update the document with extraction results
