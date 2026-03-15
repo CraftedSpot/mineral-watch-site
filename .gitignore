@@ -57,3 +57,7 @@ pnpm-lock.yaml
 portal-worker/check-*.js
 portal-worker/test-*.js
 portal-worker/fix-*.js
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
