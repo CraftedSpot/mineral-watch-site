@@ -20,6 +20,7 @@ const WellRiskProfileReport = lazy(() => import('./reports/WellRiskProfileReport
 const OperatorEfficiency = lazy(() => import('./operators/OperatorEfficiency').then(m => ({ default: m.OperatorEfficiency })));
 const OperatorDirectory = lazy(() => import('./operators/OperatorDirectory').then(m => ({ default: m.OperatorDirectory })));
 const ClerkDirectory = lazy(() => import('./clerks/ClerkDirectory').then(m => ({ default: m.ClerkDirectory })));
+const WellForecastReport = lazy(() => import('./reports/WellForecastReport').then(m => ({ default: m.WellForecastReport })));
 
 const REPORT_TITLES: Record<ReportType, string> = {
   'deduction': 'Residue Gas Deduction Audit',
@@ -31,6 +32,7 @@ const REPORT_TITLES: Record<ReportType, string> = {
   'operator-efficiency': 'Operator Efficiency Index',
   'operator-directory': 'Operator Directory',
   'clerk-directory': 'County Clerk Directory',
+  'well-forecast': 'Well Performance Forecast',
 };
 
 const PRINT_URLS: Partial<Record<ReportType, string>> = {
@@ -142,6 +144,7 @@ export function IntelligencePage() {
               {activeReport === 'operator-efficiency' && <OperatorEfficiency />}
               {activeReport === 'operator-directory' && <OperatorDirectory />}
               {activeReport === 'clerk-directory' && <ClerkDirectory />}
+              {activeReport === 'well-forecast' && <WellForecastReport tier={tier} />}
             </Suspense>
           </ReportErrorBoundary>
         </div>

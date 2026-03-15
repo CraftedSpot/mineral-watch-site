@@ -51,7 +51,7 @@ const SECTION_FIELDS: Record<string, string[]> = {
     'net_mineral_acres', 'minerals_covered', 'mineral_types_conveyed', 'royalty',
   ],
   'Recording & Execution': [
-    'recording', 'recording_book', 'recording_page', 'document_number',
+    'recording', 'recording_info', 'recording_book', 'recording_page', 'document_number',
     'recording_date', 'recording_county', 'instrument_number',
     'execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state',
     'deed_type', 'notary_expiration', 'commission_expiration',
@@ -333,7 +333,7 @@ const SKIP_IN_OTHER = new Set([
   '_schema_validation', '_review_flags', '_validation_issues', '_flag_details',
   'start_page', 'end_page', 'page_count', 'page_number', 'split_metadata',
   'adopted_stepchildren', 'grandchildren_of_predeceased',
-  'recording_info', 'notary', 'property_acquisition', 'will_and_probate',
+  'notary', 'property_acquisition', 'will_and_probate',
   'unpaid_debts', 'inheritance_tax_status',
 ]);
 

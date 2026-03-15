@@ -1590,6 +1590,33 @@ export async function handleDedupScan(propertyId: string, request: Request, env:
       }
     }
 
+    // Tier 3: Same doc_type + same grantor set + same grantee set (ignores date/recording metadata)
+    // Catches duplicates where extraction got dates or recording info wrong
+    const tier3Groups = new Map<string, DedupDoc[]>();
+    for (const doc of docs) {
+      if (alreadyFlagged.has(doc.id)) continue;
+      if (!doc.docType) continue;
+      const fromSet = docFromParties.get(doc.id);
+      const toSet = docToParties.get(doc.id);
+      if (!fromSet?.size || !toSet?.size) continue;
+      // Key: doc_type + sorted grantors + sorted grantees
+      const fromKey = [...fromSet].sort().join('|');
+      const toKey = [...toSet].sort().join('|');
+      const key = `${doc.docType}::${fromKey}::${toKey}`;
+      if (!tier3Groups.has(key)) tier3Groups.set(key, []);
+      tier3Groups.get(key)!.push(doc);
+    }
+    for (const [, group] of tier3Groups) {
+      if (group.length < 2) continue;
+      const keeper = selectKeeper(group);
+      for (const doc of group) {
+        if (doc.id !== keeper.id && !alreadyFlagged.has(doc.id)) {
+          flagged.push({ candidateId: doc.id, keeperId: keeper.id, matchType: 'party_set' });
+          alreadyFlagged.add(doc.id);
+        }
+      }
+    }
+
     // Write flags in batches
     const now = new Date().toISOString();
     const BATCH_SIZE = 100;
@@ -1609,6 +1636,7 @@ export async function handleDedupScan(propertyId: string, request: Request, env:
     const tier1aCount = flagged.filter(f => f.matchType === 'instrument_number').length;
     const tier1bCount = flagged.filter(f => f.matchType === 'book_page').length;
     const tier2Count = flagged.filter(f => f.matchType === 'party_date').length;
+    const tier3Count = flagged.filter(f => f.matchType === 'party_set').length;
 
     return jsonResponse({
       success: true,
@@ -1616,6 +1644,7 @@ export async function handleDedupScan(propertyId: string, request: Request, env:
       tier1aDuplicates: tier1aCount,
       tier1bDuplicates: tier1bCount,
       tier2Duplicates: tier2Count,
+      tier3Duplicates: tier3Count,
       totalFlagged: flagged.length,
     });
   } catch (error) {

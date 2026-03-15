@@ -696,12 +696,19 @@ MINERAL DEED EXAMPLE:
     "recording_date": "1975-01-28",
     "book": "242",
     "page": "232",
+    "instrument_number": null,
     "county": "Blaine",
     "state": "OK"
   },
 
   "consideration": "No Monetary Consideration"
 }
+
+RECORDING FIELDS - CRITICAL:
+- book and page are ALWAYS separate fields — NEVER combine them into instrument_number
+- instrument_number is the county clerk filing number (e.g. "2016-12345"), NOT a book/page reference
+- If the document shows "Book 337, Page 109", extract as: "book": "337", "page": "109"
+- If you cannot distinguish book from page, set BOTH to null rather than guessing
 
 PARTY FIELDS (include only when document states them):
 - name: REQUIRED - exactly as written on document

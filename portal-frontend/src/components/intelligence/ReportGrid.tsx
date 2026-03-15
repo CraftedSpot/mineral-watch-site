@@ -68,6 +68,15 @@ const REPORT_CARDS: CardDef[] = [
     iconStroke: '#d97706',
     icon: <path d="M12 9v2m0 4h.01M5.07 19h13.86c1.63 0 2.44-1.97 1.29-3.14L13.29 3.86c-.56-.56-1.47-.56-2.03 0L4.34 15.86C3.19 17.03 4 19 5.63 19z" />,
   },
+  {
+    type: 'well-forecast',
+    title: 'Well Performance Forecast',
+    description: 'Predict lifetime production and revenue using comparable well decline curves',
+    requiredTier: 'portfolio',
+    iconBg: '#f0fdf4',
+    iconStroke: '#0f766e',
+    icon: <><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></>,
+  },
 ];
 
 const RESEARCH_CARDS: CardDef[] = [

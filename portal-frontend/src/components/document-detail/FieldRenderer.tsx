@@ -58,14 +58,17 @@ import {
   ProvisionsRenderer,
 } from './renderers/leases';
 
+import type { PartyCorrection } from './renderers/parties';
+
 interface Props {
   fieldName: string;
   value: unknown;
   docType?: string;
+  partyCorrections?: Map<string, PartyCorrection>;
 }
 
 // Map field names to specialized renderers
-type RendererFn = React.ComponentType<{ value: unknown; docType?: string; fieldName?: string }>;
+type RendererFn = React.ComponentType<{ value: unknown; docType?: string; fieldName?: string; partyCorrections?: Map<string, PartyCorrection> }>;
 
 const RENDERER_MAP: Record<string, RendererFn> = {
   // Parties
@@ -160,11 +163,11 @@ function getRenderer(fieldName: string, value: unknown, docType?: string): Rende
   return null;
 }
 
-export function FieldRenderer({ fieldName, value, docType }: Props) {
+export function FieldRenderer({ fieldName, value, docType, partyCorrections }: Props) {
   const Renderer = getRenderer(fieldName, value, docType);
 
   if (Renderer) {
-    return <Renderer value={value} docType={docType} fieldName={fieldName} />;
+    return <Renderer value={value} docType={docType} fieldName={fieldName} partyCorrections={partyCorrections} />;
   }
 
   return <GenericField fieldName={fieldName} value={value} />;

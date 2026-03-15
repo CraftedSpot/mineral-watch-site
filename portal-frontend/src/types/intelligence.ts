@@ -41,7 +41,8 @@ export type ReportType =
   | 'well-risk'
   | 'operator-efficiency'
   | 'operator-directory'
-  | 'clerk-directory';
+  | 'clerk-directory'
+  | 'well-forecast';
 
 // ── Deduction Report ──
 

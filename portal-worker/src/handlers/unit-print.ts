@@ -12,7 +12,7 @@ import type { Env } from '../types/env.js';
 // Reporting status categories (matches dashboard)
 type ReportingStatus = 'active' | 'recently_idle' | 'extended_idle' | 'no_recent_production';
 
-interface UnitPrintData {
+export interface UnitPrintData {
   pun: string;
   operator: string;
   operatorPhone: string | null;
@@ -61,7 +61,7 @@ interface UnitPrintData {
 /**
  * Fetch all data needed for the unit print report
  */
-async function fetchUnitPrintData(
+export async function fetchUnitPrintData(
   pun: string,
   wellApi: string | null,
   env: Env,
@@ -941,6 +941,8 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       .print-container { box-shadow: none; width: 100%; }
       .header { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
       .well-row.current { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #analysis-panel { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #analysis-stale { display: none !important; }
     }
     @page { size: letter; margin: 0.25in; }
   </style>
@@ -955,6 +957,18 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
         <rect x="6" y="14" width="12" height="8"></rect>
       </svg>
       Print Report
+    </button>
+    <button class="print-btn" id="analyze-btn" onclick="requestAnalysis(false)" style="display:none; background: linear-gradient(135deg, #0f766e, #115e59); color: white;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
+      </svg>
+      Analyze (1 cr)
+    </button>
+    <button class="print-btn" id="enhance-btn" onclick="requestAnalysis(true)" style="display:none; background: linear-gradient(135deg, #7c3aed, #6d28d9); color: white;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/>
+      </svg>
+      Enhanced (2 cr)
     </button>
   </div>
 
@@ -983,6 +997,31 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
         <span class="name">${escapeHtml(data.operator)}</span>
       </div>
       <div class="contact">${data.operatorContact ? escapeHtml(data.operatorContact) + ' • ' : ''}${data.operatorPhone || ''}</div>
+    </div>
+
+    <!-- AI Analysis Panel -->
+    <style>
+      @keyframes analysisSpinner { to { transform: rotate(360deg); } }
+      @keyframes analysisPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+      .analysis-loading { display: flex; align-items: center; gap: 10px; padding: 18px 20px; font-size: 14px; color: #0f766e; animation: analysisPulse 1.5s ease-in-out infinite; }
+      .analysis-spinner { width: 20px; height: 20px; border: 3px solid #d1d5db; border-top-color: #0f766e; border-radius: 50%; animation: analysisSpinner 0.8s linear infinite; flex-shrink: 0; }
+    </style>
+    <div id="analysis-panel" style="display:none; margin: 16px 24px; border: 1px solid #d1d5db; border-radius: 10px; overflow: hidden;">
+      <div onclick="toggleAnalysis()" style="background: linear-gradient(135deg, #0f766e, #115e59); color: white; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; cursor: pointer;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+          <span style="font-weight: 700; font-size: 13px; letter-spacing: 0.5px;">AI PRODUCTION ANALYSIS</span>
+          <span id="analysis-chevron" style="font-size: 12px; transition: transform 0.2s;">&#x25BC;</span>
+        </div>
+        <span id="analysis-meta" style="font-size: 11px; opacity: 0.8;"></span>
+      </div>
+      <div id="analysis-body">
+        <div id="analysis-content" style="padding: 18px 20px; font-size: 14px; line-height: 1.7; color: #1a2332;"></div>
+        <div id="analysis-stale" style="display:none; padding: 8px 20px 12px; font-size: 12px; color: #92400e; background: #fef3c7;">
+          New production data available since this analysis was generated.
+          <a href="#" onclick="event.stopPropagation(); requestAnalysis(false); return false;" style="color: #d97706; font-weight: 600;">Re-analyze (1 cr)</a>
+        </div>
+      </div>
     </div>
 
     <div class="section">
@@ -1066,6 +1105,101 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       <span>Data sourced from Oklahoma Corporation Commission and Oklahoma Tax Commission</span>
     </div>
   </div>
+
+<script>
+(function() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var PUN = urlParams.get('pun') || '${escapeHtml(data.pun)}';
+  var WELL_API = urlParams.get('wellApi') || '';
+  var actAs = urlParams.get('act_as');
+  function apiUrl(path) { return actAs ? path + (path.includes('?') ? '&' : '?') + 'act_as=' + actAs : path; }
+
+  var analysisCollapsed = false;
+
+  var hasExistingAnalysis = false;
+
+  function showButtons() {
+    var analyzeBtn = document.getElementById('analyze-btn');
+    var enhanceBtn = document.getElementById('enhance-btn');
+    if (hasExistingAnalysis) {
+      analyzeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Re-analyze (1 cr)';
+      enhanceBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg> Re-analyze Enhanced (2 cr)';
+    }
+    analyzeBtn.style.display = '';
+    enhanceBtn.style.display = '';
+  }
+
+  window.toggleAnalysis = function() {
+    var body = document.getElementById('analysis-body');
+    var chevron = document.getElementById('analysis-chevron');
+    analysisCollapsed = !analysisCollapsed;
+    body.style.display = analysisCollapsed ? 'none' : '';
+    chevron.style.transform = analysisCollapsed ? 'rotate(-90deg)' : '';
+  };
+
+  function showLoading() {
+    var panel = document.getElementById('analysis-panel');
+    var content = document.getElementById('analysis-content');
+    content.innerHTML = '<div class="analysis-loading"><div class="analysis-spinner"></div>Generating production analysis...</div>';
+    panel.style.display = '';
+    analysisCollapsed = false;
+    document.getElementById('analysis-body').style.display = '';
+    document.getElementById('analysis-chevron').style.transform = '';
+  }
+
+  function renderAnalysis(analysis, newDataAvailable) {
+    var panel = document.getElementById('analysis-panel');
+    var content = document.getElementById('analysis-content');
+    var meta = document.getElementById('analysis-meta');
+    var stale = document.getElementById('analysis-stale');
+    var html = analysis.analysis_text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+      .replace(/^## (.*)$/gm, '<h4 style="margin:14px 0 6px;color:#0f766e;font-size:15px;">$1</h4>')
+      .replace(/\\n\\n/g, '</p><p>').replace(/\\n/g, '<br>');
+    content.innerHTML = '<p>' + html + '</p>';
+    var modelLabel = analysis.model === 'claude-opus-4-6' ? 'Enhanced (Opus)' : 'Sonnet';
+    var date = new Date(analysis.generated_at).toLocaleDateString();
+    meta.textContent = modelLabel + ' \\u2022 ' + date + ' \\u2022 ' + analysis.credits_charged + ' credit' + (analysis.credits_charged > 1 ? 's' : '');
+    if (newDataAvailable) stale.style.display = '';
+    panel.style.display = '';
+    hasExistingAnalysis = true;
+  }
+
+  async function loadExisting() {
+    try {
+      var resp = await fetch(apiUrl('/api/unit-analysis?pun=' + encodeURIComponent(PUN)), { credentials: 'include' });
+      if (resp.ok) {
+        var d = await resp.json();
+        if (d.analysis) renderAnalysis(d.analysis, d.newDataAvailable);
+      }
+      showButtons();
+    } catch(e) { showButtons(); }
+  }
+
+  window.requestAnalysis = async function(enhanced) {
+    var btn = enhanced ? document.getElementById('enhance-btn') : document.getElementById('analyze-btn');
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<div class="analysis-spinner" style="width:14px;height:14px;border-width:2px;"></div> Analyzing...';
+    showLoading();
+    try {
+      var resp = await fetch(apiUrl('/api/unit-analysis'), {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pun: PUN, wellApi: WELL_API, enhanced: enhanced })
+      });
+      var d = await resp.json();
+      if (!resp.ok) { alert(d.error || 'Analysis failed'); return; }
+      renderAnalysis(d.analysis, false);
+      document.getElementById('analysis-stale').style.display = 'none';
+    } catch(e) { alert('Network error. Please try again.'); }
+    finally { btn.disabled = false; btn.innerHTML = orig; }
+  };
+
+  loadExisting();
+})();
+</script>
 </body>
 </html>`;
 }

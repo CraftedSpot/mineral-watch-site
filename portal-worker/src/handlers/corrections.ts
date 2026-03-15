@@ -208,3 +208,46 @@ export async function handleDeleteCorrection(correctionId: string, request: Requ
   }
 }
 
+/**
+ * GET /api/documents/:id/correction-count
+ * Returns count of corrections on this document + its children.
+ * Used by re-analyze confirmation dialog.
+ */
+export async function handleGetCorrectionCount(docId: string, request: Request, env: Env): Promise<Response> {
+  try {
+    const user = await authenticateRequest(request, env);
+    if (!user) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    // Find children recursively
+    const childResult = await env.WELLS_DB.prepare(`
+      WITH RECURSIVE doc_tree AS (
+        SELECT id FROM documents WHERE parent_document_id = ? AND deleted_at IS NULL
+        UNION ALL
+        SELECT d.id FROM documents d JOIN doc_tree dt ON d.parent_document_id = dt.id WHERE d.deleted_at IS NULL
+      )
+      SELECT id FROM doc_tree
+    `).bind(docId).all();
+    const childDocIds = (childResult.results as any[]).map((r: any) => r.id as string);
+    const allIds = [docId, ...childDocIds];
+    const placeholders = allIds.map(() => '?').join(',');
+
+    const [fieldResult, partyResult] = await Promise.all([
+      env.WELLS_DB.prepare(`SELECT COUNT(*) as cnt FROM document_field_corrections WHERE document_id IN (${placeholders})`).bind(...allIds).first<any>(),
+      env.WELLS_DB.prepare(`SELECT COUNT(*) as cnt FROM user_corrections WHERE document_id IN (${placeholders})`).bind(...allIds).first<any>(),
+    ]);
+
+    const fieldCorrections = fieldResult?.cnt || 0;
+    const partyCorrections = partyResult?.cnt || 0;
+
+    return jsonResponse({
+      fieldCorrections,
+      partyCorrections,
+      childDocIds,
+      hasCorrections: fieldCorrections + partyCorrections > 0,
+    });
+  } catch (error) {
+    console.error('[CorrectionCount] Error:', error);
+    return jsonResponse({ error: 'Failed to get correction count' }, 500);
+  }
+}
+

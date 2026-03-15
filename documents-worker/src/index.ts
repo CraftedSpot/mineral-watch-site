@@ -138,6 +138,20 @@ function postProcessExtractedData(extractedData: any): any {
     }
   }
 
+  // Validate recording info: detect book/page stuffed into instrument_number
+  const ri = extractedData.recording_info || extractedData.recording;
+  if (ri) {
+    const instNum = ri.instrument_number;
+    if (instNum && typeof instNum === 'string' && (!ri.book || !ri.page)) {
+      // Check if instrument_number looks like combined book/page
+      if (/\band\b|,|\s{2,}/.test(instNum) || /^\d+\s+\d+$/.test(instNum)) {
+        console.log(`[Recording Validation] Suspicious instrument_number "${instNum}" with null book/page — clearing`);
+        ri.instrument_number = null;
+        extractedData._recording_warning = `instrument_number "${instNum}" looked like combined book/page — cleared`;
+      }
+    }
+  }
+
   // Handle allocation_factors array (completion reports may have PUN per section)
   // Note: Extraction may use either 'pun' or 'otc_prod_unit_no' field names
   if (Array.isArray(extractedData.allocation_factors)) {
@@ -1027,7 +1041,7 @@ export default {
                  confidence, status, upload_date, page_count, file_size, extracted_data, user_notes,
                  display_name, category, needs_review, field_scores, fields_needing_review, content_type,
                  rotation_applied, enhanced_extraction, parent_document_id,
-                 page_range_start, page_range_end
+                 page_range_start, page_range_end, extraction_completed_at
           FROM documents
           WHERE (${conditions.join(' OR ')})
             AND deleted_at IS NULL
@@ -1292,12 +1306,73 @@ export default {
           );
         }
 
-        // Reset documents to pending
+        // Clean up old data before re-queuing
         const updatePlaceholders = eligibleIds.map(() => '?').join(',');
+
+        // Find all descendant documents (children, grandchildren) recursively
+        const descendantsResult = await env.WELLS_DB.prepare(`
+          WITH RECURSIVE doc_tree AS (
+            SELECT id FROM documents WHERE parent_document_id IN (${updatePlaceholders}) AND deleted_at IS NULL
+            UNION ALL
+            SELECT d.id FROM documents d JOIN doc_tree dt ON d.parent_document_id = dt.id WHERE d.deleted_at IS NULL
+          )
+          SELECT id FROM doc_tree
+        `).bind(...eligibleIds).all();
+        const descendantIds = (descendantsResult.results as any[]).map((r: any) => r.id as string);
+        const allAffectedIds = [...eligibleIds, ...descendantIds];
+        const allPlaceholders = allAffectedIds.map(() => '?').join(',');
+
+        // Collect property_ids for chain invalidation
+        const propResult = await env.WELLS_DB.prepare(`
+          SELECT DISTINCT property_id FROM documents WHERE id IN (${allPlaceholders}) AND property_id IS NOT NULL
+        `).bind(...allAffectedIds).all();
+        const propertyIds = (propResult.results as any[])
+          .map((r: any) => r.property_id as string)
+          .flatMap((pid: string) => pid.split(',').map((p: string) => p.trim()))
+          .filter(Boolean);
+
+        // Delete corrections, parties, and chain edges for all affected docs
+        const cleanupBatchSize = 30;
+        for (let i = 0; i < allAffectedIds.length; i += cleanupBatchSize) {
+          const batch = allAffectedIds.slice(i, i + cleanupBatchSize);
+          const bp = batch.map(() => '?').join(',');
+          await env.WELLS_DB.batch([
+            env.WELLS_DB.prepare(`DELETE FROM user_corrections WHERE document_id IN (${bp})`).bind(...batch),
+            env.WELLS_DB.prepare(`DELETE FROM document_field_corrections WHERE document_id IN (${bp})`).bind(...batch),
+            env.WELLS_DB.prepare(`DELETE FROM document_parties WHERE document_id IN (${bp})`).bind(...batch),
+            env.WELLS_DB.prepare(
+              `DELETE FROM document_chain_edges WHERE (parent_doc_id IN (${bp}) OR child_doc_id IN (${bp})) AND is_manual = 0`
+            ).bind(...batch, ...batch),
+          ]);
+        }
+
+        let childrenDeleted = 0;
+        // Soft-delete descendant documents
+        if (descendantIds.length > 0) {
+          const descPlaceholders = descendantIds.map(() => '?').join(',');
+          const delResult = await env.WELLS_DB.prepare(`
+            UPDATE documents SET deleted_at = datetime('now', '-6 hours')
+            WHERE id IN (${descPlaceholders})
+          `).bind(...descendantIds).run();
+          childrenDeleted = delResult.meta?.changes || descendantIds.length;
+        }
+
+        // Invalidate chain cache for affected properties
+        for (const pid of [...new Set(propertyIds)]) {
+          await env.WELLS_DB.prepare(`DELETE FROM chain_tree_cache WHERE property_id = ?`).bind(pid).run();
+        }
+
+        const correctionsDeleted = allAffectedIds.length > eligibleIds.length
+          ? allAffectedIds.length - eligibleIds.length : 0;
+
+        // Reset documents to pending with reanalyze flag
         await env.WELLS_DB.prepare(`
           UPDATE documents
           SET status = 'pending',
               enhanced_extraction = ?,
+              reanalyze = 1,
+              doc_type = CASE WHEN doc_type = 'multi_document' THEN NULL ELSE doc_type END,
+              category = CASE WHEN category = 'multi_document' THEN NULL ELSE category END,
               processing_attempts = 0,
               extraction_started_at = NULL,
               extraction_completed_at = NULL,
@@ -1307,13 +1382,14 @@ export default {
           WHERE id IN (${updatePlaceholders})
         `).bind(enhanced ? 1 : 0, ...eligibleIds).run();
 
-        console.log(`[Reanalyze] Queued ${eligibleIds.length} documents for re-analysis (enhanced=${enhanced})`);
+        console.log(`[Reanalyze] Queued ${eligibleIds.length} documents for re-analysis (enhanced=${enhanced}), cleaned up ${descendantIds.length} children`);
 
         return jsonResponse({
           success: true,
           queued: eligibleIds.length,
           credits_reserved: creditsNeeded,
-          enhanced: !!enhanced
+          enhanced: !!enhanced,
+          children_deleted: childrenDeleted,
         }, 200, env);
       } catch (error) {
         console.error('Reanalyze error:', error);
@@ -2559,7 +2635,7 @@ export default {
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id,
                  file_size, upload_date, page_count, processing_attempts, user_plan, content_type,
-                 source_metadata, enhanced_extraction, status as queue_status
+                 source_metadata, enhanced_extraction, reanalyze, status as queue_status
           FROM (
             SELECT *,
               ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY upload_date ASC) as user_queue_pos
@@ -2823,8 +2899,13 @@ export default {
           rotation_applied
         } = data;
 
-        // Post-process extracted data (normalize PUNs, etc.)
+        // Post-process extracted data (normalize PUNs, validate recording info, etc.)
         const extracted_data = postProcessExtractedData(raw_extracted_data);
+        // Force needs_review if recording validation flagged an issue
+        if (extracted_data?._recording_warning) {
+          data.needs_review = true;
+          data.fields_needing_review = [...(data.fields_needing_review || []), 'recording_info'];
+        }
 
         // Resolve county from extracted_data + source_metadata fallbacks
         let resolvedCounty = resolveCounty(county, extracted_data);
@@ -2943,7 +3024,8 @@ export default {
                   chain_of_title = ?,
                   summary = ?,
                   document_date = COALESCE(?, document_date),
-                  extraction_completed_at = datetime('now', '-6 hours')
+                  extraction_completed_at = datetime('now', '-6 hours'),
+                  reanalyze = 0
               WHERE id = ?
             `).bind(
               effectiveStatus,
@@ -6498,6 +6580,29 @@ export default {
       } catch (error) {
         console.error('[ChainEdges] Internal build error:', error);
         return errorResponse('Failed to build chain edges', 500, env);
+      }
+    }
+
+    // ─── Dedup Re-run ─────────────────────────────────────────────
+    // Internal endpoint: called by portal-worker after field corrections
+    if (path === '/api/internal/rerun-dedup' && request.method === 'POST') {
+      try {
+        const body = await request.json() as { document_id?: string };
+        if (!body.document_id) {
+          return errorResponse('document_id required', 400, env);
+        }
+        // Clear existing duplicate flags so detectDuplicate can re-evaluate
+        await env.WELLS_DB.prepare(`
+          UPDATE documents SET duplicate_status = NULL, duplicate_of_doc_id = NULL,
+            duplicate_match_type = NULL, duplicate_detected_at = NULL
+          WHERE id = ?
+        `).bind(body.document_id).run();
+        // Re-run detection with corrected extracted_data
+        await detectDuplicate(env.WELLS_DB, body.document_id);
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('[RerunDedup] Error:', error);
+        return errorResponse('Failed to rerun dedup', 500, env);
       }
     }
 

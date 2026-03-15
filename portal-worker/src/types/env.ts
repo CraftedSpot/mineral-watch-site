@@ -41,6 +41,9 @@ export interface Env {
   // OKCountyRecords integration
   OKCR_API_KEY?: string;
   OKCR_API_BASE?: string;
+
+  // Anthropic API (for AI production analysis)
+  ANTHROPIC_API_KEY?: string;
 }
 
 /**

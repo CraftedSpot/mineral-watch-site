@@ -1068,6 +1068,29 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
         return handleAddDocumentParty(request, env);
       }
 
+      // Document field corrections (recording info, dates) — must be before proxy catch-all
+      const fieldCorrMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/field-corrections$/);
+      if (fieldCorrMatch && request.method === "GET") {
+        const { handleGetFieldCorrections } = await import('./handlers/field-corrections.js');
+        return handleGetFieldCorrections(fieldCorrMatch[1], request, env);
+      }
+      if (fieldCorrMatch && request.method === "PUT") {
+        const { handleSaveFieldCorrections } = await import('./handlers/field-corrections.js');
+        return handleSaveFieldCorrections(fieldCorrMatch[1], request, env);
+      }
+      const fieldCorrDeleteMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/field-corrections\/([a-zA-Z0-9_-]+)$/);
+      if (fieldCorrDeleteMatch && request.method === "DELETE") {
+        const { handleDeleteFieldCorrection } = await import('./handlers/field-corrections.js');
+        return handleDeleteFieldCorrection(fieldCorrDeleteMatch[1], fieldCorrDeleteMatch[2], request, env);
+      }
+
+      // Correction count for re-analyze confirmation dialog
+      const corrCountMatch = path.match(/^\/api\/documents\/([a-zA-Z0-9_-]+)\/correction-count$/);
+      if (corrCountMatch && request.method === "GET") {
+        const { handleGetCorrectionCount } = await import('./handlers/corrections.js');
+        return handleGetCorrectionCount(corrCountMatch[1], request, env);
+      }
+
       // Proxy documents endpoints to documents-worker
       if (path.startsWith("/api/documents")) {
         console.log(`[Portal] Proxying documents request: ${path}${url.search}`);
@@ -2087,6 +2110,34 @@ async function routeRequest(request: Request, env: Env, ctx: ExecutionContext): 
       // Unit Print Data API - JSON data for unit print report
       if (path === "/api/unit-print-data" && request.method === "GET") {
         return handleUnitPrintData(request, env);
+      }
+      // Unit AI Analysis
+      if (path === "/api/unit-analysis" && request.method === "GET") {
+        const { handleGetUnitAnalysis } = await import('./handlers/unit-analysis.js');
+        return handleGetUnitAnalysis(request, env);
+      }
+      if (path === "/api/unit-analysis" && request.method === "POST") {
+        const { handleCreateUnitAnalysis } = await import('./handlers/unit-analysis.js');
+        return handleCreateUnitAnalysis(request, env);
+      }
+
+      // Well Forecast — comparable cohort & type curve (accepts ?api= or ?pun=)
+      const forecastCompMatch = path.match(/^\/api\/well-forecast\/comparables$/);
+      if (forecastCompMatch && request.method === "GET") {
+        const params = new URL(request.url).searchParams;
+        const forecastKey = params.get('pun') || params.get('api') || '';
+        const { handleGetComparables } = await import('./handlers/well-forecast.js');
+        return handleGetComparables(forecastKey, request, env);
+      }
+      if (path === "/api/well-forecast" && request.method === "GET") {
+        const params = new URL(request.url).searchParams;
+        const forecastKey = params.get('pun') || params.get('api') || '';
+        const { handleGetForecast } = await import('./handlers/well-forecast.js');
+        return handleGetForecast(forecastKey, request, env);
+      }
+      if (path === "/api/well-forecast" && request.method === "POST") {
+        const { handleCreateForecast } = await import('./handlers/well-forecast.js');
+        return handleCreateForecast(request, env);
       }
 
       // Document Print Report - printable document summary

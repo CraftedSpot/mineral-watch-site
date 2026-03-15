@@ -689,9 +689,22 @@
 
                 updateStatus(`Loaded ${totalPermits} statewide permits, ${totalCompletions} completions (${permitCount} + ${completionCount} yours)`);
 
-                // Update count displays with user's counts only
+                // Update count displays with user's counts only — hide if zero
                 document.getElementById('permitCount').textContent = permitCount;
                 document.getElementById('completionCount').textContent = completionCount;
+                // Hide permit/completion counters and their separators when zero
+                const permitEl = document.getElementById('permitCount');
+                const completionEl = document.getElementById('completionCount');
+                if (permitEl && permitCount === 0) {
+                    permitEl.closest('.count-item').style.display = 'none';
+                    const prevSep = permitEl.closest('.count-item').previousElementSibling;
+                    if (prevSep && prevSep.classList.contains('count-separator')) prevSep.style.display = 'none';
+                }
+                if (completionEl && completionCount === 0) {
+                    completionEl.closest('.count-item').style.display = 'none';
+                    const prevSep = completionEl.closest('.count-item').previousElementSibling;
+                    if (prevSep && prevSep.classList.contains('count-separator')) prevSep.style.display = 'none';
+                }
 
                 // Clear the status after 3 seconds
                 setTimeout(() => updateStatus('Map ready'), 3000);

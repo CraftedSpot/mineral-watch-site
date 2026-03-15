@@ -131,13 +131,22 @@
                     loadActivityData().catch(err => console.error('Failed to load activity data:', err));
 
                     if (propertyId && propertiesResult.status === 'fulfilled') {
-                        const property = userProperties.find(p => p.id === propertyId);
-                        if (property && propertyMarkers[propertyId]) {
-                            const marker = propertyMarkers[propertyId];
-                            map.fitBounds(marker.getBounds(), { maxZoom: 15, padding: [50, 50] });
-                            setTimeout(() => marker.openPopup(), 300);
-                        }
-                        hideLoading();
+                        let retryCount = 0;
+                        const tryZoomToProperty = () => {
+                            const property = userProperties.find(p => p.id === propertyId);
+                            if (property && propertyMarkers[propertyId]) {
+                                const marker = propertyMarkers[propertyId];
+                                map.fitBounds(marker.getBounds(), { maxZoom: 15, padding: [50, 50] });
+                                setTimeout(() => marker.openPopup(), 300);
+                                hideLoading();
+                            } else if (retryCount++ < 15) {
+                                setTimeout(tryZoomToProperty, 200);
+                            } else {
+                                console.warn('Property marker not found after retries:', propertyId);
+                                hideLoading();
+                            }
+                        };
+                        tryZoomToProperty();
                     }
 
                     // Deep-link: center on a specific tracked well

@@ -67,6 +67,61 @@ export async function fetchCorrections(
   return apiFetch(`/api/corrections?document_id=${docId}`);
 }
 
+// --- Field Corrections (recording info, dates) ---
+
+export interface FieldCorrection {
+  id: string;
+  field_path: string;
+  original_value: string | null;
+  corrected_value: string;
+}
+
+export async function fetchFieldCorrections(
+  docId: string
+): Promise<Record<string, FieldCorrection>> {
+  return apiFetch(`/api/documents/${docId}/field-corrections`);
+}
+
+export async function saveFieldCorrections(
+  docId: string,
+  corrections: Array<{ field_path: string; value: string }>
+): Promise<Record<string, FieldCorrection>> {
+  return apiFetch(`/api/documents/${docId}/field-corrections`, {
+    method: 'PUT',
+    body: JSON.stringify({ corrections }),
+  });
+}
+
+export async function deleteFieldCorrection(
+  docId: string,
+  correctionId: string
+): Promise<void> {
+  await apiFetch(`/api/documents/${docId}/field-corrections/${correctionId}`, { method: 'DELETE' });
+}
+
+// --- Re-analyze ---
+
+export async function fetchCorrectionCount(docId: string): Promise<{
+  fieldCorrections: number;
+  partyCorrections: number;
+  childDocIds: string[];
+  hasCorrections: boolean;
+}> {
+  return apiFetch(`/api/documents/${docId}/correction-count`);
+}
+
+export async function reanalyzeDocuments(docIds: string[], enhanced: boolean): Promise<{
+  success: boolean;
+  queued: number;
+  credits_reserved: number;
+  children_deleted: number;
+}> {
+  return apiFetch('/api/documents/reanalyze', {
+    method: 'POST',
+    body: JSON.stringify({ document_ids: docIds, enhanced }),
+  });
+}
+
 // --- Upload ---
 
 export interface UploadResult {

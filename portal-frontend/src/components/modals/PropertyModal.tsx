@@ -204,7 +204,7 @@ export function PropertyModal({ onClose, propertyId }: Props) {
             style={{ ...actionBtnStyle, background: ORANGE, padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
             Revenue
           </button>
-          <a href={`/portal/map?county=${county}&sec=${f.SEC}&twn=${f.TWN}&rng=${f.RNG}`}
+          <a href={`/portal/oklahoma-map?property=${propertyId}&county=${county}&section=${f.SEC}&township=${f.TWN}&range=${f.RNG}`}
             target="_blank" rel="noopener noreferrer"
             style={{ ...actionBtnStyle, background: ORANGE, textDecoration: 'none', padding: isMobile ? '10px 12px' : '12px 16px', fontSize: isMobile ? 12 : 14 }}>
             Map

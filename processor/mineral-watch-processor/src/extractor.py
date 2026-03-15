@@ -2515,6 +2515,53 @@ Valid document types:
 - other
 """
 
+REANALYZE_DETECTION_PROMPT = """You are re-analyzing a PDF that was previously processed incorrectly — documents may have been merged that should be separate.
+
+Your task is to identify EVERY separate legal document in this PDF with high precision.
+
+PRIMARY SPLIT SIGNALS (highest confidence — these ALWAYS indicate a new document start):
+- Document title headers: "MINERAL DEED", "OIL AND GAS LEASE", "QUIT CLAIM DEED", "WARRANTY DEED",
+  "ASSIGNMENT OF LEASE", "ASSIGNMENT", "MEMORANDUM OF LEASE", "AFFIDAVIT OF HEIRSHIP",
+  "DIVISION ORDER", "ROYALTY DEED", "GIFT DEED", "TRUST FUNDING"
+  → Each occurrence of these headers on a page means a NEW document starts on that page,
+    even if the page also contains continuation-like text (e.g., "FORMATION RECORD", "Page 2 of 3").
+- Recording stamps with different book/page numbers
+- Different instrument or document numbers
+
+COMMON UNDER-SPLIT SCENARIOS (this is why we are re-analyzing):
+- A PDF with 6 mineral deeds where each deed has "MINERAL DEED" at the top of its first page,
+  but was previously processed as 1-3 documents instead of 6. Each deed = separate document.
+- Multiple short (1-2 page) deeds or assignments bundled together in a single PDF.
+- A lease followed by its assignment — these are TWO separate documents.
+
+DO NOT SPLIT these internally — each is a SINGLE multi-page document:
+- OCC Form 1000 (Drilling Permits): 12+ pages for ONE permit
+- OCC Form 1002A/1002C (Completion Reports): Multi-page for ONE well
+- OCC Orders (pooling, spacing, increased density): Multi-page for ONE order
+- Title opinions with "Chain of Instruments" schedules: ONE document
+
+DO NOT SPLIT schedules, lists, or tables of instruments within a single document.
+A REFERENCE to an instrument ("Assignment recorded Book 123 Page 456") is NOT the instrument itself.
+
+Return ONLY valid JSON:
+{
+  "is_multi_document": true/false,
+  "document_count": N,
+  "documents": [
+    {"type": "mineral_deed", "start_page": 1, "end_page": 2, "confidence": 0.95},
+    {"type": "mineral_deed", "start_page": 3, "end_page": 4, "confidence": 0.95}
+  ]
+}
+
+Valid document types: mineral_deed, royalty_deed, warranty_deed, gift_deed, quit_claim_deed,
+assignment_of_lease, assignment, lease, drilling_permit, completion_report, well_transfer,
+lease_production, title_opinion, check_stub, joint_interest_billing, drilling_and_spacing_order,
+horizontal_drilling_and_spacing_order, change_of_operator_order, pooling_order, pooling_application,
+increased_density_order, multi_unit_horizontal_order, unitization_order, location_exception_order,
+occ_order, suspense_notice, joa, affidavit_of_heirship, death_certificate, trust_funding,
+limited_partnership, correspondence, tax_record, map, other
+"""
+
 EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights documents.
 Your task is to extract key information from the document. Return raw values directly - do NOT wrap values in confidence objects.
 
@@ -11386,7 +11433,7 @@ Examples of "other" documents (oil and gas docs that don't fit defined categorie
         return {"doc_type": "other", "confidence": "low", "reasoning": f"Classification failed - {type(e).__name__}"}
 
 
-async def detect_documents(image_paths: list[str], model_override: str = None) -> dict:
+async def detect_documents(image_paths: list[str], model_override: str = None, reanalyze: bool = False) -> dict:
     """
     Detect if PDF contains multiple documents and identify boundaries.
     Uses batching for large PDFs.
@@ -11472,7 +11519,7 @@ async def detect_documents(image_paths: list[str], model_override: str = None) -
                 ("I'm showing you a sample of pages. " if len(image_paths) > 20 else "") +
                 (f"Large PDFs ({len(image_paths)} pages) often contain multiple documents bundled together. " if len(image_paths) >= 30 else "") +
                 "Please identify all documents and their page boundaries based on what you can see.\n\n" +
-                DETECTION_PROMPT
+                (REANALYZE_DETECTION_PROMPT if reanalyze else DETECTION_PROMPT)
     })
     
     # Call Claude for detection with retry logic
@@ -12042,7 +12089,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         return {"error": "Failed to parse response", "raw_response": response_text}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None, model_override: str = None, cached_page_texts: list[str] = None) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None, model_override: str = None, cached_page_texts: list[str] = None, reanalyze: bool = False) -> dict:
     """
     Main entry point for document extraction.
     Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
@@ -12126,7 +12173,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 rotated_paths.append(img_path)
 
         logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
-        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path, flexible_pipeline=flexible_pipeline, model_override=model_override)
+        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path, flexible_pipeline=flexible_pipeline, model_override=model_override, reanalyze=reanalyze)
         result["rotation_applied"] = rotation_needed
         return result
 
@@ -12264,8 +12311,11 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # For ALL multi-page documents, use visual document detection
     # This is more reliable than text heuristics, especially for handwritten/scanned docs
     if total_pages > 1:
-        logger.info(f"VISUAL DETECTION: Using detect_documents() for {total_pages} pages to find document boundaries")
-        detection_result = await detect_documents(image_paths, model_override=model_override)
+        if reanalyze:
+            logger.info(f"RE-ANALYSIS VISUAL DETECTION: Using improved prompt for {total_pages} pages — Claude Vision is sole authority")
+        else:
+            logger.info(f"VISUAL DETECTION: Using detect_documents() for {total_pages} pages to find document boundaries")
+        detection_result = await detect_documents(image_paths, model_override=model_override, reanalyze=reanalyze)
         logger.info(f"Visual detection result: {detection_result}")
 
         # Convert detection result to page classifications format
@@ -12277,7 +12327,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             # document boundaries that visual detection missed.
             # This catches "Page 1 of N", NRIS well records, and other structural
             # signals that are invisible in low-res visual scans but clear in text.
-            if page_texts:
+            # SKIP in reanalyze mode — Claude Vision is sole authority for re-analysis.
+            if page_texts and not reanalyze:
                 heuristic_additions = 0
                 for page_idx, page_text in enumerate(page_texts):
                     if not page_text or page_idx == 0:

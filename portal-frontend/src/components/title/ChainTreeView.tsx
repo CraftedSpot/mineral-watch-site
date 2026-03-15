@@ -476,7 +476,7 @@ export function ChainTreeView({ tree, propertyId, isMobile, viewMode = 'detailed
                           .then((res) => {
                             if (res.totalFlagged > 0) {
                               const confirmed = (res.tier1aDuplicates || 0) + (res.tier1bDuplicates || 0);
-                              const review = res.tier2Duplicates || 0;
+                              const review = (res.tier2Duplicates || 0) + (res.tier3Duplicates || 0);
                               const parts: string[] = [];
                               if (confirmed > 0) parts.push(`${confirmed} confirmed`);
                               if (review > 0) parts.push(`${review} needs review`);

@@ -3,7 +3,7 @@ import { useDocuments } from '../../../hooks/useDocuments';
 import { useModal } from '../../../contexts/ModalContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { useConfirm } from '../../../contexts/ConfirmContext';
-import { fetchUsageStats } from '../../../api/documents';
+import { fetchUsageStats, reanalyzeDocuments } from '../../../api/documents';
 import type { UsageResponse } from '../../../api/documents';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 import { DOCUMENT_CATEGORIES, BASE_SORT_OPTIONS, CATEGORY_SORT_OPTIONS } from '../../../lib/document-categories';
@@ -237,7 +237,7 @@ function buildColumns(toggleParent: (id: string) => void, mobile: boolean): Colu
       mobileWidth: '1fr',
       searchable: true,
       sortable: true,
-      getValue: (d) => `${d.display_name || ''} ${d.filename || ''}`,
+      getValue: (d) => `${d.display_name || ''} ${d.filename || ''} ${d.township || ''}-${d.range || ''}-${d.section || ''} ${d.section || ''}-${d.township || ''}-${d.range || ''}`,
       render: (d) => {
         // Group header row
         if ((d as DisplayRow)._isGroupRow) {
@@ -363,11 +363,18 @@ function buildColumns(toggleParent: (id: string) => void, mobile: boolean): Colu
         }
         const { text, color } = getStatusDisplay(d.status);
         const isPulsing = d.status === 'processing' || d.status === 'pending' || d.status === 'pending_prescan';
+        const wasReanalyzed = d.extraction_completed_at && d.upload_date &&
+          new Date(d.extraction_completed_at as string).getTime() - new Date(d.upload_date).getTime() > 3600000;
         return (
-          <Badge bg={color + '20'} color={color} shape="pill"
-            style={isPulsing ? { animation: 'pulse 1.5s ease-in-out infinite' } : undefined}>
-            {text}
-          </Badge>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Badge bg={color + '20'} color={color} shape="pill"
+              style={isPulsing ? { animation: 'pulse 1.5s ease-in-out infinite' } : undefined}>
+              {text}
+            </Badge>
+            {wasReanalyzed && (
+              <Badge bg="#dbeafe" color="#1d4ed8" shape="pill" size="sm">re-analyzed</Badge>
+            )}
+          </div>
         );
       },
     },
@@ -570,6 +577,24 @@ export function DocumentsTab() {
     }
   }, [selected, confirm, toast, reload]);
 
+  const handleBulkReanalyze = useCallback(async () => {
+    const count = selected.size;
+    if (!count) return;
+    const ok = await confirm(
+      `Re-analyze ${count} document${count === 1 ? '' : 's'}? Existing corrections and child documents will be deleted and re-created.`,
+      { icon: 'refresh' }
+    );
+    if (!ok) return;
+    try {
+      const result = await reanalyzeDocuments(Array.from(selected), enhanced);
+      toast.success(`Queued ${result.queued} document${result.queued === 1 ? '' : 's'} for re-analysis (${result.credits_reserved} credit${result.credits_reserved !== 1 ? 's' : ''})`);
+      setSelected(new Set());
+      reload();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to re-analyze');
+    }
+  }, [selected, enhanced, confirm, toast, reload]);
+
   // Only show skeleton on initial load — not on poll reloads (which cause blinking)
   if (loading && documents.length === 0) return <LoadingSkeleton columns={5} />;
 
@@ -631,9 +656,14 @@ export function DocumentsTab() {
         emptyTitle="No documents yet"
         emptyDescription="Upload your first document to start extracting mineral data."
         bulkActions={
-          <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-            Delete Selected
-          </Button>
+          <>
+            <Button variant="secondary" size="sm" onClick={handleBulkReanalyze}>
+              Re-analyze Selected
+            </Button>
+            <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
+              Delete Selected
+            </Button>
+          </>
         }
       />
     </div>

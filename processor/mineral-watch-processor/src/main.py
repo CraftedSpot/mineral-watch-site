@@ -355,9 +355,12 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         # 4. Extract with Claude Vision
         # Check for enhanced extraction (Opus model)
         enhanced = doc.get('enhanced_extraction', 0)
+        reanalyze = doc.get('reanalyze', 0)
         model_override = CONFIG.CLAUDE_ENHANCED_MODEL if enhanced else None
         if model_override:
             logger.info(f"Enhanced extraction enabled — using {model_override}")
+        if reanalyze:
+            logger.info(f"RE-ANALYSIS MODE: Using improved split pipeline for {doc_id}")
 
         # Check for cached OCR text from prescan
         cached_page_texts = None
@@ -371,7 +374,12 @@ async def process_document(client: APIClient, doc: dict) -> dict:
 
         # Pass PDF path for deterministic splitting (only for strict PDFs)
         pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and (not use_flexible or known_doc_type)) else None
-        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type, model_override=model_override, cached_page_texts=cached_page_texts)
+        # Re-analysis mode: always use strict pipeline to get proper splitting
+        if reanalyze and use_flexible:
+            logger.info(f"Re-analysis overrides flexible pipeline — using strict for better splitting")
+            use_flexible = False
+            pdf_path_for_splitting = file_path if content_type == 'application/pdf' else None
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type, model_override=model_override, cached_page_texts=cached_page_texts, reanalyze=bool(reanalyze))
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):
